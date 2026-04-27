@@ -62,7 +62,7 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
     });
 
 	return (
-		<Box flexDirection="column" marginTop={1}>
+		<Box flexDirection="column">
 			<Static items={staticRows}>
 				{(row, index) =>
                     <Box key={row.role === 'banner' ? 'banner' : `h-${index}`}>
