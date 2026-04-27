@@ -3,9 +3,10 @@ import dotenv from 'dotenv';
 import Anthropic from '@anthropic-ai/sdk';
 
 import { MessageParam } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
+import { ParsedMessage } from '@anthropic-ai/sdk/lib/parser.js';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 
-dotenv.config({ path: path.join(process.cwd(), '../.env') });
+dotenv.config({ path: path.join(process.cwd(), '../.env'), quiet: true });
 
 const gw = {
     embeddingModel: process.env['EMBENDING_MODEL_ID'] || 'text-embedding-3-small',
@@ -45,30 +46,19 @@ export class LLMModel {
         });
     }
 
-    async invoke(messages: MessageParam[], onStreamEvent: (text: string) => void): Promise<string> {
-        const stream = await this.client.messages.create({
+    async invoke(messages: MessageParam[], onStreamEvent: (text: string) => void): Promise<ParsedMessage<any>> {
+        const stream = this.client.messages.stream({
             model: gw.model,
             system: this.system,
             messages,
             tools: this.tools,
             max_tokens: gw.maxTokens,
-            temperature: gw.temperature,
-            stream: true,
+            temperature: gw.temperature
+        }).on('text', (text) => {
+            onStreamEvent(text);
         });
 
-        let res = '';
-
-        for await (const event of stream) {
-            // 每次数据更新时，通常只处理文本内容增量（delta）
-            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-                // 实时输出文本，形成打字机效果
-                onStreamEvent(event.delta.text);
-                res += event.delta.text;
-            }
-            // 你也可以处理其他事件类型，例如 message_start, content_block_start 等[reference:3]
-            // console.log("Event type:", event.type);
-        }
-
-        return res;
+        const message = await stream.finalMessage();
+        return message;
     }
 }

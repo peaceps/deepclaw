@@ -31,4 +31,4 @@ const appWrapper: { unmount: () => void } = {unmount: () => {}};
 const {unmount, waitUntilExit} = render(<App app={appWrapper}/>);
 appWrapper.unmount = unmount;
 await waitUntilExit();
-console.log("再见！");
+console.log("\n  再见！");
