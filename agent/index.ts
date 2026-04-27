@@ -1,1 +1,1 @@
-export { LoopAgent } from './loop/loop';
+export { LoopAgent } from './loop/loop.js';

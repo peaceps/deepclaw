@@ -3,10 +3,11 @@ import React from 'react';
 import {useState, useRef, useMemo, useLayoutEffect} from 'react';
 import cliCursor from 'cli-cursor';
 import {useInput, Box, Static} from 'ink';
-import {LoopAgent} from '@agent';
-import {HistoryLine, type HistoryItem} from './history';
-import Input from './input';
-import LlmOutput from './llm-output';
+import {LoopAgent} from '../agent/index.js';
+import {HistoryLine, type HistoryItem} from './history.js';
+import Input from './input.js';
+import LlmOutput from './llm-output.js';
+import Dots from './dots.js';
 
 const agent = new LoopAgent();
 
@@ -16,6 +17,7 @@ export default function App({app}: {app: {unmount: () => void}}): JSX.Element {
     const [llmWorking, setLlmWorking] = useState(false);
     const [userInput, setUserInput] = useState('');
     const [isSubmitted, setIsSubmitted] = useState(false);
+
 	const llmOutputRef = useRef(llmOutput);
 	llmOutputRef.current = llmOutput;
 
@@ -33,34 +35,27 @@ export default function App({app}: {app: {unmount: () => void}}): JSX.Element {
 	});
 
 	useInput((input, key) => {
-        // 4. 按回车键 (Enter) 提交输入
         if (key.return) {
-            // 仅当有实际输入内容时才触发提交
             if (userInput.trim() !== '') {
                 setIsSubmitted(true);
                 setHistories(prev => [...prev, {role: 'user', content: userInput}]);
                 setUserInput('');
                 if (userInput.trim().toLowerCase() === 'q' || userInput.trim().toLowerCase() === 'exit') {
                     app.unmount();
-                    return;
+                } else {
+                    setLlmWorking(true);
+                    agent.invoke(userInput).catch(err => {
+                        setLlmOutput(`发生错误: ${err.message}`);
+                    }).finally(() => {
+                        setHistories(prev => [...prev, {role: 'assistant', content: llmOutputRef.current}]);
+                        setLlmOutput('');
+                        setLlmWorking(false);
+                    });
                 }
-				setLlmWorking(true);
-				agent.invoke(userInput).then(() => {
-				}).catch(err => {
-					setLlmOutput(`发生错误: ${err.message}`);
-				}).finally(() => {
-					setHistories(prev => [...prev, {role: 'assistant', content: llmOutputRef.current}]);
-					setLlmOutput('');
-					setLlmWorking(false);
-				});
             }
-            return;
-        }
-        if (key.delete || key.backspace) {
+        } else if (key.delete || key.backspace) {
             setUserInput(prev => prev.slice(0, -1));
-            return;
-        }
-        if (input) {
+        } else if (input) {
             setUserInput(prev => prev + input);
             if (isSubmitted) setIsSubmitted(false);
         }
@@ -75,7 +70,9 @@ export default function App({app}: {app: {unmount: () => void}}): JSX.Element {
                     </Box>
 				}
 			</Static>
-			{!llmWorking ? <Input userInput={userInput} /> : <LlmOutput llmOutput={llmOutput} />}
+			{!llmWorking ? <Input userInput={userInput} /> : 
+                (!llmOutput ? <Dots /> : <LlmOutput llmOutput={llmOutput} />)
+            }
 		</Box>
 	);
 }
