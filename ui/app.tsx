@@ -2,7 +2,7 @@
 import {ReactElement} from 'react';
 import {useState, useRef, useMemo, } from 'react';
 // import cliCursor from 'cli-cursor';
-import {useInput, Box, Static, Text} from 'ink';
+import {useInput, Box, Static} from 'ink';
 import {LoopAgent} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
 import Input from './input.js';
