@@ -1,8 +1,8 @@
-import process from 'node:process';
-import React from 'react';
-import {useState, useRef, useMemo, useLayoutEffect} from 'react';
-import cliCursor from 'cli-cursor';
-import {useInput, Box, Static} from 'ink';
+// import process from 'node:process';
+import {ReactElement} from 'react';
+import {useState, useRef, useMemo, } from 'react';
+// import cliCursor from 'cli-cursor';
+import {useInput, Box, Static, Text} from 'ink';
 import {LoopAgent} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
 import Input from './input.js';
@@ -11,7 +11,7 @@ import Dots from './dots.js';
 
 const agent = new LoopAgent();
 
-export default function App({app}: {app: {unmount: () => void}}): JSX.Element {
+export default function App({app}: {app: {unmount: () => void}}): ReactElement {
     const [histories, setHistories] = useState([] as HistoryItem[]);
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
@@ -26,9 +26,9 @@ export default function App({app}: {app: {unmount: () => void}}): JSX.Element {
 	}, [histories]);
 
 	// Ink 默认隐藏光标；隐藏时 Windows 等终端上 IME 预编辑常会锚到屏幕边缘。
-	useLayoutEffect(() => {
-		cliCursor.show(process.stderr);
-	}, [userInput, llmOutput, llmWorking, histories]);
+	// useLayoutEffect(() => {
+	// 	cliCursor.show(process.stderr);
+	// }, [userInput, llmOutput, llmWorking, histories]);
 
 	agent.setStreamHandler((text: string) => {
 		setLlmOutput(prev => prev + text);

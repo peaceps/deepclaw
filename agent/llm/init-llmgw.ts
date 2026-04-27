@@ -25,8 +25,12 @@ const gw = {
 
 export class LLMModel {
     private client: Anthropic;
+    private system: string;
+    private tools?: ToolUnion[];
 
-    constructor(private system: string = '', private tools?: ToolUnion[]) {
+    constructor(system: string = '', tools?: ToolUnion[]) {
+        this.system = system;
+        this.tools = tools;
         this.client = new Anthropic({
             apiKey: gw.apiKey, // This is the default and can be omitted
             baseURL: gw.baseURL, // This is the default and can be omitted,

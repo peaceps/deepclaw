@@ -1,10 +1,35 @@
 {
-	"extends": "@sindresorhus/tsconfig",
 	"compilerOptions": {
 		"rootDir": ".",
 		"outDir": "dist",
 		"module": "ES2022",
-		"moduleResolution": "bundler"
+		"moduleResolution": "bundler",
+		"moduleDetection": "force",
+		"target": "esnext",
+		"lib": [
+			"DOM",
+			"DOM.Iterable",
+			"ES2023" // Node.js 20
+		],
+		"jsx": "react-jsx",
+		"declaration": true,
+		"newLine": "lf",
+		"stripInternal": true,
+		"erasableSyntaxOnly": true,
+		"strict": true,
+		"noImplicitReturns": true,
+		"noImplicitOverride": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedIndexedAccess": true,
+		"noPropertyAccessFromIndexSignature": true,
+		"noUncheckedSideEffectImports": true,
+		"noEmitOnError": true,
+		"useDefineForClassFields": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
 	},
-	"include": ["ui", "agent", "cli.tsx"],
+	"include": ["ui", "agent", "main.tsx"]
+
 }

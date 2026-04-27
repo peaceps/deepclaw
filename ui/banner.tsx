@@ -1,4 +1,4 @@
-import React from 'react';
+import {ReactElement} from 'react';
 import {Text, Box} from 'ink';
 
 export const banner = `
@@ -12,7 +12,7 @@ export const banner = `
 ╚========================================================================================╝
 `;
 
-export default function Banner(): JSX.Element {
+export default function Banner(): ReactElement {
 	return (
 		<Box flexDirection='column'>
 			<Text color="#FFA500">{banner}</Text>

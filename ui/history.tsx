@@ -1,4 +1,4 @@
-import React from 'react';
+import {ReactElement} from 'react';
 import {Box, Text} from 'ink';
 import Banner from './banner.js';
 
@@ -13,7 +13,7 @@ export function HistoryLine({
 }: {
 	item: HistoryItem;
 	indent?: number;
-}): JSX.Element {
+}): ReactElement {
 	return (
 		<Box marginLeft={indent}>
             {item.role === 'banner' ? <Banner /> :
