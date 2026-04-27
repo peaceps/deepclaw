@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { ContentBlock, MessageParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources';
 import { extractText } from '../utils/utils.js';
@@ -10,7 +11,7 @@ type LoopState = {
     transition_reason?: string
 }
 
-const SYSTEM = `You are a coding agent at ${process.cwd()}. "
+const SYSTEM = `You are a coding agent on ${process.platform.includes('win32') ? 'Windows' : 'Linux'} at ${process.cwd()}. "
 "Use bash to inspect and change the workspace. Act first, then report clearly."`
 
 export class LoopAgent {
