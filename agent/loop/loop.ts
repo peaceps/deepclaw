@@ -1,7 +1,7 @@
 import process from 'node:process';
 import { ContentBlock, MessageParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources';
-import { extractText } from '../utils/utils.js';
+import { extractText, formatLLMText } from '../utils/utils.js';
 import { LLMModel } from '../llm/init-llmgw.js';
 import { bashTool, ToolCallback, ToolDesc, ToolUseResult } from '../tools/tools.js';
 
@@ -87,7 +87,7 @@ export class LoopAgent {
             if (!goAound) {
                 const finalText = extractText(state.messages[state.messages.length - 1]!.content)
                 if (finalText) {
-                    return finalText;
+                    return formatLLMText(finalText);
                 }
             }
         }

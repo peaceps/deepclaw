@@ -1,13 +1,11 @@
 import {ReactElement} from 'react';
-import {useState, useRef, useMemo} from 'react';
+import {useState, useRef, useMemo, useEffect} from 'react';
 import {useInput, Box, Static} from 'ink';
 import {LoopAgent} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import EveryInput from './every-input.js';
 import LlmOutput from './llm-output.js';
-
-const INDENT = 2;
 
 const agent = new LoopAgent();
 
@@ -18,16 +16,17 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
     const [userInput, setUserInput] = useState('');
     const [isSubmitted, setIsSubmitted] = useState(false);
 
-	const llmOutputRef = useRef(llmOutput);
-	llmOutputRef.current = llmOutput;
-
 	const staticRows = useMemo((): HistoryItem[] => {
 		return [{role: 'banner'}, ...histories];
 	}, [histories]);
 
-	agent.setStreamHandler((text: string) => {
-		setLlmOutput(prev => prev + text);
-	});
+	useEffect(() => {
+		agent.setStreamHandler((text: string) => {
+            if (llmWorking) {
+		        setLlmOutput(prev => prev + text);
+            }
+		});
+	}, []);
 
 	useInput((input, key) => {
         if (key.return) {
@@ -39,10 +38,10 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
                     app.unmount();
                 } else {
                     setLlmWorking(true);
-                    agent.invoke(userInput).then(() => {
-                        setHistories(prev => [...prev, {role: 'assistant', content: llmOutputRef.current}]);
+                    agent.invoke(userInput).then((msg) => {
+                        setHistories(prev => [...prev, {role: 'assistant', content: msg}]);
                     }).catch(err => {
-                        setHistories(prev => [...prev, {role: 'assistant', content: `发生错误: ${err.message?.trim() || ''}`}]);
+                        setHistories(prev => [...prev, {role: 'assistant', content: `出错了: ${err.message?.trim() || ''}`}]);
                     }).finally(() => {
                         setLlmOutput('');
                         setLlmWorking(false);
@@ -58,7 +57,7 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
     });
 
 	return (
-        <Box flexDirection="column" marginLeft={INDENT}>
+        <Box flexDirection="column">
             <StaticContext value={STATIC_CONTEXT_DEFAULT}>
                 <Static items={staticRows}>
                     {(row, index) =>

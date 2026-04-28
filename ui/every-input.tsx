@@ -35,7 +35,7 @@ export default function EveryInput({
 	// 提示符与输入必须在同一 Text 内嵌套，否则两个 ink-text 单独换行，输出高度与 log-update
 	// 擦除行数容易不一致，多行时每敲一字会重复叠印整段。
 	return (
-		<Box alignSelf="flex-start" width={rowWidth}>
+		<Box marginLeft={indent} alignSelf="flex-start" width={rowWidth}>
 			<Text wrap="hard">
 				<Text color="cyan">{prompt}</Text>
 				<Text color={userInput ? 'cyan' : 'gray'}>

@@ -1,5 +1,8 @@
 import { MessageParam, ContentBlock, TextBlock } from '@anthropic-ai/sdk/resources/messages/messages.js';
 
+export function formatLLMText(text: string): string {
+    return text.replace(/\r\n/g, '\n').trimEnd();
+}
 
 export function extractText(content: any): string {
     if (!Array.isArray(content)) {
@@ -13,7 +16,7 @@ export function extractText(content: any): string {
             texts.push(text);
         }
     }
-    return texts.join("\n").trim();
+    return formatLLMText(texts.join("\n"));
 }
 
 export function normalizeMessages(messages: MessageParam[]): MessageParam[] {
