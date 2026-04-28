@@ -1,8 +1,13 @@
-
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
+
+export type ToolUseResult = {
+    type: 'tool_result';
+    tool_use_id: string;
+    content: string;
+}
 
 export type ToolCallback = (input: string) => Promise<string>;
 

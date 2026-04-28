@@ -3,7 +3,7 @@ import { ContentBlock, MessageParam } from '@anthropic-ai/sdk/resources/messages
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources';
 import { extractText } from '../utils/utils.js';
 import { LLMModel } from '../llm/init-llmgw.js';
-import { bashTool, ToolCallback, ToolDesc } from '../tools/tools.js';
+import { bashTool, ToolCallback, ToolDesc, ToolUseResult } from '../tools/tools.js';
 
 type LoopState = {  
     messages: MessageParam[];
@@ -38,8 +38,8 @@ export class LoopAgent {
         }
     }
 
-    private async executeToolCalls(contents: ContentBlock[]): Promise<string | null> {
-        const results: any[] = [];
+    private async executeToolCalls(contents: ContentBlock[]): Promise<ToolUseResult[] | null> {
+        const results: ToolUseResult[] = [];
         for (const block of contents) {
             if (!this.isToolUse(block)) {
                 continue
@@ -53,7 +53,7 @@ export class LoopAgent {
                 "content": output,
             })
         }   
-        return results.length > 0 ? JSON.stringify(results) : null;
+        return results.length > 0 ? results : null;
     }
 
     private isToolUse(content: ContentBlock): content is ToolUseBlock {

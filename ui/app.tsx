@@ -1,5 +1,5 @@
 import {ReactElement} from 'react';
-import {useState, useRef, useMemo, } from 'react';
+import {useState, useRef, useMemo} from 'react';
 import {useInput, Box, Static} from 'ink';
 import {LoopAgent} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
@@ -39,10 +39,11 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
                     app.unmount();
                 } else {
                     setLlmWorking(true);
-                    agent.invoke(userInput).catch(err => {
-                        setLlmOutput(`发生错误: ${err.message}`);
-                    }).finally(() => {
+                    agent.invoke(userInput).then(() => {
                         setHistories(prev => [...prev, {role: 'assistant', content: llmOutputRef.current}]);
+                    }).catch(err => {
+                        setHistories(prev => [...prev, {role: 'assistant', content: `发生错误: ${err.message?.trim() || ''}`}]);
+                    }).finally(() => {
                         setLlmOutput('');
                         setLlmWorking(false);
                     });

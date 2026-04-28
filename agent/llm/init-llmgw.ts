@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { MessageParam } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
 import { ParsedMessage } from '@anthropic-ai/sdk/lib/parser.js';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
+import { normalizeMessages } from '../utils/utils.js';
 
 dotenv.config({ path: path.join(process.cwd(), '../.env'), quiet: true });
 
@@ -54,7 +55,7 @@ export class LLMModel {
         const stream = this.client.messages.stream({
             model: gw.model,
             system: this.system,
-            messages,
+            messages: normalizeMessages(messages),
             tools: this.tools,
             max_tokens: gw.maxTokens,
             temperature: gw.temperature
