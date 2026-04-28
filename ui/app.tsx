@@ -1,13 +1,13 @@
-// import process from 'node:process';
 import {ReactElement} from 'react';
 import {useState, useRef, useMemo, } from 'react';
-// import cliCursor from 'cli-cursor';
 import {useInput, Box, Static} from 'ink';
 import {LoopAgent} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
-import Input from './input.js';
+import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
+import EveryInput from './every-input.js';
 import LlmOutput from './llm-output.js';
-import Dots from './dots.js';
+
+const INDENT = 2;
 
 const agent = new LoopAgent();
 
@@ -24,11 +24,6 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
 	const staticRows = useMemo((): HistoryItem[] => {
 		return [{role: 'banner'}, ...histories];
 	}, [histories]);
-
-	// Ink 默认隐藏光标；隐藏时 Windows 等终端上 IME 预编辑常会锚到屏幕边缘。
-	// useLayoutEffect(() => {
-	// 	cliCursor.show(process.stderr);
-	// }, [userInput, llmOutput, llmWorking, histories]);
 
 	agent.setStreamHandler((text: string) => {
 		setLlmOutput(prev => prev + text);
@@ -62,17 +57,20 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
     });
 
 	return (
-		<Box flexDirection="column">
-			<Static items={staticRows}>
-				{(row, index) =>
-                    <Box key={row.role === 'banner' ? 'banner' : `h-${index}`}>
-                        <HistoryLine item={row} />
-                    </Box>
-				}
-			</Static>
-			{!llmWorking ? <Input userInput={userInput} /> : 
-                (!llmOutput ? <Dots /> : <LlmOutput llmOutput={llmOutput} />)
-            }
-		</Box>
+        <Box flexDirection="column" marginLeft={INDENT}>
+            <StaticContext value={STATIC_CONTEXT_DEFAULT}>
+                <Static items={staticRows}>
+                    {(row, index) =>
+                        <HistoryLine
+                            item={row}
+                            key={row.role === 'banner' ? 'banner' : `h-${index}`}
+                        />
+                    }
+                </Static>
+                {!llmWorking ? <EveryInput userInput={userInput}/> :
+                    <LlmOutput llmOutput={llmOutput}/>
+                }
+            </StaticContext>
+        </Box>
 	);
 }

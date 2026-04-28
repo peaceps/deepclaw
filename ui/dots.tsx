@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 
 const DOTS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-export default function Dots({indent = 2}: {indent?: number}): ReactElement {
+export default function Dots(): ReactElement {
     const [dot, setDot] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => {
@@ -12,6 +12,6 @@ export default function Dots({indent = 2}: {indent?: number}): ReactElement {
         return () => clearInterval(interval);
     }, [dot]);
     return (
-        <Box marginLeft={indent}><Text>{DOTS[dot]}</Text></Box>
+        <Box><Text>{DOTS[dot]}</Text></Box>
     );
 }

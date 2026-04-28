@@ -20,7 +20,8 @@
 		"dotenv": "17.4.2",
 		"ink": "7.0.1",
 		"meow": "14.1.0",
-		"react": "19.2.5"
+		"react": "19.2.5",
+		"string-width": "8.2.1"
 	},
 	"devDependencies": {
 		"@types/node": "25.6.0",

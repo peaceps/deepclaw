@@ -1,10 +1,18 @@
 import {ReactElement} from 'react';
 import { Box, Text } from "ink";
+import { useWidth } from './hooks/use-width.js';
+import Dots from './dots.js';
 
-export default function LlmOutput({llmOutput, indent = 2}: {llmOutput: string; indent?: number}): ReactElement {
+export default function LlmOutput({
+    llmOutput,
+}: {
+    llmOutput: string;
+}): ReactElement {
+    const rowWidth = useWidth();
     return (
-        <Box marginLeft={indent} marginTop={1}>
-            <Text color="white">{llmOutput}</Text>
+        !llmOutput ? <Box><Dots/></Box> :
+        <Box width={rowWidth}>
+            <Text color="white">{llmOutput}{'\n'}</Text>
         </Box>
     );
 }
