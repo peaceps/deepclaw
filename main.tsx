@@ -1,31 +1,32 @@
 #!/usr/bin/env node
 import {render} from 'ink';
-// import meow from 'meow';
-import App from './ui/app.js';
+import meow from 'meow';
+import App, { AppConfig } from './ui/app.js';
 
-// const cli = meow(
-// 	`
-// 	Usage
-// 	  $ ink
+const cli = meow(
+	`
+	Usage
+	  $ ink
 
-// 	Options
-// 		--name  Your name
+	Options
+		--test  Test mode
 
-// 	Examples
-// 	  $ ink --name=Jane
-// 	  Hello, Jane
-// `,
-// 	{
-// 		importMeta: import.meta,
-// 		flags: {
-// 			name: {
-// 				type: 'string',
-// 			},
-// 		},
-// 	},
-// );
+	Examples
+	  $ ink --test
+`,
+	{
+		importMeta: import.meta,
+		flags: {
+			test: {
+				type: 'boolean',
+                optional: true,
+                default: false,
+			},
+		},
+	},
+);
 
-const appWrapper: { unmount: () => void } = {unmount: () => {}};
+const appWrapper: AppConfig = {unmount: () => {}, testMode: cli.flags.test};
 
 const {unmount, waitUntilExit} = render(<App app={appWrapper}/>);
 appWrapper.unmount = unmount;
