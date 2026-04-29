@@ -4,7 +4,11 @@ const execAsync = promisify(exec);
 
 import { ToolDesc } from './tool-definitions.js';
 
-export const bashTool: ToolDesc<string> = {
+type ShellInput = {
+    command: string;
+}
+
+export const shellTool: ToolDesc<ShellInput> = {
     tool: {
         name: 'bash',
         description: 'Run a shell command in the current workspace.',
@@ -17,12 +21,8 @@ export const bashTool: ToolDesc<string> = {
     invoke: runBash
 }
 
-/**
- * 安全执行 Bash 命令（模仿 Python 版本）
- * @param command - 要执行的 shell 命令字符串
- * @returns 命令的输出（stdout+stderr），或错误信息
- */
-async function runBash(command: string): Promise<string> {
+async function runBash(input: ShellInput): Promise<string> {
+    const { command } = input;
     // 1. 危险命令黑名单检查
     const dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"];
     if (dangerous.some(item => command.includes(item))) {
@@ -30,11 +30,15 @@ async function runBash(command: string): Promise<string> {
     }
 
     // 2. 执行命令的配置项
+    const shell = process.platform === 'win32'
+        ? (process.env['ComSpec'] || 'cmd.exe')
+        : '/bin/bash';
     const options = {
         timeout: 120000,          // 120 秒（毫秒）
         maxBuffer: 50 * 1024 * 1024, // 50 MB 缓冲区，避免输出过大导致崩溃
         cwd: process.cwd(),       // 使用当前工作目录
-        shell: undefined,              // 启用 shell 解析（管道、通配符等）
+        shell,
+        windowsHide: true,
     };
 
     try {
