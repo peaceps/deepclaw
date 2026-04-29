@@ -17,7 +17,7 @@ export default function Banner(): ReactElement {
 		<Box flexDirection='column'>
 			<Text color="#98C379">{banner}</Text>
 			<Text color="yellow">
-				✨ 有什么可以效劳？按下 <Text color="cyan">Enter</Text> 告诉我：
+				✨ 有什么可以效劳？按下 <Text color="cyan">Enter</Text> 告诉我：{'\n'}
 			</Text>
 		</Box>
 	);

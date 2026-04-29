@@ -3,10 +3,16 @@ import { ContentBlock, MessageParam } from '@anthropic-ai/sdk/resources/messages
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources';
 import { extractText, formatLLMText } from '../utils/utils.js';
 import { LLMModel } from '../llm/init-llmgw.js';
-import { bashTool, ToolCallback, ToolDesc, ToolUseResult } from '../tools/tools.js';
+import { builtInTools } from '../tools/index.js';
+import { ToolDesc, ToolUseResult, TOOL_RESULT_TYPE } from '../tools/tool-definitions.js';
 
-type LoopState = {  
-    messages: MessageParam[];
+type LoopMessageParam = {
+    role: MessageParam['role'];
+    content: ToolUseResult[] | MessageParam['content'];
+}
+
+type LoopState = {
+    messages: LoopMessageParam[];
     turnCount: number;
     transition_reason?: string
 }
@@ -16,13 +22,12 @@ const SYSTEM = `You are a coding agent on ${process.platform.includes('win32') ?
 
 export class LoopAgent {
     private llmModel: LLMModel;
-    private toolMap: Map<string, ToolCallback> = new Map();
-    private history: MessageParam[] = [];
-    private builtInTools: ToolDesc[] = [bashTool];
+    private toolMap: Map<string, ToolDesc> = new Map();
+    private history: LoopMessageParam[] = [];
     private onStreamEvent: (text: string) => void = () => {};
 
     constructor(system: string = SYSTEM, tools: ToolDesc[] = []) {
-        tools = tools.concat(this.builtInTools);
+        tools = tools.concat(builtInTools);
         this.registerTools(tools);
         this.llmModel = new LLMModel(system, tools?.map(t => t.tool));
     }
@@ -34,7 +39,7 @@ export class LoopAgent {
     private registerTools(tools?: ToolDesc[]): void {
         if (!tools) return;
         for (const tool of tools) {
-            this.toolMap.set(tool.tool.name, tool.invoke);
+            this.toolMap.set(tool.tool.name, tool);
         }
     }
 
@@ -42,18 +47,37 @@ export class LoopAgent {
         const results: ToolUseResult[] = [];
         for (const block of contents) {
             if (!this.isToolUse(block)) {
-                continue
+                continue;
             }
-            const command = (block.input as any)["command"];
-            const tool = this.toolMap.get(block.name)!;
-            const output = await tool(command);
-            results.push({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": output,
-            })
+            const tool = this.toolMap.get(block.name);
+            if (!tool) {
+                this.addToolResult(results, block.id, `Unknown tool: ${block.name}`);
+                break;
+            }
+            if (tool.guard) {
+                const {allowed, feedback} = tool.guard(block.input);
+                if (!allowed) {
+                    this.addToolResult(results, block.id, `Tool run is not allowed: ${block.name}. ${feedback}.`);
+                    break;
+                }
+            }
+            try {
+                const output = await tool.invoke(block.input);
+                this.addToolResult(results, block.id, output);
+            } catch (error) {
+                this.addToolResult(results, block.id, `Error: ${error}`);
+                break;
+            }
         }   
         return results.length > 0 ? results : null;
+    }
+
+    private addToolResult(results: ToolUseResult[], tool_use_id: string, content: string): void {
+        results.push({
+            type: TOOL_RESULT_TYPE,
+            tool_use_id: tool_use_id,
+            content: content,
+        })
     }
 
     private isToolUse(content: ContentBlock): content is ToolUseBlock {
@@ -61,7 +85,7 @@ export class LoopAgent {
     }
 
     private async runOneTurn(state: LoopState): Promise<boolean> {
-        const response = await this.llmModel.invoke(state.messages, this.onStreamEvent);
+        const response = await this.llmModel.invoke(state.messages as MessageParam[], this.onStreamEvent);
         state.messages.push({"role": "assistant", "content": response.content});
 
         if (response.stop_reason != "tool_use") {
@@ -75,7 +99,7 @@ export class LoopAgent {
             return false
         }
 
-        state.messages.push({"role": "user", "content": results})
+        state.messages.push({role: "user", content: results})
         state.turnCount += 1
         state.transition_reason = "tool_result"
         return true;

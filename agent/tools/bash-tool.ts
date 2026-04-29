@@ -1,29 +1,17 @@
-import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
 
-export type ToolUseResult = {
-    type: 'tool_result';
-    tool_use_id: string;
-    content: string;
-}
+import { ToolDesc } from './tool-definitions.js';
 
-export type ToolCallback = (input: string) => Promise<string>;
-
-export type ToolDesc = {
-    tool: ToolUnion;
-    invoke: ToolCallback;
-}
-
-export const bashTool: ToolDesc = {
+export const bashTool: ToolDesc<string> = {
     tool: {
-        "name": "bash",
-        "description": "Run a shell command in the current workspace.",
-        "input_schema": {
-            "type": "object" as const,
-            "properties": {"command": {"type": "string"}},
-            "required": ["command"],
+        name: 'bash',
+        description: 'Run a shell command in the current workspace.',
+        input_schema: {
+            type: 'object' as const,
+            properties: {command: {type: 'string'}},
+            required: ['command'],
         },
     },
     invoke: runBash

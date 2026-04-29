@@ -1,5 +1,5 @@
 import {ReactElement} from 'react';
-import {useState, useRef, useMemo, useEffect} from 'react';
+import {useState, useMemo, useEffect} from 'react';
 import {useInput, Box, Static} from 'ink';
 import {LoopAgent} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
@@ -67,9 +67,7 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
                         />
                     }
                 </Static>
-                {!llmWorking ? <EveryInput userInput={userInput}/> :
-                    <LlmOutput llmOutput={llmOutput}/>
-                }
+                {!llmWorking ? <EveryInput userInput={userInput}/> : <LlmOutput llmOutput={llmOutput}/>}
             </StaticContext>
         </Box>
 	);
