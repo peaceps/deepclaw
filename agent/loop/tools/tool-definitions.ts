@@ -1,4 +1,3 @@
-
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 
 export const TOOL_RESULT_TYPE: string = 'tool_result' as const;

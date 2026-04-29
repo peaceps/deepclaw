@@ -1,14 +1,15 @@
 import process from 'node:process';
-import { ContentBlock, MessageParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
+import { ContentBlock, MessageParam, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources';
 import { extractText, formatLLMText } from '../utils/utils.js';
 import { LLMModel } from '../llm/init-llmgw.js';
-import { builtInTools } from '../tools/index.js';
-import { ToolDesc, ToolUseResult, TOOL_RESULT_TYPE } from '../tools/tool-definitions.js';
+import { builtInTools } from './tools/index.js';
+import { ToolDesc, ToolUseResult, TOOL_RESULT_TYPE } from './tools/tool-definitions.js';
+import { TodoManager } from './todo-manager.js';
 
 type LoopMessageParam = {
     role: MessageParam['role'];
-    content: ToolUseResult[] | MessageParam['content'];
+    content: LoopContent[] | string;
 }
 
 type LoopState = {
@@ -17,8 +18,15 @@ type LoopState = {
     transition_reason?: string
 }
 
-const SYSTEM = `You are a coding agent on ${process.platform.includes('win32') ? 'Windows' : 'Linux'} at ${process.cwd()}. "
-"Use bash to inspect and change the workspace. Act first, then report clearly."`
+type LoopContent = ToolUseResult | ContentBlockParam;
+
+const SYSTEM = `You are a coding agent on ${process.platform.includes('win32') ? 'Windows' : 'Linux'} at "${process.cwd()}".
+Use bash to inspect and change the workspace. Act first, then report clearly.
+
+On each task begin, create a visible todo list with the todo tool before executing.
+Use the todo tool for multi-step work.
+Keep exactly one step inProgress when a task has multiple steps.
+Refresh the plan as work advances. Prefer tools over prose.`
 
 export class LoopAgent {
     private llmModel: LLMModel;
@@ -43,8 +51,9 @@ export class LoopAgent {
         }
     }
 
-    private async executeToolCalls(contents: ContentBlock[]): Promise<ToolUseResult[] | null> {
-        const results: ToolUseResult[] = [];
+    private async executeToolCalls(contents: ContentBlock[]): Promise<LoopContent[] | null> {
+        const results: LoopContent[] = [];
+        let usedTodo = false;
         for (const block of contents) {
             if (!this.isToolUse(block)) {
                 continue;
@@ -64,15 +73,24 @@ export class LoopAgent {
             try {
                 const output = await tool.invoke(block.input);
                 this.addToolResult(results, block.id, output);
+                if (tool.tool.name === 'todo') {
+                    usedTodo = true;
+                }
             } catch (error) {
                 this.addToolResult(results, block.id, `Error: ${error}`);
                 break;
             }
-        }   
+        }
+        if (!usedTodo) {
+            const reminder = TodoManager.getInstance().noteRoundWithoutUpdate();
+            if (reminder) {
+                results.unshift({type: 'text', text: reminder});
+            }
+        }
         return results.length > 0 ? results : null;
     }
 
-    private addToolResult(results: ToolUseResult[], tool_use_id: string, content: string): void {
+    private addToolResult(results: LoopContent[], tool_use_id: string, content: string): void {
         results.push({
             type: TOOL_RESULT_TYPE,
             tool_use_id: tool_use_id,
@@ -99,9 +117,9 @@ export class LoopAgent {
             return false
         }
 
-        state.messages.push({role: "user", content: results})
-        state.turnCount += 1
-        state.transition_reason = "tool_result"
+        state.messages.push({role: 'user', content: results})
+        state.turnCount++;
+        state.transition_reason = 'tool_result'
         return true;
     }
 
@@ -118,7 +136,8 @@ export class LoopAgent {
     }
 
     async invoke(input: string): Promise<string> {
-        this.history.push({"role": "user", "content": input})
+        TodoManager.getInstance().reset(this.onStreamEvent);
+        this.history.push({role: 'user', content: input})
         const state: LoopState = {
             messages: this.history,
             turnCount: 0,

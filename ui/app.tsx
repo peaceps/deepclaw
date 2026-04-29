@@ -1,5 +1,5 @@
 import {ReactElement} from 'react';
-import {useState, useMemo, useEffect} from 'react';
+import {useState, useMemo, useEffect, useRef} from 'react';
 import {useInput, Box, Static} from 'ink';
 import {LoopAgent} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
@@ -14,7 +14,10 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
     const [userInput, setUserInput] = useState('');
-    const [isSubmitted, setIsSubmitted] = useState(false);
+    const llmWorkingRef = useRef(llmWorking);
+    llmWorkingRef.current = llmWorking;
+    const llmOutputRef = useRef(llmOutput);
+    llmOutputRef.current = llmOutput;
 
 	const staticRows = useMemo((): HistoryItem[] => {
 		return [{role: 'banner'}, ...histories];
@@ -22,7 +25,7 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
 
 	useEffect(() => {
 		agent.setStreamHandler((text: string) => {
-            if (llmWorking) {
+            if (llmWorkingRef.current) {
 		        setLlmOutput(prev => prev + text);
             }
 		});
@@ -31,15 +34,14 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
 	useInput((input, key) => {
         if (key.return) {
             if (userInput.trim() !== '') {
-                setIsSubmitted(true);
-                setHistories(prev => [...prev, {role: 'user', content: userInput}]);
-                setUserInput('');
                 if (userInput.trim().toLowerCase() === 'q' || userInput.trim().toLowerCase() === 'exit') {
                     app.unmount();
                 } else {
+                    setHistories(prev => [...prev, {role: 'user', content: userInput}]);
+                    setUserInput('');
                     setLlmWorking(true);
                     agent.invoke(userInput).then((msg) => {
-                        setHistories(prev => [...prev, {role: 'assistant', content: msg}]);
+                        setHistories(prev => [...prev, {role: 'assistant', content: llmOutputRef.current + msg}]);
                     }).catch(err => {
                         setHistories(prev => [...prev, {role: 'assistant', content: `出错了: ${err.message?.trim() || ''}`}]);
                     }).finally(() => {
@@ -52,7 +54,6 @@ export default function App({app}: {app: {unmount: () => void}}): ReactElement {
             setUserInput(prev => prev.slice(0, -1));
         } else if (input) {
             setUserInput(prev => prev + input);
-            if (isSubmitted) setIsSubmitted(false);
         }
     });
 
