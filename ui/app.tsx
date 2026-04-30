@@ -1,7 +1,7 @@
-import {ReactElement} from 'react';
+import {ReactElement, useCallback} from 'react';
 import {useState, useMemo, useEffect, useRef} from 'react';
 import {useInput, Box, Static} from 'ink';
-import {LoopAgent, TestLlmAgent, AgentInterface} from '../agent/index.js';
+import {LoopAgent, TestLlmAgent, FlushAgent, ALL_CONTENT_FLUSHED} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import EveryInput from './every-input.js';
@@ -12,15 +12,13 @@ export type AppConfig = {
     testMode: boolean;
 }
 
-let agent: AgentInterface | null = null;
+let agent: FlushAgent | null = null;
 
 export default function App({app}: {app: AppConfig}): ReactElement {
     const [histories, setHistories] = useState([] as HistoryItem[]);
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
     const [userInput, setUserInput] = useState('');
-    const llmWorkingRef = useRef(llmWorking);
-    llmWorkingRef.current = llmWorking;
     const llmOutputRef = useRef(llmOutput);
     llmOutputRef.current = llmOutput;
 
@@ -28,13 +26,21 @@ export default function App({app}: {app: AppConfig}): ReactElement {
 		return [{role: 'banner'}, ...histories];
 	}, [histories]);
 
+    const handleLlmDone = useCallback((content: string) => {
+        setHistories(prev => [...prev, {role: 'assistant', content}]);
+        setLlmOutput('');
+        setLlmWorking(false);
+    }, []);
+
 	useEffect(() => {
-        agent = app.testMode ? new TestLlmAgent() : new LoopAgent();
-		agent.setStreamHandler((text: string) => {
-            if (llmWorkingRef.current) {
-		        setLlmOutput(prev => prev + text);
+        function handleLlmStream(text: string) {
+            if (text === ALL_CONTENT_FLUSHED) {
+                handleLlmDone(llmOutputRef.current);
+            } else {
+                setLlmOutput(prev => prev + text);
             }
-		});
+        }
+        agent = app.testMode ? new TestLlmAgent(handleLlmStream) : new LoopAgent(handleLlmStream);
 	}, []);
 
 	useInput((input, key) => {
@@ -46,13 +52,8 @@ export default function App({app}: {app: AppConfig}): ReactElement {
                     setHistories(prev => [...prev, {role: 'user', content: userInput}]);
                     setUserInput('');
                     setLlmWorking(true);
-                    agent!.invoke(userInput).then((msg) => {
-                        setHistories(prev => [...prev, {role: 'assistant', content: llmOutputRef.current + msg}]);
-                    }).catch(err => {
-                        setHistories(prev => [...prev, {role: 'assistant', content: `出错了: ${err.message?.trim() || ''}`}]);
-                    }).finally(() => {
-                        setLlmOutput('');
-                        setLlmWorking(false);
+                    agent!.invoke(userInput).catch(err => {
+                        handleLlmDone(`出错了: ${err.message?.trim() || 'Unexpected error.'}`);
                     });
                 }
             }
@@ -67,11 +68,8 @@ export default function App({app}: {app: AppConfig}): ReactElement {
         <Box flexDirection="column">
             <StaticContext value={STATIC_CONTEXT_DEFAULT}>
                 <Static items={staticRows}>
-                    {(row, index) =>
-                        <HistoryLine
-                            item={row}
-                            key={row.role === 'banner' ? 'banner' : `h-${index}`}
-                        />
+                    {
+                        (row, index) => <HistoryLine item={row} key={row.role === 'banner' ? 'banner' : `h-${index}`} />
                     }
                 </Static>
                 {!llmWorking ? <EveryInput userInput={userInput}/> : <LlmOutput llmOutput={llmOutput}/>}

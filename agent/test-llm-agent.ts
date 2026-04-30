@@ -1,11 +1,8 @@
-export class TestLlmAgent {
-    private onStreamEvent: (text: string) => void = () => {};
+import { FlushAgent } from './flush-agent.js';
 
-    setStreamHandler(onStreamEvent: (text: string) => void) {
-        this.onStreamEvent = onStreamEvent;
-    }
+export class TestLlmAgent extends FlushAgent {
 
-    async invoke(): Promise<string> {
+    protected async _invoke(_: string): Promise<string> {
         const text = [
             'The pattern continues',
             'up to number 100, with a',
@@ -18,23 +15,23 @@ export class TestLlmAgent {
             'long sentence have been',
             'shown above.'
         ];
-        const k: string[] = [];
-        for (let i = 0; i < 100; i++) {
-            k.push(`its ${i} The pattern 100\n`);
+        const lines: string[] = [];
+        for (let i = 0; i < 80; i++) {
+            lines.push(`its ${i} The pattern 100`);
             if (i > 0 && i % 10 === 0) {
                 for (const word of text) {
-                    k.push(word + ' ');
+                    lines.push(word + ' ');
                 }
-                k.push(`...\n`);
+                lines.push(`...`);
             }
         }
         let i = 0;
         return new Promise((resolve) => {
             const interval = setInterval(() => {
-                this.onStreamEvent(k[i++]!);
-                if (i >= k.length) {
+                this.onStreamEvent(lines[i++]!);
+                if (i >= lines.length) {
                     clearInterval(interval);
-                    resolve('its done\n');
+                    resolve('its done.');
                 }
             }, 100);
         });

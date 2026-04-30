@@ -56,7 +56,7 @@ export class TodoManager {
 
     private renderState(): string {
         if (this.items.length === 0) {
-            return 'No todos.';
+            return '没有待办项。';
         }
         const lines = this.items.map(item => {
             const marker = MARKERS[item.status];

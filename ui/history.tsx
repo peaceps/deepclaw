@@ -19,7 +19,7 @@ export function HistoryLine({
 	return (
 		<Box marginLeft={indent} width={rowWidth}>
             {item.role === 'banner' ? <Banner /> :
-                <Text color={item.role === 'user' ? 'cyan' : 'white'}>{prompt}{item.content}{'\n'}</Text>
+                <Text color={item.role === 'user' ? 'cyan' : '#EDCF53'}>{prompt}{item.content}{'\n'}</Text>
             }
 		</Box>
 	);

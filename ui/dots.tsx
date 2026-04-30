@@ -12,6 +12,6 @@ export default function Dots(): ReactElement {
         return () => clearInterval(interval);
     }, [dot]);
     return (
-        <Box><Text>{DOTS[dot]}</Text></Box>
+        <Box><Text color="#E5E7EB">{DOTS[dot]}</Text></Box>
     );
 }

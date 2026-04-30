@@ -2,10 +2,11 @@ import process from 'node:process';
 import { ContentBlock, MessageParam, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources';
 import { extractText, formatLLMText } from '../utils/utils.js';
-import { LLMModel } from '../llm/init-llmgw.js';
+import { LLMModel } from '../llm/llmgw.js';
 import { builtInTools } from './tools/index.js';
 import { ToolDesc, ToolUseResult, TOOL_RESULT_TYPE } from './tools/tool-definitions.js';
 import { TodoManager } from './todo-manager.js';
+import { FlushAgent } from '../flush-agent.js';
 
 type LoopMessageParam = {
     role: MessageParam['role'];
@@ -20,28 +21,25 @@ type LoopState = {
 
 type LoopContent = ToolUseResult | ContentBlockParam;
 
-const SYSTEM = `You are a coding agent on ${process.platform.includes('win32') ? 'Windows' : 'Linux'} at "${process.cwd()}".
+const SYSTEM = `You are a assistant agent on ${process.platform.includes('win32') ? 'Windows' : 'Linux'} at "${process.cwd()}".
 Use bash to inspect and change the workspace. Act first, then report clearly.
 
-On each task begin, create a visible todo list with the todo tool before executing.
+On each task begin, create a visible todo list with the todo tool before executing if the task should be done in multiple steps.
 Use the todo tool for multi-step work.
 Keep exactly one step inProgress when a task has multiple steps.
-Refresh the plan as work advances. Prefer tools over prose.`
+Refresh the plan as work advances. Prefer tools over prose.
+When you are done, mark all the todo list as completed with the todo tool.`
 
-export class LoopAgent {
+export class LoopAgent extends FlushAgent {
     private llmModel: LLMModel;
     private toolMap: Map<string, ToolDesc> = new Map();
     private history: LoopMessageParam[] = [];
-    private onStreamEvent: (text: string) => void = () => {};
 
-    constructor(system: string = SYSTEM, tools: ToolDesc[] = []) {
+    constructor(onStreamEvent: (text: string) => void, system: string = SYSTEM, tools: ToolDesc[] = []) {
+        super(onStreamEvent);
         tools = tools.concat(builtInTools);
         this.registerTools(tools);
         this.llmModel = new LLMModel(system, tools?.map(t => t.tool));
-    }
-
-    setStreamHandler(onStreamEvent: (text: string) => void) {
-        this.onStreamEvent = onStreamEvent;
     }
 
     private registerTools(tools?: ToolDesc[]): void {
@@ -135,14 +133,15 @@ export class LoopAgent {
         }
     }
 
-    async invoke(input: string): Promise<string> {
+    protected async _invoke(input: string): Promise<string> {
         TodoManager.getInstance().reset(this.onStreamEvent);
         this.history.push({role: 'user', content: input})
         const state: LoopState = {
             messages: this.history,
             turnCount: 0,
         }
-        return await this.agentLoop(state);
+        const res = await this.agentLoop(state);
+        return res;
     }
 }
 

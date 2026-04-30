@@ -32,3 +32,13 @@ const {unmount, waitUntilExit} = render(<App app={appWrapper}/>);
 appWrapper.unmount = unmount;
 await waitUntilExit();
 console.log("\n  再见！");
+
+
+/**
+ * c:\git下有哪些文件夹
+ * c:\workfile下有哪些文件夹
+ * 给我写一个200字的西班牙语散文吧，主题是马尔克斯作品的文学感想
+ * 写一篇CET6的作文范文,主题是学习中的劳逸结合
+ * 用js写一个命令行的计算器脚本，支持基本的加减乘除，不需要编译和测试
+ * 用js写一个命令行的计算器脚本，支持基本的加减乘除,再用几个测试用例测试它
+ */
