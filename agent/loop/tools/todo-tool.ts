@@ -1,4 +1,4 @@
-import { ToolDesc } from './tool-definitions.js';
+import { ToolDesc, ToolUseContext } from './tool-definitions.js';
 import { TodoManager, TodoItem } from '../todo-manager.js';
 
 type TodoToolInput = {
@@ -28,7 +28,8 @@ export const todoTool: ToolDesc<TodoToolInput> = {
             required: ['items'],
         },
     },
-    invoke: async function(input: TodoToolInput): Promise<string> {
+    invoke: async function(input: TodoToolInput, context?: ToolUseContext): Promise<string> {
+        context!.todoUpdated = true;
         return TodoManager.getInstance().update(input.items);
     },
 }

@@ -4,7 +4,7 @@ import { ToolUseBlock } from '@anthropic-ai/sdk/resources';
 import { extractText, formatLLMText } from '../utils/utils.js';
 import { LLMModel } from '../llm/llmgw.js';
 import { builtInTools } from './tools/index.js';
-import { ToolDesc, ToolUseResult, TOOL_RESULT_TYPE } from './tools/tool-definitions.js';
+import { ToolDesc, ToolUseResult, TOOL_RESULT_TYPE, ToolUseContext } from './tools/tool-definitions.js';
 import { TodoManager } from './todo-manager.js';
 import { FlushAgent } from '../flush-agent.js';
 
@@ -16,7 +16,7 @@ type LoopMessageParam = {
 type LoopState = {
     messages: LoopMessageParam[];
     turnCount: number;
-    transition_reason?: string
+    transitionReason?: string;
 }
 
 type LoopContent = ToolUseResult | ContentBlockParam;
@@ -28,7 +28,7 @@ On each task begin, create a visible todo list with the todo tool before executi
 Use the todo tool for multi-step work.
 Keep exactly one step inProgress when a task has multiple steps.
 Refresh the plan as work advances. Prefer tools over prose.
-When you are done, mark all the todo list as completed with the todo tool.`
+When you are done, mark all the todo list as completed with the todo tool.`;
 
 export class LoopAgent extends FlushAgent {
     private llmModel: LLMModel;
@@ -49,9 +49,9 @@ export class LoopAgent extends FlushAgent {
         }
     }
 
-    private async executeToolCalls(contents: ContentBlock[]): Promise<LoopContent[] | null> {
+    private async executeToolCalls(contents: ContentBlock[]): Promise<LoopContent[]> {
+        const toolUseContext: ToolUseContext = { todoUpdated: false };
         const results: LoopContent[] = [];
-        let usedTodo = false;
         for (const block of contents) {
             if (!this.isToolUse(block)) {
                 continue;
@@ -69,35 +69,36 @@ export class LoopAgent extends FlushAgent {
                 }
             }
             try {
-                const output = await tool.invoke(block.input);
+                const output = await tool.invoke(block.input, toolUseContext);
                 this.addToolResult(results, block.id, output);
-                if (tool.tool.name === 'todo') {
-                    usedTodo = true;
-                }
             } catch (error) {
                 this.addToolResult(results, block.id, `Error: ${error}`);
                 break;
             }
         }
-        if (!usedTodo) {
+        this.postToolUse(results, toolUseContext);
+        return results;
+    }
+
+    private addToolResult(results: LoopContent[], toolUseId: string, content: string): void {
+        results.push({
+            type: TOOL_RESULT_TYPE,
+            tool_use_id: toolUseId,
+            content: content,
+        });
+    }
+
+    private postToolUse(results: LoopContent[], toolUseContext: ToolUseContext): void {
+        if (!toolUseContext.todoUpdated) {
             const reminder = TodoManager.getInstance().noteRoundWithoutUpdate();
             if (reminder) {
                 results.unshift({type: 'text', text: reminder});
             }
         }
-        return results.length > 0 ? results : null;
-    }
-
-    private addToolResult(results: LoopContent[], tool_use_id: string, content: string): void {
-        results.push({
-            type: TOOL_RESULT_TYPE,
-            tool_use_id: tool_use_id,
-            content: content,
-        })
     }
 
     private isToolUse(content: ContentBlock): content is ToolUseBlock {
-        return content.type === "tool_use"
+        return content.type === "tool_use";
     }
 
     private async runOneTurn(state: LoopState): Promise<boolean> {
@@ -105,19 +106,19 @@ export class LoopAgent extends FlushAgent {
         state.messages.push({"role": "assistant", "content": response.content});
 
         if (response.stop_reason != "tool_use") {
-            state.transition_reason = '';
-            return false
+            state.transitionReason = '';
+            return false;
         }
 
-        const results = await this.executeToolCalls(response.content)
-        if (!results) {
-            state.transition_reason = '';
-            return false
+        const results = await this.executeToolCalls(response.content);
+        if (!results.length) {
+            state.transitionReason = '';
+            return false;
         }
 
-        state.messages.push({role: 'user', content: results})
+        state.messages.push({role: 'user', content: results});
         state.turnCount++;
-        state.transition_reason = 'tool_result'
+        state.transitionReason = 'tool_result';
         return true;
     }
 
@@ -125,7 +126,7 @@ export class LoopAgent extends FlushAgent {
         while (true) {
             const goAound = await this.runOneTurn(state);
             if (!goAound) {
-                const finalText = extractText(state.messages[state.messages.length - 1]!.content)
+                const finalText = extractText(state.messages[state.messages.length - 1]!.content);
                 if (finalText) {
                     return formatLLMText(finalText);
                 }
@@ -135,11 +136,11 @@ export class LoopAgent extends FlushAgent {
 
     protected async _invoke(input: string): Promise<string> {
         TodoManager.getInstance().reset(this.onStreamEvent);
-        this.history.push({role: 'user', content: input})
+        this.history.push({role: 'user', content: input});
         const state: LoopState = {
             messages: this.history,
             turnCount: 0,
-        }
+        };
         const res = await this.agentLoop(state);
         return res;
     }

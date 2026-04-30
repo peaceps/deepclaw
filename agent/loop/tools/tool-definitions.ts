@@ -13,7 +13,11 @@ export type ToolGuardResult = {
     feedback?: string;
 }
 
-export type ToolCallback<T = unknown> = (input: T) => Promise<string>;
+export type ToolUseContext = {
+    todoUpdated: boolean;
+}
+
+export type ToolCallback<T = unknown> = (input: T, context?: ToolUseContext) => Promise<string>;
 
 export type ToolDesc<T = unknown> = {
     tool: ToolUnion;
