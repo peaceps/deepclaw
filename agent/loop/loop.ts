@@ -1,25 +1,13 @@
 import process from 'node:process';
-import { ContentBlock, MessageParam, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
+import { ContentBlock, MessageParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources';
 import { extractText, formatLLMText } from '../utils/utils.js';
 import { LLMModel } from '../llm/llmgw.js';
-import { builtInTools } from './tools/index.js';
-import { ToolDesc, ToolUseResult, TOOL_RESULT_TYPE, ToolUseContext } from './tools/tool-definitions.js';
-import { TodoManager } from './todo-manager.js';
+import { builtInTools, subLoopBuiltInTools } from './tools/index.js';
+import { ToolDesc, TOOL_RESULT_TYPE } from './tools/tool-definitions.js';
+import { TodoManager } from './services/todo-manager.js';
 import { FlushAgent } from '../flush-agent.js';
-
-type LoopMessageParam = {
-    role: MessageParam['role'];
-    content: LoopContent[] | string;
-}
-
-type LoopState = {
-    messages: LoopMessageParam[];
-    turnCount: number;
-    transitionReason?: string;
-}
-
-type LoopContent = ToolUseResult | ContentBlockParam;
+import { LoopMessageParam, LoopState, OneLoopContext, LoopContent} from './definitions.js';
 
 const SYSTEM = `You are a assistant agent on ${process.platform.includes('win32') ? 'Windows' : 'Linux'} at "${process.cwd()}".
 Use bash to inspect and change the workspace. Act first, then report clearly.
@@ -30,27 +18,33 @@ Keep exactly one step inProgress when a task has multiple steps.
 Refresh the plan as work advances. Prefer tools over prose.
 When you are done, mark all the todo list as completed with the todo tool.`;
 
+const SUB_LOOP_SYSTEM = `You are a assistant agent on ${process.platform.includes('win32') ? 'Windows' : 'Linux'} at "${process.cwd()}".
+Complete the given task, then summarize your findings.`;
+
 export class LoopAgent extends FlushAgent {
     private llmModel: LLMModel;
     private toolMap: Map<string, ToolDesc> = new Map();
     private history: LoopMessageParam[] = [];
+    private turnLimit: number;
 
-    constructor(onStreamEvent: (text: string) => void, system: string = SYSTEM, tools: ToolDesc[] = []) {
+    constructor(onStreamEvent: (text: string) => void, system: string = SYSTEM, turnLimit: number = 10) {
         super(onStreamEvent);
-        tools = tools.concat(builtInTools);
-        this.registerTools(tools);
-        this.llmModel = new LLMModel(system, tools?.map(t => t.tool));
+        this.turnLimit = turnLimit;
+        this.registerTools();
+        this.llmModel = new LLMModel(system, this.getTools().map(t => t.tool));
     }
 
-    private registerTools(tools?: ToolDesc[]): void {
-        if (!tools) return;
-        for (const tool of tools) {
+    private registerTools(): void {
+        for (const tool of this.getTools()) {
             this.toolMap.set(tool.tool.name, tool);
         }
     }
 
-    private async executeToolCalls(contents: ContentBlock[]): Promise<LoopContent[]> {
-        const toolUseContext: ToolUseContext = { todoUpdated: false };
+    protected getTools(): ToolDesc[] {
+        return builtInTools;
+    }
+
+    private async executeToolCalls(contents: ContentBlock[], context: OneLoopContext): Promise<LoopContent[]> {
         const results: LoopContent[] = [];
         for (const block of contents) {
             if (!this.isToolUse(block)) {
@@ -69,14 +63,17 @@ export class LoopAgent extends FlushAgent {
                 }
             }
             try {
-                const output = await tool.invoke(block.input, toolUseContext);
+                const output = await tool.invoke(block.input, context);
+                if (tool.outputToUser) {
+                    this.onStreamEvent(output);
+                }
                 this.addToolResult(results, block.id, output);
             } catch (error) {
                 this.addToolResult(results, block.id, `Error: ${error}`);
                 break;
             }
         }
-        this.postToolUse(results, toolUseContext);
+        this.postToolUse(results, context);
         return results;
     }
 
@@ -88,12 +85,14 @@ export class LoopAgent extends FlushAgent {
         });
     }
 
-    private postToolUse(results: LoopContent[], toolUseContext: ToolUseContext): void {
-        if (!toolUseContext.todoUpdated) {
-            const reminder = TodoManager.getInstance().noteRoundWithoutUpdate();
+    private postToolUse(results: LoopContent[], context: OneLoopContext): void {
+        if (!context.toDoUpdated) {
+            const reminder = context.toDoManager.noteRoundWithoutUpdate();
             if (reminder) {
                 results.unshift({type: 'text', text: reminder});
             }
+        } else {
+            context.toDoUpdated = false;
         }
     }
 
@@ -106,25 +105,28 @@ export class LoopAgent extends FlushAgent {
         state.messages.push({"role": "assistant", "content": response.content});
 
         if (response.stop_reason != "tool_use") {
-            state.transitionReason = '';
+            state.oneLoopContext.transitionReason = '';
             return false;
         }
 
-        const results = await this.executeToolCalls(response.content);
+        const results = await this.executeToolCalls(response.content, state.oneLoopContext);
         if (!results.length) {
-            state.transitionReason = '';
+            state.oneLoopContext.transitionReason = '';
             return false;
         }
 
         state.messages.push({role: 'user', content: results});
-        state.turnCount++;
-        state.transitionReason = 'tool_result';
+        state.oneLoopContext.turnCount++;
+        state.oneLoopContext.transitionReason = 'tool_result';
         return true;
     }
 
     private async agentLoop(state: LoopState): Promise<string> {
         while (true) {
             const goAound = await this.runOneTurn(state);
+            if (state.oneLoopContext.turnCount >= this.turnLimit) {
+                return 'Reached maximum turn count. Ending session.\n' + state.messages[state.messages.length - 1]!.content;
+            }
             if (!goAound) {
                 const finalText = extractText(state.messages[state.messages.length - 1]!.content);
                 if (finalText) {
@@ -135,14 +137,22 @@ export class LoopAgent extends FlushAgent {
     }
 
     protected async _invoke(input: string): Promise<string> {
-        TodoManager.getInstance().reset(this.onStreamEvent);
         this.history.push({role: 'user', content: input});
         const state: LoopState = {
             messages: this.history,
-            turnCount: 0,
+            oneLoopContext: {toDoManager: new TodoManager(), toDoUpdated: false, turnCount: 0},
         };
         const res = await this.agentLoop(state);
         return res;
     }
 }
 
+export class SubLoopAgent extends LoopAgent {
+    constructor(system: string = SUB_LOOP_SYSTEM) {
+        super(() => {}, system);
+    }
+
+    protected override getTools(): ToolDesc[] {
+        return subLoopBuiltInTools;
+    }
+}

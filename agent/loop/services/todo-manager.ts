@@ -14,19 +14,8 @@ export class TodoManager {
     private items: TodoItem[] = [];
     private roundsSinceUpdate: number = 0;
     private threshold: number;
-    private static instance: TodoManager;
-    private onUpdate: ((state: string) => void) | null = null;
 
-    static getInstance(threshold: number = 4): TodoManager {
-        this.instance = this.instance || new TodoManager(threshold);
-        return this.instance;
-    }
-
-    setOnUpdate(onUpdate: (state: string) => void): void {
-        this.onUpdate = onUpdate;
-    }
-
-    private constructor(threshold: number = 4) {
+    constructor(threshold: number = 4) {
         this.threshold = threshold;
     }
 
@@ -48,9 +37,6 @@ export class TodoManager {
         this.items = checked;
         this.roundsSinceUpdate = 0;
         const state = this.renderState();
-        if (this.onUpdate) {
-            this.onUpdate(state);
-        }
         return state;
     }
 
@@ -77,8 +63,7 @@ export class TodoManager {
         return this.roundsSinceUpdate >= this.threshold ? '<reminder>Refresh your current plan before continuing.</reminder>' : '';
     }
 
-    reset(onUpdate: (state: string) => void): void {
-        this.onUpdate = onUpdate;
+    reset(): void {
         this.items = [];
         this.roundsSinceUpdate = 0;
     }

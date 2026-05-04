@@ -1,4 +1,5 @@
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
+import { OneLoopContext} from '../definitions.js';
 
 export const TOOL_RESULT_TYPE: string = 'tool_result' as const;
 
@@ -13,14 +14,11 @@ export type ToolGuardResult = {
     feedback?: string;
 }
 
-export type ToolUseContext = {
-    todoUpdated: boolean;
-}
-
-export type ToolCallback<T = unknown> = (input: T, context?: ToolUseContext) => Promise<string>;
+export type ToolCallback<T = unknown> = (input: T, context?: OneLoopContext) => Promise<string>;
 
 export type ToolDesc<T = unknown> = {
     tool: ToolUnion;
     invoke: ToolCallback<T>;
+    outputToUser?: boolean;
     guard?: (input: T) => ToolGuardResult;
 }

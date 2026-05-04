@@ -1,5 +1,6 @@
-import { ToolDesc, ToolUseContext } from './tool-definitions.js';
-import { TodoManager, TodoItem } from '../todo-manager.js';
+import { ToolDesc } from './tool-definitions.js';
+import { TodoItem } from '../services/todo-manager.js';
+import { OneLoopContext } from '../definitions.js';
 
 type TodoToolInput = {
     items: TodoItem[];
@@ -28,8 +29,9 @@ export const todoTool: ToolDesc<TodoToolInput> = {
             required: ['items'],
         },
     },
-    invoke: async function(input: TodoToolInput, context?: ToolUseContext): Promise<string> {
-        context!.todoUpdated = true;
-        return TodoManager.getInstance().update(input.items);
+    outputToUser: true,
+    invoke: async function(input: TodoToolInput, context?: OneLoopContext): Promise<string> {
+        context!.toDoUpdated = true;
+        return context!.toDoManager.update(input.items);
     },
 }
