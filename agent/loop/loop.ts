@@ -19,7 +19,9 @@ Refresh the plan as work advances. Prefer tools over prose.
 When you are done, mark all the todo list as completed with the todo tool.`;
 
 const SUB_LOOP_SYSTEM = `You are a assistant agent on ${process.platform.includes('win32') ? 'Windows' : 'Linux'} at "${process.cwd()}".
-Complete the given task, then summarize your findings.`;
+Complete the given task, then summarize your findings.
+You don't have access to the shell or file writing tools, but you can use the todo tool to manage your work if needed.
+When you need to create or generate any content, just return it as the output of the agent without saving it to any file.`;
 
 export class LoopAgent extends FlushAgent {
     private llmModel: LLMModel;

@@ -9,4 +9,4 @@ export const concurrencySafeTools: ToolDesc<any>[] = [readFileTool, todoTool];
 export const concurrencyUnsafeTools: ToolDesc<any>[] = [shellTool, writeFileTool, editFileTool];
 
 export const builtInTools: ToolDesc<any>[] = [...concurrencySafeTools, ...concurrencyUnsafeTools, subLoopTool];
-export const subLoopBuiltInTools: ToolDesc<any>[] = [...concurrencySafeTools, ...concurrencyUnsafeTools];
+export const subLoopBuiltInTools: ToolDesc<any>[] = [readFileTool, todoTool];
