@@ -27,8 +27,9 @@ export class LoopAgent extends FlushAgent {
     private history: LoopMessageParam[] = [];
     private turnLimit: number;
 
-    constructor(onStreamEvent: (text: string) => void, system: string = SYSTEM, turnLimit: number = 10) {
+    constructor(onStreamEvent: (text: string) => void, history: LoopMessageParam[] = [], system: string = SYSTEM, turnLimit: number = 10) {
         super(onStreamEvent);
+        this.history = history;
         this.turnLimit = turnLimit;
         this.registerTools();
         this.llmModel = new LLMModel(system, this.getTools().map(t => t.tool));
@@ -148,8 +149,9 @@ export class LoopAgent extends FlushAgent {
 }
 
 export class SubLoopAgent extends LoopAgent {
-    constructor(system: string = SUB_LOOP_SYSTEM) {
-        super(() => {}, system);
+
+    constructor(history: LoopMessageParam[] = [], system: string = SUB_LOOP_SYSTEM) {
+        super(() => {}, history, system);
     }
 
     protected override getTools(): ToolDesc[] {
