@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import process from 'node:process';
 const execAsync = promisify(exec);
 
 import { ToolDesc } from './tool-definitions.js';
@@ -10,7 +11,7 @@ type ShellInput = {
 
 export const shellTool: ToolDesc<ShellInput> = {
     tool: {
-        name: 'bash',
+        name: 'shell',
         description: 'Run a shell command in the current workspace.',
         input_schema: {
             type: 'object' as const,
@@ -18,13 +19,13 @@ export const shellTool: ToolDesc<ShellInput> = {
             required: ['command'],
         },
     },
-    invoke: runBash
+    invoke: runCommand
 }
 
-async function runBash(input: ShellInput): Promise<string> {
+async function runCommand(input: ShellInput): Promise<string> {
     const { command } = input;
     // 1. 危险命令黑名单检查
-    const dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"];
+    const dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/", "del /f /s /q"];
     if (dangerous.some(item => command.includes(item))) {
         return "Error: Dangerous command blocked";
     }
