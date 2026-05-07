@@ -3,7 +3,7 @@ import { promisify } from 'util';
 import process from 'node:process';
 const execAsync = promisify(exec);
 
-import { ToolDesc } from './tool-definitions.js';
+import { ToolDesc } from '../../definitions/tool-definitions.js';
 
 type ShellInput = {
     command: string;
@@ -12,9 +12,10 @@ type ShellInput = {
 export const shellTool: ToolDesc<ShellInput> = {
     tool: {
         name: 'shell',
-        description: 'Run a shell command in the current workspace.',
-        input_schema: {
+        description: 'Run a shell command in the current workspace. This is local function tool, not MCP compatible.',
+        schema: {
             type: 'object' as const,
+            additionalProperties: false,
             properties: {command: {type: 'string'}},
             required: ['command'],
         },

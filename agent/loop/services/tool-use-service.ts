@@ -1,12 +1,16 @@
-import { ContentBlock, ToolUnion, ToolUseBlock } from "@anthropic-ai/sdk/resources";
-import { ToolDesc, ToolUseContext, TOOL_RESULT, TOOL_USE, ToolUseResult } from "../tools/tool-definitions";
-import { LoopContent } from "../definitions";
+import { LLMTool, ToolDesc, ToolUseContext, ToolUseResult } from "../../definitions/tool-definitions.js";
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
     effect: {
         outputToUser: boolean;
     }
+}
+
+export type ToolUseDef = {
+    id: string;
+    name: string;
+    input: { [key: string]: any };
 }
 
 export class ToolUseService {
@@ -18,54 +22,44 @@ export class ToolUseService {
         }
     }
 
-    public getAvailableTools(): ToolUnion[] {
+    public getAvailableTools(): LLMTool[] {
         return Array.from(this.toolMap.values()).map(t => t.tool)
     }
 
-    public async executeToolCalls(block: ToolUseBlock, context: ToolUseContext): Promise<ToolUseServiceResult> {
-        const tool = this.toolMap.get(block.name);
+    public async executeToolCall(toolUseDef: ToolUseDef, context: ToolUseContext): Promise<ToolUseServiceResult> {
+        const tool = this.toolMap.get(toolUseDef.name);
         if (!tool) {
-            return this.toolResult(block.id, `Unknown tool: ${block.name}`);
+            return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`);
         }
         if (tool.guard) {
-            const {allowed, feedback} = tool.guard(block.input);
+            const {allowed, feedback} = tool.guard(toolUseDef.input);
             if (!allowed) {
-                return this.toolResult(block.id, `Tool run is not allowed: ${block.name}. ${feedback}.`);
+                return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${feedback}.`);
             }
         }
         try {
-            const output = await tool.invoke(block.input, context);
-            return this.toolResult(block.id, output, !!tool.outputToUser);
+            const output = await tool.invoke(toolUseDef.input, context);
+            return this.toolResult(toolUseDef.id, output, !!tool.outputToUser);
         } catch (error) {
-            return this.toolResult(block.id, `Error: ${error}`);
+            return this.toolResult(toolUseDef.id, `Error: ${error}`);
         }
     }
 
     private toolResult(toolUseId: string, content: string, outputToUser: boolean = false): ToolUseServiceResult {
         return ({
-            result: {
-                type: TOOL_RESULT,
-                tool_use_id: toolUseId,
-                content,
-            },
-            effect: {
-                outputToUser,
-            },
+            result: {id: toolUseId, content},
+            effect: {outputToUser},
         });
     }
 
-    public postToolUse(results: LoopContent[], context: ToolUseContext): void {
+    public postToolUse(results: ToolUseResult[], context: ToolUseContext): void {
         if (!context.oneLoopContext.toDoUpdated) {
             const reminder = context.oneLoopContext.toDoManager.noteRoundWithoutUpdate();
             if (reminder) {
-                results.unshift({type: 'text', text: reminder});
+                results.unshift({id: 'reminder_todo_message', content: reminder});
             }
         } else {
             context.oneLoopContext.toDoUpdated = false;
         }
-    }
-
-    public isToolUseBlock(block: ContentBlock): block is ToolUseBlock {
-        return block.type === TOOL_USE
     }
 }

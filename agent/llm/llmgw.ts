@@ -1,69 +1,39 @@
 import path from 'path';
 import dotenv from 'dotenv';
-import Anthropic from '@anthropic-ai/sdk';
 
-import { MessageParam } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
-import { ParsedMessage } from '@anthropic-ai/sdk/lib/parser.js';
-import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
-import { normalizeMessages, formatLLMText } from '../utils/utils.js';
+import { LLMTool } from '../definitions/tool-definitions.js';
+import { LoopMessageParam } from '../definitions/definitions.js';
 
 dotenv.config({ path: path.join(process.cwd(), '.env'), quiet: true });
 
 const gw = {
-    embeddingModel: process.env['EMBENDING_MODEL_ID'] || 'text-embedding-3-small',
-    model: process.env['MODEL_ID'] || 'GPT5',
-    baseURL: process.env['ANTHROPIC_BASE_URL'] || '',
-    apiKey: process.env['ANTHROPIC_API_KEY'] || '',
-    headers: {
-        'api-key': process.env['ANTHROPIC_API_KEY'] || '',
-        'workspacename': process.env['ANTHROPIC_WORKSPACE_NAME'] || '',
+    model: process.env['MODEL_ID'] as string,
+    headers: !process.env['WORKSPACE_NAME'] ? undefined : {
+        'api-key': process.env['OPENAI_API_KEY'],
+        'workspacename': process.env['WORKSPACE_NAME'],
     },
     timeoutMs: 300 * 1000, // JSON: seconds → client: ms
     temperature: 0.1,
-    maxTokens: 8000,
-    tavilyApiKey: process.env['TAVILY_API_KEY'] || '',
+    maxTokens: 8000
 }
 
-export class LLMModel {
-    private client: Anthropic;
-    private system: string;
-    private tools?: ToolUnion[];
+export abstract class LLMModel<I, IM, O, T, LLM> {
+    protected client: LLM;
+    protected system: string;
+    protected tools?: T[];
+    protected gw = gw;
 
-    constructor(system: string = '', tools?: ToolUnion[]) {
+    constructor(system: string, tools: LLMTool[] = []) {
         this.system = system;
-        this.tools = tools;
-        this.client = new Anthropic({
-            apiKey: gw.apiKey, // This is the default and can be omitted
-            baseURL: gw.baseURL, // This is the default and can be omitted,
-            timeout: gw.timeoutMs
-        });
+        this.tools = this.convertTools(tools);
+        this.client = this.createLLMClient();
     }
+    
+    protected abstract convertTools(tools: LLMTool[]): T[];
+    protected abstract createLLMClient(): LLM;
 
-    async invoke_sync(messages: MessageParam[]): Promise<any> {
-        return this.client.messages.create({
-            model: gw.model,
-            system: this.system,
-            messages,
-            tools: this.tools,
-            max_tokens: gw.maxTokens,
-            temperature: gw.temperature,
-            stream: false,
-        });
-    }
+    protected abstract convertMessages(messages: LoopMessageParam<I>[]): IM[];
 
-    async invoke(messages: MessageParam[], onStreamEvent: (text: string) => void): Promise<ParsedMessage<any>> {
-        const stream = this.client.messages.stream({
-            model: gw.model,
-            system: this.system,
-            messages: normalizeMessages(messages),
-            tools: this.tools,
-            max_tokens: gw.maxTokens,
-            temperature: gw.temperature
-        }).on('text', (text) => {
-            onStreamEvent(formatLLMText(text));
-        });
+    abstract invoke(messages: LoopMessageParam<I>[], onStreamEvent: (text: string) => void): Promise<O>;
 
-        const message = await stream.finalMessage();
-        return message;
-    }
 }

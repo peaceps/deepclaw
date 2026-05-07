@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { ToolDesc, ToolGuardResult } from './tool-definitions.js';
+import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions.js';
 
 type FileOperationInput = {
     filePath: string;
@@ -14,7 +14,7 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
     tool: {
         name: 'read_file',
         description: 'Read file contents.',
-        input_schema: {
+        schema: {
             type: 'object',
              properties: {
                 filePath: {type: 'string'},
@@ -42,7 +42,7 @@ export const writeFileTool: ToolDesc<WriteFileInput> = {
     tool: {
         name: 'write_file',
         description: 'Write content to file.',
-        input_schema: {
+        schema: {
             type: 'object',
             properties: {
                 filePath: {type: 'string'},
@@ -68,7 +68,7 @@ export const editFileTool: ToolDesc<EditFileInput> = {
     tool: {
         name: 'edit_file',
         description: 'Replace exact text in file.',
-        input_schema: {
+        schema: {
             type: 'object',
             properties: {
                 filePath: {type: 'string'},

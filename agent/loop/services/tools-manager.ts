@@ -1,4 +1,4 @@
-import { ToolDesc } from '../tools/tool-definitions.js';
+import { ToolDesc } from '../../definitions/tool-definitions.js';
 
 import {shellTool} from '../tools/shell-tool.js';
 import {todoTool} from '../tools/todo-tool.js';

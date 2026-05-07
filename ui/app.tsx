@@ -1,7 +1,7 @@
 import {ReactElement, useCallback} from 'react';
 import {useState, useMemo, useEffect, useRef} from 'react';
 import {useInput, Box, Static} from 'ink';
-import {LoopAgent, TestLlmAgent, FlushAgent, ALL_CONTENT_FLUSHED} from '../agent/index.js';
+import {LoopInitializer, FlushAgent, ALL_CONTENT_FLUSHED} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import EveryInput from './every-input.js';
@@ -40,7 +40,7 @@ export default function App({app}: {app: AppConfig}): ReactElement {
                 setLlmOutput(prev => prev + text);
             }
         }
-        agent = app.testMode ? new TestLlmAgent(handleLlmStream) : new LoopAgent(handleLlmStream);
+        agent = app.testMode ? LoopInitializer.getTestLoop(handleLlmStream) : LoopInitializer.getLoop(handleLlmStream);
 	}, []);
 
 	useInput((input, key) => {

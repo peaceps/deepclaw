@@ -9,8 +9,9 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
     tool: {
         name: 'sub_loop',
         description: 'Spawn a subagent with fresh context. It shares the filesystem but not conversation history.',
-        input_schema: {
+        schema: {
             type: 'object',
+            additionalProperties: false,
             properties: {
                 prompt: {type: 'string', description: 'The task prompt for the sub-agent'},
             },
@@ -30,7 +31,7 @@ export const subLoopWithHistoryTool: ToolDesc<SubLoopInput> = {
         It shares the filesystem as well as conversation history. 
         Only when special cases that need the subagent to have the full context of the parent agent, this tool should be used. 
         Otherwise, it's recommended to use the 'sub_loop' tool to avoid potential confusion from too much context.`,
-        input_schema: {
+        schema: {
             type: 'object',
             properties: {
                 prompt: {type: 'string', description: 'The task prompt for the sub-agent'},
@@ -38,7 +39,7 @@ export const subLoopWithHistoryTool: ToolDesc<SubLoopInput> = {
             required: ['prompt']}
     },
     invoke: async function(input: SubLoopInput, context: ToolUseContext): Promise<string> {
-        const subLoop = new SubLoopAgent(context.history);
+        const subLoop = new SubLoopAgent();
         const result = await subLoop.invoke(input.prompt);
         return result;
     },

@@ -46,8 +46,12 @@ export class PromptService {
     private appendAvailableSkills(prompt: string): string {
         return `${prompt}
 
-Skills are not tools can be used directly,
-you need to use load_skill tool to get the detailed information of the chosen skill before you act with it.
+MCP server is not installed, do not use mcp_call.
+IMPORTANT: You can only use local function calls, no mcp_calls.
+
+Below available skills are not tools nor MCP tools, they cannot be used directly,
+load_skill tool is a local function to get the detailed information of skills.
+You always need to use load_skill tool with function_call first.
 
 Skills available:
 ${this.skillsManager.getAvailableSkills()}`;
