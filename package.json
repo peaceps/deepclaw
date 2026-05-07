@@ -18,6 +18,7 @@
 		"@anthropic-ai/sdk": "0.91.1",
 		"cli-cursor": "5.0.0",
 		"dotenv": "17.4.2",
+		"gray-matter": "4.0.3",
 		"ink": "7.0.1",
 		"meow": "14.1.0",
 		"react": "19.2.5",

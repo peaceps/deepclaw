@@ -1,5 +1,6 @@
-import path from "path";
-import fs from "fs";
+import path from 'path';
+import fs from 'fs';
+import matter from 'gray-matter';
 
 type SkillManifest = {
     name: string;
@@ -47,30 +48,18 @@ export class SkillsManager {
     }
 
     private parseSkillDocument(fileContent: string): SkillDocument | null {
-        const match = fileContent.match(/^---\n(.*?)\n---\n(.*)/s);
-        if (!match) {
-            return null;
-        }
-        const [_, meta = '', body = ''] = match;
+        const {data, content} = matter(fileContent);
 
-        const manifest: SkillManifest = {
-            name: '',
-            description: '',
-        };
-        for (const line of meta.split('\n')) {
-            if (line.includes(':')) {
-                const [key = '', value = ''] = line.split(':');
-                if (key.trim() === 'name') {
-                    manifest.name = value.trim();
-                } else if (key.trim() === 'description') {
-                    manifest.description = value.trim();
-                }
-            }
+        if (!data['name'] || !data['description']) {
+            return null;
         }
 
         return {
-            manifest,
-            body,
+            manifest: {
+                name: data['name'],
+                description: data['description'],
+            },
+            body: content,
         };
     }
 }

@@ -46,7 +46,9 @@ export class PromptService {
     private appendAvailableSkills(prompt: string): string {
         return `${prompt}
 
-Use load_skill before you act with the skill you choose.
+Skills are not tools can be used directly,
+you need to use load_skill tool to get the detailed information of the chosen skill before you act with it.
+
 Skills available:
 ${this.skillsManager.getAvailableSkills()}`;
     }

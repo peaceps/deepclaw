@@ -7,7 +7,7 @@ import { ParsedMessage } from '@anthropic-ai/sdk/lib/parser.js';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { normalizeMessages, formatLLMText } from '../utils/utils.js';
 
-dotenv.config({ path: path.join(process.cwd(), '../.env'), quiet: true });
+dotenv.config({ path: path.join(process.cwd(), '.env'), quiet: true });
 
 const gw = {
     embeddingModel: process.env['EMBENDING_MODEL_ID'] || 'text-embedding-3-small',
