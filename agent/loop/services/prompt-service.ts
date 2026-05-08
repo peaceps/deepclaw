@@ -14,12 +14,15 @@ Keep exactly one step inProgress when a task has multiple steps.
 Refresh the plan as work advances. Prefer tools over prose.
 When you are done, mark all the todo list as completed with the todo tool.
 
+If you ask subagent to generate content, let subagent return the literal content as the output to you. And you do the file writing.
+
 No matter what language the user is speaking or the skill is written in, always respond in simplified Chinese.`,
 
     subLoopSystem: `You are a assistant agent on ${PLATFORM} at "${CWD}".
 Complete the given task, then summarize your findings.
-You don't have access to file writing tools, but you can use the shell tool and todo tool and any other available tools to manage your work if needed.
-When you need to create or generate any content, just return it as the output of the agent without saving it to any file.`,
+You don't have access to file writing tools, and don't use shell tool to create or edit file.
+You have todo tool to manage your work if needed.
+When you need to create or generate any content, just return it as the output of the agent without writing it to any file.`,
 };
 
 export type SystemPrompt = {
@@ -28,11 +31,9 @@ export type SystemPrompt = {
 }
 
 export class PromptService {
-    private skillsManager: SkillsManager;
     private prompts: SystemPrompt;
 
-    constructor(skillsManager: SkillsManager, system: SystemPrompt = DEFAULT_SYSTEM_PROMPT) {
-        this.skillsManager = skillsManager;
+    constructor(system: SystemPrompt = DEFAULT_SYSTEM_PROMPT) {
         this.prompts = {
             system: this.appendAvailableSkills(system.system),
             subLoopSystem: this.appendAvailableSkills(system.subLoopSystem),
@@ -54,6 +55,6 @@ load_skill tool is a local function to get the detailed information of skills.
 You always need to use load_skill tool with function_call first.
 
 Skills available:
-${this.skillsManager.getAvailableSkills()}`;
+${SkillsManager.getAvailableSkills()}`;
     }
 }

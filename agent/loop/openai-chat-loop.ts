@@ -1,16 +1,16 @@
-import { ChatCompletionContentPart, ChatCompletionChunk } from 'openai/resources/chat/completions.js';
-import { OpenAILLMModel } from '../llm/openai-llm';
-import { LoopAgent, SubLoopAgent } from './loop'
+import { ChatCompletionContentPart } from 'openai/resources/chat/completions.js';
+import { OpenAIChatLLMModel } from '../llm/openai-chat-llm';
+import { LoopAgent } from './loop'
 import { ToolUseDef } from './services/tool-use-service';
 import { ToolUseResult } from '../definitions/tool-definitions.js';
-import { LoopMessageParam } from '../definitions/definitions';
-import { ThinkingResponse } from '../llm/openai-llm';
+import { LoopMessageParam, LoopState } from '../definitions/definitions';
+import { ThinkingResponse } from '../llm/openai-chat-llm';
 
-export class OpenAILoop extends LoopAgent<ChatCompletionContentPart, ChatCompletionChunk.Choice, OpenAILLMModel> {
+export class OpenAIChatLoop extends LoopAgent<ChatCompletionContentPart, ThinkingResponse, OpenAIChatLLMModel> {
 
-    protected override createLLMModel(): OpenAILLMModel {
-        return new OpenAILLMModel(
-            this.promptService.provideSystemPrompt(this instanceof SubLoopAgent),
+    protected override createLLMModel(): OpenAIChatLLMModel {
+        return new OpenAIChatLLMModel(
+            this.promptService.provideSystemPrompt(this.isSubLoop),
             this.toolUseService.getAvailableTools()
         );
     }
@@ -33,15 +33,24 @@ export class OpenAILoop extends LoopAgent<ChatCompletionContentPart, ChatComplet
         }));
     }
 
-    protected override quitLoop(result: ChatCompletionChunk.Choice): boolean {
+    protected override quitLoop(result: ThinkingResponse): boolean {
         return result.finish_reason === 'stop';
     }
 
-    protected override extractToolCalls(result: ChatCompletionChunk.Choice): ToolUseDef[] {
+    protected override extractToolCalls(result: ThinkingResponse): ToolUseDef[] {
         return result.delta.tool_calls?.map(block => ({
             id: block.id || '',
             name: block.function?.name || '',
             input: JSON.parse(block.function?.arguments || '{}'),
         })) || [];
+    }
+    
+    protected override extractFinalText(state: LoopState<ChatCompletionContentPart>): string {
+        const message = state.messages[state.messages.length - 1]!;
+        return message.content as string;
+    }
+
+    override createSubLoop(fork: boolean = false): LoopAgent<ChatCompletionContentPart, ThinkingResponse, OpenAIChatLLMModel> {
+        return new OpenAIChatLoop(() => {}, fork ? this.history : [], true);
     }
 }

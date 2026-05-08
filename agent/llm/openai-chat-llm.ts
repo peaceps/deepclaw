@@ -12,11 +12,11 @@ export type ThinkingResponse = ChatCompletionChunk.Choice & {
     }
 }
 
-export class OpenAILLMModel extends LLMModel<ChatCompletionContentPart, ChatCompletionMessageParam, ThinkingResponse, ChatCompletionTool, OpenAI> {
+export class OpenAIChatLLMModel extends LLMModel<ChatCompletionContentPart, ChatCompletionMessageParam, ThinkingResponse, ChatCompletionTool, OpenAI> {
 
     protected override convertTools(tools: LLMTool[]): ChatCompletionTool[] {
         return tools.map(tool => (
-            { type: 'function', function: {name: tool.name, description: tool.description,} }
+            { type: 'function', function: {name: tool.name, description: tool.description, parameters: tool.schema} }
         ));
     }
 
@@ -42,13 +42,15 @@ export class OpenAILLMModel extends LLMModel<ChatCompletionContentPart, ChatComp
         });
 
         let toolCallResult: ChatCompletionChunk.Choice.Delta.ToolCall | null = null;
+        let content = '';
         let reasoningConent = '';
         for await (const chunk of stream) {
             const response = chunk.choices[0] as ThinkingResponse;
-            const content = response?.delta?.content || '';
-            reasoningConent += response?.delta?.reasoning_content || '';
-            if (content.trim().length > 0) {
-                onStreamEvent(formatLLMText(content));
+            const chunkContent = formatLLMText(response?.delta?.content || '');
+            reasoningConent += formatLLMText(response?.delta?.reasoning_content || '');
+            if (chunkContent) {
+                content += chunkContent;
+                onStreamEvent(chunkContent);
             }
             const toolCall = response?.delta?.tool_calls?.[0];
             if (toolCall) {
@@ -63,14 +65,17 @@ export class OpenAILLMModel extends LLMModel<ChatCompletionContentPart, ChatComp
                         }
                     }
                 }
-                toolCallResult.function!.arguments += toolCall.function?.arguments || '';
+                toolCallResult.function!.arguments += formatLLMText(toolCall.function?.arguments || '');
             }
 
             if (!!response?.finish_reason && (response?.finish_reason as string) !== 'null') {
                 if (toolCallResult) {
                     response.delta.tool_calls = [toolCallResult];
                 }
-                if (reasoningConent.trim().length > 0) {
+                if (content) {
+                    response.delta.content = content;
+                }
+                if (reasoningConent) {
                     response.delta.reasoning_content = reasoningConent;
                 }
                 

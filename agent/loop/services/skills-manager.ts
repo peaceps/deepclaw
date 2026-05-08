@@ -15,13 +15,9 @@ type SkillDocument = {
 const SKILL_DIR = path.resolve('agent/skills');
 
 export class SkillsManager {
-    private skills: Map<string, SkillDocument> = new Map();
+    private static skills: Map<string, SkillDocument> = this.loadSkills();
 
-    constructor() {
-        this.loadSkills();
-    }
-
-    public getAvailableSkills(): string {
+    public static getAvailableSkills(): string {
         if (this.skills.size === 0) {
             return '(no skills available)';
         }
@@ -29,7 +25,7 @@ export class SkillsManager {
             .reduce((acc, skill) => acc + `- ${skill.name}: ${skill.description}\n`, '');
     }
 
-    public getSkillContent(skillName: string): string {
+    public static getSkillContent(skillName: string): string {
         const skillDocument = this.skills.get(skillName);
         if (!skillDocument) {
             return `Error: Unknown skill: ${skillName}. Available skills: ${Array.from(this.skills.keys()).join(', ')}.`;
@@ -37,17 +33,19 @@ export class SkillsManager {
         return `<skill name="${skillName}">\n${skillDocument.body}\n</skill>`;
     }
 
-    private loadSkills(): void {
+    private static loadSkills(): Map<string, SkillDocument> {
+        const skills: Map<string, SkillDocument> = new Map();
         for (const fileName of fs.readdirSync(SKILL_DIR)) {
             const fileContent = fs.readFileSync(path.join(SKILL_DIR, fileName, 'SKILL.md'), 'utf8');
             const skillDocument = this.parseSkillDocument(fileContent.replace(/\r\n/g, '\n'));
             if (skillDocument) {
-                this.skills.set(skillDocument.manifest.name, skillDocument);
+                skills.set(skillDocument.manifest.name, skillDocument);
             }
         }
+        return skills;
     }
 
-    private parseSkillDocument(fileContent: string): SkillDocument | null {
+    private static parseSkillDocument(fileContent: string): SkillDocument | null {
         const {data, content} = matter(fileContent);
 
         if (!data['name'] || !data['description']) {

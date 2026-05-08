@@ -1,5 +1,4 @@
-import { ToolDesc, ToolUseContext } from './tool-definitions.js';
-import { SubLoopAgent } from '../loop.js';
+import { ToolDesc, ToolUseContext } from '../../definitions/tool-definitions.js';
 
 type SubLoopInput = {
     prompt: string;
@@ -17,8 +16,8 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
             },
             required: ['prompt']}
     },
-    invoke: async function(input: SubLoopInput): Promise<string> {
-        const subLoop = new SubLoopAgent();
+    invoke: async function(input: SubLoopInput, context: ToolUseContext): Promise<string> {
+        const subLoop = context.loop.createSubLoop(false);
         const result = await subLoop.invoke(input.prompt);
         return result;
     },
@@ -39,7 +38,7 @@ export const subLoopWithHistoryTool: ToolDesc<SubLoopInput> = {
             required: ['prompt']}
     },
     invoke: async function(input: SubLoopInput, context: ToolUseContext): Promise<string> {
-        const subLoop = new SubLoopAgent();
+        const subLoop = context.loop.createSubLoop(true);
         const result = await subLoop.invoke(input.prompt);
         return result;
     },

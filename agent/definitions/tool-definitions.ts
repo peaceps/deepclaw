@@ -1,5 +1,5 @@
-import { LoopMessageParam, OneLoopContext } from './definitions.js';
-import { SkillsManager } from '../loop/services/skills-manager.js';
+import { OneLoopContext } from './definitions.js';
+import { LoopAgent } from '../loop/loop.js';
 
 export type LLMTool = {
     name: string;
@@ -23,8 +23,7 @@ export type ToolGuardResult = {
 }
 
 export type ToolUseContext = {
-    history: LoopMessageParam<any>[];
-    skillsManager: SkillsManager;
+    loop: LoopAgent<any, any, any>;
     oneLoopContext: OneLoopContext;
 }
 

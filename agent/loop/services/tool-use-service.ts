@@ -51,15 +51,4 @@ export class ToolUseService {
             effect: {outputToUser},
         });
     }
-
-    public postToolUse(results: ToolUseResult[], context: ToolUseContext): void {
-        if (!context.oneLoopContext.toDoUpdated) {
-            const reminder = context.oneLoopContext.toDoManager.noteRoundWithoutUpdate();
-            if (reminder) {
-                results.unshift({id: 'reminder_todo_message', content: reminder});
-            }
-        } else {
-            context.oneLoopContext.toDoUpdated = false;
-        }
-    }
 }

@@ -1,4 +1,5 @@
-import { ToolDesc, ToolUseContext } from "../../definitions/tool-definitions.js";
+import { ToolDesc } from "../../definitions/tool-definitions.js";
+import { SkillsManager } from "../services/skills-manager.js";
 
 type SkillInput = {
     name: string;
@@ -15,8 +16,8 @@ export const loadSkillTool: ToolDesc<SkillInput> = {
             required: ['name'],
         },
     },
-    invoke: async function(input: SkillInput, context: ToolUseContext): Promise<string> {
+    invoke: async function(input: SkillInput): Promise<string> {
         const { name } = input;
-        return context.skillsManager.getSkillContent(name);
+        return SkillsManager.getSkillContent(name);
     },
 }

@@ -59,6 +59,9 @@ export class TodoManager {
     }
 
     noteRoundWithoutUpdate(): string {
+        if (this.items.length === 0) {
+            return '';
+        }
         this.roundsSinceUpdate++;
         return this.roundsSinceUpdate >= this.threshold ? '<reminder>Refresh your current plan before continuing.</reminder>' : '';
     }

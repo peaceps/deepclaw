@@ -16,7 +16,7 @@ export type OneLoopContext = {
     toDoManager: TodoManager;
     toDoUpdated: boolean;
     turnCount: number;
-    transitionReason?: string;
+    transitionReason?: 'tool_result' | 'no_tool_use';
 }
 
 export type LoopContent<I> = ToolUseResult | I;

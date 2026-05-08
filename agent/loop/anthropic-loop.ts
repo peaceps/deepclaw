@@ -1,16 +1,16 @@
 import { ParsedMessage } from "@anthropic-ai/sdk/lib/parser.js";
 import { AnthropicLLMModel } from "../llm/anthropic-llm";
 import { ContentBlockParam, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages/messages.mjs";
-import { LoopAgent, SubLoopAgent } from "./loop";
+import { LoopAgent } from "./loop";
 import { ToolUseResult } from "../definitions/tool-definitions.js";
-import { LoopMessageParam } from "../definitions/definitions";
+import { LoopMessageParam, LoopState } from "../definitions/definitions";
 import { ToolUseDef } from "./services/tool-use-service";
 
 export class AnthropicLoop extends LoopAgent<ContentBlockParam, ParsedMessage<any>, AnthropicLLMModel> {
 
     protected override createLLMModel(): AnthropicLLMModel {
         return new AnthropicLLMModel(
-            this.promptService.provideSystemPrompt(this instanceof SubLoopAgent),
+            this.promptService.provideSystemPrompt(this.isSubLoop),
             this.toolUseService.getAvailableTools()
         );
     }
@@ -39,6 +39,21 @@ export class AnthropicLoop extends LoopAgent<ContentBlockParam, ParsedMessage<an
 
     protected override quitLoop(result: ParsedMessage<any>): boolean {
         return result.stop_reason != 'tool_use';
+    }
+    
+    protected override extractFinalText(state: LoopState<ContentBlockParam>): string {
+        const texts: string[] = [];
+        const message = state.messages[state.messages.length - 1]!;
+        for (const block of (message.content as ContentBlockParam[])) {
+            if ('text' in block && block.text) {
+                texts.push(block.text as string);
+            }
+        }
+        return texts.join("\n");
+    }
+
+    override createSubLoop(fork: boolean = false): LoopAgent<ContentBlockParam, ParsedMessage<any>, AnthropicLLMModel> {
+        return new AnthropicLoop(() => {}, fork ? this.history : [], true);
     }
 
 }
