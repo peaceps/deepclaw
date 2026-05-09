@@ -2,7 +2,6 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { LoopMessageParam } from '../definitions/definitions.js';
 
 dotenv.config({ path: path.join(process.cwd(), '.env'), quiet: true });
 
@@ -17,7 +16,7 @@ const gw = {
     maxTokens: 8000
 }
 
-export abstract class LLMModel<I, IM, O, T, LLM> {
+export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
     protected system: string;
     protected tools?: T[];
@@ -32,8 +31,8 @@ export abstract class LLMModel<I, IM, O, T, LLM> {
     protected abstract convertTools(tools: LLMTool[]): T[];
     protected abstract createLLMClient(): LLM;
 
-    protected abstract convertMessages(messages: LoopMessageParam<I>[]): IM[];
+    protected abstract convertMessages(messages: I[]): I[];
 
-    abstract invoke(messages: LoopMessageParam<I>[], onStreamEvent: (text: string) => void): Promise<O>;
+    abstract invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O>;
 
 }

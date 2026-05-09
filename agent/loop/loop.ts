@@ -1,27 +1,26 @@
-import { formatLLMText } from '../utils/utils.js';
 import { ToolUseContext, ToolUseResult } from '../definitions/tool-definitions.js';
 import { TodoManager } from './services/todo-manager.js';
 import { FlushAgent } from '../flush-agent.js';
-import { LoopMessageParam, LoopState} from '../definitions/definitions.js';
+import { LoopState} from '../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from './services/tool-use-service.js';
 import { PromptService, SystemPrompt } from './services/prompt-service.js';
 import { ToolsManager } from './services/tools-manager.js';
 
 type InvokableLLM<I, O> = {
-    invoke(messages: LoopMessageParam<I>[], onStreamEvent: (text: string) => void): Promise<O>;
+    invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O>;
 };
 
 export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I, O>> extends FlushAgent {
     private llmModel: LLM;
     private turnLimit: number;
     protected isSubLoop: boolean;
-    protected history: LoopMessageParam<I>[] = [];
+    protected history: I[] = [];
     protected toolUseService: ToolUseService;
     protected promptService: PromptService;
 
     constructor(
         onStreamEvent: (text: string) => void,
-        history: LoopMessageParam<I>[] = [],
+        history: I[] = [],
         isSubLoop: boolean = false,
         system?: SystemPrompt,
         turnLimit: number = 20
@@ -38,7 +37,7 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
     protected abstract createLLMModel(): LLM;
 
     protected async _invoke(input: string): Promise<string> {
-        this.history.push({role: 'user', content: input});
+        this.addStringMessage(input);
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {toDoManager: new TodoManager(), toDoUpdated: false, turnCount: 0},
@@ -48,13 +47,13 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
-            const goAound = await this.runOneTurn(state);
+            const goAround = await this.runOneTurn(state);
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
                 this.onStreamEvent(finalText);
                 return finalText;
             }
-            if (!goAound) {
+            if (!goAround) {
                 return this.extractFinalText(state);
             }
         }
@@ -101,7 +100,7 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
         if (!context.toDoUpdated) {
             const reminder = context.toDoManager.noteRoundWithoutUpdate();
             if (reminder) {
-                state.messages.push({role: 'user', content: reminder});
+                this.addStringMessage(reminder);
             }
         } else {
             context.toDoUpdated = false;
@@ -110,15 +109,17 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
         context.transitionReason = 'tool_result';
     }
 
+    protected abstract addStringMessage(message: string): void
+
     protected abstract extractFinalText(state: LoopState<I>): string;
 
     protected abstract extractToolCalls(result: O): ToolUseDef[];
 
     protected abstract quitLoop(result: O): boolean;
 
-    protected abstract convertResponseToMessages(response: O): LoopMessageParam<I>;
+    protected abstract convertResponseToMessages(response: O): I;
 
-    protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): LoopMessageParam<I>[];
+    protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
 
     abstract createSubLoop(fork?: boolean): LoopAgent<I, O, LLM>;
 }

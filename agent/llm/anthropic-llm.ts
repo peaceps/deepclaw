@@ -4,10 +4,9 @@ import { ParsedMessage } from '@anthropic-ai/sdk/lib/parser.js';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { LoopMessageParam } from '../definitions/definitions.js';
 import { formatLLMText } from '../utils/utils.js';
 
-export class AnthropicLLMModel extends LLMModel<ContentBlockParam, MessageParam, ParsedMessage<any>, ToolUnion, Anthropic> {
+export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>, ToolUnion, Anthropic> {
 
     protected override convertTools(tools: LLMTool[]): ToolUnion[] {
         return tools.map(tool => ({
@@ -24,7 +23,7 @@ export class AnthropicLLMModel extends LLMModel<ContentBlockParam, MessageParam,
     }
 
     override async invoke(
-        messages: LoopMessageParam<ContentBlockParam>[],
+        messages: MessageParam[],
         onStreamEvent: (text: string) => void
     ): Promise<ParsedMessage<any>> {
         const stream = this.client.messages.stream({
@@ -38,11 +37,10 @@ export class AnthropicLLMModel extends LLMModel<ContentBlockParam, MessageParam,
             onStreamEvent(formatLLMText(text));
         });
 
-        const message = await stream.finalMessage();
-        return message;
+        return await stream.finalMessage();
     }
 
-    protected override convertMessages(messages: LoopMessageParam<ContentBlockParam>[]): MessageParam[] {
+    protected override convertMessages(messages: MessageParam[]): MessageParam[] {
         const cleaned: MessageParam[] = [];
           
         // ===== 1. 清理 content =====

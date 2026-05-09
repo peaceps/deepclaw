@@ -1,10 +1,12 @@
 import OpenAI from 'openai';
-import { ChatCompletionTool, ChatCompletionChunk, ChatCompletionMessageParam,
-    ChatCompletionContentPart } from 'openai/resources/chat/completions.js';
+import { ChatCompletionTool, ChatCompletionChunk, ChatCompletionMessageParam } from 'openai/resources/chat/completions.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { LoopMessageParam } from '../definitions/definitions.js';
 import { formatLLMText } from '../utils/utils.js';
+
+export type ThinkingMessage = ChatCompletionMessageParam & {
+    reasoning_content?: string;
+}
 
 export type ThinkingResponse = ChatCompletionChunk.Choice & {
     delta: ChatCompletionChunk.Choice.Delta & {
@@ -12,7 +14,7 @@ export type ThinkingResponse = ChatCompletionChunk.Choice & {
     }
 }
 
-export class OpenAIChatLLMModel extends LLMModel<ChatCompletionContentPart, ChatCompletionMessageParam, ThinkingResponse, ChatCompletionTool, OpenAI> {
+export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingResponse, ChatCompletionTool, OpenAI> {
 
     protected override convertTools(tools: LLMTool[]): ChatCompletionTool[] {
         return tools.map(tool => (
@@ -25,7 +27,7 @@ export class OpenAIChatLLMModel extends LLMModel<ChatCompletionContentPart, Chat
     }
 
     override async invoke(
-        messages: LoopMessageParam<ChatCompletionContentPart>[],
+        messages: ThinkingMessage[],
         onStreamEvent: (text: string) => void
     ): Promise<ThinkingResponse> {
         if (messages.length === 1) {
@@ -94,12 +96,8 @@ export class OpenAIChatLLMModel extends LLMModel<ChatCompletionContentPart, Chat
         };
     }
 
-    protected override convertMessages(messages: LoopMessageParam<ChatCompletionContentPart>[]): ChatCompletionMessageParam[] {
-        const handledMessages: ChatCompletionMessageParam[] = [];
-        for (const msg of messages) {
-            handledMessages.push(msg as ChatCompletionMessageParam);
-        }
-        return handledMessages;
+    protected override convertMessages(messages: ThinkingMessage[]): ThinkingMessage[] {
+        return messages;
     }
 
 }

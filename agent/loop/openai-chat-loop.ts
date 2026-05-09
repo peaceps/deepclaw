@@ -1,12 +1,11 @@
-import { ChatCompletionContentPart } from 'openai/resources/chat/completions.js';
-import { OpenAIChatLLMModel } from '../llm/openai-chat-llm';
+import { OpenAIChatLLMModel, ThinkingMessage } from '../llm/openai-chat-llm';
 import { LoopAgent } from './loop'
 import { ToolUseDef } from './services/tool-use-service';
 import { ToolUseResult } from '../definitions/tool-definitions.js';
-import { LoopMessageParam, LoopState } from '../definitions/definitions';
+import { LoopState } from '../definitions/definitions';
 import { ThinkingResponse } from '../llm/openai-chat-llm';
 
-export class OpenAIChatLoop extends LoopAgent<ChatCompletionContentPart, ThinkingResponse, OpenAIChatLLMModel> {
+export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {
 
     protected override createLLMModel(): OpenAIChatLLMModel {
         return new OpenAIChatLLMModel(
@@ -15,17 +14,28 @@ export class OpenAIChatLoop extends LoopAgent<ChatCompletionContentPart, Thinkin
         );
     }
 
-    protected override convertResponseToMessages(response: ThinkingResponse): LoopMessageParam<ChatCompletionContentPart> {
+    protected override addStringMessage(message: string): void {
+        this.history.push({role: 'user', content: message});
+    }
+
+    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
         const delta = response.delta;
         return {
             role: 'assistant' as const,
             content: delta.content || '',
             reasoning_content: delta.reasoning_content || undefined,
-            tool_calls: delta.tool_calls || undefined,
+            tool_calls: delta.tool_calls?.map((toolCall) => ({
+                id: toolCall.id || '',
+                function: {
+                    name: toolCall.function?.name || '',
+                    arguments: toolCall.function?.arguments || '',
+                },
+                type: 'function' as const,
+            })) || undefined,
         };
     }
 
-    protected override convertToolResultMessages(toolResults: ToolUseResult[]): LoopMessageParam<ChatCompletionContentPart>[] {
+    protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
         return toolResults.map(toolResult => ({
             role: 'tool',
             tool_call_id: toolResult.id,
@@ -45,12 +55,12 @@ export class OpenAIChatLoop extends LoopAgent<ChatCompletionContentPart, Thinkin
         })) || [];
     }
     
-    protected override extractFinalText(state: LoopState<ChatCompletionContentPart>): string {
+    protected override extractFinalText(state: LoopState<ThinkingMessage>): string {
         const message = state.messages[state.messages.length - 1]!;
         return message.content as string;
     }
 
-    override createSubLoop(fork: boolean = false): LoopAgent<ChatCompletionContentPart, ThinkingResponse, OpenAIChatLLMModel> {
+    override createSubLoop(fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {
         return new OpenAIChatLoop(() => {}, fork ? this.history : [], true);
     }
 }

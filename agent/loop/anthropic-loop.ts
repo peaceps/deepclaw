@@ -1,12 +1,12 @@
 import { ParsedMessage } from "@anthropic-ai/sdk/lib/parser.js";
 import { AnthropicLLMModel } from "../llm/anthropic-llm";
-import { ContentBlockParam, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages/messages.mjs";
+import { ContentBlockParam, MessageParam, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages/messages.mjs";
 import { LoopAgent } from "./loop";
 import { ToolUseResult } from "../definitions/tool-definitions.js";
-import { LoopMessageParam, LoopState } from "../definitions/definitions";
+import { LoopState } from "../definitions/definitions";
 import { ToolUseDef } from "./services/tool-use-service";
 
-export class AnthropicLoop extends LoopAgent<ContentBlockParam, ParsedMessage<any>, AnthropicLLMModel> {
+export class AnthropicLoop extends LoopAgent<MessageParam, ParsedMessage<any>, AnthropicLLMModel> {
 
     protected override createLLMModel(): AnthropicLLMModel {
         return new AnthropicLLMModel(
@@ -15,11 +15,15 @@ export class AnthropicLoop extends LoopAgent<ContentBlockParam, ParsedMessage<an
         );
     }
 
-    protected override convertResponseToMessages(response: ParsedMessage<any>): LoopMessageParam<ContentBlockParam> {
+    protected override addStringMessage(message: string): void {
+        this.history.push({role: 'user', content: message});
+    }
+
+    protected override convertResponseToMessages(response: ParsedMessage<any>): MessageParam {
         return {role: 'assistant', content: response.content};
     }
 
-    protected override convertToolResultMessages(toolResults: ToolUseResult[]): LoopMessageParam<ContentBlockParam>[] {
+    protected override convertToolResultMessages(toolResults: ToolUseResult[]): MessageParam[] {
         const content = toolResults.map(toolResult => ({
             type: 'tool_result',
             tool_use_id: toolResult.id,
@@ -41,7 +45,7 @@ export class AnthropicLoop extends LoopAgent<ContentBlockParam, ParsedMessage<an
         return result.stop_reason != 'tool_use';
     }
     
-    protected override extractFinalText(state: LoopState<ContentBlockParam>): string {
+    protected override extractFinalText(state: LoopState<MessageParam>): string {
         const texts: string[] = [];
         const message = state.messages[state.messages.length - 1]!;
         for (const block of (message.content as ContentBlockParam[])) {
@@ -52,7 +56,7 @@ export class AnthropicLoop extends LoopAgent<ContentBlockParam, ParsedMessage<an
         return texts.join("\n");
     }
 
-    override createSubLoop(fork: boolean = false): LoopAgent<ContentBlockParam, ParsedMessage<any>, AnthropicLLMModel> {
+    override createSubLoop(fork: boolean = false): LoopAgent<MessageParam, ParsedMessage<any>, AnthropicLLMModel> {
         return new AnthropicLoop(() => {}, fork ? this.history : [], true);
     }
 
