@@ -29,9 +29,8 @@ export abstract class LLMModel<I, O, T, LLM> {
     }
     
     protected abstract convertTools(tools: LLMTool[]): T[];
-    protected abstract createLLMClient(): LLM;
 
-    protected abstract convertMessages(messages: I[]): I[];
+    protected abstract createLLMClient(): LLM;
 
     abstract invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O>;
 

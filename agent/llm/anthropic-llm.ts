@@ -29,7 +29,7 @@ export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>
         const stream = this.client.messages.stream({
             model: this.gw.model,
             system: this.system,
-            messages: this.convertMessages(messages),
+            messages: this.normalizeMessages(messages),
             tools: this.tools,
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature
@@ -40,7 +40,7 @@ export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>
         return await stream.finalMessage();
     }
 
-    protected override convertMessages(messages: MessageParam[]): MessageParam[] {
+    protected normalizeMessages(messages: MessageParam[]): MessageParam[] {
         const cleaned: MessageParam[] = [];
           
         // ===== 1. 清理 content =====

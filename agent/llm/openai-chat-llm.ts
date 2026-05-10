@@ -35,7 +35,7 @@ export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingRespon
         }
         const stream = await this.client.chat.completions.create({
             model: this.gw.model,
-            messages: this.convertMessages(messages),
+            messages,
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature,
             tools: this.tools,
@@ -94,10 +94,6 @@ export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingRespon
                 tool_calls: []
             }
         };
-    }
-
-    protected override convertMessages(messages: ThinkingMessage[]): ThinkingMessage[] {
-        return messages;
     }
 
 }
