@@ -10,7 +10,7 @@ export type ToolUseServiceResult = {
 export type ToolUseDef = {
     id: string;
     name: string;
-    input: { [key: string]: any };
+    input: unknown;
 }
 
 export class ToolUseService {

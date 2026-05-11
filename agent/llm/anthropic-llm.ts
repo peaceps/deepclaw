@@ -1,12 +1,28 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { MessageParam, ContentBlock, TextBlock, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
+import { 
+    MessageParam,
+    ToolResultBlockParam,
+    TextBlockParam,
+    ToolUseBlockParam,
+    TextBlock,
+    ToolUseBlock
+} from '@anthropic-ai/sdk/resources/messages/messages.mjs';
 import { ParsedMessage } from '@anthropic-ai/sdk/lib/parser.js';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { formatLLMText } from '../utils/utils.js';
 
-export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>, ToolUnion, Anthropic> {
+export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
+
+export type ThinkingMessage = Omit<MessageParam, 'content'> & {
+    content: string | ThinkingContent[];
+};
+
+export type ThinkingResponse = Omit<ParsedMessage<unknown>, 'content'> & {
+    content: (TextBlock | ToolUseBlock)[]
+};
+
+export class AnthropicLLMModel extends LLMModel<ThinkingMessage, ThinkingResponse, ToolUnion, Anthropic> {
 
     protected override convertTools(tools: LLMTool[]): ToolUnion[] {
         return tools.map(tool => ({
@@ -23,9 +39,9 @@ export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>
     }
 
     override async invoke(
-        messages: MessageParam[],
+        messages: ThinkingMessage[],
         onStreamEvent: (text: string) => void
-    ): Promise<ParsedMessage<any>> {
+    ): Promise<ThinkingResponse> {
         const stream = this.client.messages.stream({
             model: this.gw.model,
             system: this.system,
@@ -34,29 +50,29 @@ export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature
         }).on('text', (text) => {
-            onStreamEvent(formatLLMText(text));
+            onStreamEvent(text);
         });
 
-        return await stream.finalMessage();
+        return await stream.finalMessage() as ThinkingResponse;
     }
 
-    protected normalizeMessages(messages: MessageParam[]): MessageParam[] {
-        const cleaned: MessageParam[] = [];
+    protected normalizeMessages(messages: ThinkingMessage[]): ThinkingMessage[] {
+        const cleaned: ThinkingMessage[] = [];
           
         // ===== 1. 清理 content =====
         for (const msg of messages) {
-            const clean: MessageParam = { role: msg.role as 'assistant' | 'user', content: '' };
+            const clean: ThinkingMessage = { role: msg.role as 'assistant' | 'user', content: '' };
 
             if (typeof msg.content === 'string') {
                 clean.content = msg.content;
             } else if (Array.isArray(msg.content)) {
                 clean.content = msg.content
-                    .filter((block: any): block is ContentBlockParam => typeof block === 'object' && block !== null)
-                    .map((block: any) => {
-                        const filtered: ContentBlockParam = {} as ContentBlockParam;
+                    .filter((block: ThinkingContent) => typeof block === 'object' && block !== null)
+                    .map((block: ThinkingContent) => {
+                        const filtered = {} as ThinkingContent;
                         for (const [k, v] of Object.entries(block)) {
                             if (!k.startsWith('_')) {
-                                filtered[k as keyof ContentBlockParam] = v as any;
+                                filtered[k as keyof ThinkingContent] = v as any;
                             }
                         }
                         return filtered;
@@ -72,7 +88,7 @@ export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>
         for (const msg of cleaned) {
             if (Array.isArray(msg.content)) {
                 for (const block of msg.content) {
-                    if (typeof block === 'object' && block?.type === 'tool_result' && block.tool_use_id) {
+                    if (typeof block === 'object' && block.type === 'tool_result' && block.tool_use_id) {
                         existingResults.add(block.tool_use_id);
                     }
                 }
@@ -80,11 +96,11 @@ export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>
         }
         
         // ===== 3. 补缺失的 tool_result =====
-        const extraMessages: MessageParam[] = [];
+        const extraMessages: ThinkingMessage[] = [];
         for (const msg of cleaned) {
             if (msg.role !== 'assistant' || !Array.isArray(msg.content)) continue;
             for (const block of msg.content) {
-                if (typeof block === 'object' && block?.type === 'tool_use' && block.id && !existingResults.has(block.id)) {
+                if (typeof block === 'object' && block.type === 'tool_use' && block.id && !existingResults.has(block.id)) {
                     extraMessages.push({
                         role: 'user',
                         content: [{ type: 'tool_result', tool_use_id: block.id, content: '(cancelled)'}],
@@ -97,19 +113,13 @@ export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>
         // ===== 4. 合并连续相同 role =====
         if (cleaned.length === 0) return cleaned;
         
-        const merged: MessageParam[] = [cleaned[0]!];
+        const merged: ThinkingMessage[] = [cleaned[0]!];
         for (const msg of cleaned.slice(1)) {
             const last = merged[merged.length - 1]!;
         
-            if (msg.role === last.role) {
-                const normalizeToBlocks = (content: MessageParam['content']): ContentBlock[] => {
-                    if (Array.isArray(content)) return content as ContentBlock[];
-                    return [{ type: 'text', text: String(content) } as TextBlock];
-                };
-            
-                const prevContent = normalizeToBlocks(last.content);
-                const currContent = normalizeToBlocks(msg.content);
-            
+            if (msg.role === last.role) {            
+                const prevContent = this.normalizeToBlocks(last.content);
+                const currContent = this.normalizeToBlocks(msg.content);
                 last.content = [...prevContent, ...currContent];
             } else {
                 merged.push(msg);
@@ -117,5 +127,9 @@ export class AnthropicLLMModel extends LLMModel<MessageParam, ParsedMessage<any>
         }
         
         return merged;
+    }
+
+    private normalizeToBlocks(content: string | ThinkingContent[]): ThinkingContent[] {
+        return Array.isArray(content) ? content : [{ type: 'text', text: content }];
     }
 }

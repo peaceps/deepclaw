@@ -2,9 +2,24 @@ import { OpenAI } from "openai";
 import { randomUUID } from "node:crypto";
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { ResponseInputItem, Tool, Response, ResponseError } from "openai/resources/responses/responses.js";
+import {
+    ResponseInputItem,
+    Tool,
+    Response,
+    EasyInputMessage,
+    ResponseFunctionToolCall,
+    ResponseOutputMessage,
+} from "openai/resources/responses/responses.js";
 
-export class OpenAIResponseLLMModel extends LLMModel<ResponseInputItem, Response, Tool, OpenAI> {
+export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
+
+type ThinkingResponseOutput = ResponseOutputMessage | ResponseFunctionToolCall;
+
+export type ThinkingResponse = Omit<Response, 'output'> & {
+    output: ThinkingResponseOutput[];
+};
+
+export class OpenAIResponseLLMModel extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, OpenAI> {
 
     protected override convertTools(tools: LLMTool[]): Tool[] {
         return tools!.map(tool => ({
@@ -21,9 +36,9 @@ export class OpenAIResponseLLMModel extends LLMModel<ResponseInputItem, Response
     }
     
     override async invoke(
-        messages: ResponseInputItem[],
+        messages: ThinkingMessage[],
         onStreamEvent: (text: string) => void
-    ): Promise<Response> {
+    ): Promise<ThinkingResponse> {
 
         const stream = await this.client.responses.create({
             model: this.gw.model,
@@ -41,33 +56,33 @@ export class OpenAIResponseLLMModel extends LLMModel<ResponseInputItem, Response
                     onStreamEvent(event.delta);
                     break;
                 case 'response.completed':
-                    return event.response;
+                    return event.response as ThinkingResponse;
                 case 'response.failed':
                     console.error('LLM response failed:', event);
-                    return this.newResponse('');
+                    return this.newResponse(event.response.error?.message || 'Unknown error');
                 case 'error':
                     onStreamEvent(`发生错误 ${event.code} on ${event.param}: ${event.message}`);
-                    return this.newResponse('', {
-                        code: 'server_error',
-                        message: `LLM模型发生错误: ${event.message}`,
-                    });
+                    return this.newResponse(event.message);
             }
         }
 
-        return this.newResponse('', {
-            code: 'server_error',
-            message: `LLM模型发生错误: No response received.`,
-        });
+        return this.newResponse('No response received.');
     }
 
-    private newResponse(outputText: string = '', error: ResponseError | null = null): Response {
+    private newResponse(message: string): ThinkingResponse {
         return {
             id: randomUUID(),
             object: 'response',
             created_at: Date.now(),
-            output: [],
-            output_text: outputText,
-            error,
+            output: [{
+                id: randomUUID(),
+                status: 'completed' as const,
+                type: 'message' as const,
+                role: 'assistant' as const,
+                content: [{type: 'output_text' as const, text: message, annotations: []}]
+            }],
+            output_text: '',
+            error: null,
             incomplete_details: null,
             instructions: this.system,
             metadata: null,

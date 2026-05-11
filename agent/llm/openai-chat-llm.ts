@@ -1,10 +1,21 @@
 import OpenAI from 'openai';
-import { ChatCompletionTool, ChatCompletionChunk, ChatCompletionMessageParam } from 'openai/resources/chat/completions.js';
+import {
+    ChatCompletionTool,
+    ChatCompletionChunk,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionToolMessageParam,
+ } from 'openai/resources/chat/completions.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { formatLLMText } from '../utils/utils.js';
 
-export type ThinkingMessage = ChatCompletionMessageParam & {
+export type ThinkingMessage = (
+    ChatCompletionSystemMessageParam |
+    ChatCompletionUserMessageParam |
+    ChatCompletionAssistantMessageParam |
+    ChatCompletionToolMessageParam
+) & {
     reasoning_content?: string;
 }
 
@@ -48,8 +59,8 @@ export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingRespon
         let reasoningConent = '';
         for await (const chunk of stream) {
             const response = chunk.choices[0] as ThinkingResponse;
-            const chunkContent = formatLLMText(response?.delta?.content || '');
-            reasoningConent += formatLLMText(response?.delta?.reasoning_content || '');
+            const chunkContent = response?.delta?.content || '';
+            reasoningConent += (response?.delta?.reasoning_content || '');
             if (chunkContent) {
                 content += chunkContent;
                 onStreamEvent(chunkContent);
@@ -67,7 +78,7 @@ export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingRespon
                         }
                     }
                 }
-                toolCallResult.function!.arguments += formatLLMText(toolCall.function?.arguments || '');
+                toolCallResult.function!.arguments += (toolCall.function?.arguments || '');
             }
 
             if (!!response?.finish_reason && (response?.finish_reason as string) !== 'null') {

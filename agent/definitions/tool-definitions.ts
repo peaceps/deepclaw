@@ -1,5 +1,5 @@
 import { OneLoopContext } from './definitions.js';
-import { LoopAgent } from '../loop/loop.js';
+import { LoopAgent } from '../loop/loop/loop.js';
 
 export type LLMTool = {
     name: string;

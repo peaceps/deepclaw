@@ -1,8 +1,8 @@
 import { FlushAgent } from './flush-agent.js';
 import { TestLlmAgent } from './test-llm-agent.js';
-import { OpenAIChatLoop } from './loop/openai-chat-loop.js';
-import { OpenAIResponseLoop } from './loop/openai-response-loop.js';
-import { AnthropicLoop } from './loop/anthropic-loop';
+import { OpenAIChatLoop } from './loop/loop/openai-chat-loop.js';
+import { OpenAIResponseLoop } from './loop/loop/openai-response-loop.js';
+import { AnthropicLoop } from './loop/loop/anthropic-loop.js';
 
 export { FlushAgent, ALL_CONTENT_FLUSHED } from './flush-agent.js';
 

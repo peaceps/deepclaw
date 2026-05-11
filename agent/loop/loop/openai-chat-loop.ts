@@ -1,9 +1,8 @@
-import { OpenAIChatLLMModel, ThinkingMessage } from '../llm/openai-chat-llm';
+import { OpenAIChatLLMModel, ThinkingMessage, ThinkingResponse } from '../../llm/openai-chat-llm';
 import { LoopAgent } from './loop'
-import { ToolUseDef } from './services/tool-use-service';
-import { ToolUseResult } from '../definitions/tool-definitions.js';
-import { LoopState } from '../definitions/definitions';
-import { ThinkingResponse } from '../llm/openai-chat-llm';
+import { ToolUseDef } from '../services/tool-use-service';
+import { ToolUseResult } from '../../definitions/tool-definitions.js';
+import { LoopState } from '../../definitions/definitions';
 
 export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {
 
@@ -57,7 +56,16 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
     
     protected override extractFinalText(state: LoopState<ThinkingMessage>): string {
         const message = state.messages[state.messages.length - 1]!;
-        return message.content as string;
+        if (typeof message.content === 'string') {
+            return message.content;
+        }
+        const texts: string[] = [];
+        for (const block of message.content || []) {
+            if (block.type === 'text' && block.text) {
+                texts.push(block.text);
+            }
+        }
+        return texts.join('\n');
     }
 
     override createSubLoop(fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {

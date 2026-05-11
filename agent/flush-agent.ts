@@ -4,7 +4,7 @@ export abstract class FlushAgent {
     protected onStreamEvent: (text: string) => void = () => {};
 
     constructor(onStreamEvent: (text: string) => void) {
-        this.onStreamEvent = onStreamEvent;
+        this.onStreamEvent = (text: string) => onStreamEvent(this.formatLLMText(text));
     }
 
     protected abstract _invoke(input: string): Promise<string>;
@@ -17,5 +17,9 @@ export abstract class FlushAgent {
                 resolve(res);
             }, 100);
         });
+    }
+    
+    private formatLLMText(text: string): string {
+        return !text ? '' : text.replace(/\r\n/g, '\n').trimEnd();
     }
 }

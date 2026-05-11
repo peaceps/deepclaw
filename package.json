@@ -1,15 +1,15 @@
 {
-	"name": "ink",
+	"name": "deepclaw",
 	"version": "0.0.1",
 	"license": "MIT",
-	"bin": "dist/cli.js",
+	"bin": "dist/main.js",
 	"type": "module",
 	"engines": {
-		"node": ">=16"
+		"node": ">=21"
 	},
 	"scripts": {
 		"build": "tsc",
-		"dev": "tsx watch cli.tsx"
+		"dev": "tsx watch main.tsx"
 	},
 	"files": [
 		"dist"
