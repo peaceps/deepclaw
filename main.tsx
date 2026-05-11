@@ -6,13 +6,13 @@ import App, { AppConfig } from './ui/app.js';
 const cli = meow(
 	`
 	Usage
-	  $ ink
+	  $ deepclaw
 
 	Options
 		--test  Test mode
 
 	Examples
-	  $ ink --test
+	  $ npx tsx main.tsx --test
 `,
 	{
 		importMeta: import.meta,
