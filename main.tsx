@@ -3,10 +3,9 @@ import {render} from 'ink';
 import meow from 'meow';
 import App, { AppConfig } from './ui/app.js';
 
-const cli = meow(
-	`
+const cli = meow(`
 	Usage
-	  $ deepclaw
+	  $ npx tsx main.tsx
 
 	Options
 		--test  Test mode
