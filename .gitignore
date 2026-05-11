@@ -1,7 +1,6 @@
 # Environments
 **/.env
 .vscode/
-.github
 
 node_modules/
 dist/
