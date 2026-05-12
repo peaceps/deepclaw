@@ -36,10 +36,12 @@ export class SkillsManager {
     private static loadSkills(): Map<string, SkillDocument> {
         const skills: Map<string, SkillDocument> = new Map();
         for (const fileName of fs.readdirSync(SKILL_DIR)) {
-            const fileContent = fs.readFileSync(path.join(SKILL_DIR, fileName, 'SKILL.md'), 'utf8');
-            const skillDocument = this.parseSkillDocument(fileContent.replace(/\r\n/g, '\n'));
-            if (skillDocument) {
-                skills.set(skillDocument.manifest.name, skillDocument);
+            if (fs.existsSync(path.join(SKILL_DIR, fileName, 'SKILL.md'))) {
+                const fileContent = fs.readFileSync(path.join(SKILL_DIR, fileName, 'SKILL.md'), 'utf8');
+                const skillDocument = this.parseSkillDocument(fileContent.replace(/\r\n/g, '\n'));
+                if (skillDocument) {
+                    skills.set(skillDocument.manifest.name, skillDocument);
+                }
             }
         }
         return skills;

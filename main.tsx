@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import {render} from 'ink';
 import meow from 'meow';
+import {LoopInitializer} from './src/agent/index.js';
 import App, { AppConfig } from './src/ui/app.js';
+import {TestLlmAgent} from './e2e/agent/test-llm-agent.js';
 
 const cli = meow(`
 	Usage
@@ -25,7 +27,10 @@ const cli = meow(`
 	},
 );
 
-const appWrapper: AppConfig = {unmount: () => {}, testMode: cli.flags.test};
+const appWrapper: AppConfig = {
+    unmount: () => {},
+    agentClass: !cli.flags.test ? LoopInitializer.getLoopClass() : TestLlmAgent,
+};
 
 const {unmount, waitUntilExit} = render(<App app={appWrapper}/>);
 appWrapper.unmount = unmount;

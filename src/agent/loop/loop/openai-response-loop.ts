@@ -64,6 +64,9 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
     }
     
     protected override extractFinalText(state: LoopState<ThinkingMessage>): string {
+        if (state.messages.length === 0) {
+            return '';
+        }
         const message = state.messages[state.messages.length - 1]!;
         switch (message.type) {
             case 'function_call':

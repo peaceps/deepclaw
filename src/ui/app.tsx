@@ -1,7 +1,7 @@
 import {ReactElement, useCallback} from 'react';
 import {useState, useMemo, useEffect, useRef} from 'react';
 import {useInput, Box, Static} from 'ink';
-import {LoopInitializer, FlushAgent, ALL_CONTENT_FLUSHED} from '../agent/index.js';
+import {FlushAgent, type FlushAgentConstructor} from '../agent/index.js';
 import {HistoryLine, type HistoryItem} from './history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import EveryInput from './every-input.js';
@@ -9,7 +9,7 @@ import LlmOutput from './llm-output.js';
 
 export type AppConfig = {
     unmount: () => void;
-    testMode: boolean;
+    agentClass: FlushAgentConstructor;
 }
 
 let agent: FlushAgent | null = null;
@@ -33,14 +33,14 @@ export default function App({app}: {app: AppConfig}): ReactElement {
     }, []);
 
 	useEffect(() => {
-        function handleLlmStream(text: string) {
-            if (text === ALL_CONTENT_FLUSHED) {
+        function handleLlmStream(text: string, done: boolean = false) {
+            if (done) {
                 handleLlmDone(llmOutputRef.current);
             } else {
                 setLlmOutput(prev => prev + text);
             }
         }
-        agent = app.testMode ? LoopInitializer.getTestLoop(handleLlmStream) : LoopInitializer.getLoop(handleLlmStream);
+        agent = new app.agentClass(handleLlmStream);
 	}, []);
 
 	useInput((input, key) => {

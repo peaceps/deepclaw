@@ -44,11 +44,14 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
     }
     
     protected override extractFinalText(state: LoopState<ThinkingMessage>): string {
-        const texts: string[] = [];
         const message = state.messages[state.messages.length - 1]!;
+        if (state.messages.length === 0) {
+            return '';
+        }
         if (typeof message.content === 'string') {
             return message.content;
         }
+        const texts: string[] = [];
         for (const block of message.content) {
             if (block.type === 'text' && block.text) {
                 texts.push(block.text);

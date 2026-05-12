@@ -1,10 +1,10 @@
-export const ALL_CONTENT_FLUSHED = '<THIS_IS_FLUSH_DONE_FLAG_FOR_AGENT>';
+export type FlushAgentConstructor = new (onStreamEvent: (text: string) => void) => FlushAgent;
 
 export abstract class FlushAgent {
-    protected onStreamEvent: (text: string) => void = () => {};
+    protected onStreamEvent: (text: string, done?: boolean) => void;
 
-    constructor(onStreamEvent: (text: string) => void) {
-        this.onStreamEvent = (text: string) => onStreamEvent(this.formatLLMText(text));
+    constructor(onStreamEvent: (text: string, done?: boolean) => void = () => {}) {
+        this.onStreamEvent = (text: string, done: boolean = false) => onStreamEvent(this.formatLLMText(text), done);
     }
 
     protected abstract _invoke(input: string): Promise<string>;
@@ -13,7 +13,7 @@ export abstract class FlushAgent {
         const res = await this._invoke(input);
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.onStreamEvent(ALL_CONTENT_FLUSHED);
+                this.onStreamEvent(res, true);
                 resolve(res);
             }, 100);
         });

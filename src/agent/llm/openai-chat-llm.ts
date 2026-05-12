@@ -56,11 +56,11 @@ export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingRespon
 
         let toolCallResult: ChatCompletionChunk.Choice.Delta.ToolCall | null = null;
         let content = '';
-        let reasoningConent = '';
+        let reasoningContent = '';
         for await (const chunk of stream) {
             const response = chunk.choices[0] as ThinkingResponse;
             const chunkContent = response?.delta?.content || '';
-            reasoningConent += (response?.delta?.reasoning_content || '');
+            reasoningContent += (response?.delta?.reasoning_content || '');
             if (chunkContent) {
                 content += chunkContent;
                 onStreamEvent(chunkContent);
@@ -88,8 +88,8 @@ export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingRespon
                 if (content) {
                     response.delta.content = content;
                 }
-                if (reasoningConent) {
-                    response.delta.reasoning_content = reasoningConent;
+                if (reasoningContent) {
+                    response.delta.reasoning_content = reasoningContent;
                 }
                 
                 return response;

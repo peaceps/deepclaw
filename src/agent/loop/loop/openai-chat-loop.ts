@@ -55,6 +55,9 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
     }
     
     protected override extractFinalText(state: LoopState<ThinkingMessage>): string {
+        if (state.messages.length === 0) {
+            return '';
+        }
         const message = state.messages[state.messages.length - 1]!;
         if (typeof message.content === 'string') {
             return message.content;
