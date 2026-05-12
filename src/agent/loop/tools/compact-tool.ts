@@ -19,6 +19,6 @@ export const compact: ToolDesc<CompactInput> = {
     },
     invoke: async function(input: CompactInput): Promise<string> {
         const { focus } = input;
-        return '';
+        return focus;
     },
 }

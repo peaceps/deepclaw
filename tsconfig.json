@@ -29,14 +29,13 @@
 		"useDefineForClassFields": true,
 		"forceConsistentCasingInFileNames": true,
 		"skipLibCheck": true,
-        "baseUrl": ".",
         "paths": {
-            "@core": ["src/core/index.ts"],
-            "@agent": ["src/agent/index.ts"],
-            "@ui": ["src/ui/index.ts"],
-            "@utils": ["src/utils/index.ts"],
-            "@e2e": ["e2e/index.ts"],
-            "@config": ["deepclaw.config.json"],
+            "@core": ["./src/core/index.ts"],
+            "@agent": ["./src/agent/index.ts"],
+            "@ui": ["./src/ui/index.ts"],
+            "@utils": ["./src/utils/index.ts"],
+            "@e2e": ["./e2e/index.ts"],
+            "@config": ["./deepclaw.config.json"],
         }
 	},
 	"include": ["src", "e2e", "main.tsx", "deepclaw.config.json"]
