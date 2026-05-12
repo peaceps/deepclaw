@@ -24,7 +24,7 @@ export class FileUtils {
     }
 
     private static getAbsolutePath(relativePath: string): string {
-        relativePath = this.formatSlash(relativePath.replaceAll('\\', '/'));
+        relativePath = this.formatSlash(relativePath);
         if (path.isAbsolute(relativePath)) return relativePath;
         relativePath = relativePath.startsWith('./') ? relativePath.substring(2) : relativePath;
         relativePath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;

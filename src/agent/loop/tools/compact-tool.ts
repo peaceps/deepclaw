@@ -13,7 +13,7 @@ export const compact: ToolDesc<CompactInput> = {
             additionalProperties: false,
             properties: {focus: {
                 type: 'string',
-                descrption: 'The focus of the compacted context, which should pay attention to next.'
+                description: 'The focus of the compacted context, which should be paid attention to next.'
             }},
         },
     },

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { FlushAgent } from '@core';
 import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
@@ -11,6 +12,7 @@ import { MessagesCompactor } from '../compactor/messages-compactor.js';
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     private llmModel: LLM;
     private turnLimit: number;
+    private sessionId: string;
     protected isSubLoop: boolean;
     protected history: I[] = [];
     protected toolUseService: ToolUseService;
@@ -25,18 +27,19 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         turnLimit: number = 20
     ) {
         super(onStreamEvent);
+        this.sessionId = crypto.randomUUID();
         this.history = history;
         this.turnLimit = turnLimit;
         this.isSubLoop = isSubLoop;
-        this.toolUseService = new ToolUseService(ToolsManager.provideTools(isSubLoop));
+        this.toolUseService = new ToolUseService(ToolsManager.provideTools(isSubLoop), this.sessionId);
         this.promptService = new PromptService(system);
         this.llmModel = this.createLLMModel();
-        this.messagesCompactor = this.createMessagesCompactor();
+        this.messagesCompactor = this.createMessagesCompactor(this.sessionId);
     }
 
     protected abstract createLLMModel(): LLM;
 
-    protected abstract createMessagesCompactor(): MessagesCompactor<I, unknown>;
+    protected abstract createMessagesCompactor(sessionID: string): MessagesCompactor<I, unknown>;
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);

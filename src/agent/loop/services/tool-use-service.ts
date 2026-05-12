@@ -16,12 +16,15 @@ export type ToolUseDef = {
 }
 
 export class ToolUseService {
+    private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
-    private truncateThreshold: number = loadAgentConfig<number>('tool_result.truncate.lengthThreshold') || 20000;
-    private persistResultDir: string = loadAgentConfig<string>('tool_result.truncate.persistResultDir') || '.persist_tool_results';
-    private previewChars: number = loadAgentConfig<number>('tool_result.truncate.previewLength') || 1000;
+    private sessionDir: string = loadAgentConfig<string>('sessionDir');
+    private truncateThreshold: number = loadAgentConfig<number>('toolResult.truncate.lengthThreshold');
+    private persistResultDir: string = loadAgentConfig<string>('toolResult.truncate.persistResultDir');
+    private previewChars: number = loadAgentConfig<number>('toolResult.truncate.previewLength');
 
-    constructor(tools: ToolDesc[]) {
+    constructor(tools: ToolDesc[], sessionId: string) {
+        this.sessionId = sessionId;
         for (const tool of tools) {
             this.toolMap.set(tool.tool.name, tool);
         }
@@ -62,7 +65,7 @@ export class ToolUseService {
             return output;
         }
         const persistFileName = `${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}_${toolUseId}.txt`;
-        const persistFilePath = path.join(this.persistResultDir, persistFileName);
+        const persistFilePath = path.join(this.sessionDir, this.sessionId, this.persistResultDir, persistFileName);
         FileUtils.writeFile(persistFilePath, output);
         output = output.slice(0, this.previewChars);
         return `<persisted-output>

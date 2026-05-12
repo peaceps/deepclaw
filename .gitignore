@@ -4,4 +4,4 @@
 
 node_modules/
 dist/
-.persist_tool_results/
+.session/
