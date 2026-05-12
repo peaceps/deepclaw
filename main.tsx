@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {render} from 'ink';
 import meow from 'meow';
-import App, { AppConfig } from './ui/app.js';
+import App, { AppConfig } from './src/ui/app.js';
 
 const cli = meow(`
 	Usage

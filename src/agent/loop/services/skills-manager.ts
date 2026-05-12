@@ -12,7 +12,7 @@ type SkillDocument = {
     body: string;
 }
 
-const SKILL_DIR = path.resolve('agent/skills');
+const SKILL_DIR = path.resolve('src/agent/skills');
 
 export class SkillsManager {
     private static skills: Map<string, SkillDocument> = this.loadSkills();

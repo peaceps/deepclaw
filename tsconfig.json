@@ -30,6 +30,6 @@
 		"forceConsistentCasingInFileNames": true,
 		"skipLibCheck": true,
 	},
-	"include": ["ui", "agent", "main.tsx"]
+	"include": ["src/ui", "src/agent", "main.tsx"]
 
 }
