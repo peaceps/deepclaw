@@ -3,6 +3,8 @@ import { LoopAgent } from "./loop";
 import { ToolUseResult } from "../../definitions/tool-definitions.js";
 import { LoopState } from "../../definitions/definitions";
 import { ToolUseDef } from "../services/tool-use-service";
+import { MessagesCompactor } from "../compactor/messages-compactor.js";
+import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor.js";
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLMModel> {
 
@@ -11,6 +13,10 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
             this.promptService.provideSystemPrompt(this.isSubLoop),
             this.toolUseService.getAvailableTools()
         );
+    }
+
+    protected override createMessagesCompactor(): MessagesCompactor<ThinkingMessage, unknown> {
+        return new AnthropicMessagesCompactor();
     }
 
     protected override addStringMessage(message: string): void {
@@ -30,7 +36,7 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
         return [{role: 'user', content: content}];
     }
 
-    protected override extractToolCalls(result: ThinkingResponse): ToolUseDef[] {
+    protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
         const toolUses = result.content.filter(block => block.type === 'tool_use');
         return toolUses.map(toolUse => ({
             id: toolUse.id,

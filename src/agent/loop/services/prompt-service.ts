@@ -1,24 +1,18 @@
 import process from 'node:process';
+import fs from 'fs';
 import { SkillsManager } from './skills-manager.js';
+import { loadAgentConfig } from '@utils';
 
 const PLATFORM = process.platform.includes('win32') ? 'Windows' : 'Linux';
 const CWD = process.cwd();
+const PLATFORM_PROMPT = `你是${PLATFORM}平台工作在"${CWD}"上的工作助手。`;
+
+const SYSTEM_IDENTITY = fs.readFileSync(loadAgentConfig<string>('identityFile'), 'utf8');
 
 const DEFAULT_SYSTEM_PROMPT: SystemPrompt = {
-    system: `You are a assistant agent on ${PLATFORM} at "${CWD}".
-Use bash to inspect and change the workspace. Act first, then report clearly.
+    system: `${PLATFORM_PROMPT}${SYSTEM_IDENTITY}`,
 
-On each task begin, create a visible todo list with the todo tool before executing if the task should be done in multiple steps.
-Use the todo tool for multi-step work.
-Keep exactly one step inProgress when a task has multiple steps.
-Refresh the plan as work advances. Prefer tools over prose.
-When you are done, mark all the todo list as completed with the todo tool.
-
-If you ask subagent to generate content, let subagent return the literal content as the output to you. And you do the file writing.
-
-No matter what language the user is speaking or the skill is written in, always respond in simplified Chinese.`,
-
-    subLoopSystem: `You are a assistant agent on ${PLATFORM} at "${CWD}".
+    subLoopSystem: `${PLATFORM_PROMPT}
 Complete the given task, then summarize your findings.
 You don't have access to file writing tools, and don't use shell tool to create or edit file.
 You have todo tool to manage your work if needed.

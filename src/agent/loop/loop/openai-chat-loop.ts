@@ -1,8 +1,10 @@
-import { OpenAIChatLLMModel, ThinkingMessage, ThinkingResponse } from '../../llm/openai-chat-llm';
-import { LoopAgent } from './loop'
-import { ToolUseDef } from '../services/tool-use-service';
+import { OpenAIChatLLMModel, ThinkingMessage, ThinkingResponse } from '../../llm/openai-chat-llm.js';
+import { LoopAgent } from './loop.js';
+import { ToolUseDef } from '../services/tool-use-service.js';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
-import { LoopState } from '../../definitions/definitions';
+import { LoopState } from '../../definitions/definitions.js';
+import { MessagesCompactor } from '../compactor/messages-compactor.js';
+import { OpenAIChatMessagesCompactor } from '../compactor/openai-chat-compactor.js';
 
 export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {
 
@@ -11,6 +13,10 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
             this.promptService.provideSystemPrompt(this.isSubLoop),
             this.toolUseService.getAvailableTools()
         );
+    }
+
+    protected override createMessagesCompactor(): MessagesCompactor<ThinkingMessage, unknown> {
+        return new OpenAIChatMessagesCompactor();
     }
 
     protected override addStringMessage(message: string): void {
@@ -46,7 +52,7 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
         return result.finish_reason === 'stop';
     }
 
-    protected override extractToolCalls(result: ThinkingResponse): ToolUseDef[] {
+    protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
         return result.delta.tool_calls?.map(block => ({
             id: block.id || '',
             name: block.function?.name || '',

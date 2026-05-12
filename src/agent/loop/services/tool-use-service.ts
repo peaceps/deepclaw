@@ -1,3 +1,5 @@
+import path from 'path';
+import { FileUtils, loadAgentConfig } from '@utils';
 import { LLMTool, ToolDesc, ToolUseContext, ToolUseResult } from "../../definitions/tool-definitions.js";
 
 export type ToolUseServiceResult = {
@@ -15,6 +17,9 @@ export type ToolUseDef = {
 
 export class ToolUseService {
     private toolMap: Map<string, ToolDesc> = new Map();
+    private truncateThreshold: number = loadAgentConfig<number>('tool_result.truncate.lengthThreshold') || 20000;
+    private persistResultDir: string = loadAgentConfig<string>('tool_result.truncate.persistResultDir') || '.persist_tool_results';
+    private previewChars: number = loadAgentConfig<number>('tool_result.truncate.previewLength') || 1000;
 
     constructor(tools: ToolDesc[]) {
         for (const tool of tools) {
@@ -39,7 +44,7 @@ export class ToolUseService {
         }
         try {
             const output = await tool.invoke(toolUseDef.input, context);
-            return this.toolResult(toolUseDef.id, output, !!tool.outputToUser);
+            return this.toolResult(toolUseDef.id, this.persistLargeOutput(toolUseDef.id, output), !!tool.outputToUser);
         } catch (error) {
             return this.toolResult(toolUseDef.id, `Error: ${error}`);
         }
@@ -50,5 +55,21 @@ export class ToolUseService {
             result: {id: toolUseId, content},
             effect: {outputToUser},
         });
+    }
+
+    private persistLargeOutput(toolUseId: string, output: string): string {
+        if (output.length <= this.truncateThreshold) {
+            return output;
+        }
+        const persistFileName = `${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}_${toolUseId}.txt`;
+        const persistFilePath = path.join(this.persistResultDir, persistFileName);
+        FileUtils.writeFile(persistFilePath, output);
+        output = output.slice(0, this.previewChars);
+        return `<persisted-output>
+            Full output saved to: ${persistFilePath}
+            Preview:
+            ${output}
+            </persisted-output>
+        `;
     }
 }

@@ -3,6 +3,8 @@ import { ToolUseDef } from '../services/tool-use-service';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { LoopState } from '../../definitions/definitions';
 import { OpenAIResponseLLMModel, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
+import { MessagesCompactor } from '../compactor/messages-compactor.js';
+import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor.js';
 
 export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLMModel> {
 
@@ -11,6 +13,10 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
             this.promptService.provideSystemPrompt(this.isSubLoop),
             this.toolUseService.getAvailableTools()
         );
+    }
+
+    protected override createMessagesCompactor(): MessagesCompactor<ThinkingMessage, unknown> {
+        return new OpenAIResponseMessagesCompactor();
     }
 
     protected override addStringMessage(message: string): void {
@@ -52,7 +58,7 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
             && !result.output.some(item => item.type === 'function_call');
     }
 
-    protected override extractToolCalls(result: ThinkingResponse): ToolUseDef[] {
+    protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
         const toolCalls = result.output.filter((item) => item.type === 'function_call' as const);
         return toolCalls.map((item) => {
             return {

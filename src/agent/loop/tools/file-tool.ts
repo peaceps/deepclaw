@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
-import path from 'path';
 import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions.js';
+import { FileUtils } from '@utils';
 
 type FileOperationInput = {
     filePath: string;
@@ -25,7 +25,7 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
     },
     invoke: async function(input: ReadFileInput): Promise<string> {
         const { filePath, limit } = input;
-        const content = await fs.readFile(filePath, 'utf8');
+        const content = FileUtils.readFile(filePath);
         if (limit) {
             return content.slice(0, limit);
         }
@@ -53,7 +53,7 @@ export const writeFileTool: ToolDesc<WriteFileInput> = {
     },
     invoke: async function(input: WriteFileInput): Promise<string> {
         const { filePath, content } = input;
-        await fs.writeFile(filePath, content, 'utf8');
+        FileUtils.writeFile(filePath, content);
         return `Wrote ${content.length} bytes to ${filePath}.`;
     },
     guard: fileGuard
@@ -80,25 +80,17 @@ export const editFileTool: ToolDesc<EditFileInput> = {
     },
     invoke: async function(input: EditFileInput): Promise<string> {
         const { filePath, oldText, newText } = input;
-        const content = await fs.readFile(filePath, 'utf8');
+        const content = FileUtils.readFile(filePath);
         const newContent = content.replaceAll(oldText, newText);
-        await fs.writeFile(filePath, newContent, 'utf8');
+        FileUtils.writeFile(filePath, newContent);
         return `Edit ${filePath} successfully.`;
     },
     guard: fileGuard
 }
 
 function fileGuard(input: ReadFileInput): ToolGuardResult {
-    const filePath = input.filePath.replaceAll('\\', '/');
-    const cwd = process.cwd().replaceAll('\\', '/');
-    if (path.isAbsolute(filePath)) {
-        if (!filePath.startsWith(`${cwd}/`)) {
-            return {allowed: false, feedback: 'You don\'t have permission to operate file out of workspace.'};
-        }
-    } else if (filePath.startsWith('..')) {
-        if (!filePath.startsWith(cwd)) {
-            return {allowed: false, feedback: 'You don\'t have permission to operate file out of workspace.'};
-        }
+    if (!FileUtils.isPathInWorkspace(input.filePath)) {
+        return {allowed: false, feedback: 'You don\'t have permission to operate file out of workspace.'};
     }
     return {allowed: true};
 }

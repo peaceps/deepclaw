@@ -1,11 +1,19 @@
 {
     "agent": {
+        "tool_result": {
+            "truncate": {
+                "lengthThreshold": 20000,
+                "persistResultDir": ".persist_tool_results",
+                "previewLength": 1000
+            },
+            "removeLegacy": {
+                "maxRecent": 1,
+                "lengthThreshold": 120
+            }
+        },
         "contextLimit": 50000,
-        "keepRecentToolResults": 3,
-        "persistThreshold": 30000,
-        "previewChars": 2000,
         "transcriptDir": ".transcripts",
-        "toolResultsDir": ".task_outputs/tool-results",
-        "skillsDir": "src/agent/skills"
+        "skillsDir": "src/agent/skills",
+        "identityFile": "DEEPCLAW.md"
     }
 }

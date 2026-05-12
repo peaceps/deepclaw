@@ -5,18 +5,17 @@ import { LoopState} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
 import { PromptService, SystemPrompt } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
+import { LLMModel } from '../../llm/llmgw.js';
+import { MessagesCompactor } from '../compactor/messages-compactor.js';
 
-type InvokableLLM<I, O> = {
-    invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O>;
-};
-
-export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I, O>> extends FlushAgent {
+export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     private llmModel: LLM;
     private turnLimit: number;
     protected isSubLoop: boolean;
     protected history: I[] = [];
     protected toolUseService: ToolUseService;
     protected promptService: PromptService;
+    private messagesCompactor: MessagesCompactor<I, unknown>;
 
     constructor(
         onStreamEvent: (text: string) => void,
@@ -32,9 +31,12 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
         this.toolUseService = new ToolUseService(ToolsManager.provideTools(isSubLoop));
         this.promptService = new PromptService(system);
         this.llmModel = this.createLLMModel();
+        this.messagesCompactor = this.createMessagesCompactor();
     }
 
     protected abstract createLLMModel(): LLM;
+
+    protected abstract createMessagesCompactor(): MessagesCompactor<I, unknown>;
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
@@ -47,6 +49,7 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
+            this.messagesCompactor.compactBeforeTurn(state.messages);
             const goAround = await this.runOneTurn(state);
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
@@ -68,7 +71,7 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
             return false;
         }
 
-        const results = await this.executeToolCalls(this.extractToolCalls(response), {
+        const results = await this.runTools(this.extractToolUseFromResponse(response), {
             loop: this,
             oneLoopContext: state.oneLoopContext,
         });
@@ -83,7 +86,7 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
         return true;
     }
 
-    private async executeToolCalls(toolUseDefs: ToolUseDef[], context: ToolUseContext): Promise<ToolUseResult[]> {
+    private async runTools(toolUseDefs: ToolUseDef[], context: ToolUseContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
         for (const toolUseDef of toolUseDefs) {
             const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
@@ -113,9 +116,9 @@ export abstract class LoopAgent<I extends object, O, LLM extends InvokableLLM<I,
 
     protected abstract extractFinalText(state: LoopState<I>): string;
 
-    protected abstract extractToolCalls(result: O): ToolUseDef[];
-
     protected abstract quitLoop(result: O): boolean;
+
+    protected abstract extractToolUseFromResponse(result: O): ToolUseDef[];
 
     protected abstract convertResponseToMessages(response: O): I;
 
