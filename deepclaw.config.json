@@ -1,0 +1,11 @@
+{
+    "agent": {
+        "contextLimit": 50000,
+        "keepRecentToolResults": 3,
+        "persistThreshold": 30000,
+        "previewChars": 2000,
+        "transcriptDir": ".transcripts",
+        "toolResultsDir": ".task_outputs/tool-results",
+        "skillsDir": "src/agent/skills"
+    }
+}

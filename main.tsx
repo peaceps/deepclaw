@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import {render} from 'ink';
 import meow from 'meow';
-import {LoopInitializer} from './src/agent/index.js';
-import App, { AppConfig } from './src/ui/app.js';
-import {TestLlmAgent} from './e2e/agent/test-llm-agent.js';
+import {LoopInitializer} from '@agent';
+import {App, type AppConfig } from '@ui';
+import {TestLlmAgent} from '@e2e';
 
 const cli = meow(`
 	Usage

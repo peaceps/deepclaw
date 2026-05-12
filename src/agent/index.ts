@@ -1,9 +1,7 @@
-import { type FlushAgentConstructor } from './flush-agent.js';
+import { type FlushAgentConstructor } from '@core';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop.js';
 import { OpenAIResponseLoop } from './loop/loop/openai-response-loop.js';
 import { AnthropicLoop } from './loop/loop/anthropic-loop.js';
-
-export { FlushAgent, type FlushAgentConstructor } from './flush-agent.js';
 
 export class LoopInitializer {
 

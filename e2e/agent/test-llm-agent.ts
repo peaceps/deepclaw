@@ -1,4 +1,4 @@
-import { FlushAgent } from '../../src/agent/flush-agent.js';
+import { FlushAgent } from '../../src/core/flush-agent.js';
 
 export class TestLlmAgent extends FlushAgent {
 

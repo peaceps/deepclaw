@@ -1,6 +1,6 @@
+import { FlushAgent } from '@core';
 import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
-import { FlushAgent } from '../../flush-agent.js';
 import { LoopState} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
 import { PromptService, SystemPrompt } from '../services/prompt-service.js';

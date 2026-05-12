@@ -1,11 +1,11 @@
 import {ReactElement, useCallback} from 'react';
 import {useState, useMemo, useEffect, useRef} from 'react';
 import {useInput, Box, Static} from 'ink';
-import {FlushAgent, type FlushAgentConstructor} from '../agent/index.js';
-import {HistoryLine, type HistoryItem} from './history.js';
+import { FlushAgent, type FlushAgentConstructor } from '@core';
+import {HistoryLine, type HistoryItem} from './components/history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
-import EveryInput from './every-input.js';
-import LlmOutput from './llm-output.js';
+import {EveryInput} from './components/every-input.js';
+import {LlmOutput} from './components/llm-output.js';
 
 export type AppConfig = {
     unmount: () => void;
@@ -14,7 +14,7 @@ export type AppConfig = {
 
 let agent: FlushAgent | null = null;
 
-export default function App({app}: {app: AppConfig}): ReactElement {
+export function App({app}: {app: AppConfig}): ReactElement {
     const [histories, setHistories] = useState([] as HistoryItem[]);
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
