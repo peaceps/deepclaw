@@ -10,13 +10,13 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
 
     protected override createLLMModel(): AnthropicLLMModel {
         return new AnthropicLLMModel(
-            this.promptService.provideSystemPrompt(this.isSubLoop),
+            this.promptService.provideSystemPrompt(this.isSubLoop()),
             this.toolUseService.getAvailableTools()
         );
     }
 
-    protected override createMessagesCompactor(sessionId: string): MessagesCompactor<ThinkingMessage, unknown> {
-        return new AnthropicMessagesCompactor(sessionId);
+    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, unknown> {
+        return new AnthropicMessagesCompactor(parentSessionId, sessionId);
     }
 
     protected override addStringMessage(message: string): void {
@@ -72,8 +72,8 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
         return texts.join("\n");
     }
 
-    override createSubLoop(fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLMModel> {
-        return new AnthropicLoop(() => {}, fork ? this.history : [], true);
+    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLMModel> {
+        return new AnthropicLoop(() => {}, fork ? this.history : [], parentSessionId);
     }
 
 }

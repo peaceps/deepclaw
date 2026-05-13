@@ -10,13 +10,13 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
 
     protected override createLLMModel(): OpenAIChatLLMModel {
         return new OpenAIChatLLMModel(
-            this.promptService.provideSystemPrompt(this.isSubLoop),
+            this.promptService.provideSystemPrompt(this.isSubLoop()),
             this.toolUseService.getAvailableTools()
         );
     }
 
-    protected override createMessagesCompactor(sessionId: string): MessagesCompactor<ThinkingMessage, unknown> {
-        return new OpenAIChatMessagesCompactor(sessionId);
+    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, unknown> {
+        return new OpenAIChatMessagesCompactor(parentSessionId, sessionId);
     }
 
     protected override addStringMessage(message: string): void {
@@ -56,7 +56,7 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
         return result.delta.tool_calls?.map(block => ({
             id: block.id || '',
             name: block.function?.name || '',
-            input: JSON.parse(block.function?.arguments || '{}'),
+            input: block.function?.arguments,
         })) || [];
     }
     
@@ -77,7 +77,7 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
         return texts.join('\n');
     }
 
-    override createSubLoop(fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {
-        return new OpenAIChatLoop(() => {}, fork ? this.history : [], true);
+    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {
+        return new OpenAIChatLoop(() => {}, fork ? this.history : [], parentSessionId);
     }
 }

@@ -10,13 +10,13 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
 
     protected override createLLMModel(): OpenAIResponseLLMModel {
         return new OpenAIResponseLLMModel(
-            this.promptService.provideSystemPrompt(this.isSubLoop),
+            this.promptService.provideSystemPrompt(this.isSubLoop()),
             this.toolUseService.getAvailableTools()
         );
     }
 
-    protected override createMessagesCompactor(sessionId: string): MessagesCompactor<ThinkingMessage, unknown> {
-        return new OpenAIResponseMessagesCompactor(sessionId);
+    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, unknown> {
+        return new OpenAIResponseMessagesCompactor(parentSessionId, sessionId);
     }
 
     protected override addStringMessage(message: string): void {
@@ -63,7 +63,7 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
         return toolCalls.map((item) => {
             return {
                 name: item.name,
-                input: JSON.parse(item.arguments || '{}'),
+                input: item.arguments,
                 id: item.call_id,
             }
         });
@@ -90,7 +90,7 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
         ).join('\n');
     }
 
-    override createSubLoop(fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLMModel> {
-        return new OpenAIResponseLoop(() => {}, fork ? this.history : [], true);
+    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLMModel> {
+        return new OpenAIResponseLoop(() => {}, fork ? this.history : [], parentSessionId);
     }
 }

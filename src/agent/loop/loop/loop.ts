@@ -12,8 +12,8 @@ import { MessagesCompactor } from '../compactor/messages-compactor.js';
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     private llmModel: LLM;
     private turnLimit: number;
+    protected parentSessionId: string;
     private sessionId: string;
-    protected isSubLoop: boolean;
     protected history: I[] = [];
     protected toolUseService: ToolUseService;
     protected promptService: PromptService;
@@ -22,24 +22,28 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     constructor(
         onStreamEvent: (text: string) => void,
         history: I[] = [],
-        isSubLoop: boolean = false,
+        parentSessionId: string = '',
         system?: SystemPrompt,
         turnLimit: number = 20
     ) {
         super(onStreamEvent);
+        this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
         this.turnLimit = turnLimit;
-        this.isSubLoop = isSubLoop;
-        this.toolUseService = new ToolUseService(ToolsManager.provideTools(isSubLoop), this.sessionId);
+        this.toolUseService = new ToolUseService(ToolsManager.provideTools(this.isSubLoop()), this.parentSessionId, this.sessionId);
         this.promptService = new PromptService(system);
         this.llmModel = this.createLLMModel();
-        this.messagesCompactor = this.createMessagesCompactor(this.sessionId);
+        this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId);
+    }
+    
+    protected isSubLoop(): boolean {
+        return this.parentSessionId !== '';
     }
 
     protected abstract createLLMModel(): LLM;
 
-    protected abstract createMessagesCompactor(sessionID: string): MessagesCompactor<I, unknown>;
+    protected abstract createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<I, unknown>;
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
@@ -127,5 +131,12 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
 
     protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
 
-    abstract createSubLoop(fork?: boolean): LoopAgent<I, O, LLM>;
+    public createSubLoop(fork?: boolean): LoopAgent<I, O, LLM> {
+        if (this.isSubLoop()) {
+            throw new Error('Sub-loop cannot create a sub-loop');
+        }
+        return this.newSubLoop(this.sessionId, fork);
+    }
+
+    protected abstract newSubLoop(parentSessionId: string, fork?: boolean): LoopAgent<I, O, LLM>;
 }

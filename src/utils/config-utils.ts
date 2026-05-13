@@ -29,7 +29,8 @@ const defaultConfig: typeof config = {
     }
 }
 
-const mergedConfig = mergeAbsence(mergeAbsence({}, config), defaultConfig);
+const clone = mergeAbsence({}, config);
+const mergedConfig = Object.freeze(mergeAbsence(clone, defaultConfig));
 
 function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject {
     Object.keys(source).forEach(key => {

@@ -1,20 +1,36 @@
 import fs from 'fs';
 import path from 'path';
+import { loadAgentConfig } from './config-utils';
 
 export class FileUtils {
+
+    private static sessionDir: string = loadAgentConfig<string>('sessionDir');
+
+    public static wrapTimestamp(file: string): string {
+        const [name, ext = 'log'] = file.split('.');
+        return `${name}_${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}.${ext}`;
+    }
 
     public static readFile(filePath: string): string {
         const absolutePath = this.getAbsolutePath(filePath);
         if (!fs.existsSync(absolutePath)) {
             throw new Error(`File ${filePath} not found.`);
         }
-        return fs.readFileSync(this.getAbsolutePath(filePath), 'utf8');
+        return fs.readFileSync(absolutePath, 'utf8');
     }
 
     public static writeFile(filePath: string, content: string): void {
         const absolutePath = this.getAbsolutePath(filePath);
         this.ensureFolderExist(absolutePath);
-        fs.writeFileSync(filePath, content, 'utf8');
+        fs.writeFileSync(absolutePath, content, 'utf8');
+    }
+
+    public static writeFileToSession(parentSessionId: string, sessionId: string, filePath: string, content: string): string {
+        const fullPath = path.join(this.sessionDir, parentSessionId, sessionId, filePath);
+        const absolutePath = this.getAbsolutePath(fullPath);
+        this.ensureFolderExist(absolutePath);
+        fs.writeFileSync(absolutePath, content, 'utf8');
+        return fullPath;
     }
 
     public static isPathInWorkspace(filePath: string): boolean {

@@ -1,12 +1,14 @@
 import { loadAgentConfig } from '@utils';
 
 export abstract class MessagesCompactor<I, R> {
+    protected parentSessionId: string;
     protected sessionId: string;
     private maxRecent: number = loadAgentConfig<number>('toolResult.removeLegacy.maxRecent');
     private lengthThreshold: number = loadAgentConfig<number>('toolResult.removeLegacy.lengthThreshold');
     protected compactedMessage: string = 'Earlier tool result compacted. Re-run the tool if you need full detail.';
 
-    constructor(sessionId: string) {
+    constructor(parentSessionId: string, sessionId: string) {
+        this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
     }
     

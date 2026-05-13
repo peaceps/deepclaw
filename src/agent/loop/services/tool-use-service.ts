@@ -16,14 +16,15 @@ export type ToolUseDef = {
 }
 
 export class ToolUseService {
+    private parentSessionId: string;
     private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
-    private sessionDir: string = loadAgentConfig<string>('sessionDir');
     private truncateThreshold: number = loadAgentConfig<number>('toolResult.truncate.lengthThreshold');
     private persistResultDir: string = loadAgentConfig<string>('toolResult.truncate.persistResultDir');
     private previewChars: number = loadAgentConfig<number>('toolResult.truncate.previewLength');
 
-    constructor(tools: ToolDesc[], sessionId: string) {
+    constructor(tools: ToolDesc[], parentSessionId: string, sessionId: string) {
+        this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
         for (const tool of tools) {
             this.toolMap.set(tool.tool.name, tool);
@@ -39,15 +40,23 @@ export class ToolUseService {
         if (!tool) {
             return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`);
         }
+        let input = toolUseDef.input || '{}';
+        if (typeof input === 'string') {
+            try {
+                input = JSON.parse(input);
+            } catch (error) {
+                return this.toolResult(toolUseDef.id, `Parse input to JSON failed: ${input}`);
+            }
+        }
         if (tool.guard) {
-            const {allowed, feedback} = tool.guard(toolUseDef.input);
+            const {allowed, feedback} = tool.guard(input);
             if (!allowed) {
                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${feedback}.`);
             }
         }
         try {
-            const output = await tool.invoke(toolUseDef.input, context);
-            return this.toolResult(toolUseDef.id, this.persistLargeOutput(toolUseDef.id, output), !!tool.outputToUser);
+            const output = await tool.invoke(input, context);
+            return this.toolResult(toolUseDef.id, this.truncateLargeOutput(toolUseDef.id, output), !!tool.outputToUser);
         } catch (error) {
             return this.toolResult(toolUseDef.id, `Error: ${error}`);
         }
@@ -60,19 +69,17 @@ export class ToolUseService {
         });
     }
 
-    private persistLargeOutput(toolUseId: string, output: string): string {
+    private truncateLargeOutput(toolUseId: string, output: string): string {
         if (output.length <= this.truncateThreshold) {
             return output;
         }
-        const persistFileName = `${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}_${toolUseId}.txt`;
-        const persistFilePath = path.join(this.sessionDir, this.sessionId, this.persistResultDir, persistFileName);
-        FileUtils.writeFile(persistFilePath, output);
+        const fileName = FileUtils.wrapTimestamp(`${toolUseId}.txt`);
+        const fullPath = FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, path.join(this.persistResultDir, fileName), output);
         output = output.slice(0, this.previewChars);
         return `<persisted-output>
-            Full output saved to: ${persistFilePath}
-            Preview:
-            ${output}
-            </persisted-output>
-        `;
+        Full output saved to: ${fullPath}
+        Preview:
+        ${output}
+        </persisted-output>`;
     }
 }
