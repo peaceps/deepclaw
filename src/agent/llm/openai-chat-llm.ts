@@ -131,4 +131,12 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
     protected override getTextFromResponse(response: ThinkingResponse): string {
         return response.delta.content || '';
     }
+
+    public override getTextFromInputMessage(message: ThinkingMessage): string {
+        return (
+            typeof message.content === 'string' ? message.content :
+                message.content?.filter((block) => block.type === 'text').filter(block => !!block.text)
+                    .map(block => block.text).join('\n')
+        ) || '';
+    }
 }

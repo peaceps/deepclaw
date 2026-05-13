@@ -125,8 +125,11 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     public async compact(): Promise<void> {
         await this.messagesCompactor.compact(this.history);
     }
-
-    protected abstract extractFinalText(state: LoopState<I>): string;
+        
+    protected extractFinalText(state: LoopState<I>): string {
+        return state.messages.length === 0 ? '' :
+            this.llm.getTextFromInputMessage(state.messages[state.messages.length - 1]!);
+    }
 
     protected abstract quitLoop(result: O): boolean;
 

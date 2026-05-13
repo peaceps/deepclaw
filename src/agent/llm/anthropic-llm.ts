@@ -57,6 +57,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
         return await stream.finalMessage() as ThinkingResponse;
     }
 
+    // TODO move to load history
     protected normalizeMessages(messages: ThinkingMessage[]): ThinkingMessage[] {
         const cleaned: ThinkingMessage[] = [];
           
@@ -163,7 +164,15 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
     }
 
     protected override getTextFromResponse(response: ThinkingResponse): string {
-        return response.content.filter(block => block.type === 'text').map(block => block.text || '').join('\n');
+        return this.getTextFromContent(response.content);
+    }
+
+    public override getTextFromInputMessage(message: ThinkingMessage): string {
+        return typeof message.content === 'string' ? message.content : this.getTextFromContent(message.content);
+    }
+
+    private getTextFromContent(content: ThinkingContent[]): string {
+        return content.filter(block => block.type === 'text').map(block => block.text || '').join('\n');
     }
 
 }

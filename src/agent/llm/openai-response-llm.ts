@@ -117,6 +117,15 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     
     protected override getTextFromResponse(response: ThinkingResponse): string {
         return response.output.filter(out => out.type === 'message')
-            .flatMap(message => message.content.filter(c => c.type === 'output_text').map(c => c.text)).join('\n');
+            .map(message => this.extractTextFromContent(message.content, 'output_text')).join('\n');
+    }
+
+    public override getTextFromInputMessage(message: ThinkingMessage): string {
+        return message.type !== 'message' ? '' : this.extractTextFromContent(message.content, 'input_text');
+    }
+
+    private extractTextFromContent(content: string | {type: string; text?: string}[], attr: string): string {
+        return typeof content === 'string' ? content :
+            content.filter(block => block.type === attr).filter(block => !!block.text).map(block => block.text).join('\n');
     }
 }

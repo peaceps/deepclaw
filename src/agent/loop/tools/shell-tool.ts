@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import process from 'node:process';
 const execAsync = promisify(exec);
 
+import {getEnvVariable} from '@utils';
 import { ToolDesc } from '../../definitions/tool-definitions.js';
 
 type ShellInput = {
@@ -32,9 +33,7 @@ async function runCommand(input: ShellInput): Promise<string> {
     }
 
     // 2. 执行命令的配置项
-    const shell = process.platform === 'win32'
-        ? (process.env['ComSpec'] || 'cmd.exe')
-        : '/bin/bash';
+    const shell = process.platform === 'win32' ? (getEnvVariable('ComSpec') || 'cmd.exe') : '/bin/bash';
     const options = {
         timeout: 120000,          // 120 秒（毫秒）
         maxBuffer: 50 * 1024 * 1024, // 50 MB 缓冲区，避免输出过大导致崩溃

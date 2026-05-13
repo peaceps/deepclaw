@@ -1,6 +1,7 @@
 import path from 'path';
 import dotenv from 'dotenv';
 
+import {getEnvVariable, hasEnvVariable} from '@utils';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import { loadAgentConfig } from '../../utils/config-utils.js';
 
@@ -8,10 +9,10 @@ dotenv.config({ path: path.join(process.cwd(), '.env'), quiet: true });
 const llmRetry = loadAgentConfig<number>('llmRetry');
 
 const gw = {
-    model: process.env['MODEL_ID'] as string,
-    headers: !process.env['WORKSPACE_NAME'] ? undefined : {
-        'api-key': process.env['OPENAI_API_KEY'],
-        'workspacename': process.env['WORKSPACE_NAME'],
+    model: getEnvVariable('MODEL_ID'),
+    headers: !hasEnvVariable('WORKSPACE_NAME') ? undefined : {
+        'api-key': getEnvVariable('OPENAI_API_KEY'),
+        'workspacename': getEnvVariable('WORKSPACE_NAME'),
     },
     timeoutMs: 300 * 1000, // JSON: seconds → client: ms
     temperature: 0.1,
@@ -35,23 +36,22 @@ export abstract class LLMModel<I, O, T, LLM> {
     protected abstract createLLMClient(): LLM;
 
     public async invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O> {
-        let response: O;
+        let response: O = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`);
         for (let i = 0; i < llmRetry; i++) {
             try {
                 response = await this._invoke(messages, onStreamEvent);
                 break;
             } catch (error) {
-                // TODO write logs to file
+                // TODO log
             }
         }
-        response = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`);
         messages.push(this.convertResponseToMessages(response));
         return response;
     }
 
     protected abstract _invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O>;
 
-    async compact(content: string): Promise<I> {
+    public async compact(content: string): Promise<I> {
         const prompt =
 `Summarize this agent conversation so work can continue.
 Preserve:
@@ -81,5 +81,7 @@ ${content}`;
     protected abstract convertResponseToMessages(response: O): I;
 
     protected abstract getTextFromResponse(response: O): string;
+
+    public abstract getTextFromInputMessage(message: I): string;
 
 }
