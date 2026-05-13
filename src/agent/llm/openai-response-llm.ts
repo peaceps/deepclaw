@@ -19,7 +19,7 @@ export type ThinkingResponse = Omit<Response, 'output'> & {
     output: ThinkingResponseOutput[];
 };
 
-export class OpenAIResponseLLMModel extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, OpenAI> {
+export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, OpenAI> {
 
     protected override convertTools(tools: LLMTool[]): Tool[] {
         return tools!.map(tool => ({
@@ -35,7 +35,7 @@ export class OpenAIResponseLLMModel extends LLMModel<ThinkingMessage, ThinkingRe
         return new OpenAI({timeout: this.gw.timeoutMs, defaultHeaders: this.gw.headers});
     }
     
-    override async invoke(
+    protected override async _invoke(
         messages: ThinkingMessage[],
         onStreamEvent: (text: string) => void
     ): Promise<ThinkingResponse> {
@@ -69,7 +69,7 @@ export class OpenAIResponseLLMModel extends LLMModel<ThinkingMessage, ThinkingRe
         return this.newResponse('No response received.');
     }
 
-    private newResponse(message: string): ThinkingResponse {
+    protected override newResponse(message: string): ThinkingResponse {
         return {
             id: randomUUID(),
             object: 'response',
@@ -93,5 +93,30 @@ export class OpenAIResponseLLMModel extends LLMModel<ThinkingMessage, ThinkingRe
             tool_choice: 'none',
             top_p: 1,
         }
+    }
+
+    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
+        const functionCall = response.output.find(out => out.type === 'function_call' as const);
+        if (functionCall) {
+            return {
+                type: 'function_call',
+                call_id: functionCall.call_id,
+                arguments: functionCall.arguments,
+                name: functionCall.name,
+                id: functionCall.id
+            }
+        } else {
+            const text = response.output.filter(out => out.type === 'message')
+                .flatMap(message => message.content.filter(c => c.type === 'output_text').map(c => c.text)).join('\n');
+            return {
+                role: 'assistant',
+                content: (!text ? response.output_text : text) || ''
+            }
+        }
+    }
+    
+    protected override getTextFromResponse(response: ThinkingResponse): string {
+        return response.output.filter(out => out.type === 'message')
+            .flatMap(message => message.content.filter(c => c.type === 'output_text').map(c => c.text)).join('\n');
     }
 }

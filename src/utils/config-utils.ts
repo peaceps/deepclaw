@@ -20,9 +20,10 @@ const defaultConfig: typeof config = {
             }
         },
         history: {
-            conpactThreshold: 50000,
+            compactThreshold: 50000,
             dir: 'history'
         },
+        llmRetry: 3,
         sessionDir: '.session',
         skillsDir: 'src/agent/skills',
         identityFile: 'DEEPCLAW.md'

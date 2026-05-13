@@ -10,14 +10,14 @@ import { LLMModel } from '../../llm/llmgw.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
-    private llmModel: LLM;
+    protected llm: LLM;
     private turnLimit: number;
     protected parentSessionId: string;
     private sessionId: string;
     protected history: I[] = [];
     protected toolUseService: ToolUseService;
     protected promptService: PromptService;
-    private messagesCompactor: MessagesCompactor<I, unknown>;
+    private messagesCompactor: MessagesCompactor<I, O, unknown, LLM>;
 
     constructor(
         onStreamEvent: (text: string) => void,
@@ -33,7 +33,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         this.turnLimit = turnLimit;
         this.toolUseService = new ToolUseService(ToolsManager.provideTools(this.isSubLoop()), this.parentSessionId, this.sessionId);
         this.promptService = new PromptService(system);
-        this.llmModel = this.createLLMModel();
+        this.llm = this.createLLMModel();
         this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId);
     }
     
@@ -43,7 +43,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
 
     protected abstract createLLMModel(): LLM;
 
-    protected abstract createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<I, unknown>;
+    protected abstract createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<I, O, unknown, LLM>;
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
@@ -56,7 +56,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
-            this.messagesCompactor.compactBeforeTurn(state.messages);
+            await this.compact();
             const goAround = await this.runOneTurn(state);
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
@@ -70,8 +70,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
-        const response = await this.llmModel.invoke(state.messages, this.onStreamEvent);
-        state.messages.push(this.convertResponseToMessages(response));
+        const response = await this.llm.invoke(state.messages, this.onStreamEvent);
 
         if (this.quitLoop(response)) {
             state.oneLoopContext.transitionReason = 'no_tool_use';
@@ -119,15 +118,19 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         context.transitionReason = 'tool_result';
     }
 
-    protected abstract addStringMessage(message: string): void
+    protected addStringMessage(message: string): void {
+        this.history.push(this.llm.newInputMessage(message));
+    }
+
+    public async compact(): Promise<void> {
+        await this.messagesCompactor.compact(this.history);
+    }
 
     protected abstract extractFinalText(state: LoopState<I>): string;
 
     protected abstract quitLoop(result: O): boolean;
 
     protected abstract extractToolUseFromResponse(result: O): ToolUseDef[];
-
-    protected abstract convertResponseToMessages(response: O): I;
 
     protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
 

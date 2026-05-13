@@ -1,5 +1,7 @@
+import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { 
+    Message,
     MessageParam,
     ToolResultBlockParam,
     TextBlockParam,
@@ -7,7 +9,6 @@ import {
     TextBlock,
     ToolUseBlock
 } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
-import { ParsedMessage } from '@anthropic-ai/sdk/lib/parser.js';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
@@ -18,11 +19,11 @@ export type ThinkingMessage = Omit<MessageParam, 'content'> & {
     content: string | ThinkingContent[];
 };
 
-export type ThinkingResponse = Omit<ParsedMessage<unknown>, 'content'> & {
-    content: (TextBlock | ToolUseBlock)[]
+export type ThinkingResponse = Omit<Message, 'content'> & {
+    content: (TextBlock | ToolUseBlock)[];
 };
 
-export class AnthropicLLMModel extends LLMModel<ThinkingMessage, ThinkingResponse, ToolUnion, Anthropic> {
+export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, ToolUnion, Anthropic> {
 
     protected override convertTools(tools: LLMTool[]): ToolUnion[] {
         return tools.map(tool => ({
@@ -38,7 +39,7 @@ export class AnthropicLLMModel extends LLMModel<ThinkingMessage, ThinkingRespons
         });
     }
 
-    override async invoke(
+    protected override async _invoke(
         messages: ThinkingMessage[],
         onStreamEvent: (text: string) => void
     ): Promise<ThinkingResponse> {
@@ -117,7 +118,7 @@ export class AnthropicLLMModel extends LLMModel<ThinkingMessage, ThinkingRespons
         for (const msg of cleaned.slice(1)) {
             const last = merged[merged.length - 1]!;
         
-            if (msg.role === last.role) {            
+            if (msg.role === last.role) {
                 const prevContent = this.normalizeToBlocks(last.content);
                 const currContent = this.normalizeToBlocks(msg.content);
                 last.content = [...prevContent, ...currContent];
@@ -132,4 +133,37 @@ export class AnthropicLLMModel extends LLMModel<ThinkingMessage, ThinkingRespons
     private normalizeToBlocks(content: string | ThinkingContent[]): ThinkingContent[] {
         return Array.isArray(content) ? content : [{ type: 'text', text: content }];
     }
+
+    protected override newResponse(content: string): ThinkingResponse {
+        return {
+            id: randomUUID(),
+            container: null,
+            model: this.gw.model,
+            stop_details: null,
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            role: 'assistant',
+            content: [{ type: 'text', text: content, citations: [] }],
+            type: 'message',
+            usage: {
+                cache_creation: null,
+                cache_creation_input_tokens: null,
+                cache_read_input_tokens: null,
+                inference_geo: null,
+                server_tool_use: null,
+                service_tier: null,
+                input_tokens: 0,
+                output_tokens: 0,
+            }
+        };
+    }
+
+    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
+        return {role: 'assistant', content: response.content};
+    }
+
+    protected override getTextFromResponse(response: ThinkingResponse): string {
+        return response.content.filter(block => block.type === 'text').map(block => block.text || '').join('\n');
+    }
+
 }

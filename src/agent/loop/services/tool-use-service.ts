@@ -1,4 +1,3 @@
-import path from 'path';
 import { FileUtils, loadAgentConfig } from '@utils';
 import { LLMTool, ToolDesc, ToolUseContext, ToolUseResult } from "../../definitions/tool-definitions.js";
 
@@ -74,7 +73,7 @@ export class ToolUseService {
             return output;
         }
         const fileName = FileUtils.wrapTimestamp(`${toolUseId}.txt`);
-        const fullPath = FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, path.join(this.persistResultDir, fileName), output);
+        const fullPath = FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, this.persistResultDir, fileName, output);
         output = output.slice(0, this.previewChars);
         return `<persisted-output>
         Full output saved to: ${fullPath}

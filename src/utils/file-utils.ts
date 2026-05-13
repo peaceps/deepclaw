@@ -25,8 +25,8 @@ export class FileUtils {
         fs.writeFileSync(absolutePath, content, 'utf8');
     }
 
-    public static writeFileToSession(parentSessionId: string, sessionId: string, filePath: string, content: string): string {
-        const fullPath = path.join(this.sessionDir, parentSessionId, sessionId, filePath);
+    public static writeFileToSession(parentSessionId: string, sessionId: string, dirName: string, fileName: string, content: string): string {
+        const fullPath = path.join(this.sessionDir, parentSessionId, sessionId, dirName, fileName);
         const absolutePath = this.getAbsolutePath(fullPath);
         this.ensureFolderExist(absolutePath);
         fs.writeFileSync(absolutePath, content, 'utf8');

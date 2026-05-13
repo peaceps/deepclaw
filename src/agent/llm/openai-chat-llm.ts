@@ -25,7 +25,7 @@ export type ThinkingResponse = ChatCompletionChunk.Choice & {
     }
 }
 
-export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingResponse, ChatCompletionTool, OpenAI> {
+export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, ChatCompletionTool, OpenAI> {
 
     protected override convertTools(tools: LLMTool[]): ChatCompletionTool[] {
         return tools.map(tool => (
@@ -37,7 +37,7 @@ export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingRespon
         return new OpenAI({timeout: this.gw.timeoutMs, defaultHeaders: this.gw.headers});
     }
 
-    override async invoke(
+    protected override async _invoke(
         messages: ThinkingMessage[],
         onStreamEvent: (text: string) => void
     ): Promise<ThinkingResponse> {
@@ -96,15 +96,39 @@ export class OpenAIChatLLMModel extends LLMModel<ThinkingMessage, ThinkingRespon
             }
         }
 
+        return this.newResponse('Error: No response from LLM.');
+    }
+
+    protected override newResponse(content: string): ThinkingResponse {
         return {
             finish_reason: 'stop',
             index: 0,
             delta: {
-                content: 'Error: No response from LLM.',
+                content: content,
                 reasoning_content: '',
                 tool_calls: []
             }
         };
     }
 
+    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
+        const delta = response.delta;
+        return {
+            role: 'assistant' as const,
+            content: delta.content || '',
+            reasoning_content: delta.reasoning_content || undefined,
+            tool_calls: delta.tool_calls?.map((toolCall) => ({
+                id: toolCall.id || '',
+                function: {
+                    name: toolCall.function?.name || '',
+                    arguments: toolCall.function?.arguments || '',
+                },
+                type: 'function' as const,
+            })) || undefined,
+        };
+    }
+
+    protected override getTextFromResponse(response: ThinkingResponse): string {
+        return response.delta.content || '';
+    }
 }

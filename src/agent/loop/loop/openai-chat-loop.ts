@@ -1,4 +1,4 @@
-import { OpenAIChatLLMModel, ThinkingMessage, ThinkingResponse } from '../../llm/openai-chat-llm.js';
+import { OpenAIChatLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-chat-llm.js';
 import { LoopAgent } from './loop.js';
 import { ToolUseDef } from '../services/tool-use-service.js';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
@@ -6,38 +6,21 @@ import { LoopState } from '../../definitions/definitions.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 import { OpenAIChatMessagesCompactor } from '../compactor/openai-chat-compactor.js';
 
-export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {
+export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
 
-    protected override createLLMModel(): OpenAIChatLLMModel {
-        return new OpenAIChatLLMModel(
+    protected override createLLMModel(): OpenAIChatLLM {
+        return new OpenAIChatLLM(
             this.promptService.provideSystemPrompt(this.isSubLoop()),
             this.toolUseService.getAvailableTools()
         );
     }
 
-    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, unknown> {
-        return new OpenAIChatMessagesCompactor(parentSessionId, sessionId);
+    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIChatLLM> {
+        return new OpenAIChatMessagesCompactor(this.llm, parentSessionId, sessionId);
     }
 
     protected override addStringMessage(message: string): void {
         this.history.push({role: 'user', content: message});
-    }
-
-    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
-        const delta = response.delta;
-        return {
-            role: 'assistant' as const,
-            content: delta.content || '',
-            reasoning_content: delta.reasoning_content || undefined,
-            tool_calls: delta.tool_calls?.map((toolCall) => ({
-                id: toolCall.id || '',
-                function: {
-                    name: toolCall.function?.name || '',
-                    arguments: toolCall.function?.arguments || '',
-                },
-                type: 'function' as const,
-            })) || undefined,
-        };
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
@@ -77,7 +60,7 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
         return texts.join('\n');
     }
 
-    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLMModel> {
+    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
         return new OpenAIChatLoop(() => {}, fork ? this.history : [], parentSessionId);
     }
 }

@@ -1,8 +1,8 @@
 import { ResponseInputItem } from "openai/resources/responses/responses";
-import { ThinkingMessage } from "../../llm/openai-response-llm.js";
+import { ThinkingMessage, ThinkingResponse, OpenAIResponseLLM } from "../../llm/openai-response-llm.js";
 import { MessagesCompactor } from "./messages-compactor.js";
 
-export class OpenAIResponseMessagesCompactor extends MessagesCompactor<ThinkingMessage, ResponseInputItem.FunctionCallOutput> {
+export class OpenAIResponseMessagesCompactor extends MessagesCompactor<ThinkingMessage, ThinkingResponse, ResponseInputItem.FunctionCallOutput, OpenAIResponseLLM> {
 
     protected override getToolResults(messages: ThinkingMessage[]): ResponseInputItem.FunctionCallOutput[] {
         return messages.filter(message => message.type === 'function_call_output');
@@ -15,8 +15,8 @@ export class OpenAIResponseMessagesCompactor extends MessagesCompactor<ThinkingM
                 .reduce((p, n) => p + n.length, 0);
     }
 
-    protected override compactToolResult(message: ResponseInputItem.FunctionCallOutput): void {
-        message.output = this.compactedMessage;
+    protected override compactToolResult(message: ResponseInputItem.FunctionCallOutput, msg: string): void {
+        message.output = msg;
     }
 
 }

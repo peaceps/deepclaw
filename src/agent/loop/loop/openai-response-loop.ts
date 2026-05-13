@@ -2,45 +2,25 @@ import { LoopAgent } from './loop'
 import { ToolUseDef } from '../services/tool-use-service';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { LoopState } from '../../definitions/definitions';
-import { OpenAIResponseLLMModel, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
+import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor.js';
 
-export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLMModel> {
+export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
 
-    protected override createLLMModel(): OpenAIResponseLLMModel {
-        return new OpenAIResponseLLMModel(
+    protected override createLLMModel(): OpenAIResponseLLM {
+        return new OpenAIResponseLLM(
             this.promptService.provideSystemPrompt(this.isSubLoop()),
             this.toolUseService.getAvailableTools()
         );
     }
 
-    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, unknown> {
-        return new OpenAIResponseMessagesCompactor(parentSessionId, sessionId);
+    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIResponseLLM> {
+        return new OpenAIResponseMessagesCompactor(this.llm, parentSessionId, sessionId);
     }
 
     protected override addStringMessage(message: string): void {
         this.history.push({role: 'user', content: message});
-    }
-
-    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
-        const functionCall = response.output.find(out => out.type === 'function_call' as const);
-        if (functionCall) {
-            return {
-                type: 'function_call',
-                call_id: functionCall.call_id,
-                arguments: functionCall.arguments,
-                name: functionCall.name,
-                id: functionCall.id
-            }
-        } else {
-            const text = response.output.filter(out => out.type === 'message')
-                .flatMap(message => message.content.filter(c => c.type === 'output_text').map(c => c.text)).join('\n');
-            return {
-                role: 'assistant',
-                content: (!text ? response.output_text : text) || ''
-            }
-        }
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
@@ -90,7 +70,7 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
         ).join('\n');
     }
 
-    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLMModel> {
+    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
         return new OpenAIResponseLoop(() => {}, fork ? this.history : [], parentSessionId);
     }
 }

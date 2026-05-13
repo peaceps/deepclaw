@@ -35,8 +35,8 @@
             "@ui": ["./src/ui/index.ts"],
             "@utils": ["./src/utils/index.ts"],
             "@e2e": ["./e2e/index.ts"],
-            "@config": ["./deepclaw.config.json"],
+            "@config": ["./.deepclaw.config.json"],
         }
 	},
-	"include": ["src", "e2e", "main.tsx", "deepclaw.config.json"]
+	"include": ["src", "e2e", "main.tsx", ".deepclaw.config.json"]
 }

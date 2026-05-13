@@ -7,7 +7,7 @@ export class LoopInitializer {
 
     public static getLoopClass(): FlushAgentConstructor {
         if ('OPENAI_BASE_URL' in process.env) {
-            return 'OPEN_RESPONSE_API' in process.env ? OpenAIResponseLoop : OpenAIChatLoop;
+            return 'OPENAI_RESPONSE_API' in process.env ? OpenAIResponseLoop : OpenAIChatLoop;
         } else if ('ANTHROPIC_BASE_URL' in process.env) {
             return AnthropicLoop;
         } else {

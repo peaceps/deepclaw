@@ -1,24 +1,21 @@
-import { ToolDesc } from "../../definitions/tool-definitions.js";
+import { ToolDesc, ToolUseContext } from "../../definitions/tool-definitions.js";
 
 type CompactInput = {
     focus: string;
 }
 
-export const compact: ToolDesc<CompactInput> = {
+export const compactTool: ToolDesc<CompactInput> = {
     tool: {
         name: 'compact',
         description: 'Summarize earlier conversation so work can continue in a smaller context.',
         schema: {
             type: 'object',
             additionalProperties: false,
-            properties: {focus: {
-                type: 'string',
-                description: 'The focus of the compacted context, which should be paid attention to next.'
-            }},
+            properties: {},
         },
     },
-    invoke: async function(input: CompactInput): Promise<string> {
-        const { focus } = input;
-        return focus;
+    invoke: async function(_: CompactInput, context: ToolUseContext): Promise<string> {
+        await context.loop.compact();
+        return 'History compacted.';
     },
 }
