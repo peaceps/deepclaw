@@ -20,7 +20,6 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [llmWorking, setLlmWorking] = useState(false);
     const [userInput, setUserInput] = useState('');
     const llmOutputRef = useRef(llmOutput);
-    llmOutputRef.current = llmOutput;
 
 	const staticRows = useMemo((): HistoryItem[] => {
 		return [{role: 'banner'}, ...histories];
@@ -32,6 +31,10 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setLlmWorking(false);
     }, []);
 
+    useEffect(() => {
+        llmOutputRef.current = llmOutput;
+    }, [llmOutput]);
+
 	useEffect(() => {
         function handleLlmStream(text: string, done: boolean = false) {
             if (done) {
@@ -41,7 +44,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
             }
         }
         agent = new app.agentClass(handleLlmStream);
-	}, []);
+	}, [app.agentClass, handleLlmDone]);
 
 	useInput((input, key) => {
         if (key.return) {

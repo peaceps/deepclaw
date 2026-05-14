@@ -9,7 +9,8 @@
 	},
 	"scripts": {
 		"build": "tsc",
-		"dev": "tsx watch main.tsx"
+		"dev": "tsx watch main.tsx",
+		"lint": "eslint **/*.{ts,tsx}"
 	},
 	"files": [
 		"dist"
@@ -26,16 +27,20 @@
 		"string-width": "8.2.1"
 	},
 	"devDependencies": {
+		"@eslint/js": "9.7.0",
 		"@types/node": "25.6.0",
 		"@types/react": "19.2.14",
+		"@typescript-eslint/parser": "8.59.3",
 		"chalk": "5.6.2",
 		"eslint": "9.7.0",
 		"eslint-plugin-react": "7.37.5",
 		"eslint-plugin-react-hooks": "7.1.1",
+		"globals": "17.0.0",
 		"ink-testing-library": "4.0.0",
 		"react-devtools": "7.0.1",
 		"ts-node": "10.9.2",
 		"tsx": "4.21.0",
-		"typescript": "6.0.3"
+		"typescript": "6.0.3",
+		"typescript-eslint": "8.59.3"
 	}
 }
