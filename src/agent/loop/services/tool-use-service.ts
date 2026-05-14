@@ -1,5 +1,6 @@
 import { FileUtils, loadAgentConfig } from '@utils';
 import { LLMTool, ToolDesc, ToolUseContext, ToolUseResult } from "../../definitions/tool-definitions.js";
+import { AgentEvent } from '@core';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
@@ -14,20 +15,31 @@ export type ToolUseDef = {
     input: unknown;
 }
 
+type AgentEventEmitter = {
+    emit: (event: AgentEvent) => Promise<string>;
+}
+
 export class ToolUseService {
     private parentSessionId: string;
     private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
+    private eventEmitter: AgentEventEmitter;
     private truncateThreshold: number = loadAgentConfig<number>('toolResult.truncate.lengthThreshold');
     private persistResultDir: string = loadAgentConfig<string>('toolResult.truncate.persistResultDir');
     private previewChars: number = loadAgentConfig<number>('toolResult.truncate.previewLength');
 
-    constructor(tools: ToolDesc[], parentSessionId: string, sessionId: string) {
+    constructor(
+        tools: ToolDesc[],
+        parentSessionId: string,
+        sessionId: string,
+        eventEmitter: AgentEventEmitter
+    ) {
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
         for (const tool of tools) {
             this.toolMap.set(tool.tool.name, tool);
         }
+        this.eventEmitter = eventEmitter;
     }
 
     public getAvailableTools(): LLMTool[] {
@@ -48,11 +60,14 @@ export class ToolUseService {
             }
         }
         if (tool.guard) {
-            const {result, feedback} = tool.guard(input);
-            if (result === 'denied') {
-                return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${feedback}.`);
-            } else if (result === 'ask') {
-                
+            const guardResult = tool.guard(input);
+            if (guardResult.result === 'denied') {
+                return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
+            } else if (guardResult.result === 'ask') {
+                const choice = await this.eventEmitter.emit({type: 'ask', content: guardResult.question || ''});
+                if (!guardResult.validate(choice)) {
+                    return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
+                }
             }
         }
         try {

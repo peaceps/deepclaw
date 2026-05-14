@@ -42,7 +42,7 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
     }
 
     protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
-        return new AnthropicLoop(() => {}, fork ? this.history : [], parentSessionId);
+        return new AnthropicLoop(() => {}, async () => '', fork ? this.history : [], parentSessionId);
     }
 
 }

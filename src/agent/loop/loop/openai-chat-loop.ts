@@ -40,6 +40,6 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
     }
 
     protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
-        return new OpenAIChatLoop(() => {}, fork ? this.history : [], parentSessionId);
+        return new OpenAIChatLoop(() => {}, async () => '', fork ? this.history : [], parentSessionId);
     }
 }

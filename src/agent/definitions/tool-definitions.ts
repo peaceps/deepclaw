@@ -18,8 +18,14 @@ export type ToolUseResult = {
 }
 
 export type ToolGuardResult = {
-    result: 'allowed' | 'denied' | 'ask';
-    feedback?: string;
+    result: 'allowed';
+} | {
+    result: 'denied';
+    reason: string;
+} | {
+    result: 'ask';
+    question: string;
+    validate: (answer: string) => boolean;
 }
 
 export type ToolUseContext = {

@@ -1,1 +1,1 @@
-export { FlushAgent, type FlushAgentConstructor } from './flush-agent.js';
+export * from './flush-agent.js';

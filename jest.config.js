@@ -9,6 +9,7 @@ export default {
     "^@e2e$": "<rootDir>/e2e/index.ts",
     "^@config$": "<rootDir>/.deepclaw.config.json",
   },
+  testMatch: ['<rootDir>/src/**/*.spec.*'],
   transform: {
     "^.+\\.tsx?$": [
       "ts-jest",

@@ -22,7 +22,7 @@ function measureWrappedCursor(text: string, safeWidth: number): {x: number; y: n
 	return {x, y};
 }
 
-export function EveryInput({
+export function ChatInput({
 	userInput,
 }: {
 	userInput: string;

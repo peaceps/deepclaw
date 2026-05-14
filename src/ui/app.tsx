@@ -1,10 +1,10 @@
 import {ReactElement, useCallback} from 'react';
 import {useState, useMemo, useEffect, useRef} from 'react';
 import {useInput, Box, Static} from 'ink';
-import { FlushAgent, type FlushAgentConstructor } from '@core';
+import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@core';
 import {HistoryLine, type HistoryItem} from './components/history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
-import {EveryInput} from './components/every-input.js';
+import {ChatInput} from './components/chat-input.js';
 import {LlmOutput} from './components/llm-output.js';
 
 export type AppConfig = {
@@ -36,14 +36,18 @@ export function App({app}: {app: AppConfig}): ReactElement {
     }, [llmOutput]);
 
 	useEffect(() => {
-        function handleLlmStream(text: string, done: boolean = false) {
+        function handleLlmStreamText(text: string, done: boolean = false) {
             if (done) {
                 handleLlmDone(llmOutputRef.current);
             } else {
                 setLlmOutput(prev => prev + text);
             }
         }
-        agent = new app.agentClass(handleLlmStream);
+        async function handleAgentEvent(event: AgentEvent): Promise<string> {
+            console.info(event);
+            return '';
+        }
+        agent = new app.agentClass(handleLlmStreamText, handleAgentEvent);
 	}, [app.agentClass, handleLlmDone]);
 
 	useInput((input, key) => {
@@ -75,7 +79,8 @@ export function App({app}: {app: AppConfig}): ReactElement {
                         (row, index) => <HistoryLine item={row} key={row.role === 'banner' ? 'banner' : `h-${index}`} />
                     }
                 </Static>
-                {!llmWorking ? <EveryInput userInput={userInput}/> : <LlmOutput llmOutput={llmOutput}/>}
+                {!llmWorking ? <ChatInput userInput={userInput}/> : <LlmOutput llmOutput={llmOutput}/>}
+
             </StaticContext>
         </Box>
 	);

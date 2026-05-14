@@ -95,7 +95,7 @@ function fileGuard(input: ReadFileInput): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
         return {
             result: 'denied',
-            feedback: 'You don\'t have permission to operate file out of workspace.'
+            reason: 'You don\'t have permission to operate file out of workspace.'
         };
     }
     return {result: 'allowed'};

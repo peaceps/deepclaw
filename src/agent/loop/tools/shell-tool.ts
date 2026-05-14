@@ -34,7 +34,7 @@ function shellGuard(input: ShellInput): ToolGuardResult {
     const { command } = input;
     const dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/", "del /f /s /q"];
     if (dangerous.some(item => command.includes(item))) {
-        return {result: 'denied', feedback: 'Dangerous command blocked'};
+        return {result: 'denied', reason: 'Dangerous command blocked'};
     }
     return {result: 'allowed'};
 }

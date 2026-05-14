@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { FlushAgent } from '@core';
+import { FlushAgent, AgentEvent } from '@core';
 import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
 import { FootPrint, LoopState} from '../../definitions/definitions.js';
@@ -22,17 +22,23 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
 
     constructor(
         onStreamText: (text: string) => void,
+        onAgentEvent: (event: AgentEvent) => Promise<string>,
         history: I[] = [],
         parentSessionId: string = '',
         system?: SystemPrompt,
         turnLimit: number = 20
     ) {
-        super(onStreamText);
+        super(onStreamText, onAgentEvent);
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
         this.turnLimit = turnLimit;
-        this.toolUseService = new ToolUseService(ToolsManager.provideTools(this.isSubLoop()), this.parentSessionId, this.sessionId);
+        this.toolUseService = new ToolUseService(
+            ToolsManager.provideTools(this.isSubLoop()),
+            this.parentSessionId,
+            this.sessionId,
+            {emit: onAgentEvent}
+        );
         this.promptService = new PromptService(system);
         this.llm = this.createLLMModel();
         this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId, this.footPrints);
