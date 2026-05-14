@@ -25,7 +25,7 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
     invoke: async function(input: ReadFileInput, context: ToolUseContext): Promise<string> {
         const { filePath, limit } = input;
         const content = FileUtils.readFile(filePath);
-        context.loop.addFootPrint({ type: 'read_file', content });
+        context.loop.addFootPrint({ type: 'read_file', content: filePath });
         if (limit) {
             return content.slice(0, limit);
         }
