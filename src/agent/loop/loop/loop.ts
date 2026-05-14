@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { FlushAgent } from '@core';
 import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
-import { LoopState} from '../../definitions/definitions.js';
+import { FootPrint, LoopState} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
 import { PromptService, SystemPrompt } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
@@ -18,6 +18,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     protected toolUseService: ToolUseService;
     protected promptService: PromptService;
     private messagesCompactor: MessagesCompactor<I, O, unknown, LLM>;
+    private footPrints: FootPrint[] = [];
 
     constructor(
         onStreamEvent: (text: string) => void,
@@ -34,16 +35,20 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         this.toolUseService = new ToolUseService(ToolsManager.provideTools(this.isSubLoop()), this.parentSessionId, this.sessionId);
         this.promptService = new PromptService(system);
         this.llm = this.createLLMModel();
-        this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId);
+        this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId, this.footPrints);
     }
-    
+
     protected isSubLoop(): boolean {
         return this.parentSessionId !== '';
+    }
+    
+    public addFootPrint(footPrint: FootPrint): void {
+        this.footPrints.push(footPrint);
     }
 
     protected abstract createLLMModel(): LLM;
 
-    protected abstract createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<I, O, unknown, LLM>;
+    protected abstract createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<I, O, unknown, LLM>;
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);

@@ -11,3 +11,8 @@ export type OneLoopContext = {
     turnCount: number;
     transitionReason?: 'tool_result' | 'no_tool_use';
 }
+
+export type FootPrint = {
+    type: 'read_file';
+    content: string;
+}

@@ -1,7 +1,9 @@
 import { loadAgentConfig, FileUtils } from '@utils';
 import { LLMModel } from '../../llm/llmgw';
+import { FootPrint } from '../../definitions/definitions.js';
 
-export type HistoryCompactContext = {
+type HistoryCompactContext = {
+    footPrints: FootPrint[];
     count: number;
 }
 
@@ -17,14 +19,16 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     private historyThreshold: number = loadAgentConfig<number>('history.compactThreshold');
     private historyDir: string = loadAgentConfig<string>('history.dir');
 
-    private historyCompactContext: HistoryCompactContext = {
-        count: 0
-    };
+    private historyCompactContext: HistoryCompactContext;
 
-    constructor(llm: LLM, parentSessionId: string, sessionId: string) {
+    constructor(llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
         this.llm = llm;
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
+        this.historyCompactContext = {
+            footPrints,
+            count: 0
+        };
     }
     
     public async compact(messages: I[]): Promise<void> {
@@ -61,7 +65,21 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     private async summarizeHistory(jsonl: string): Promise<I> {
         const summary = await this.llm.compact(jsonl);
         this.historyCompactContext.count++;
-        return summary;
+        return this.llm.newInputMessage(`
+This conversation was compacted so the agent can continue working.
+
+${summary}
+
+${this.getFootPrintsText()}`);
+    }
+
+    private getFootPrintsText(): string {
+        const readFiles = this.historyCompactContext.footPrints
+            .filter(footPrint => footPrint.type === 'read_file')
+            .map(footPrint => `- ${footPrint.content}`).join('\n');
+        return readFiles.length === 0 ? '' : `The agent read the following files:
+${readFiles}
+If needed, you can read the full content of these files by using the read_file tool.`;
     }
 
     protected abstract getToolResults(messages: I[]): R[];

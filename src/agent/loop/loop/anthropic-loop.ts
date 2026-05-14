@@ -1,5 +1,6 @@
 import { AnthropicLLM, ThinkingMessage, ThinkingResponse } from "../../llm/anthropic-llm";
 import { LoopAgent } from "./loop";
+import { FootPrint } from "../../definitions/definitions";
 import { ToolUseResult } from "../../definitions/tool-definitions.js";
 import { ToolUseDef } from "../services/tool-use-service";
 import { MessagesCompactor } from "../compactor/messages-compactor.js";
@@ -14,8 +15,8 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
         );
     }
 
-    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, AnthropicLLM> {
-        return new AnthropicMessagesCompactor(this.llm, parentSessionId, sessionId);
+    protected override createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, AnthropicLLM> {
+        return new AnthropicMessagesCompactor(this.llm, parentSessionId, sessionId, footPrints);
     }
 
     protected override quitLoop(result: ThinkingResponse): boolean {

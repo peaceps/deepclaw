@@ -1,4 +1,4 @@
-import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions.js';
+import { ToolDesc, ToolGuardResult, ToolUseContext } from '../../definitions/tool-definitions.js';
 import { FileUtils } from '@utils';
 
 type FileOperationInput = {
@@ -22,9 +22,10 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
             required: ['filePath']
         },
     },
-    invoke: async function(input: ReadFileInput): Promise<string> {
+    invoke: async function(input: ReadFileInput, context: ToolUseContext): Promise<string> {
         const { filePath, limit } = input;
         const content = FileUtils.readFile(filePath);
+        context.loop.addFootPrint({ type: 'read_file', content });
         if (limit) {
             return content.slice(0, limit);
         }

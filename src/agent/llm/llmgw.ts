@@ -51,7 +51,7 @@ export abstract class LLMModel<I, O, T, LLM> {
 
     protected abstract _invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O>;
 
-    public async compact(content: string): Promise<I> {
+    public async compact(content: string): Promise<string> {
         const prompt =
 `Summarize this agent conversation so work can continue.
 Preserve:
@@ -66,10 +66,7 @@ Be compact but concrete.
 
 ${content}`;
         const response = await this.invoke([this.newInputMessage(prompt)], () => {});
-        const text = this.getTextFromResponse(response);
-        return this.newInputMessage(`This conversation was compacted so the agent can continue working.
-
-            ${text}`);
+        return this.getTextFromResponse(response);
     }
     
     public newInputMessage(content: string): I {

@@ -1,5 +1,6 @@
 import { LoopAgent } from './loop'
 import { ToolUseDef } from '../services/tool-use-service';
+import { FootPrint } from '../../definitions/definitions.js';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
@@ -14,8 +15,8 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
         );
     }
 
-    protected override createMessagesCompactor(parentSessionId: string, sessionId: string): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIResponseLLM> {
-        return new OpenAIResponseMessagesCompactor(this.llm, parentSessionId, sessionId);
+    protected override createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIResponseLLM> {
+        return new OpenAIResponseMessagesCompactor(this.llm, parentSessionId, sessionId, footPrints);
     }
 
     protected override quitLoop(result: ThinkingResponse): boolean {
