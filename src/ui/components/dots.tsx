@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 
 const DOTS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-export default function Dots(): ReactElement {
+export function Dots(): ReactElement {
     const [dot, setDot] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => {

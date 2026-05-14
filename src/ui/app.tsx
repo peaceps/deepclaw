@@ -1,11 +1,13 @@
 import {ReactElement, useCallback} from 'react';
 import {useState, useMemo, useEffect, useRef} from 'react';
-import {useInput, Box, Static} from 'ink';
+import { Box, Static} from 'ink';
 import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@core';
 import {HistoryLine, type HistoryItem} from './components/history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
-import {ChatInput} from './components/chat-input.js';
+import {UserChat} from './components/user-chat.js';
 import {LlmOutput} from './components/llm-output.js';
+import { UserAction } from './components/user-action.js';
+
 
 export type AppConfig = {
     unmount: () => void;
@@ -18,7 +20,8 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [histories, setHistories] = useState([] as HistoryItem[]);
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
-    const [userInput, setUserInput] = useState('');
+    const [agentEvent, setAgentEvent] = useState(null as AgentEvent | null);
+    const [agentResolver, setAgentResolver] = useState(null as any);
     const llmOutputRef = useRef(llmOutput);
 
 	const staticRows = useMemo((): HistoryItem[] => {
@@ -30,6 +33,14 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setLlmOutput('');
         setLlmWorking(false);
     }, []);
+
+    const startLLM = useCallback((userInput: string) => {
+        setHistories(prev => [...prev, {role: 'user', content: userInput}]);
+        setLlmWorking(true);
+        agent!.invoke(userInput).catch(err => {
+            handleLlmDone(`出错了: ${err.message?.trim() || 'Unexpected error.'}`);
+        });
+    }, [handleLlmDone]);
 
     useEffect(() => {
         llmOutputRef.current = llmOutput;
@@ -43,33 +54,17 @@ export function App({app}: {app: AppConfig}): ReactElement {
                 setLlmOutput(prev => prev + text);
             }
         }
-        async function handleAgentEvent(event: AgentEvent): Promise<string> {
-            console.info(event);
-            return '';
+        function handleAgentEvent(event: AgentEvent): Promise<string> {
+            setAgentEvent(event);
+            return new Promise(resolve => {
+                setAgentResolver(() => (choice: string) => {
+                    setAgentEvent(null);
+                    resolve(choice);
+                });
+            });
         }
         agent = new app.agentClass(handleLlmStreamText, handleAgentEvent);
 	}, [app.agentClass, handleLlmDone]);
-
-	useInput((input, key) => {
-        if (key.return) {
-            if (userInput.trim() !== '') {
-                if (userInput.trim().toLowerCase() === 'q' || userInput.trim().toLowerCase() === 'exit') {
-                    app.unmount();
-                } else {
-                    setHistories(prev => [...prev, {role: 'user', content: userInput}]);
-                    setUserInput('');
-                    setLlmWorking(true);
-                    agent!.invoke(userInput).catch(err => {
-                        handleLlmDone(`出错了: ${err.message?.trim() || 'Unexpected error.'}`);
-                    });
-                }
-            }
-        } else if (key.delete || key.backspace) {
-            setUserInput(prev => prev.slice(0, -1));
-        } else if (input) {
-            setUserInput(prev => prev + input);
-        }
-    });
 
 	return (
         <Box flexDirection="column">
@@ -79,8 +74,8 @@ export function App({app}: {app: AppConfig}): ReactElement {
                         (row, index) => <HistoryLine item={row} key={row.role === 'banner' ? 'banner' : `h-${index}`} />
                     }
                 </Static>
-                {!llmWorking ? <ChatInput userInput={userInput}/> : <LlmOutput llmOutput={llmOutput}/>}
-
+                {!llmWorking ? <UserChat quit={app.unmount} enter={startLLM}/> : <LlmOutput llmOutput={llmOutput} userAction={!!agentEvent}/>}
+                {llmWorking && !!agentEvent && <UserAction event={agentEvent} enter={agentResolver}/>}
             </StaticContext>
         </Box>
 	);

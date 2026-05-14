@@ -69,6 +69,10 @@ export class ToolUseService {
                     return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
                 }
             }
+            const choice = await this.eventEmitter.emit({type: 'ask', content: '测试一下：'});
+            if (choice.length > 3) {
+                return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
+            }
         }
         try {
             const output = await tool.invoke(input, context);
