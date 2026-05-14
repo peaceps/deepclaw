@@ -2,7 +2,7 @@ import { FlushAgent } from '../../src/core/flush-agent.js';
 
 export class TestLlmAgent extends FlushAgent {
 
-    protected async _invoke(_: string): Promise<string> {
+    protected async _invoke(): Promise<string> {
         const text = [
             'The pattern continues',
             'up to number 100, with a',

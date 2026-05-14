@@ -44,7 +44,7 @@ export class ToolUseService {
             try {
                 input = JSON.parse(input);
             } catch (error) {
-                return this.toolResult(toolUseDef.id, `Parse input to JSON failed: ${input}`);
+                return this.toolResult(toolUseDef.id, `Parse input to JSON failed: ${input}. Error: ${error}`);
             }
         }
         if (tool.guard) {

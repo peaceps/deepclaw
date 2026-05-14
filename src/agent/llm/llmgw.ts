@@ -43,6 +43,7 @@ export abstract class LLMModel<I, O, T, LLM> {
                 break;
             } catch (error) {
                 // TODO log
+                console.error(error);
             }
         }
         messages.push(this.convertResponseToMessages(response));

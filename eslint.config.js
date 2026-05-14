@@ -20,7 +20,7 @@ const tsLanguageOptions = {
 
 export default [
   {
-    ignores: ['dist/**/*', 'node_modules/**/*', '**/*.spec.*'],
+    ignores: ['dist/**/*', 'node_modules/**/*'],
   },
   {
     files: ['**/*.ts', '**/*.tsx'],
