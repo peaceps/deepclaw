@@ -22,6 +22,7 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
             required: ['filePath']
         },
     },
+    parallelSafe: true,
     invoke: async function(input: ReadFileInput, context: ToolUseContext): Promise<string> {
         const { filePath, limit } = input;
         const content = FileUtils.readFile(filePath);
@@ -51,6 +52,7 @@ export const writeFileTool: ToolDesc<WriteFileInput> = {
             required: ['filePath', 'content']
         },
     },
+    parallelSafe: false,
     invoke: async function(input: WriteFileInput): Promise<string> {
         const { filePath, content } = input;
         FileUtils.writeFile(filePath, content);
@@ -78,6 +80,7 @@ export const editFileTool: ToolDesc<EditFileInput> = {
             required: ['filePath', 'oldText', 'newText']
         },
     },
+    parallelSafe: false,
     invoke: async function(input: EditFileInput): Promise<string> {
         const { filePath, oldText, newText } = input;
         const content = FileUtils.readFile(filePath);
@@ -90,7 +93,10 @@ export const editFileTool: ToolDesc<EditFileInput> = {
 
 function fileGuard(input: ReadFileInput): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
-        return {allowed: false, feedback: 'You don\'t have permission to operate file out of workspace.'};
+        return {
+            result: 'denied',
+            feedback: 'You don\'t have permission to operate file out of workspace.'
+        };
     }
-    return {allowed: true};
+    return {result: 'allowed'};
 }

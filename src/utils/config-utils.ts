@@ -6,8 +6,34 @@ type AgentConfigValue = AgentConfigSingleValue | AgentConfigSingleValue[] | unde
 
 type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject};
 
-const defaultConfig: typeof config = {
+type Config = {
     agent: {
+        mode: 'agent' | 'plan' | 'chat';
+        toolResult: {
+            truncate: {
+                lengthThreshold: number;
+                persistResultDir: string;
+                previewLength: number;
+            },
+            removeLegacy: {
+                maxRecent: number;
+                lengthThreshold: number;
+            }
+        },
+        history: {
+            compactThreshold: number;
+            dir: string;
+        },
+        llmRetry: number;
+        sessionDir: string;
+        skillsDir: string;
+        identityFile: string;
+    },
+};
+
+const defaultConfig: Config = {
+    agent: {
+        mode: 'agent',
         toolResult: {
             truncate: {
                 lengthThreshold: 20000,

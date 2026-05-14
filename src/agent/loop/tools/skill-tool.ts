@@ -16,6 +16,7 @@ export const loadSkillTool: ToolDesc<SkillInput> = {
             required: ['name'],
         },
     },
+    parallelSafe: true,
     invoke: async function(input: SkillInput): Promise<string> {
         const { name } = input;
         return SkillsManager.getSkillContent(name);

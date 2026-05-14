@@ -37,7 +37,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     
     protected override async _invoke(
         messages: ThinkingMessage[],
-        onStreamEvent: (text: string) => void
+        onStreamText: (text: string) => void
     ): Promise<ThinkingResponse> {
 
         const stream = await this.client.responses.create({
@@ -53,7 +53,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         for await (const event of stream) {
             switch (event.type) {
                 case 'response.output_text.delta':
-                    onStreamEvent(event.delta);
+                    onStreamText(event.delta);
                     break;
                 case 'response.completed':
                     return event.response as ThinkingResponse;
@@ -61,7 +61,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
                     console.error('LLM response failed:', event);
                     return this.newResponse(event.response.error?.message || 'Unknown error');
                 case 'error':
-                    onStreamEvent(`发生错误 ${event.code} on ${event.param}: ${event.message}`);
+                    onStreamText(`发生错误 ${event.code} on ${event.param}: ${event.message}`);
                     return this.newResponse(event.message);
             }
         }

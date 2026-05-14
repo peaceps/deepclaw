@@ -1,10 +1,15 @@
-export type FlushAgentConstructor = new (onStreamEvent: (text: string) => void) => FlushAgent;
+export type FlushAgentConstructor = new (onStreamText: (text: string) => void) => FlushAgent;
+
+export type AgentEvent = {
+    type: 'ask' | 'select';
+    text: string;
+}
 
 export abstract class FlushAgent {
-    protected onStreamEvent: (text: string, done?: boolean) => void;
+    protected onStreamText: (text: string, done?: boolean) => void;
 
-    constructor(onStreamEvent: (text: string, done?: boolean) => void = () => {}) {
-        this.onStreamEvent = (text: string, done: boolean = false) => onStreamEvent(this.formatLLMText(text), done);
+    constructor(onStreamText: (text: string, done?: boolean) => void = () => {}) {
+        this.onStreamText = (text: string, done: boolean = false) => onStreamText(this.formatLLMText(text), done);
     }
 
     protected abstract _invoke(input: string): Promise<string>;
@@ -13,7 +18,7 @@ export abstract class FlushAgent {
         const res = await this._invoke(input);
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.onStreamEvent(res, true);
+                this.onStreamText(res, true);
                 resolve(res);
             }, 100);
         });

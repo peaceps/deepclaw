@@ -1,5 +1,6 @@
 {
     "agent": {
+        "mode": "agent",
         "toolResult": {
             "truncate": {
                 "lengthThreshold": 20000,

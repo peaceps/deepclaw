@@ -18,7 +18,7 @@ export type ToolUseResult = {
 }
 
 export type ToolGuardResult = {
-    allowed: boolean;
+    result: 'allowed' | 'denied' | 'ask';
     feedback?: string;
 }
 
@@ -31,6 +31,7 @@ export type ToolCallback<T = unknown> = (input: T, context: ToolUseContext) => P
 
 export type ToolDesc<T = unknown> = {
     tool: LLMTool;
+    parallelSafe: boolean;
     invoke: ToolCallback<T>;
     outputToUser?: boolean;
     guard?: (input: T) => ToolGuardResult;

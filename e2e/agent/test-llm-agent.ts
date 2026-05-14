@@ -28,7 +28,7 @@ export class TestLlmAgent extends FlushAgent {
         let i = 0;
         return new Promise((resolve) => {
             const interval = setInterval(() => {
-                this.onStreamEvent(lines[i++]!);
+                this.onStreamText(lines[i++]!);
                 if (i >= lines.length) {
                     clearInterval(interval);
                     resolve('its done.');

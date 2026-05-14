@@ -35,11 +35,11 @@ export abstract class LLMModel<I, O, T, LLM> {
 
     protected abstract createLLMClient(): LLM;
 
-    public async invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O> {
+    public async invoke(messages: I[], onStreamText: (text: string) => void): Promise<O> {
         let response: O = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`);
         for (let i = 0; i < llmRetry; i++) {
             try {
-                response = await this._invoke(messages, onStreamEvent);
+                response = await this._invoke(messages, onStreamText);
                 break;
             } catch (error) {
                 // TODO log
@@ -50,7 +50,7 @@ export abstract class LLMModel<I, O, T, LLM> {
         return response;
     }
 
-    protected abstract _invoke(messages: I[], onStreamEvent: (text: string) => void): Promise<O>;
+    protected abstract _invoke(messages: I[], onStreamText: (text: string) => void): Promise<O>;
 
     public async compact(content: string): Promise<string> {
         const prompt =

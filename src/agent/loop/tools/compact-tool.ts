@@ -14,6 +14,7 @@ export const compactTool: ToolDesc<CompactInput> = {
             properties: {},
         },
     },
+    parallelSafe: false,
     invoke: async function(_: CompactInput, context: ToolUseContext): Promise<string> {
         await context.loop.compact();
         return 'History compacted.';

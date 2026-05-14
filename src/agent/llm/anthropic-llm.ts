@@ -41,7 +41,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
 
     protected override async _invoke(
         messages: ThinkingMessage[],
-        onStreamEvent: (text: string) => void
+        onStreamText: (text: string) => void
     ): Promise<ThinkingResponse> {
         const stream = this.client.messages.stream({
             model: this.gw.model,
@@ -51,7 +51,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature
         }).on('text', (text) => {
-            onStreamEvent(text);
+            onStreamText(text);
         });
 
         return await stream.finalMessage() as ThinkingResponse;

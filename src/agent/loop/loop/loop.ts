@@ -21,13 +21,13 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     private footPrints: FootPrint[] = [];
 
     constructor(
-        onStreamEvent: (text: string) => void,
+        onStreamText: (text: string) => void,
         history: I[] = [],
         parentSessionId: string = '',
         system?: SystemPrompt,
         turnLimit: number = 20
     ) {
-        super(onStreamEvent);
+        super(onStreamText);
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
@@ -65,7 +65,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
             const goAround = await this.runOneTurn(state);
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
-                this.onStreamEvent(finalText);
+                this.onStreamText(finalText);
                 return finalText;
             }
             if (!goAround) {
@@ -75,7 +75,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
-        const response = await this.llm.invoke(state.messages, this.onStreamEvent);
+        const response = await this.llm.invoke(state.messages, this.onStreamText);
 
         if (this.quitLoop(response)) {
             state.oneLoopContext.transitionReason = 'no_tool_use';
@@ -102,7 +102,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         for (const toolUseDef of toolUseDefs) {
             const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
             if (toolResult.effect.outputToUser) {
-                this.onStreamEvent(toolResult.result.content);
+                this.onStreamText(toolResult.result.content);
             }
             results.push(toolResult.result);
         }
