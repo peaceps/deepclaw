@@ -22,7 +22,7 @@ export function SelectInput({
     customPrompt = customPrompt.trim();
     const fullPrompt = `${prompt}${!customPrompt ? '' : ' ' + customPrompt} `;
 
-	useInput((input, key) => {
+	useInput((_input, key) => {
         if (key.return) {
             onEnter(options[userSelection] || '');
         } else if (key.upArrow) {
