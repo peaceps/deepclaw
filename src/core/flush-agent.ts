@@ -4,8 +4,12 @@ export type FlushAgentConstructor = new (
 ) => FlushAgent;
 
 export type AgentEvent = {
-    type: 'ask' | 'select';
+    type: 'ask';
     content: string;
+} | {
+    type: 'select';
+    content: string;
+    options: string[];
 }
 
 export abstract class FlushAgent {
