@@ -1,22 +1,21 @@
 import {ReactElement, useCallback} from 'react';
 import {useState, useMemo, useEffect, useRef} from 'react';
-import { Box, Static} from 'ink';
+import { Box, Static, useApp } from 'ink';
 import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@core';
 import {HistoryLine, type HistoryItem} from './components/history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import {UserChat} from './components/user-chat.js';
 import {LlmOutput} from './components/llm-output.js';
-import { UserAction } from './components/user-action.js';
-
+import { UserInteraction } from './components/user-interaction.js';
 
 export type AppConfig = {
-    unmount: () => void;
     agentClass: FlushAgentConstructor;
 }
 
 let agent: FlushAgent | null = null;
 
 export function App({app}: {app: AppConfig}): ReactElement {
+    const {exit} = useApp();
     const [histories, setHistories] = useState([] as HistoryItem[]);
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
@@ -34,7 +33,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setLlmWorking(false);
     }, []);
 
-    const startLLM = useCallback((userInput: string) => {
+    const invokeLlm = useCallback((userInput: string) => {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
         agent!.invoke(userInput).catch(err => {
@@ -71,11 +70,20 @@ export function App({app}: {app: AppConfig}): ReactElement {
             <StaticContext value={STATIC_CONTEXT_DEFAULT}>
                 <Static items={staticRows}>
                     {
-                        (row, index) => <HistoryLine item={row} key={row.role === 'banner' ? 'banner' : `h-${index}`} />
+                        (row, index) => <HistoryLine
+                           item={row}
+                           key={row.role === 'banner' ? 'banner' : `h-${index}`}
+                        />
                     }
                 </Static>
-                {!llmWorking ? <UserChat quit={app.unmount} enter={startLLM}/> : <LlmOutput llmOutput={llmOutput} userAction={!!agentEvent}/>}
-                {llmWorking && !!agentEvent && <UserAction event={agentEvent} enter={agentResolver}/>}
+                {!llmWorking ?
+                    <UserChat onExit={exit} onEnter={invokeLlm}/> :
+                    <LlmOutput llmOutput={llmOutput} userAction={!!agentEvent}/>
+                }
+                {llmWorking && !!agentEvent && <UserInteraction
+                    event={agentEvent}
+                    onEnter={agentResolver}/>
+                }
             </StaticContext>
         </Box>
 	);

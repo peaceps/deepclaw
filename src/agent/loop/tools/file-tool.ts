@@ -94,8 +94,11 @@ export const editFileTool: ToolDesc<EditFileInput> = {
 function fileGuard(input: ReadFileInput): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
         return {
-            result: 'denied',
-            reason: 'You don\'t have permission to operate file out of workspace.'
+            result: 'ask',
+            question: '用户想要访问当前工作区外的文件，是否允许(y/n)：',
+            checkAnswer: (answer: string = '') => {
+                return answer.trim().toLowerCase() === 'y';
+            }
         };
     }
     return {result: 'allowed'};

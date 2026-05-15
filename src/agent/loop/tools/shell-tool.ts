@@ -36,6 +36,14 @@ function shellGuard(input: ShellInput): ToolGuardResult {
     if (dangerous.some(item => command.includes(item))) {
         return {result: 'denied', reason: 'Dangerous command blocked'};
     }
+    const ask = ['dir', 'ls'];
+    if (ask.some(item => command.includes(item))) {
+        return {
+            result: 'ask',
+            question: `用户想要执行一个需要交互的命令(${command})，是否允许(y/n)：`,
+            checkAnswer: (answer: string = '') => answer.trim().toLowerCase() === 'y'
+        };
+    }
     return {result: 'allowed'};
 }
 

@@ -25,7 +25,7 @@ export type ToolGuardResult = {
 } | {
     result: 'ask';
     question: string;
-    validate: (answer: string) => boolean;
+    checkAnswer: (answer: string) => boolean;
 }
 
 export type ToolUseContext = {

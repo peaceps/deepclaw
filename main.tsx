@@ -28,12 +28,10 @@ const cli = meow(`
 );
 
 const appWrapper: AppConfig = {
-    unmount: () => {},
     agentClass: !cli.flags.test ? LoopInitializer.getLoopClass() : TestLlmAgent,
 };
 
-const {unmount, waitUntilExit} = render(<App app={appWrapper}/>);
-appWrapper.unmount = unmount;
+const {waitUntilExit} = render(<App app={appWrapper}/>);
 await waitUntilExit();
 console.log("\n  再见！");
 
