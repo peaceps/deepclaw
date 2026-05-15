@@ -121,7 +121,8 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     }
 
     public override getTextFromInputMessage(message: ThinkingMessage): string {
-        return message.type !== 'message' ? '' : this.extractTextFromContent(message.content, 'input_text');
+        return message.type === 'function_call' || message.type === 'function_call_output' ? ''
+            : this.extractTextFromContent(message.content, 'input_text');
     }
 
     private extractTextFromContent(content: string | {type: string; text?: string}[], attr: string): string {

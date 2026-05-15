@@ -1,5 +1,6 @@
 import { OneLoopContext } from './definitions.js';
 import { LoopAgent } from '../loop/loop/loop.js';
+import { DeepclawConfig } from '@utils';
 
 export type LLMTool = {
     name: string;
@@ -38,6 +39,8 @@ export type ToolCallback<T = unknown> = (input: T, context: ToolUseContext) => P
 export type ToolDesc<T = unknown> = {
     tool: LLMTool;
     parallelSafe: boolean;
+    agentMode: DeepclawConfig['agent']['mode'][];
+    exclusiveInSubLoop?: boolean; // if true, the tool will not be available in sub-loop
     invoke: ToolCallback<T>;
     outputToUser?: boolean;
     guard?: (input: T) => ToolGuardResult;

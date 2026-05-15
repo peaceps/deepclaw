@@ -6,7 +6,7 @@ type AgentConfigValue = AgentConfigSingleValue | AgentConfigSingleValue[] | unde
 
 type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject};
 
-type Config = {
+export type DeepclawConfig = {
     agent: {
         mode: 'agent' | 'plan' | 'chat';
         toolResult: {
@@ -31,7 +31,7 @@ type Config = {
     },
 };
 
-const defaultConfig: Config = {
+const defaultConfig: DeepclawConfig = {
     agent: {
         mode: 'agent',
         toolResult: {

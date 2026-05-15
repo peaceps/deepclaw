@@ -25,6 +25,7 @@ export const shellTool: ToolDesc<ShellInput> = {
             required: ['command'],
         },
     },
+    agentMode: ['agent', 'plan'],
     parallelSafe: false,
     invoke: runCommand,
     guard: shellGuard,
@@ -32,9 +33,19 @@ export const shellTool: ToolDesc<ShellInput> = {
 
 function shellGuard(input: ShellInput): ToolGuardResult {
     const { command } = input;
-    const dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/", "del /f /s /q"];
-    if (dangerous.some(item => command.includes(item))) {
-        return {result: 'denied', reason: 'Dangerous command blocked'};
+    const dangerousRules: (string | RegExp)[] = [
+        "rm -rf /",
+        "sudo",
+        "shutdown",
+        "reboot",
+        "> /dev/",
+        /\bIFS\s*=/,
+        "del /f /s /q"
+    ];
+    const danger = dangerousRules.find(rule => typeof rule === 'string' ? command.includes(rule) : rule.test(command));
+    if (danger) {
+        const reason = typeof danger === 'string' ? danger : danger.source;
+        return {result: 'denied', reason: `Dangerous command(${reason}) blocked.`};
     }
     return {result: 'allowed'};
 }
@@ -54,7 +65,7 @@ async function runCommand(input: ShellInput): Promise<string> {
         const output = (stdout + stderr).trim();
         return output ? output.slice(0, trunkcateThreshold) : '(no output)';
     } catch (error: any) {
-        return error.killed && error.signal === 'SIGTERM' ? `Error: Timeout (${timeout}s)`
+        return error?.killed && error?.signal === 'SIGTERM' ? `Error: Timeout (${timeout}s)`
             : `Error: ${error.message}`;
     }
 }

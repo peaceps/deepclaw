@@ -30,6 +30,7 @@ export const todoTool: ToolDesc<TodoToolInput> = {
             required: ['items'],
         },
     },
+    agentMode: ['agent'],
     parallelSafe: false,
     outputToUser: true,
     invoke: async function(input: TodoToolInput, context?: ToolUseContext): Promise<string> {

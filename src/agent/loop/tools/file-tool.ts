@@ -22,6 +22,7 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
             required: ['filePath']
         },
     },
+    agentMode: ['agent'],
     parallelSafe: true,
     invoke: async function(input: ReadFileInput, context: ToolUseContext): Promise<string> {
         const { filePath, limit } = input;
@@ -52,6 +53,7 @@ export const writeFileTool: ToolDesc<WriteFileInput> = {
             required: ['filePath', 'content']
         },
     },
+    agentMode: ['agent'],
     parallelSafe: false,
     invoke: async function(input: WriteFileInput): Promise<string> {
         const { filePath, content } = input;
@@ -80,6 +82,7 @@ export const editFileTool: ToolDesc<EditFileInput> = {
             required: ['filePath', 'oldText', 'newText']
         },
     },
+    agentMode: ['agent'],
     parallelSafe: false,
     invoke: async function(input: EditFileInput): Promise<string> {
         const { filePath, oldText, newText } = input;
