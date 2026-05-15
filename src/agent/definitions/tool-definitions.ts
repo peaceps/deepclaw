@@ -49,7 +49,7 @@ export type ToolDesc<T = unknown> = {
 export function askPermissionGuard(reason: string): ToolGuardResult {
     return {
         result: 'ask',
-        question: `${reason}，是否允许(y/n)：`,
+        question: `${reason}是否允许(y/n)：`,
         checkAnswer: (answer: string) => {
             return answer.trim().toLowerCase() === 'y';
         }

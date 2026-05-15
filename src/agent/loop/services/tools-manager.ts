@@ -2,7 +2,7 @@ import { ToolDesc } from '../../definitions/tool-definitions.js';
 
 import {shellTool} from '../tools/shell-tool.js';
 import {todoTool} from '../tools/todo-tool.js';
-import {subLoopTool} from '../tools/sub-loop-tool.js';
+import {subLoopTool, subLoopWithHistoryTool} from '../tools/sub-loop-tool.js';
 import {loadSkillTool} from '../tools/skill-tool.js';
 import {compactTool} from '../tools/compact-tool.js';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool.js';
@@ -12,6 +12,7 @@ const tools: ToolDesc<any>[] = [
     shellTool,
     todoTool,
     subLoopTool,
+    subLoopWithHistoryTool,
     loadSkillTool,
     compactTool,
     readFileTool,
@@ -24,6 +25,8 @@ export class ToolsManager {
     private static readonly agentMode = loadAgentConfig<DeepclawConfig['agent']['mode']>('mode');
 
     public static provideTools(isSubLoop: boolean): ToolDesc<any>[] {
-        return tools.filter(tool => tool.agentMode.includes(this.agentMode) && (!isSubLoop || !tool.exclusiveInSubLoop));
+        return tools.filter(tool =>
+            tool.agentMode.includes(this.agentMode) && (!isSubLoop || !tool.exclusiveInSubLoop)
+        );
     }
 }

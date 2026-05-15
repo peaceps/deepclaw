@@ -5,14 +5,12 @@ import { ToolUseResult } from "../../definitions/tool-definitions.js";
 import { ToolUseDef } from "../services/tool-use-service";
 import { MessagesCompactor } from "../compactor/messages-compactor.js";
 import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor.js";
+import { LLMConstructor } from '../../llm/llmgw';
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
 
-    protected override createLLMModel(): AnthropicLLM {
-        return new AnthropicLLM(
-            this.promptService.provideSystemPrompt(this.isSubLoop()),
-            this.toolUseService.getAvailableTools()
-        );
+    protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
+        return AnthropicLLM;
     }
 
     protected override createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, AnthropicLLM> {

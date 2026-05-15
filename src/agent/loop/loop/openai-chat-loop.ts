@@ -5,14 +5,12 @@ import { FootPrint } from '../../definitions/definitions.js';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 import { OpenAIChatMessagesCompactor } from '../compactor/openai-chat-compactor.js';
+import { LLMConstructor } from '../../llm/llmgw.js';
 
 export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
 
-    protected override createLLMModel(): OpenAIChatLLM {
-        return new OpenAIChatLLM(
-            this.promptService.provideSystemPrompt(this.isSubLoop()),
-            this.toolUseService.getAvailableTools()
-        );
+    protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
+        return OpenAIChatLLM;
     }
 
     protected override createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIChatLLM> {

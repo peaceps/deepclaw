@@ -19,6 +19,8 @@ const gw = {
     maxTokens: 8000
 }
 
+export type LLMConstructor<I, O, T, LLM> = new (system: string, tools: LLMTool[]) => LLMModel<I, O, T, LLM>;
+
 export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
     protected system: string;

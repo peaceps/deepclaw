@@ -13,7 +13,7 @@ export function UserInteraction({
 }): ReactElement {
     return (
         <Box>
-            {event.type === 'ask' && <TextInput
+            {event.type === 'input' && <TextInput
                 onEnter={onEnter}
                 customPrompt={event.content}
                 color="#E9A02D"

@@ -3,12 +3,13 @@ import { promisify } from 'util';
 import process from 'node:process';
 const execAsync = promisify(exec);
 
-import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions.js';
-import { loadAgentConfig } from '@utils';
+import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions.js';
+import { DeepclawConfig, loadAgentConfig } from '@utils';
 
 const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
 const timeout = 120;
 const trunkcateThreshold = loadAgentConfig<number>('toolResult.truncate.lengthThreshold');
+const agentMode = loadAgentConfig<DeepclawConfig['agent']['mode']>('mode');
 
 type ShellInput = {
     command: string;
@@ -46,6 +47,9 @@ function shellGuard(input: ShellInput): ToolGuardResult {
     if (danger) {
         const reason = typeof danger === 'string' ? danger : danger.source;
         return {result: 'denied', reason: `Dangerous command(${reason}) blocked.`};
+    }
+    if (agentMode !== 'agent') {
+        return askPermissionGuard('Deepclaw未运行在agent模式，但模型想要shell命令。');
     }
     return {result: 'allowed'};
 }

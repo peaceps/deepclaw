@@ -4,7 +4,7 @@ export type FlushAgentConstructor = new (
 ) => FlushAgent;
 
 export type AgentEvent = {
-    type: 'ask';
+    type: 'input';
     content: string;
 } | {
     type: 'select';

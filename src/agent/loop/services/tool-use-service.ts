@@ -1,5 +1,5 @@
 import { FileUtils, loadAgentConfig } from '@utils';
-import { LLMTool, ToolDesc, ToolUseContext, ToolUseResult } from "../../definitions/tool-definitions.js";
+import { ToolDesc, ToolUseContext, ToolUseResult } from "../../definitions/tool-definitions.js";
 import { AgentEvent } from '@core';
 
 export type ToolUseServiceResult = {
@@ -42,10 +42,6 @@ export class ToolUseService {
         this.eventEmitter = eventEmitter;
     }
 
-    public getAvailableTools(): LLMTool[] {
-        return Array.from(this.toolMap.values()).map(t => t.tool)
-    }
-
     public async executeToolCall(toolUseDef: ToolUseDef, context: ToolUseContext): Promise<ToolUseServiceResult> {
         const tool = this.toolMap.get(toolUseDef.name);
         if (!tool) {
@@ -64,7 +60,7 @@ export class ToolUseService {
             if (guardResult.result === 'denied') {
                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
             } else if (guardResult.result === 'ask') {
-                const choice = await this.eventEmitter.emit({type: 'ask', content: guardResult.question || ''});
+                const choice = await this.eventEmitter.emit({type: 'input', content: guardResult.question || ''});
                 if (!guardResult.checkAnswer(choice)) {
                     return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
                 }

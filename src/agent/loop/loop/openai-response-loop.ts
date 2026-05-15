@@ -5,14 +5,12 @@ import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor.js';
+import { LLMConstructor } from '../../llm/llmgw';
 
 export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
 
-    protected override createLLMModel(): OpenAIResponseLLM {
-        return new OpenAIResponseLLM(
-            this.promptService.provideSystemPrompt(this.isSubLoop()),
-            this.toolUseService.getAvailableTools()
-        );
+    protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
+        return OpenAIResponseLLM;
     }
 
     protected override createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIResponseLLM> {

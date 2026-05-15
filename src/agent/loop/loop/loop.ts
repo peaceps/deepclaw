@@ -4,9 +4,9 @@ import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definition
 import { TodoManager } from '../services/todo-manager.js';
 import { FootPrint, LoopState} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
-import { PromptService, SystemPrompt } from '../services/prompt-service.js';
+import { PromptService } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
-import { LLMModel } from '../../llm/llmgw.js';
+import { LLMModel, LLMConstructor } from '../../llm/llmgw.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
@@ -16,7 +16,6 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     private sessionId: string;
     protected history: I[] = [];
     protected toolUseService: ToolUseService;
-    protected promptService: PromptService;
     private messagesCompactor: MessagesCompactor<I, O, unknown, LLM>;
     private footPrints: FootPrint[] = [];
 
@@ -25,7 +24,6 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         onAgentEvent: (event: AgentEvent) => Promise<string>,
         history: I[] = [],
         parentSessionId: string = '',
-        system?: SystemPrompt,
         turnLimit: number = 100
     ) {
         super(onStreamText, onAgentEvent);
@@ -33,14 +31,17 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         this.sessionId = crypto.randomUUID();
         this.history = history;
         this.turnLimit = turnLimit;
+        const tools = ToolsManager.provideTools(this.isSubLoop());
         this.toolUseService = new ToolUseService(
-            ToolsManager.provideTools(this.isSubLoop()),
+            tools,
             this.parentSessionId,
             this.sessionId,
             {emit: onAgentEvent}
         );
-        this.promptService = new PromptService(system);
-        this.llm = this.createLLMModel();
+        this.llm = new (this.getLLMConstructor())(
+            PromptService.provideSystemPrompt(this.isSubLoop()),
+            tools.map(tool => tool.tool)
+        ) as LLM;
         this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId, this.footPrints);
     }
 
@@ -52,7 +53,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         this.footPrints.push(footPrint);
     }
 
-    protected abstract createLLMModel(): LLM;
+    protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
     protected abstract createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<I, O, unknown, LLM>;
 

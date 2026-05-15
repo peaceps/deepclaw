@@ -55,6 +55,7 @@ export const writeFileTool: ToolDesc<WriteFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: false,
+    exclusiveInSubLoop: true,
     invoke: async function(input: WriteFileInput): Promise<string> {
         const { filePath, content } = input;
         FileUtils.writeFile(filePath, content);
@@ -84,6 +85,7 @@ export const editFileTool: ToolDesc<EditFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: false,
+    exclusiveInSubLoop: true,
     invoke: async function(input: EditFileInput): Promise<string> {
         const { filePath, oldText, newText } = input;
         const content = FileUtils.readFile(filePath);
@@ -96,7 +98,7 @@ export const editFileTool: ToolDesc<EditFileInput> = {
 
 function fileGuard(input: ReadFileInput): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
-        return askPermissionGuard('用户想要访问当前工作区外的文件');
+        return askPermissionGuard('用户想要访问当前工作区外的文件。');
     }
     return {result: 'allowed'};
 }
