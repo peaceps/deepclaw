@@ -42,3 +42,13 @@ export type ToolDesc<T = unknown> = {
     outputToUser?: boolean;
     guard?: (input: T) => ToolGuardResult;
 }
+
+export function askPermissionGuard(reason: string): ToolGuardResult {
+    return {
+        result: 'ask',
+        question: `${reason}，是否允许(y/n)：`,
+        checkAnswer: (answer: string) => {
+            return answer.trim().toLowerCase() === 'y';
+        }
+    }
+}

@@ -1,4 +1,4 @@
-import { ToolDesc, ToolGuardResult, ToolUseContext } from '../../definitions/tool-definitions.js';
+import { askPermissionGuard, ToolDesc, ToolGuardResult, ToolUseContext } from '../../definitions/tool-definitions.js';
 import { FileUtils } from '@utils';
 
 type FileOperationInput = {
@@ -93,13 +93,7 @@ export const editFileTool: ToolDesc<EditFileInput> = {
 
 function fileGuard(input: ReadFileInput): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
-        return {
-            result: 'ask',
-            question: '用户想要访问当前工作区外的文件，是否允许(y/n)：',
-            checkAnswer: (answer: string = '') => {
-                return answer.trim().toLowerCase() === 'y';
-            }
-        };
+        return askPermissionGuard('用户想要访问当前工作区外的文件');
     }
     return {result: 'allowed'};
 }
