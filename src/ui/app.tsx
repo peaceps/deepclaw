@@ -77,13 +77,17 @@ export function App({app}: {app: AppConfig}): ReactElement {
                     }
                 </Static>
                 {!llmWorking ?
-                    <UserChat onExit={exit} onEnter={invokeLlm}/> :
+                    <UserChat
+                        seed={(histories[histories.length - 1]?.content || '').length}
+                        onExit={exit}
+                        onEnter={invokeLlm}
+                    /> :
                     <LlmOutput llmOutput={llmOutput} userAction={!!agentEvent}/>
                 }
                 {llmWorking && !!agentEvent && <UserInteraction
                     event={agentEvent}
-                    onEnter={agentResolver}/>
-                }
+                    onEnter={agentResolver}
+                />}
             </StaticContext>
         </Box>
 	);

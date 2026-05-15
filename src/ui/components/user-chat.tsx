@@ -16,14 +16,19 @@ const SOUP = [
     '思考的空隙里，往往藏着最亮的灵感',
 ];
 
+const INITIAL_SEED = Math.floor(Math.random() * SOUP.length);
+
 export function UserChat({
+    seed,
     onEnter,
     onExit,
 }: {
+    seed: number;
     onEnter: (input: string) => void;
     onExit?: () => void;
 }): ReactElement {
-    const soup = SOUP[Math.floor(Math.random() * SOUP.length)];
+    const crypted = !seed ? INITIAL_SEED : seed;
+    const soup = SOUP[crypted % SOUP.length];
     return (
         <TextInput onEnter={onEnter} onExit={onExit} placeholder={`${soup}...`}/>
     );

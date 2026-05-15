@@ -26,7 +26,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         history: I[] = [],
         parentSessionId: string = '',
         system?: SystemPrompt,
-        turnLimit: number = 20
+        turnLimit: number = 100
     ) {
         super(onStreamText, onAgentEvent);
         this.parentSessionId = parentSessionId;

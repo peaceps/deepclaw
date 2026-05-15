@@ -41,7 +41,8 @@ export function TextInput({
     const rowWidth = useWidth(indent);
 
     const {setCursorPosition} = useCursor();
-	const fullPrompt = `${prompt}${!customPrompt ? '' : ' ' + customPrompt}`;
+    customPrompt = customPrompt.trim();
+	const fullPrompt = `${prompt}${!customPrompt ? '' : ' ' + customPrompt} `;
     const {x, y} = measureWrappedCursor(fullPrompt + (userInput || ''), rowWidth);
     setCursorPosition({x: x + indent, y: y});
 
