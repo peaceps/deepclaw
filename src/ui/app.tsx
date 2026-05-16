@@ -1,5 +1,4 @@
-import {ReactElement, useCallback} from 'react';
-import {useState, useMemo, useEffect, useRef} from 'react';
+import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent} from 'react';
 import { Box, Static, useApp } from 'ink';
 import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@core';
 import {HistoryLine, type HistoryItem} from './components/history.js';
@@ -7,9 +6,10 @@ import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import {UserChat} from './components/user-chat.js';
 import {LlmOutput} from './components/llm-output.js';
 import { UserInteraction } from './components/user-interaction.js';
+import { useEnvConfig } from './hooks/use-env-config.js';
 
 export type AppConfig = {
-    agentClass: FlushAgentConstructor;
+    getAgentClass: () => FlushAgentConstructor;
 }
 
 let agent: FlushAgent | null = null;
@@ -21,7 +21,6 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [llmWorking, setLlmWorking] = useState(false);
     const [agentEvent, setAgentEvent] = useState(null as AgentEvent | null);
     const [agentResolver, setAgentResolver] = useState(null as any);
-    const llmOutputRef = useRef(llmOutput);
 
 	const staticRows = useMemo((): HistoryItem[] => {
 		return [{role: 'banner'}, ...histories];
@@ -41,29 +40,34 @@ export function App({app}: {app: AppConfig}): ReactElement {
         });
     }, [handleLlmDone]);
 
-    useEffect(() => {
-        llmOutputRef.current = llmOutput;
-    }, [llmOutput]);
+    const handleAgentEvent = useCallback((event: AgentEvent): Promise<string> => {
+        setAgentEvent(event);
+        return new Promise((resolve) => {
+            setAgentResolver(() => (choice: string) => {
+                setAgentEvent(null);
+                resolve(choice);
+            });
+        });
+    }, []);
+
+    const envConfigReady = useEnvConfig(handleAgentEvent);
+
+    const handleWithLLMoutput = useEffectEvent(() => {
+        handleLlmDone(llmOutput)
+    });
 
 	useEffect(() => {
         function handleLlmStreamText(text: string, done: boolean = false) {
             if (done) {
-                handleLlmDone(llmOutputRef.current);
+                handleWithLLMoutput();
             } else {
                 setLlmOutput(prev => prev + text);
             }
         }
-        function handleAgentEvent(event: AgentEvent): Promise<string> {
-            setAgentEvent(event);
-            return new Promise(resolve => {
-                setAgentResolver(() => (choice: string) => {
-                    setAgentEvent(null);
-                    resolve(choice);
-                });
-            });
+        if (envConfigReady) {
+            agent = new (app.getAgentClass())(handleLlmStreamText, handleAgentEvent);
         }
-        agent = new app.agentClass(handleLlmStreamText, handleAgentEvent);
-	}, [app.agentClass, handleLlmDone]);
+	}, [app, handleAgentEvent, envConfigReady]);
 
 	return (
         <Box flexDirection="column">
@@ -76,15 +80,15 @@ export function App({app}: {app: AppConfig}): ReactElement {
                         />
                     }
                 </Static>
-                {!llmWorking ?
+                {envConfigReady && !agentEvent && (!llmWorking ?
                     <UserChat
                         seed={(histories[histories.length - 1]?.content || '').length}
                         onExit={exit}
                         onEnter={invokeLlm}
                     /> :
                     <LlmOutput llmOutput={llmOutput} userAction={!!agentEvent}/>
-                }
-                {llmWorking && !!agentEvent && <UserInteraction
+                )}
+                {!!agentEvent && <UserInteraction
                     event={agentEvent}
                     onEnter={agentResolver}
                 />}

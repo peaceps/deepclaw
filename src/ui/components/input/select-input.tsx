@@ -11,7 +11,7 @@ export function SelectInput({
 }: {
     onEnter: (input: string) => void;
 	customPrompt: string;
-	options: string[];
+	options: (string | {label: string; value: string})[];
 	color?: string;
 }): ReactElement {
     const [userSelection, setUserSelection] = useState(0);
@@ -24,7 +24,8 @@ export function SelectInput({
 
 	useInput((_input, key) => {
         if (key.return) {
-            onEnter(options[userSelection] || '');
+            const selected = options[userSelection];
+            onEnter((typeof selected === 'string' ? selected : selected?.value) || '');
         } else if (key.upArrow) {
             setUserSelection(userSelection === 0 ? 0 : userSelection - 1);
         } else if (key.downArrow) {
@@ -41,7 +42,7 @@ export function SelectInput({
                     options.map((option, index) => (
                         <Fragment key={index}>
                             <Text color={userSelection === index ? 'cyan' : (color || 'gray')}>
-                                {index === userSelection ? '>' : ' '} {option}
+                                {' '.repeat(prompt.length - 1)}{index === userSelection ? '>' : ' '} {typeof option === 'string' ? option : option.label}
                             </Text>
                             {index !== options.length - 1 && <Newline />}
                         </Fragment>

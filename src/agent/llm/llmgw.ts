@@ -1,23 +1,8 @@
-import path from 'path';
-import dotenv from 'dotenv';
-
 import {getEnvVariable, hasEnvVariable} from '@utils';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import { loadAgentConfig } from '../../utils/config-utils.js';
 
-dotenv.config({ path: path.join(process.cwd(), '.env'), quiet: true });
 const llmRetry = loadAgentConfig<number>('llmRetry');
-
-const gw = {
-    model: getEnvVariable('MODEL_ID'),
-    headers: !hasEnvVariable('WORKSPACE_NAME') ? undefined : {
-        'api-key': getEnvVariable('OPENAI_API_KEY'),
-        'workspacename': getEnvVariable('WORKSPACE_NAME'),
-    },
-    timeoutMs: 300 * 1000, // JSON: seconds → client: ms
-    temperature: 0.1,
-    maxTokens: 8000
-}
 
 export type LLMConstructor<I, O, T, LLM> = new (system: string, tools: LLMTool[]) => LLMModel<I, O, T, LLM>;
 
@@ -25,7 +10,16 @@ export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
     protected system: string;
     protected tools?: T[];
-    protected gw = gw;
+    protected gw = {
+        model: getEnvVariable('MODEL_ID'),
+        headers: !hasEnvVariable('WORKSPACE_NAME') ? undefined : {
+            'api-key': getEnvVariable('OPENAI_API_KEY'),
+            'workspacename': getEnvVariable('WORKSPACE_NAME'),
+        },
+        timeoutMs: 300 * 1000, // JSON: seconds → client: ms
+        temperature: 0.1,
+        maxTokens: 8000
+    };
 
     constructor(system: string, tools: LLMTool[] = []) {
         this.system = system;

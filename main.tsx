@@ -28,13 +28,12 @@ const cli = meow(`
 );
 
 const appWrapper: AppConfig = {
-    agentClass: !cli.flags.test ? LoopInitializer.getLoopClass() : TestLlmAgent,
+    getAgentClass: () => (!cli.flags.test ? LoopInitializer.getLoopClass() : TestLlmAgent),
 };
 
 const {waitUntilExit} = render(<App app={appWrapper}/>);
 await waitUntilExit();
 console.log("\n  再见！");
-
 
 /**
  * c:\git下有哪些文件夹

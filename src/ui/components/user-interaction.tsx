@@ -1,6 +1,7 @@
 import { ReactElement } from 'react';
 import { Box} from 'ink';
 import {TextInput} from './input/text-input';
+import {ReadOnlyInput} from './input/readonly-input';
 import {SelectInput} from './input/select-input';
 import { AgentEvent } from '@core';
 
@@ -13,6 +14,11 @@ export function UserInteraction({
 }): ReactElement {
     return (
         <Box>
+            {event.type === 'readonly' && <ReadOnlyInput
+                onEnter={onEnter}
+                content={event.content}
+                color="#E9A02D"
+            />}
             {event.type === 'input' && <TextInput
                 onEnter={onEnter}
                 customPrompt={event.content}

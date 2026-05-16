@@ -32,26 +32,46 @@ export const shellTool: ToolDesc<ShellInput> = {
     guard: shellGuard,
 }
 
+const rules: {deny: (string | RegExp)[], warning: (string | RegExp)[]} = {
+    deny: [
+        'rm -rf /',
+        'sudo',
+        'shutdown',
+        'reboot',
+        '> /dev/',
+        /\bIFS\s*=/,
+        'del /f /s /q'
+    ],
+    warning: [
+        /[;&|$]/,
+        /\bsudo\b/,
+        /\brm\s+(-[a-zA-Z]*)?r/,
+        /\$\(/
+    ]
+};
+
 function shellGuard(input: ShellInput): ToolGuardResult {
     const { command } = input;
-    const dangerousRules: (string | RegExp)[] = [
-        "rm -rf /",
-        "sudo",
-        "shutdown",
-        "reboot",
-        "> /dev/",
-        /\bIFS\s*=/,
-        "del /f /s /q"
-    ];
-    const danger = dangerousRules.find(rule => typeof rule === 'string' ? command.includes(rule) : rule.test(command));
-    if (danger) {
-        const reason = typeof danger === 'string' ? danger : danger.source;
-        return {result: 'denied', reason: `Dangerous command(${reason}) blocked.`};
+    const denied = checkRules(rules.deny, command);
+    if (denied) {
+        return {result: 'denied', reason: `Dangerous command(${denied}) blocked.`};
+    }
+    const warned = checkRules(rules.warning, command);
+    if (warned) {
+        return askPermissionGuard(`检测到危险命令(${warned})。`);
     }
     if (agentMode !== 'agent') {
-        return askPermissionGuard('Deepclaw未运行在agent模式，但模型想要shell命令。');
+        return askPermissionGuard(`Deepclaw未运行在agent模式，但模型想要运行shell命令(${command})。`);
     }
     return {result: 'allowed'};
+}
+
+function checkRules(rules: (string | RegExp)[], command: string): string {
+    const danger = rules.find(rule => typeof rule === 'string' ? command.includes(rule) : rule.test(command));
+    if (danger) {
+        return typeof danger === 'string' ? danger : danger.source;
+    }
+    return '';
 }
 
 async function runCommand(input: ShellInput): Promise<string> {

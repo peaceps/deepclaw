@@ -4,12 +4,15 @@ export type FlushAgentConstructor = new (
 ) => FlushAgent;
 
 export type AgentEvent = {
+    type: 'readonly';
+    content: string;
+} | {
     type: 'input';
     content: string;
 } | {
     type: 'select';
     content: string;
-    options: string[];
+    options: (string | {label: string; value: string})[];
 }
 
 export abstract class FlushAgent {
