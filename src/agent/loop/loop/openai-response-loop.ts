@@ -6,6 +6,7 @@ import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor.js';
 import { LLMConstructor } from '../../llm/llmgw';
+import { noopStreamHandler } from '@core';
 
 export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
 
@@ -44,6 +45,6 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
     }
 
     protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
-        return new OpenAIResponseLoop(() => {}, async () => '', fork ? this.history : [], parentSessionId);
+        return new OpenAIResponseLoop(noopStreamHandler, fork ? this.history : [], parentSessionId);
     }
 }

@@ -1,6 +1,5 @@
 export type FlushAgentConstructor = new (
-    onStreamText: (text: string) => void,    
-    onAgentEvent: (event: AgentEvent) => Promise<string>
+    handler: AgentStreamHandler
 ) => FlushAgent;
 
 export type AgentEvent = {
@@ -13,28 +12,53 @@ export type AgentEvent = {
 } | {
     type: 'select';
     options: (string | {label: string; value: string})[];
-})
+});
+
+export type AgentStreamHandler = {
+    onText(content: string, done?: boolean): void;
+    onEvent(event: AgentEvent): Promise<string>;
+}
+
+export type SealedAgentStreamHandler = {
+    onText(content: string): void;
+    onEvent(event: AgentEvent): Promise<string>;
+}
+
+export const noopStreamHandler: AgentStreamHandler = {
+    onText: () => {},
+    onEvent: () => Promise.resolve(''),
+}
 
 export abstract class FlushAgent {
-    protected onStreamText: (text: string, done?: boolean) => void;
-    protected onAgentEvent: (event: AgentEvent) => Promise<string>;
+    protected streamHandler: SealedAgentStreamHandler;
+    private flusher: (content: string, done: boolean) => void;
 
     constructor(
-        onStreamText: (text: string, done?: boolean) => void = () => {},
-        onAgentEvent: (event: AgentEvent) => Promise<string> = () => Promise.resolve('')
+        handler: AgentStreamHandler
     ) {
-        this.onStreamText = (text: string, done: boolean = false) => onStreamText(this.formatLLMText(text), done);
-        this.onAgentEvent = onAgentEvent;
+        this.flusher = (text: string, done: boolean) => handler.onText(this.formatLLMText(text), done),
+        this.streamHandler = {
+            onText: (text: string) => this.flusher(text, false),
+            onEvent: handler.onEvent
+        }
     }
 
     protected abstract _invoke(input: string): Promise<string>;
 
     async invoke(input: string): Promise<string> {
-        const res = await this._invoke(input);
+        try {
+            const res = await this._invoke(input);
+            return this.finishInvoke(res);
+        } catch (e: any) {
+            return this.finishInvoke(e?.message || '');
+        }
+    }
+
+    private finishInvoke(content: string): Promise<string> {
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.onStreamText(res, true);
-                resolve(res);
+                this.flusher(content, true);
+                resolve(content);
             }, 100);
         });
     }

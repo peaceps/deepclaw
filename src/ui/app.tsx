@@ -24,7 +24,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [llmWorking, setLlmWorking] = useState(false);
     const [agentEvent, setAgentEvent] = useState(null as AgentEvent | null);
     const [agentResolver, setAgentResolver] = useState(null as any);
-    const {i18n} = useTranslation();
+    const {t, i18n} = useTranslation();
 
 	const staticRows = useMemo((): HistoryItem[] => {
 		return [{role: 'banner'}, ...histories];
@@ -40,7 +40,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
         agent!.invoke(userInput).catch(err => {
-            handleLlmDone(`出错了: ${err.message?.trim() || 'Unexpected error.'}`);
+            handleLlmDone(`${t('common.error')} ${err.message?.trim() || t('common.unexpected')}`);
         });
     }, [handleLlmDone]);
 
@@ -64,7 +64,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     });
 
 	useEffect(() => {
-        function handleLlmStreamText(text: string, done: boolean = false) {
+        function handleLlmStreamText(text: string, done: boolean) {
             if (done) {
                 handleWithLLMoutput();
             } else {
@@ -72,7 +72,10 @@ export function App({app}: {app: AppConfig}): ReactElement {
             }
         }
         if (envConfigReady) {
-            agent = new (app.getAgentClass())(handleLlmStreamText, handleAgentEvent);
+            agent = new (app.getAgentClass())({
+                onText: handleLlmStreamText, 
+                onEvent: handleAgentEvent
+            });
         }
 	}, [app, handleAgentEvent, envConfigReady]);
 
@@ -89,7 +92,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
                 </Static>
                 {envConfigReady && !agentEvent && (!llmWorking ?
                     <UserChat
-                        seed={(histories[histories.length - 1]?.content || '').length}
+                        seed={histories.reverse().slice(0, 100).reduce((p, n) => p + (n.content?.length || 0), 0)}
                         onExit={exit}
                         onEnter={invokeLlm}
                     /> :

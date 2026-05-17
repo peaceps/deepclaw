@@ -1,5 +1,6 @@
 import { OpenAI } from "openai";
 import { randomUUID } from "node:crypto";
+import i18n from 'i18next';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import {
@@ -10,6 +11,7 @@ import {
     ResponseFunctionToolCall,
     ResponseOutputMessage,
 } from "openai/resources/responses/responses.js";
+import { AgentStreamHandler } from "@core";
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
 
@@ -37,7 +39,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     
     protected override async _invoke(
         messages: ThinkingMessage[],
-        onStreamText: (text: string) => void
+        streamHandler: AgentStreamHandler
     ): Promise<ThinkingResponse> {
 
         const stream = await this.client.responses.create({
@@ -53,19 +55,26 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         for await (const event of stream) {
             switch (event.type) {
                 case 'response.output_text.delta':
-                    onStreamText(event.delta);
+                    streamHandler.onText(event.delta);
                     break;
                 case 'response.completed':
                     return event.response as ThinkingResponse;
                 case 'response.failed':
-                    return this.newResponse(event.response.error?.message || 'Unknown error');
+                    return this.flushAndRespond(streamHandler, i18n.t('agent.llm.openai.response.output.failed', {message: event.response.error?.message || ''}));
                 case 'error':
-                    onStreamText(`发生错误 ${event.code} on ${event.param}: ${event.message}`);
-                    return this.newResponse(event.message);
+                    return this.flushAndRespond(streamHandler, i18n.t(
+                        'agent.llm.openai.response.output.error',
+                        {code: event.code, param: event.param, message: event.message}
+                    ));
             }
         }
 
-        return this.newResponse('No response received.');
+        return this.flushAndRespond(streamHandler, i18n.t('agent.llm.openai.response.output.empty'));
+    }
+
+    private flushAndRespond(streamHandler: AgentStreamHandler, message: string): ThinkingResponse {
+        streamHandler.onText(message);
+        return this.newResponse(message);
     }
 
     protected override newResponse(message: string): ThinkingResponse {

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { FlushAgent, AgentEvent } from '@core';
+import { FlushAgent, AgentEvent, AgentStreamHandler } from '@core';
 import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
 import { FootPrint, LoopState} from '../../definitions/definitions.js';
@@ -11,7 +11,7 @@ import { MessagesCompactor } from '../compactor/messages-compactor.js';
 
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
-    private turnLimit: number;
+    private turnLimit: number = 100;
     protected parentSessionId: string;
     private sessionId: string;
     protected history: I[] = [];
@@ -20,23 +20,20 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     private footPrints: FootPrint[] = [];
 
     constructor(
-        onStreamText: (text: string) => void,
-        onAgentEvent: (event: AgentEvent) => Promise<string>,
+        handler: AgentStreamHandler,
         history: I[] = [],
         parentSessionId: string = '',
-        turnLimit: number = 100
     ) {
-        super(onStreamText, onAgentEvent);
+        super(handler);
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
-        this.turnLimit = turnLimit;
         const tools = ToolsManager.provideTools(this.isSubLoop());
         this.toolUseService = new ToolUseService(
             tools,
             this.parentSessionId,
             this.sessionId,
-            {emit: onAgentEvent}
+            this.streamHandler
         );
         this.llm = new (this.getLLMConstructor())(
             PromptService.provideSystemPrompt(this.isSubLoop()),
@@ -72,7 +69,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
             const goAround = await this.runOneTurn(state);
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
-                this.onStreamText(finalText);
+                this.streamHandler.onText(finalText);
                 return finalText;
             }
             if (!goAround) {
@@ -82,7 +79,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
-        const response = await this.llm.invoke(state.messages, this.onStreamText);
+        const response = await this.llm.invoke(state.messages, this.streamHandler);
 
         if (this.quitLoop(response)) {
             state.oneLoopContext.transitionReason = 'no_tool_use';
@@ -109,7 +106,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         for (const toolUseDef of toolUseDefs) {
             const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
             if (toolResult.effect.outputToUser) {
-                this.onStreamText(toolResult.result.content);
+                this.streamHandler.onText(toolResult.result.content);
             }
             results.push(toolResult.result);
         }

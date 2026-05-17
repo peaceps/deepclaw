@@ -9,6 +9,7 @@ import {
  } from 'openai/resources/chat/completions.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
+import { AgentStreamHandler } from '@core';
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |
@@ -39,7 +40,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
 
     protected override async _invoke(
         messages: ThinkingMessage[],
-        onStreamText: (text: string) => void
+        streamHandler: AgentStreamHandler
     ): Promise<ThinkingResponse> {
         if (messages.length === 1) {
             messages.unshift({role: 'system', content: this.system});
@@ -63,7 +64,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             reasoningContent += (response?.delta?.reasoning_content || '');
             if (chunkContent) {
                 content += chunkContent;
-                onStreamText(chunkContent);
+                streamHandler.onText(chunkContent);
             }
             const toolCall = response?.delta?.tool_calls?.[0];
             if (toolCall) {

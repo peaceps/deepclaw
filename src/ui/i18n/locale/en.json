@@ -1,5 +1,9 @@
 {
     "translation": {
+        "common": {
+            "error": "Error: ",
+            "unexpected": "Unexpected error."
+        },
         "banner": {
             "prefix": "What can I do for you? Press",
             "suffix": "to continue."
@@ -43,6 +47,73 @@
                 }
 
             }
-        }
+        },
+        "agent": {
+            "llm": {
+                "openai": {
+                    "response": {
+                        "output": {
+                            "failed": "Calling LLM failed. {{message}}",
+                            "error": "Error {{code}} on param {{param}}: {{message}}.",
+                            "empty": "No response received."
+                        }
+                    }
+                }
+            },
+            "tools": {
+                "permission": {
+                    "request": "Request access permission. Allow(y/n)?"
+                },
+                "file": {
+                    "guard": "Deepclaw is going to access files outside current work dir.",
+                    "write": "Wrote {{length}} bytes to {{path}}.",
+                    "edit": "Edit {{path}} successfully."
+                },
+                "shell": {
+                    "guard": {
+                        "danger": "Dangerous command({{command}}) blocked.",
+                        "warn": "Need permission to run command({{command}}).",
+                        "mode": "Deepclaw is not running on agent mode, permission needed to run command({{command}})."
+                    },
+                    "empty": "(no output)",
+                    "error": "Error: {{message}}.",
+                    "timeout": "Error: Timeout ({{timeout}}s)."
+                }
+            }
+        },
+        "soup": [
+            "Every question is a step toward the unknown world",
+            "Take your time—good answers are often born in quiet moments",
+            "Your thinking is more precious than any answer",
+            "A pause is not a stop, but a gathering of strength for the next thought",
+            "While you hesitate, possibilities are quietly growing",
+            "The clearer the question, the closer the answer",
+            "What truly matters is not what I say, but what you want to ask",
+            "Patiently waiting for your voice, like waiting for a flower to slowly open",
+            "Speak your doubts bravely, for there lie the seeds of growth",
+            "In silence, you talk with yourself; then we begin",
+            "Every input is a deeper connection between you and the world",
+            "In the gaps of thought, the brightest inspirations often hide",
+            "Quiet moments are the corners where inspiration most loves to linger",
+            "Every question of yours is a seed—I will stay with it as it sprouts",
+            "Don't fear asking strangely—the best answers often hide in the strangest questions",
+            "The blank in the input box is infinite future possibility",
+            "Take it slow, I'm not in a hurry—good conversations are worth the wait",
+            "Sometimes the best answer lies in the words you haven't yet spoken",
+            "I can hear the sound of your thinking",
+            "A pause is not an interruption, but a way to go deeper",
+            "Even just a punctuation mark, I will take it seriously",
+            "You are willing to speak, I am willing to listen—no time limit",
+            "You don't have to say it all at once; we can approach the answer sentence by sentence",
+            "Hesitation is the protective color of thinking, and I will patiently wait for it to fade",
+            "Every wait is making more room for your thoughts",
+            "Your words, long or short, are gifts I long to receive",
+            "Blankness is not silence—it is where you are forging stars",
+            "If you don't know where to begin, start with \"I have a question...\"",
+            "I will always be here, like a book forever open, waiting for you to write the first line",
+            "Even just a \"hi\" is the prologue to our story",
+            "Every input of yours is a great trust you place in me",
+            "Don't worry about asking too much—my world is made wonderful by your questions"
+        ]
     }
 }

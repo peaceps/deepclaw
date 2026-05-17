@@ -1,6 +1,7 @@
 import { OneLoopContext } from './definitions.js';
 import { LoopAgent } from '../loop/loop/loop.js';
 import { DeepclawConfig } from '@utils';
+import i18n from 'i18next';
 
 export type LLMTool = {
     name: string;
@@ -49,7 +50,7 @@ export type ToolDesc<T = unknown> = {
 export function askPermissionGuard(reason: string): ToolGuardResult {
     return {
         result: 'ask',
-        question: `${reason}是否允许(y/n)：`,
+        question: `${reason}${i18n.t('agent.tools.permission.request')}`,
         checkAnswer: (answer: string) => {
             return answer.trim().toLowerCase() === 'y';
         }

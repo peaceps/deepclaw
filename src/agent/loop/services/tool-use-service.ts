@@ -1,6 +1,6 @@
 import { FileUtils, loadAgentConfig } from '@utils';
 import { ToolDesc, ToolUseContext, ToolUseResult } from "../../definitions/tool-definitions.js";
-import { AgentEvent } from '@core';
+import { SealedAgentStreamHandler } from '@core';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
@@ -15,17 +15,13 @@ export type ToolUseDef = {
     input: unknown;
 }
 
-type AgentEventEmitter = {
-    emit: (event: AgentEvent) => Promise<string>;
-}
-
 const TOOL_RESULT_PERSIST_DIR = 'tool_results';
 
 export class ToolUseService {
     private parentSessionId: string;
     private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
-    private eventEmitter: AgentEventEmitter;
+    private streamHandler: SealedAgentStreamHandler;
     private truncateThreshold: number = loadAgentConfig<number>('toolResult.truncate.lengthThreshold');
     private previewChars: number = loadAgentConfig<number>('toolResult.truncate.previewLength');
 
@@ -33,14 +29,14 @@ export class ToolUseService {
         tools: ToolDesc[],
         parentSessionId: string,
         sessionId: string,
-        eventEmitter: AgentEventEmitter
+        streamHandler: SealedAgentStreamHandler
     ) {
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
         for (const tool of tools) {
             this.toolMap.set(tool.tool.name, tool);
         }
-        this.eventEmitter = eventEmitter;
+        this.streamHandler = streamHandler;
     }
 
     public async executeToolCall(toolUseDef: ToolUseDef, context: ToolUseContext): Promise<ToolUseServiceResult> {
@@ -61,7 +57,7 @@ export class ToolUseService {
             if (guardResult.result === 'denied') {
                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
             } else if (guardResult.result === 'ask') {
-                const choice = await this.eventEmitter.emit({type: 'input', content: guardResult.question || ''});
+                const choice = await this.streamHandler.onEvent({type: 'input', content: guardResult.question || ''});
                 if (!guardResult.checkAnswer(choice)) {
                     return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
                 }

@@ -6,6 +6,7 @@ import { ToolUseDef } from "../services/tool-use-service";
 import { MessagesCompactor } from "../compactor/messages-compactor.js";
 import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor.js";
 import { LLMConstructor } from '../../llm/llmgw';
+import { noopStreamHandler } from "@core";
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
 
@@ -40,7 +41,7 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
     }
 
     protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
-        return new AnthropicLoop(() => {}, async () => '', fork ? this.history : [], parentSessionId);
+        return new AnthropicLoop(noopStreamHandler, fork ? this.history : [], parentSessionId);
     }
 
 }

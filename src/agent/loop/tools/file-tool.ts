@@ -1,4 +1,5 @@
 import { askPermissionGuard, ToolDesc, ToolGuardResult, ToolUseContext } from '../../definitions/tool-definitions.js';
+import i18n from 'i18next';
 import { FileUtils } from '@utils';
 
 type FileOperationInput = {
@@ -59,7 +60,7 @@ export const writeFileTool: ToolDesc<WriteFileInput> = {
     invoke: async function(input: WriteFileInput): Promise<string> {
         const { filePath, content } = input;
         FileUtils.writeFile(filePath, content);
-        return `Wrote ${content.length} bytes to ${filePath}.`;
+        return i18n.t('agent.tools.file.write', {path: filePath, length: content.length});
     },
     guard: fileGuard
 }
@@ -91,14 +92,14 @@ export const editFileTool: ToolDesc<EditFileInput> = {
         const content = FileUtils.readFile(filePath);
         const newContent = content.replaceAll(oldText, newText);
         FileUtils.writeFile(filePath, newContent);
-        return `Edit ${filePath} successfully.`;
+        return i18n.t('agent.tools.file.edit', {path: filePath});
     },
     guard: fileGuard
 }
 
 function fileGuard(input: ReadFileInput): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
-        return askPermissionGuard('用户想要访问当前工作区外的文件。');
+        return askPermissionGuard(i18n.t('agent.tools.file.guard'));
     }
     return {result: 'allowed'};
 }

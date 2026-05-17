@@ -1,4 +1,5 @@
 import {getEnvVariable, hasEnvVariable} from '@utils';
+import { AgentStreamHandler, noopStreamHandler } from '@core';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import { loadAgentConfig } from '../../utils/app-config-utils.js';
 
@@ -31,11 +32,11 @@ export abstract class LLMModel<I, O, T, LLM> {
 
     protected abstract createLLMClient(): LLM;
 
-    public async invoke(messages: I[], onStreamText: (text: string) => void): Promise<O> {
+    public async invoke(messages: I[], streamHandler: AgentStreamHandler): Promise<O> {
         let response: O = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`);
         for (let i = 0; i < llmRetry; i++) {
             try {
-                response = await this._invoke(messages, onStreamText);
+                response = await this._invoke(messages, streamHandler);
                 break;
             } catch (error) {
                 // TODO log
@@ -46,7 +47,7 @@ export abstract class LLMModel<I, O, T, LLM> {
         return response;
     }
 
-    protected abstract _invoke(messages: I[], onStreamText: (text: string) => void): Promise<O>;
+    protected abstract _invoke(messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
 
     public async compact(content: string): Promise<string> {
         const prompt =
@@ -62,7 +63,7 @@ Preserve:
 Be compact but concrete.
 
 ${content}`;
-        const response = await this.invoke([this.newInputMessage(prompt)], () => {});
+        const response = await this.invoke([this.newInputMessage(prompt)], noopStreamHandler);
         return this.getTextFromResponse(response);
     }
     

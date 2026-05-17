@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import process from 'node:process';
 const execAsync = promisify(exec);
+import i18n from 'i18next';
 
 import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions.js';
 import { DeepclawConfig, loadAgentConfig } from '@utils';
@@ -54,14 +55,14 @@ function shellGuard(input: ShellInput): ToolGuardResult {
     const { command } = input;
     const denied = checkRules(rules.deny, command);
     if (denied) {
-        return {result: 'denied', reason: `Dangerous command(${denied}) blocked.`};
+        return {result: 'denied', reason: i18n.t('agent.tools.shell.guard.danger', {command: denied})};
     }
     const warned = checkRules(rules.warning, command);
     if (warned) {
-        return askPermissionGuard(`检测到危险命令(${warned})。`);
+        return askPermissionGuard(i18n.t('agent.tools.shell.guard.warn', {command: warned}));
     }
     if (agentMode !== 'agent') {
-        return askPermissionGuard(`Deepclaw未运行在agent模式，但模型想要运行shell命令(${command})。`);
+        return askPermissionGuard(i18n.t('agent.tools.shell.guard.mode', {command: command}));
     }
     return {result: 'allowed'};
 }
@@ -87,9 +88,9 @@ async function runCommand(input: ShellInput): Promise<string> {
     try {
         const { stdout, stderr } = await execAsync(command, options);
         const output = (stdout + stderr).trim();
-        return output ? output.slice(0, trunkcateThreshold) : '(no output)';
+        return output ? output.slice(0, trunkcateThreshold) : i18n.t('agent.tools.shell.empty');
     } catch (error: any) {
-        return error?.killed && error?.signal === 'SIGTERM' ? `Error: Timeout (${timeout}s)`
-            : `Error: ${error.message}`;
+        return error?.killed && error?.signal === 'SIGTERM' ? i18n.t('agent.tools.shell.timeout', {timeout})
+            : i18n.t('agent.tools.shell.error', {message: error?.message || ''});
     }
 }
