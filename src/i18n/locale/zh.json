@@ -1,5 +1,6 @@
 {
     "translation": {
+        "bye": "再见！",
         "common": {
             "error": "出错了：",
             "unexpected": "发生未知错误。"

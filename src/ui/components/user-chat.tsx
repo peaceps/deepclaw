@@ -2,8 +2,9 @@ import { ReactElement } from 'react';
 import {TextInput} from './input/text-input';
 import i18n from 'i18next';
 import {useTranslation} from 'react-i18next';
+import {DEFAULT_LANG} from '@utils';
 
-const soupLength = (i18n as any).store.data[i18n.language!]['translation']['soup'].length;
+const soupLength = i18n.getResourceBundle(i18n.resolvedLanguage || DEFAULT_LANG, 'translation').soup.length;
 
 const INITIAL_SEED = Math.floor(Math.random() * soupLength);
 

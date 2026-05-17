@@ -1,5 +1,6 @@
 {
     "translation": {
+        "bye": "Bye!",
         "common": {
             "error": "Error: ",
             "unexpected": "Unexpected error."

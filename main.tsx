@@ -4,6 +4,7 @@ import meow from 'meow';
 import {LoopInitializer} from '@agent';
 import {App, type AppConfig } from '@ui';
 import {TestLlmAgent} from '@e2e';
+import i18n from 'i18next';
 
 const cli = meow(`
 	Usage
@@ -33,7 +34,7 @@ const appWrapper: AppConfig = {
 
 const {waitUntilExit} = render(<App app={appWrapper}/>);
 await waitUntilExit();
-console.log("\n  再见！");
+console.log(`\n  ${i18n.t('bye')}`);
 
 /**
  * c:\git下有哪些文件夹

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { FlushAgent, AgentEvent, AgentStreamHandler } from '@core';
+import { FlushAgent, AgentStreamHandler } from '@core';
 import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
 import { FootPrint, LoopState} from '../../definitions/definitions.js';

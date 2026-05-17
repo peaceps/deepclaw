@@ -1,8 +1,8 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent} from 'react';
 import { Box, Static, useApp } from 'ink';
 import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@core';
-import './i18n/i18n';
-import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
+import '../i18n/i18n';
 import {HistoryLine, type HistoryItem} from './components/history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import {UserChat} from './components/user-chat.js';
@@ -24,7 +24,6 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [llmWorking, setLlmWorking] = useState(false);
     const [agentEvent, setAgentEvent] = useState(null as AgentEvent | null);
     const [agentResolver, setAgentResolver] = useState(null as any);
-    const {t, i18n} = useTranslation();
 
 	const staticRows = useMemo((): HistoryItem[] => {
 		return [{role: 'banner'}, ...histories];
@@ -40,7 +39,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
         agent!.invoke(userInput).catch(err => {
-            handleLlmDone(`${t('common.error')} ${err.message?.trim() || t('common.unexpected')}`);
+            handleLlmDone(`${i18n.t('common.error')} ${err.message?.trim() || i18n.t('common.unexpected')}`);
         });
     }, [handleLlmDone]);
 
@@ -92,7 +91,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
                 </Static>
                 {envConfigReady && !agentEvent && (!llmWorking ?
                     <UserChat
-                        seed={histories.reverse().slice(0, 100).reduce((p, n) => p + (n.content?.length || 0), 0)}
+                        seed={histories.slice().reverse().slice(0, 100).reduce((p, n) => p + (n.content?.length || 0), 0)}
                         onExit={exit}
                         onEnter={invokeLlm}
                     /> :
