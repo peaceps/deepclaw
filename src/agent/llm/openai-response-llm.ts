@@ -58,7 +58,6 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
                 case 'response.completed':
                     return event.response as ThinkingResponse;
                 case 'response.failed':
-                    console.error('LLM response failed:', event);
                     return this.newResponse(event.response.error?.message || 'Unknown error');
                 case 'error':
                     onStreamText(`发生错误 ${event.code} on ${event.param}: ${event.message}`);

@@ -1,0 +1,47 @@
+{
+    "translation": {
+        "banner": {
+            "prefix": "有什么可以效劳？按下",
+            "suffix": "告诉我。"
+        },
+        "config": {
+            "app": {
+                "lang": {
+                    "prompt": "选择您的语言:",
+                    "options": {
+                        "en": "English",
+                        "zh": "简体中文"
+                    }
+                },
+                "agentMode": {
+                    "prompt": "使用什么模式？",
+                    "options": {
+                        "agent": "Agent (可以操作电脑，拥有完整权限)",
+                        "plan": "Plan (只作规划，不实际操作电脑)",
+                        "chat": "Chat (只聊天)"
+                    }
+                }
+            },
+            "env": {
+                "hint": "您的环境配置不完整，Deepclaw将引导您完成配置，按回车继续。。。",
+                "provider": {
+                    "prompt": "请选择您的LLM接口类型：",
+                    "options": {
+                        "openai": "OpenAI",
+                        "anthropic": "Anthropic"
+                    }
+                },
+                "baseUrl": "请输入Base URL：",
+                "apiKey": "请输入API key：",
+                "model": "请输入模型名称：",
+                "responseApi": {
+                    "prompt": "是否使用OPENAI Response API?",
+                    "options": {
+                        "yes": "是",
+                        "no": "否"
+                    }
+                }
+            }
+        }
+    }
+}

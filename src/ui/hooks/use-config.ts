@@ -13,55 +13,83 @@ export function useConfig(handleAgentEvent: (event: AgentEvent) => Promise<strin
 const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentEvent} = {
     provider: {
         type: 'select',
-        content: 'Which LLM provider will be used?',
+        content: 'config.env.provider.prompt',
         options: [
-            {label: 'OpenAI', value: 'openai'},
-            {label: 'Anthropic', value: 'anthropic'},
+            {label: 'config.env.provider.options.openai', value: 'openai'},
+            {label: 'config.env.provider.options.anthropic', value: 'anthropic'},
         ],
     },
     baseUrl: {
         type: 'input',
-        content: 'Please enter the base URL:'
+        content: 'config.env.baseUrl'
     },
     apiKey: {
         type: 'input',
-        content: 'Please enter the API key:'
+        content: 'config.env.apiKey'
     },
     model: {
         type: 'input',
-        content: 'Please enter the LLM model name:'
+        content: 'config.env.model'
     },
     responseApi: {
         type: 'select',
-        content: 'Will you use the OPENAI Response API?',
-        options: [{label: 'Yes', value: 'TRUE'}, {label: 'No', value: 'FALSE'}]
+        content: 'config.env.responseApi.prompt',
+        options: [
+            {label: 'config.env.responseApi.options.yes', value: 'TRUE'},
+            {label: 'config.env.responseApi.options.no', value: 'FALSE'}
+        ]
     }
 };
 
 const APP_CONFIG_EVENTS: {[key: string]: AgentEvent} = {
+    language: {
+        key: 'lang',
+        type: 'select',
+        content: 'config.app.lang.prompt',
+        options: [
+            {label: 'config.app.lang.options.zh', value: 'zh'},
+            {label: 'config.app.lang.options.en', value: 'en'},
+        ],
+    },
     agentMode: {
         type: 'select',
-        content: 'Which agent mode should be in use?',
+        content: 'config.app.agentMode.prompt',
         options: [
-            {label: 'Agent (Operate the OS, with all capability to the files on the computer)', value: 'agent'},
-            {label: 'Plan (Only do the plan, won\'t do any real operation)', value: 'plan'},
-            {label: 'Chat (A chat tool, won\'t do any operation)', value: 'chat'},
+            {label: 'config.app.agentMode.options.agent', value: 'agent'},
+            {label: 'config.app.agentMode.options.plan', value: 'plan'},
+            {label: 'config.app.agentMode.options.chat', value: 'chat'},
         ],
     }
 };
 
 const HINT: AgentEvent = {
     type: 'readonly',
-    content: 'Your env config seems to be incomplete, Deepclaw will lead you to finish the env config, press enter to continue...'
+    content: 'config.env.hint'
 };
 
 async function ensureConfig(
     setConfigReady: React.Dispatch<React.SetStateAction<boolean>>,
-    handleAgentEvent: (event: AgentEvent) => Promise<string>
+    handleAgentEvent: (event: AgentEvent) => Promise<string>,
 ) {
-    await ensureEnvConfig(handleAgentEvent);
     await ensureAppConfig(handleAgentEvent);
+    await ensureEnvConfig(handleAgentEvent);
     setConfigReady(true);
+}
+
+async function ensureAppConfig(
+    handleAgentEvent: (event: AgentEvent) => Promise<string>,
+) {
+    const currentConfig: DeepclawConfig = validateAppConfig();
+    const noLang = !currentConfig.ui.lang;
+    if (noLang) {
+        const answer = await handleAgentEvent(APP_CONFIG_EVENTS['language']!);
+        currentConfig.ui.lang = answer;
+    }
+    if (!currentConfig.agent.mode) {
+        const answer = await handleAgentEvent(APP_CONFIG_EVENTS['agentMode']!);
+        currentConfig.agent.mode = answer as 'agent' | 'plan' | 'chat';
+    }
+    writeAppConfig(currentConfig);
 }
 
 async function ensureEnvConfig(
@@ -82,15 +110,4 @@ async function ensureEnvConfig(
         currentConfig.responseApi = await handleAgentEvent(ENV_CONFIG_EVENTS.responseApi!)
     }
     writeEnvConfig(currentConfig as EnvConfig);
-}
-
-async function ensureAppConfig(
-    handleAgentEvent: (event: AgentEvent) => Promise<string>
-) {
-    const currentConfig: DeepclawConfig = validateAppConfig();
-    if (!currentConfig.agent.mode) {
-        const answer = await handleAgentEvent(APP_CONFIG_EVENTS['agentMode']!);
-        currentConfig.agent.mode = answer as 'agent' | 'plan' | 'chat';
-    }
-    writeAppConfig(currentConfig);
 }

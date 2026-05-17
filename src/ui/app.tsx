@@ -1,12 +1,15 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent} from 'react';
 import { Box, Static, useApp } from 'ink';
 import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@core';
+import './i18n/i18n';
+import { useTranslation } from 'react-i18next';
 import {HistoryLine, type HistoryItem} from './components/history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import {UserChat} from './components/user-chat.js';
 import {LlmOutput} from './components/llm-output.js';
 import { UserInteraction } from './components/user-interaction.js';
 import { useConfig } from './hooks/use-config.js';
+import { DEFAULT_LANG } from '@utils';
 
 export type AppConfig = {
     getAgentClass: () => FlushAgentConstructor;
@@ -21,6 +24,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [llmWorking, setLlmWorking] = useState(false);
     const [agentEvent, setAgentEvent] = useState(null as AgentEvent | null);
     const [agentResolver, setAgentResolver] = useState(null as any);
+    const {i18n} = useTranslation();
 
 	const staticRows = useMemo((): HistoryItem[] => {
 		return [{role: 'banner'}, ...histories];
@@ -44,6 +48,9 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setAgentEvent(event);
         return new Promise((resolve) => {
             setAgentResolver(() => (choice: string) => {
+                if (event.key === 'lang' && choice !== DEFAULT_LANG) {
+                    i18n.changeLanguage(choice);
+                }
                 setAgentEvent(null);
                 resolve(choice);
             });

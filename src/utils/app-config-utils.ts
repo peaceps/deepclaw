@@ -3,9 +3,7 @@ import { FileUtils } from './file-utils';
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 
 type AgentConfigSingleValue = string | number | boolean;
-
 type AgentConfigValue = AgentConfigSingleValue | AgentConfigSingleValue[] | undefined;
-
 type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject};
 
 export type DeepclawConfig = {
@@ -27,7 +25,12 @@ export type DeepclawConfig = {
         llmRetry: number;
         identityFile: string;
     },
+    ui: {
+        lang?: string;
+    }
 };
+
+export const DEFAULT_LANG = 'en';
 
 const defaultConfig: DeepclawConfig = {
     agent: {
@@ -46,10 +49,12 @@ const defaultConfig: DeepclawConfig = {
         },
         llmRetry: 3,
         identityFile: 'DEEPCLAW.md'
+    },
+    ui: {
     }
 }
 
-let deepclawConifg: DeepclawConfig = loadAppConfig();
+let deepclawConfig: DeepclawConfig = loadAppConfig();
 
 function loadAppConfig(): DeepclawConfig {
     let appConfig: Partial<DeepclawConfig> = {};
@@ -76,12 +81,12 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
 }
 
 export function validateAppConfig(): DeepclawConfig {
-    return deepclawConifg;
+    return deepclawConfig;
 }
 
 export function writeAppConfig(config: DeepclawConfig) {
     FileUtils.writeFile(APP_CONFIG_FILE, JSON.stringify(config, null, 2));
-    deepclawConifg = loadAppConfig();
+    deepclawConfig = loadAppConfig();
 }
 
 export function loadAgentConfig<T extends AgentConfigValue>(key: string): T {
@@ -94,7 +99,7 @@ export function loadUIConfig<T extends AgentConfigValue>(key: string): T {
 
 function getConfigValue<T>(key: string): T {
     const keyPath = key.split('.');
-    let value: any = deepclawConifg;
+    let value: any = deepclawConfig;
     for (const key of keyPath) {
         value = value?.[key as keyof typeof value];
     }

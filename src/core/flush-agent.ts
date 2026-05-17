@@ -4,16 +4,16 @@ export type FlushAgentConstructor = new (
 ) => FlushAgent;
 
 export type AgentEvent = {
-    type: 'readonly';
     content: string;
+    key?: string;
+} & ({
+    type: 'readonly';
 } | {
     type: 'input';
-    content: string;
 } | {
     type: 'select';
-    content: string;
     options: (string | {label: string; value: string})[];
-}
+})
 
 export abstract class FlushAgent {
     protected onStreamText: (text: string, done?: boolean) => void;

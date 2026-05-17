@@ -1,0 +1,48 @@
+{
+    "translation": {
+        "banner": {
+            "prefix": "What can I do for you? Press",
+            "suffix": "to continue."
+        },
+        "config": {
+            "app": {
+                "lang": {
+                    "prompt": "Choose your language:",
+                    "options": {
+                        "en": "English",
+                        "zh": "简体中文"
+                    }
+                },
+                "agentMode": {
+                    "prompt": "Choose the agent mode you prefer:",
+                    "options": {
+                        "agent": "Agent (Operate the OS, with all capability to the files on the computer)",
+                        "plan": "Plan (Only do the plan, won't do any real operation)",
+                        "chat": "Chat (A chat tool, won't do any operation)"
+                    }
+                }
+            },
+            "env": {
+                "hint": "Your env config seems to be incomplete, Deepclaw will lead you to finish the env config, press enter to continue...",
+                "provider": {
+                    "prompt": "Which LLM provider will be used?",
+                    "options": {
+                        "openai": "OpenAI",
+                        "anthropic": "Anthropic"
+                    }
+                },
+                "baseUrl": "Please enter the Base URL:",
+                "apiKey": "Please enter the API key:",
+                "model": "Please enter the LLM model name:",
+                "responseApi": {
+                    "prompt": "Will you use the OPENAI Response API?",
+                    "options": {
+                        "yes": "Yes",
+                        "no": "No"
+                    }
+                }
+
+            }
+        }
+    }
+}
