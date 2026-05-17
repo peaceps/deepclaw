@@ -19,13 +19,14 @@ type AgentEventEmitter = {
     emit: (event: AgentEvent) => Promise<string>;
 }
 
+const TOOL_RESULT_PERSIST_DIR = 'tool_results';
+
 export class ToolUseService {
     private parentSessionId: string;
     private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
     private eventEmitter: AgentEventEmitter;
     private truncateThreshold: number = loadAgentConfig<number>('toolResult.truncate.lengthThreshold');
-    private persistResultDir: string = loadAgentConfig<string>('toolResult.truncate.persistResultDir');
     private previewChars: number = loadAgentConfig<number>('toolResult.truncate.previewLength');
 
     constructor(
@@ -86,7 +87,7 @@ export class ToolUseService {
             return output;
         }
         const fileName = FileUtils.wrapTimestamp(`${toolUseId}.txt`);
-        const fullPath = FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, this.persistResultDir, fileName, output);
+        const fullPath = FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, TOOL_RESULT_PERSIST_DIR, fileName, output);
         output = output.slice(0, this.previewChars);
         return `<persisted-output>
         Full output saved to: ${fullPath}

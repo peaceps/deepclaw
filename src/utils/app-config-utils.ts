@@ -1,4 +1,6 @@
-import config from '@config';
+import { FileUtils } from './file-utils';
+
+const APP_CONFIG_FILE = '.deepclaw.config.json';
 
 type AgentConfigSingleValue = string | number | boolean;
 
@@ -8,11 +10,10 @@ type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject};
 
 export type DeepclawConfig = {
     agent: {
-        mode: 'agent' | 'plan' | 'chat';
+        mode?: 'agent' | 'plan' | 'chat';
         toolResult: {
             truncate: {
                 lengthThreshold: number;
-                persistResultDir: string;
                 previewLength: number;
             },
             removeLegacy: {
@@ -22,22 +23,17 @@ export type DeepclawConfig = {
         },
         history: {
             compactThreshold: number;
-            dir: string;
         },
         llmRetry: number;
-        sessionDir: string;
-        skillsDir: string;
         identityFile: string;
     },
 };
 
 const defaultConfig: DeepclawConfig = {
     agent: {
-        mode: 'agent',
         toolResult: {
             truncate: {
                 lengthThreshold: 20000,
-                persistResultDir: 'tool_results',
                 previewLength: 1000
             },
             removeLegacy: {
@@ -47,17 +43,23 @@ const defaultConfig: DeepclawConfig = {
         },
         history: {
             compactThreshold: 50000,
-            dir: 'history'
         },
         llmRetry: 3,
-        sessionDir: '.session',
-        skillsDir: 'src/agent/skills',
         identityFile: 'DEEPCLAW.md'
     }
 }
 
-const clone = mergeAbsence({}, config);
-const mergedConfig = Object.freeze(mergeAbsence(clone, defaultConfig));
+let deepclawConifg: DeepclawConfig = loadAppConfig();
+
+function loadAppConfig(): DeepclawConfig {
+    let appConfig: Partial<DeepclawConfig> = {};
+    try {
+        appConfig = JSON.parse(FileUtils.readFile(APP_CONFIG_FILE));
+    } catch {
+        // ignore malformed or missing config file
+    }
+    return Object.freeze(mergeAbsence(appConfig, defaultConfig)) as DeepclawConfig;
+}
 
 function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject {
     Object.keys(source).forEach(key => {
@@ -73,6 +75,15 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
     return target;
 }
 
+export function validateAppConfig(): DeepclawConfig {
+    return deepclawConifg;
+}
+
+export function writeAppConfig(config: DeepclawConfig) {
+    FileUtils.writeFile(APP_CONFIG_FILE, JSON.stringify(config, null, 2));
+    deepclawConifg = loadAppConfig();
+}
+
 export function loadAgentConfig<T extends AgentConfigValue>(key: string): T {
     return getConfigValue<T>(`agent.${key}`);
 }
@@ -83,7 +94,7 @@ export function loadUIConfig<T extends AgentConfigValue>(key: string): T {
 
 function getConfigValue<T>(key: string): T {
     const keyPath = key.split('.');
-    let value: any = mergedConfig;
+    let value: any = deepclawConifg;
     for (const key of keyPath) {
         value = value?.[key as keyof typeof value];
     }

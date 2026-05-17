@@ -1,10 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { loadAgentConfig } from './config-utils';
+
+const SESSION_DIR = '.session';
 
 export class FileUtils {
-
-    private static sessionDir: string = loadAgentConfig<string>('sessionDir');
 
     public static wrapTimestamp(file: string): string {
         const [name, ext = 'log'] = file.split('.');
@@ -26,7 +25,7 @@ export class FileUtils {
     }
 
     public static writeFileToSession(parentSessionId: string, sessionId: string, dirName: string, fileName: string, content: string): string {
-        const fullPath = path.join(this.sessionDir, parentSessionId, sessionId, dirName, fileName);
+        const fullPath = path.join(SESSION_DIR, parentSessionId, sessionId, dirName, fileName);
         const absolutePath = this.getAbsolutePath(fullPath);
         this.ensureFolderExist(absolutePath);
         fs.writeFileSync(absolutePath, content, 'utf8');

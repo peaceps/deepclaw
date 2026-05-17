@@ -6,7 +6,7 @@ import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import {UserChat} from './components/user-chat.js';
 import {LlmOutput} from './components/llm-output.js';
 import { UserInteraction } from './components/user-interaction.js';
-import { useEnvConfig } from './hooks/use-env-config.js';
+import { useConfig } from './hooks/use-config.js';
 
 export type AppConfig = {
     getAgentClass: () => FlushAgentConstructor;
@@ -50,7 +50,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         });
     }, []);
 
-    const envConfigReady = useEnvConfig(handleAgentEvent);
+    const envConfigReady = useConfig(handleAgentEvent);
 
     const handleWithLLMoutput = useEffectEvent(() => {
         handleLlmDone(llmOutput)

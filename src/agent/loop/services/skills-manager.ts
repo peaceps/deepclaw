@@ -1,7 +1,6 @@
 import path from 'path';
 import fs from 'fs';
 import matter from 'gray-matter';
-import { loadAgentConfig } from '@utils';
 
 type SkillManifest = {
     name: string;
@@ -13,7 +12,7 @@ type SkillDocument = {
     body: string;
 }
 
-const SKILL_DIR = path.resolve(loadAgentConfig<string>('skillsDir'));
+const SKILL_DIR = path.resolve('skills');
 
 export class SkillsManager {
     private static skills: Map<string, SkillDocument> = this.loadSkills();

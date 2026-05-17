@@ -1,6 +1,6 @@
 import {getEnvVariable, hasEnvVariable} from '@utils';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { loadAgentConfig } from '../../utils/config-utils.js';
+import { loadAgentConfig } from '../../utils/app-config-utils.js';
 
 const llmRetry = loadAgentConfig<number>('llmRetry');
 

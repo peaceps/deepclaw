@@ -1,6 +1,6 @@
 import process from 'node:process';
 import {afterEach, describe, expect, test} from '@jest/globals';
-import {getEnvVariable, hasEnvVariable} from './env-utils';
+import {getEnvVariable, hasEnvVariable} from './env-config-utils';
 
 describe('env-utils', () => {
     const envName = 'DEEPCLAW_TEST_ENV';

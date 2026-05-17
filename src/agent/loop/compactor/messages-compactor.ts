@@ -7,6 +7,8 @@ type HistoryCompactContext = {
     count: number;
 }
 
+const HISTORY_DIR = 'history';
+
 export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unknown, unknown>> {
     protected parentSessionId: string;
     protected sessionId: string;
@@ -17,8 +19,6 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     private toolResultCompactedMessage: string = 'Earlier tool result compacted. Re-run the tool if you need full detail.';
 
     private historyThreshold: number = loadAgentConfig<number>('history.compactThreshold');
-    private historyDir: string = loadAgentConfig<string>('history.dir');
-
     private historyCompactContext: HistoryCompactContext;
 
     constructor(llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
@@ -59,7 +59,7 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
 
     private saveHistory(jsonl: string) {
         const fileName = FileUtils.wrapTimestamp('history_compact.jsonl');
-        FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, this.historyDir, fileName, jsonl);
+        FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, HISTORY_DIR, fileName, jsonl);
     }
 
     private async summarizeHistory(jsonl: string): Promise<I> {
