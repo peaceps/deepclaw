@@ -2,7 +2,7 @@ import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent}
 import { Box, Static, useApp } from 'ink';
 import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@core';
 import i18n from 'i18next';
-import '../i18n/i18n';
+import '@i18n';
 import {HistoryLine, type HistoryItem} from './components/history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from './hooks/static-context.js';
 import {UserChat} from './components/user-chat.js';
@@ -39,7 +39,9 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
         agent!.invoke(userInput).catch(err => {
-            handleLlmDone(`${i18n.t('common.error')} ${err.message?.trim() || i18n.t('common.unexpected')}`);
+            setTimeout(() => {
+                handleLlmDone(`${i18n.t('common.error')} ${err.message?.trim() || i18n.t('common.unexpected')}`);
+            }, 0);
         });
     }, [handleLlmDone]);
 

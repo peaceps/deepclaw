@@ -1,6 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import {locales} from './locale/index';
+import {locales} from './locale/locale';
 import {DEFAULT_LANG, loadUIConfig} from '@utils';
 
 let lang = loadUIConfig<string>('lang');

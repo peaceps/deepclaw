@@ -34,6 +34,7 @@
             "@agent": ["./src/agent/index.ts"],
             "@ui": ["./src/ui/index.ts"],
             "@utils": ["./src/utils/index.ts"],
+            "@i18n": ["./src/i18n/index.ts"],
             "@e2e": ["./e2e/index.ts"],
         }
 	},

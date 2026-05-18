@@ -8,10 +8,11 @@ import { PromptService } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
+import { loadAgentConfig, DeepclawConfig } from '@utils';
 
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
-    private turnLimit: number = 100;
+    private turnLimit: number = loadAgentConfig<DeepclawConfig['agent']['loopTurnLimit']>('loopTurnLimit');
     protected parentSessionId: string;
     private sessionId: string;
     protected history: I[] = [];

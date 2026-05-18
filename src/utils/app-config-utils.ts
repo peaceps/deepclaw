@@ -22,6 +22,7 @@ export type DeepclawConfig = {
         history: {
             compactThreshold: number;
         },
+        loopTurnLimit: number;
         llmRetry: number;
         identityFile: string;
     },
@@ -45,8 +46,9 @@ const defaultConfig: DeepclawConfig = {
             }
         },
         history: {
-            compactThreshold: 50000,
+            compactThreshold: 200000,
         },
+        loopTurnLimit: 100,
         llmRetry: 3,
         identityFile: 'DEEPCLAW.md'
     },
@@ -81,7 +83,14 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
 }
 
 export function validateAppConfig(): DeepclawConfig {
-    return deepclawConfig;
+    const cloned: DeepclawConfig = mergeAbsence({}, deepclawConfig) as DeepclawConfig;
+    if (cloned.agent.mode && !['agent', 'plan', 'chat'].includes(cloned.agent.mode)) {
+        cloned.agent.mode = undefined;
+    }
+    if (cloned.ui.lang && !['en', 'zh'].includes(cloned.ui.lang)) {
+        cloned.ui.lang = undefined;
+    }
+    return cloned;
 }
 
 export function writeAppConfig(config: DeepclawConfig) {
