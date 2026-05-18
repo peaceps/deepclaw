@@ -13,10 +13,10 @@ type VisitorHook =
 
 type InterceptorResult = {
     result: 'continue' | 'stop';
-    reason?: string;
+    stopReason?: string;
 };
 
-type InterceptorHookFunction = (oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef) => Promise<InterceptorResult> | InterceptorResult;
+type InterceptorHookFunction = (oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef) => Promise<string> | string;
 type VisitorHookFunction = (oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef) => Promise<void> | void;
 type HookFunction = InterceptorHookFunction | VisitorHookFunction;
 
@@ -54,12 +54,11 @@ export class HookManager {
         for (const hookFunction of this.interceptorHooks.get(hook) ?? []) {
             try {
                 const result = await hookFunction(oneLoopContext, toolUseDef);
-                if (result && result.result === 'stop') {
-                    return result;
+                if (result) {
+                    return {result: 'stop', stopReason: result};
                 }
             } catch (error) {
                 oneLoopContext.logger.error(error, `Error in hook ${hook}, ${error instanceof Error ? error.message : 'Unknown error.'}`);
-                continue;
             }
         }
         return { result: 'continue' };

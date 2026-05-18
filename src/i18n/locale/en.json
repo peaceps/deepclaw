@@ -50,6 +50,7 @@
             }
         },
         "agent": {
+            "maxTurnReached": "Reached maximum turn count. Ending session.\n{{finalText}}",
             "llm": {
                 "openai": {
                     "response": {
@@ -79,6 +80,10 @@
                     "empty": "(no output)",
                     "error": "Error: {{message}}.",
                     "timeout": "Error: Timeout ({{timeout}}s)."
+                },
+                "todo": {
+                    "empty": "No steps.",
+                    "current": "Current step:\n{{steps}}\n"
                 }
             }
         },

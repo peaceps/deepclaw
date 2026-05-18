@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import type { Logger } from 'pino';
+import i18n from 'i18next';
 import { FlushAgent, AgentStreamHandler } from '@core';
-import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definitions.js';
+import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
-import { FootPrint, LoopState} from '../../definitions/definitions.js';
+import { FootPrint, LoopState, OneLoopContext} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
@@ -48,10 +48,6 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     protected isSubLoop(): boolean {
         return this.parentSessionId !== '';
     }
-    
-    public addFootPrint(footPrint: FootPrint): void {
-        this.footPrints.push(footPrint);
-    }
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
@@ -62,11 +58,11 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
-                toDoManager: new TodoManager(),
-                toDoUpdated: false,
+                todoManager: new TodoManager(this.addStringMessage.bind(this)),
                 turnCount: 0,
                 footPrints: this.footPrints,
-                logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString())
+                logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
+                newSubLoop: this.createSubLoop.bind(this)
             },
         };
         try {
@@ -85,11 +81,11 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
-                const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
+                const finalText = i18n.t('agent.maxTurnReached', {finalText: this.extractFinalText(state)});
                 this.streamHandler.onText(finalText);
                 return finalText;
             }
-            await this.compact(state.oneLoopContext.logger);
+            await this.messagesCompactor.compact(this.history, state.oneLoopContext.logger);
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 return this.extractFinalText(state);
@@ -111,26 +107,24 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         if (!goAround) {
             state.oneLoopContext.transitionReason = 'noToolUse';
         } else {
-            const results = await this.runTools(toolUseDefs, {
-                loop: this,
-                oneLoopContext: state.oneLoopContext,
-            });
+            const results = await this.runTools(toolUseDefs, state.oneLoopContext);
             this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-            this.postAllToolUse(state);
+            state.oneLoopContext.turnCount++;
+            state.oneLoopContext.transitionReason = 'toolResult';
         }
         await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
         return goAround;
     }
 
-    private async runTools(toolUseDefs: ToolUseDef[], context: ToolUseContext): Promise<ToolUseResult[]> {
+    private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
         for (const toolUseDef of toolUseDefs) {
-            await HookManager.emitVisitor('preEachToolUse', context.oneLoopContext, toolUseDef);
-            const result = await HookManager.emitInterceptor('preEachToolUse', context.oneLoopContext, toolUseDef);
+            await HookManager.emitVisitor('preEachToolUse', context, toolUseDef);
+            const result = await HookManager.emitInterceptor('preEachToolUse', context, toolUseDef);
             if (result && result.result === 'stop') {
                 results.push({
                     id: toolUseDef.id,
-                    content: result.reason || 'Tool use rejected by hook.',
+                    content: result.stopReason || 'Tool use rejected by hook.',
                 });
             } else {
                 const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
@@ -138,32 +132,14 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
                     this.streamHandler.onText(toolResult.result.content);
                 }
                 results.push(toolResult.result);
-                await HookManager.emitVisitor('postEachToolUse', context.oneLoopContext);
+                await HookManager.emitVisitor('postEachToolUse', context);
             }
         }
         return results;
     }
 
-    private postAllToolUse(state: LoopState<I>): void {
-        const context = state.oneLoopContext;
-        if (!context.toDoUpdated) {
-            const reminder = context.toDoManager.noteRoundWithoutUpdate();
-            if (reminder) {
-                this.addStringMessage(reminder);
-            }
-        } else {
-            context.toDoUpdated = false;
-        }
-        context.turnCount++;
-        context.transitionReason = 'toolResult';
-    }
-
     protected addStringMessage(message: string): void {
         this.history.push(this.llm.newInputMessage(message));
-    }
-
-    public async compact(logger: Logger): Promise<void> {
-        await this.messagesCompactor.compact(this.history, logger);
     }
         
     protected extractFinalText(state: LoopState<I>): string {

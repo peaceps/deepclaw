@@ -49,6 +49,7 @@
             }
         },
         "agent": {
+            "maxTurnReached": "超过最大迭代次数，运行中止。\n{{finalText}}",
             "llm": {
                 "openai": {
                     "response": {
@@ -78,6 +79,10 @@
                     "empty": "（无输出内容）",
                     "error": "出错了。{{message}}。",
                     "timeout": "命令运行{{timeout}}秒超时。"
+                },
+                "todo": {
+                    "empty": "没有待办项。",
+                    "current": "当前进度：\n{{steps}}\n"
                 }
             }
         },

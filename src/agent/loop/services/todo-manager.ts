@@ -1,3 +1,5 @@
+import i18n from 'i18next';
+
 export type TodoItem = {
     content: string;
     status: 'pending' | 'inProgress' | 'completed';
@@ -13,15 +15,21 @@ const MARKERS = {
 export class TodoManager {
     private items: TodoItem[] = [];
     private roundsSinceUpdate: number = 0;
-    private threshold: number;
+    private threshold: number = 5;
+    private maxItems: number = 12;
+    private reminder: (text: string) => void;
 
-    constructor(threshold: number = 4) {
-        this.threshold = threshold;
+    constructor(reminder: (text: string) => void) {
+        this.reminder = reminder;
     }
 
     update(items: TodoItem[]): string {
-        if (items.length > 12) {
-            throw new Error('Keep the session plan short (max 12 items)');
+        if (this.items.length === 0) {
+            return i18n.t('agent.tools.todo.empty');
+        }
+        this.roundsSinceUpdate = -1;
+        if (items.length > this.maxItems) {
+            throw new Error(`Keep the session plan short (max ${this.maxItems} items)`);
         }
         let inProgressCount = 0;
         const checked: TodoItem[] = [];
@@ -35,15 +43,10 @@ export class TodoManager {
             checked.push(item);
         }
         this.items = checked;
-        this.roundsSinceUpdate = 0;
-        const state = this.renderState();
-        return state;
+        return this.renderState();
     }
 
     private renderState(): string {
-        if (this.items.length === 0) {
-            return '没有待办项。';
-        }
         const lines = this.items.map(item => {
             const marker = MARKERS[item.status];
             let line = `${marker} ${item.content}`;
@@ -55,20 +58,16 @@ export class TodoManager {
         const completed = this.items.filter(item => item.status === 'completed').length;
         lines.push(`(${completed}/${this.items.length} completed)`);
         const steps = lines.join('\n');
-        return `当前进度：\n${steps}\n`;
+        return i18n.t('agent.tools.todo.current', {steps});
     }
 
-    noteRoundWithoutUpdate(): string {
-        if (this.items.length === 0) {
-            return '';
+    onTurnFinished(): void {
+        if (this.items.length > 0) {
+            this.roundsSinceUpdate++;
+            if (this.roundsSinceUpdate >= this.threshold) {
+                this.reminder('<reminder>Refresh your current plan before continuing.</reminder>')
+            }
         }
-        this.roundsSinceUpdate++;
-        return this.roundsSinceUpdate >= this.threshold ? '<reminder>Refresh your current plan before continuing.</reminder>' : '';
-    }
-
-    reset(): void {
-        this.items = [];
-        this.roundsSinceUpdate = 0;
     }
 
     private isInProgress(item: TodoItem): boolean {

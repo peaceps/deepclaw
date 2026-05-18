@@ -94,13 +94,14 @@ async function ensureAppConfig(
 
 async function ensureEnvConfig(
     handleAgentEvent: (event: AgentEvent) => Promise<string>
-) {
+): Promise<void> {
     const currentConfig = validateEnvFile();
     const keys: (keyof EnvConfig)[] = ['provider', 'baseUrl', 'apiKey', 'model'];
     const lacks = keys.filter(key => !(key in currentConfig))
-    if (lacks.length > 0) {
-        await handleAgentEvent(HINT);
+    if (lacks.length === 0) {
+        return;
     }
+    await handleAgentEvent(HINT);
     for (const lack of lacks) {
         const event = ENV_CONFIG_EVENTS[lack]!;
         const answer = await handleAgentEvent(event);

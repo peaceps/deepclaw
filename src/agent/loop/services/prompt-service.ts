@@ -1,7 +1,12 @@
 import process from 'node:process';
 import fs from 'fs';
 import { SkillsManager } from './skills-manager.js';
-import { DeepclawConfig, loadAgentConfig } from '@utils';
+import { DeepclawConfig, loadAgentConfig, loadUIConfig } from '@utils';
+
+const LANG_MAP: {[k: string]: string} = {
+    en: 'English',
+    zh: 'Simplified Chinese'
+};
 
 export class PromptService {
     private static systemPrompt: string = this.combineSystemPrompt(false);
@@ -13,6 +18,8 @@ export class PromptService {
 
     private static combineSystemPrompt(isSubLoop: boolean): string {
         return `${this.platform()}
+
+${this.language}
 
 ${this.mainIdentity(isSubLoop)}
 
@@ -34,6 +41,11 @@ Complete the given task, then summarize your findings.
 You don't have access to file writing tools, and don't use shell tool to create or edit file.
 You have todo tool to manage your work if needed.
 When you need to create or generate any content, just return it as the output of the agent without writing it to any file.`
+    }
+
+    private static language(): string {
+        const lang = LANG_MAP[loadUIConfig<string>('lang')];
+        return `User set ${lang} as the preferred language, please answer in ${lang} by default.`;
     }
 
     private static agentMode(isSubLoop: boolean): string {

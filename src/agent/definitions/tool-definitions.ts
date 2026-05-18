@@ -1,5 +1,4 @@
 import { OneLoopContext } from './definitions.js';
-import { LoopAgent } from '../loop/loop/loop.js';
 import { DeepclawConfig } from '@utils';
 import i18n from 'i18next';
 
@@ -30,12 +29,7 @@ export type ToolGuardResult = {
     checkAnswer: (answer: string) => boolean;
 }
 
-export type ToolUseContext = {
-    loop: LoopAgent<any, any, any>;
-    oneLoopContext: OneLoopContext;
-}
-
-export type ToolCallback<T = unknown> = (input: T, context: ToolUseContext) => Promise<string>;
+export type ToolCallback<T = unknown> = (input: T, context: OneLoopContext) => Promise<string>;
 
 export type ToolDesc<T = unknown> = {
     tool: LLMTool;

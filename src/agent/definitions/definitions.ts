@@ -1,5 +1,6 @@
-import { TodoManager } from '../loop/services/todo-manager.js';
 import type { Logger } from 'pino';
+import { TodoManager } from '../loop/services/todo-manager.js';
+import { FlushAgent } from '@core';
 
 export type LoopState<I> = {
     messages: I[];
@@ -7,12 +8,12 @@ export type LoopState<I> = {
 }
 
 export type OneLoopContext = {
-    toDoManager: TodoManager;
-    toDoUpdated: boolean;
+    todoManager: TodoManager;
     turnCount: number;
     transitionReason?: 'toolResult' | 'noToolUse';
     footPrints: FootPrint[];
     logger: Logger;
+    newSubLoop: (fork?: boolean) => FlushAgent;
 }
 
 export type FootPrint = {

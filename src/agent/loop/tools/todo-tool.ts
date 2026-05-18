@@ -1,4 +1,5 @@
-import { ToolDesc, ToolUseContext } from '../../definitions/tool-definitions.js';
+import { OneLoopContext } from '../../definitions/definitions.js';
+import { ToolDesc } from '../../definitions/tool-definitions.js';
 import { TodoItem } from '../services/todo-manager.js';
 
 type TodoToolInput = {
@@ -8,7 +9,7 @@ type TodoToolInput = {
 export const todoTool: ToolDesc<TodoToolInput> = {
     tool: {
         name: 'todo',
-        description: 'Rewrite the current session plan for multi-step work.',
+        description: 'Rewrite the current session plan for multi-step work. Max todo item count is 12.',
         schema: {
             type: 'object',
             additionalProperties: false,
@@ -24,7 +25,8 @@ export const todoTool: ToolDesc<TodoToolInput> = {
                             activeForm: {type: 'string', description: 'Optional present-continuous label.'}
                         },
                         required: ['content', 'status'],
-                    }
+                    },
+                    maxItems: 12
                 }
             },
             required: ['items'],
@@ -33,8 +35,7 @@ export const todoTool: ToolDesc<TodoToolInput> = {
     agentMode: ['agent'],
     parallelSafe: false,
     outputToUser: true,
-    invoke: async function(input: TodoToolInput, context?: ToolUseContext): Promise<string> {
-        context!.oneLoopContext.toDoUpdated = true;
-        return context!.oneLoopContext.toDoManager.update(input.items);
+    invoke: async function(input: TodoToolInput, context: OneLoopContext): Promise<string> {
+        return context.todoManager.update(input.items);
     },
 }

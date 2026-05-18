@@ -1,6 +1,7 @@
 import { FileUtils, loadAgentConfig } from '@utils';
-import { ToolDesc, ToolUseContext, ToolUseResult } from "../../definitions/tool-definitions.js";
+import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions.js";
 import { SealedAgentStreamHandler } from '@core';
+import { OneLoopContext } from '../../definitions/definitions.js';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
@@ -39,7 +40,7 @@ export class ToolUseService {
         this.streamHandler = streamHandler;
     }
 
-    public async executeToolCall(toolUseDef: ToolUseDef, context: ToolUseContext): Promise<ToolUseServiceResult> {
+    public async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
         const tool = this.toolMap.get(toolUseDef.name);
         if (!tool) {
             return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`);

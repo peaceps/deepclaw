@@ -46,4 +46,13 @@ console.log(`\n  ${i18n.t('bye')}`);
  * 用js写一个命令行的计算器脚本，支持基本的加减乘除,再用几个测试用例测试它
  * 用一个子agent写一篇200左右的中文短文，题材是初中校园生活，子agent写好以后告诉你内容，你存到d.txt文件里
  * 今天杭州的天气如何
+ * What folders are under c:\git
+ * What folders are under c:\workfile (do not scan recursively)
+ * Write a 200-word Spanish essay on literary reflections of García Márquez's works
+ * Write a sample CET-6 essay on the theme of balancing study and rest
+ * Use JavaScript to write a command-line calculator script that supports basic arithmetic operations (no compilation or testing required)
+ * Have a sub-agent write a command-line calculator script in JavaScript that supports basic arithmetic operations (no compilation or testing required)
+ * Use JavaScript to write a command-line calculator script that supports basic arithmetic operations, and then test it with a few test cases
+ * Use a sub-agent to write a short Chinese essay of about 200 words on the topic of junior high school campus life. After the sub-agent finishes, it tells you the content, and you save it to a file named d.txt
+ * What is the weather in Hangzhou today?
  */
