@@ -33,9 +33,15 @@ export class FileUtils {
     }
 
     public static isPathInWorkspace(filePath: string): boolean {
-        const absolutePath = this.getAbsolutePath(filePath);
-        const workspacePath = this.getAbsolutePath(process.cwd());
-        return absolutePath.startsWith(workspacePath);
+        const workspacePath = this.normalizeForCompare(process.cwd());
+        const targetPath = this.normalizeForCompare(filePath);
+        const workspacePrefix = workspacePath.endsWith(path.sep) ? workspacePath : `${workspacePath}${path.sep}`;
+        return targetPath === workspacePath || targetPath.startsWith(workspacePrefix);
+    }
+
+    private static normalizeForCompare(value: string): string {
+        const normalized = path.normalize(path.resolve(value));
+        return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
     }
 
     private static getAbsolutePath(relativePath: string): string {

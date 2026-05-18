@@ -43,7 +43,7 @@ export abstract class LLMModel<I, O, T, LLM> {
                 logger.error(error, 'LLM invoke failed');
             }
         }
-        messages.push(this.convertResponseToMessages(response));
+        messages.push(...this.convertResponseToMessages(response));
         return response;
     }
 
@@ -73,7 +73,7 @@ ${content}`;
 
     protected abstract newResponse(content: string): O;
 
-    protected abstract convertResponseToMessages(response: O): I;
+    protected abstract convertResponseToMessages(response: O): I[];
 
     protected abstract getTextFromResponse(response: O): string;
 

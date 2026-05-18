@@ -72,13 +72,13 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
-            await this.compact(state.oneLoopContext.logger);
-            const goAround = await this.runOneTurn(state);
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
                 this.streamHandler.onText(finalText);
                 return finalText;
             }
+            await this.compact(state.oneLoopContext.logger);
+            const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 return this.extractFinalText(state);
             }

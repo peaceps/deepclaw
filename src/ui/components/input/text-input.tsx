@@ -41,9 +41,10 @@ export function TextInput({
     const rowWidth = useWidth(indent);
 
     const {setCursorPosition} = useCursor();
-    customPrompt = customPrompt.trim();
-	const fullPrompt = `${prompt}${!customPrompt ? ' ' : ' ' + customPrompt + '\n' + ' '.repeat(prompt.length + 1)}`;
-    const {x, y} = measureWrappedCursor(fullPrompt + (userInput || ''), rowWidth);
+    customPrompt = !customPrompt.trim() ? '' : `${customPrompt.trim()}\n${' '.repeat(prompt.length + 1)}`;
+    const fullPrompt = `${prompt} ${customPrompt}`;
+    const displayedText = fullPrompt + (userInput || '');
+    const {x, y} = measureWrappedCursor(displayedText, rowWidth);
     setCursorPosition({x: x + indent, y: y});
 
 	useInput((input, key) => {

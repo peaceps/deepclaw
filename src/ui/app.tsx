@@ -30,9 +30,11 @@ export function App({app}: {app: AppConfig}): ReactElement {
 	}, [histories]);
 
     const handleLlmDone = useCallback((content: string) => {
-        setHistories(prev => [...prev, {role: 'assistant', content}]);
-        setLlmOutput('');
         setLlmWorking(false);
+        setTimeout(() => {
+            setHistories(prev => [...prev, {role: 'assistant', content}]);
+            setLlmOutput('');
+        }, 0);
     }, []);
 
     const invokeLlm = useCallback((userInput: string) => {

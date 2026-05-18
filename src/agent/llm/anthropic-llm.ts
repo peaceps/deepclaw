@@ -82,8 +82,8 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
         };
     }
 
-    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
-        return {role: 'assistant', content: response.content};
+    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {
+        return [{role: 'assistant', content: response.content}];
     }
 
     protected override getTextFromResponse(response: ThinkingResponse): string {

@@ -4,6 +4,9 @@ type CompactInput = {
     focus: string;
 }
 
+/**
+ * @deprecated compact tool is deprecated. Use loop auto-compact instead.
+ */
 export const compactTool: ToolDesc<CompactInput> = {
     tool: {
         name: 'compact',

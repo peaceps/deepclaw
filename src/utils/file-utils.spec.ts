@@ -42,11 +42,21 @@ describe('FileUtils', () => {
     });
 
     test('isPathInWorkspace returns true for local path', () => {
-        expect(FileUtils.isPathInWorkspace('src/utils/file-utils.ts')).toBe(true);
+        const localPath = path.join(process.cwd(), 'tmp', 'nested', 'note.md');
+        expect(FileUtils.isPathInWorkspace(localPath)).toBe(true);
     });
 
     test('isPathInWorkspace returns false for path outside workspace', () => {
         const outsidePath = path.resolve(tempDir, '..', 'outside.txt');
         expect(FileUtils.isPathInWorkspace(outsidePath)).toBe(false);
+    });
+
+    test('isPathInWorkspace returns false for sibling path with same prefix', () => {
+        const siblingPath = `${tempDir}-sibling/file.txt`;
+        expect(FileUtils.isPathInWorkspace(siblingPath)).toBe(false);
+    });
+
+    test('isPathInWorkspace returns false for traversal path escaping workspace', () => {
+        expect(FileUtils.isPathInWorkspace('../outside-by-traversal.txt')).toBe(false);
     });
 });

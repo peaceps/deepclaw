@@ -4,7 +4,6 @@ import {shellTool} from '../tools/shell-tool.js';
 import {todoTool} from '../tools/todo-tool.js';
 import {subLoopTool, subLoopWithHistoryTool} from '../tools/sub-loop-tool.js';
 import {loadSkillTool} from '../tools/skill-tool.js';
-import {compactTool} from '../tools/compact-tool.js';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool.js';
 import { loadAgentConfig, DeepclawConfig } from '@utils';
 
@@ -14,7 +13,6 @@ const tools: ToolDesc<any>[] = [
     subLoopTool,
     subLoopWithHistoryTool,
     loadSkillTool,
-    compactTool,
     readFileTool,
     writeFileTool,
     editFileTool

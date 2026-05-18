@@ -103,24 +103,23 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         }
     }
 
-    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
-        const functionCall = response.output.find(out => out.type === 'function_call' as const);
-        if (functionCall) {
-            return {
+    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {
+        const functionCalls = response.output.filter(out => out.type === 'function_call' as const);
+        if (functionCalls.length > 0) {
+            return functionCalls.map((functionCall) => ({
                 type: 'function_call',
                 call_id: functionCall.call_id,
                 arguments: functionCall.arguments,
                 name: functionCall.name,
                 id: functionCall.id
-            }
-        } else {
-            const text = response.output.filter(out => out.type === 'message')
-                .flatMap(message => message.content.filter(c => c.type === 'output_text').map(c => c.text)).join('\n');
-            return {
-                role: 'assistant',
-                content: (!text ? response.output_text : text) || ''
-            }
+            }));
         }
+        const text = response.output.filter(out => out.type === 'message')
+            .flatMap(message => message.content.filter(c => c.type === 'output_text').map(c => c.text)).join('\n');
+        return [{
+            role: 'assistant',
+            content: (!text ? response.output_text : text) || ''
+        }];
     }
     
     protected override getTextFromResponse(response: ThinkingResponse): string {

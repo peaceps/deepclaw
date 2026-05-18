@@ -7,18 +7,20 @@ import { AgentEvent } from '@core';
 import {TFunction} from 'i18next';
 import { useTranslation } from 'react-i18next';
 
-function translateEvent(t: TFunction<"translation", undefined>, event: AgentEvent): void {
-    event.content = t(event.content);
+function translateEvent(t: TFunction<"translation", undefined>, event: AgentEvent): AgentEvent {
+    const translatedContent = t(event.content);
     if (event.type === 'select') {
-        for (let i = 0; i < event.options.length; i++) {
-            const option = event.options[i];
-            if (typeof option === 'string') {
-                event.options[i] = t(option);
-            } else {
-                option!.label = t(option!.label);
-            }
-        }
+        return {
+            ...event,
+            content: translatedContent,
+            options: event.options.map(option => (
+                typeof option === 'string'
+                    ? t(option)
+                    : {...option, label: t(option.label)}
+            ))
+        };
     }
+    return {...event, content: translatedContent};
 }
 
 export function UserInteraction({
@@ -29,23 +31,23 @@ export function UserInteraction({
     onEnter: (input: string) => void
 }): ReactElement {
     const {t} = useTranslation();
-    translateEvent(t, event);
+    const translatedEvent = translateEvent(t, event);
     return (
         <Box>
-            {event.type === 'readonly' && <ReadOnlyInput
+            {translatedEvent.type === 'readonly' && <ReadOnlyInput
                 onEnter={onEnter}
-                content={event.content}
+                content={translatedEvent.content}
                 color="#E9A02D"
             />}
-            {event.type === 'input' && <TextInput
+            {translatedEvent.type === 'input' && <TextInput
                 onEnter={onEnter}
-                customPrompt={event.content}
+                customPrompt={translatedEvent.content}
                 color="#E9A02D"
             />}
-            {event.type === 'select' && <SelectInput
+            {translatedEvent.type === 'select' && <SelectInput
                 onEnter={onEnter}
-                customPrompt={event.content}
-                options={event.options}
+                customPrompt={translatedEvent.content}
+                options={translatedEvent.options}
                 color="#E9A02D"
             />}
         </Box>

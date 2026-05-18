@@ -55,7 +55,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             stream: true,
         });
 
-        let toolCallResult: ChatCompletionChunk.Choice.Delta.ToolCall | null = null;
+        const toolCallResults = new Map<number, ChatCompletionChunk.Choice.Delta.ToolCall>();
         let content = '';
         let reasoningContent = '';
         for await (const chunk of stream) {
@@ -66,25 +66,39 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                 content += chunkContent;
                 streamHandler.onText(chunkContent);
             }
-            const toolCall = response?.delta?.tool_calls?.[0];
-            if (toolCall) {
-                if (!toolCallResult) {
-                    toolCallResult = {
-                        type: 'function',
-                        index: toolCall.index,
-                        id: toolCall.id,
-                        function: {
-                            name: toolCall.function?.name || '',
-                            arguments: ''
-                        }
+            const toolCalls = response?.delta?.tool_calls || [];
+            for (const toolCall of toolCalls) {
+                const index = toolCall.index ?? 0;
+                const existing = toolCallResults.get(index) || {
+                    type: toolCall.type || 'function',
+                    index,
+                    id: toolCall.id,
+                    function: {
+                        name: '',
+                        arguments: ''
                     }
+                };
+
+                if (toolCall.id) {
+                    existing.id = toolCall.id;
                 }
-                toolCallResult.function!.arguments += (toolCall.function?.arguments || '');
+                if (toolCall.type) {
+                    existing.type = toolCall.type;
+                }
+                if (toolCall.function?.name) {
+                    existing.function!.name = toolCall.function.name;
+                }
+                if (toolCall.function?.arguments) {
+                    existing.function!.arguments += toolCall.function.arguments;
+                }
+                toolCallResults.set(index, existing);
             }
 
             if (!!response?.finish_reason && (response?.finish_reason as string) !== 'null') {
-                if (toolCallResult) {
-                    response.delta.tool_calls = [toolCallResult];
+                if (toolCallResults.size > 0) {
+                    response.delta.tool_calls = [...toolCallResults.entries()]
+                        .sort(([a], [b]) => a - b)
+                        .map(([, toolCall]) => toolCall);
                 }
                 if (content) {
                     response.delta.content = content;
@@ -112,9 +126,9 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         };
     }
 
-    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage {
+    protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {
         const delta = response.delta;
-        return {
+        return [{
             role: 'assistant' as const,
             content: delta.content || '',
             reasoning_content: delta.reasoning_content || undefined,
@@ -126,7 +140,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                 },
                 type: 'function' as const,
             })) || undefined,
-        };
+        }];
     }
 
     protected override getTextFromResponse(response: ThinkingResponse): string {
