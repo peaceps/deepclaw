@@ -1,44 +1,68 @@
 import type { OneLoopContext } from '../../definitions/definitions.js';
+import type { ToolUseDef } from './tool-use-service.js';
 
-export type HookType =
+type Hook = InterceptorHook | VisitorHook;
+type InterceptorHook = 'preEachToolUse';
+type VisitorHook =
     'preLoopStart' |
-    'postLoopStart' |
+    'postLoopEnd' |
     'preTurnStart' |
-    'postTurnStart' |
-    'preEachToolUse' |
-    'postEachToolUse' |
-    'preAllToolUse' |
-    'postAllToolUse' |
-    'preTurnEnd' |
     'postTurnEnd' |
-    'preLoopEnd' |
-    'postLoopEnd';
+    'preEachToolUse' |
+    'postEachToolUse';
 
-export type InterceptorResult = {
+type InterceptorResult = {
     result: 'continue' | 'stop';
     reason?: string;
 };
 
-type HookFunction = (oneLoopContext: OneLoopContext) => Promise<InterceptorResult | void> | void;
+type InterceptorHookFunction = (oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef) => Promise<InterceptorResult> | InterceptorResult;
+type VisitorHookFunction = (oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef) => Promise<void> | void;
+type HookFunction = InterceptorHookFunction | VisitorHookFunction;
 
 export class HookManager {
 
-    private static hooks: Map<HookType, HookFunction[]> = new Map();
+    private static interceptorHooks: Map<InterceptorHook, InterceptorHookFunction[]> = new Map();
+    private static visitorHooks: Map<VisitorHook, VisitorHookFunction[]> = new Map();
 
-    public static on(hook: HookType, hookFunction: HookFunction): void {
-        if (!this.hooks.has(hook)) {
-            this.hooks.set(hook, []);
-        }
-        this.hooks.get(hook)!.push(hookFunction);
+    public static onInterceptor(hook: InterceptorHook, callback: InterceptorHookFunction): void {
+        this.on(this.interceptorHooks, hook, callback);
     }
 
-    public static async emit(hook: HookType, oneLoopContext: OneLoopContext): Promise<InterceptorResult | void> {
-        const hookFunctions = this.hooks.get(hook);
-        if (hookFunctions) {
-            for (const hookFunction of hookFunctions) {
-                return await hookFunction(oneLoopContext);
+    public static onVisitor(hook: VisitorHook, callback: VisitorHookFunction): void {
+        this.on(this.visitorHooks, hook, callback);
+    }
+
+    private static on<H extends Hook, F extends HookFunction>(hooks: Map<H, F[]>, hook: H, callback: F): void {
+        if (!hooks.has(hook)) {
+            hooks.set(hook, []);
+        }
+        hooks.get(hook)!.push(callback);
+    }
+
+    public static async emitVisitor(hook: VisitorHook, oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef): Promise<void> {
+        for (const hookFunction of this.visitorHooks.get(hook) ?? []) {
+            await hookFunction(oneLoopContext, toolUseDef);
+        }
+    }
+
+    public static async emitInterceptor(
+        hook: InterceptorHook,
+        oneLoopContext: OneLoopContext,
+        toolUseDef?: ToolUseDef
+    ): Promise<InterceptorResult> {
+        for (const hookFunction of this.interceptorHooks.get(hook) ?? []) {
+            try {
+                const result = await hookFunction(oneLoopContext, toolUseDef);
+                if (result && result.result === 'stop') {
+                    return result;
+                }
+            } catch (error) {
+                oneLoopContext.logger.error(error, `Error in hook ${hook}, ${error instanceof Error ? error.message : 'Unknown error.'}`);
+                continue;
             }
         }
+        return { result: 'continue' };
     }
 
 }

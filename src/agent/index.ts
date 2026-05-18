@@ -3,7 +3,7 @@ import {hasEnvVariable, getEnvVariable} from '@utils';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop.js';
 import { OpenAIResponseLoop } from './loop/loop/openai-response-loop.js';
 import { AnthropicLoop } from './loop/loop/anthropic-loop.js';
-import './loop/hooks/log-hook.js';
+import './loop/hooks/hooks.js';
 
 export class LoopInitializer {
     public static getLoopClass(): FlushAgentConstructor {

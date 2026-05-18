@@ -1,4 +1,4 @@
-import { askPermissionGuard, ToolDesc, ToolGuardResult, ToolUseContext } from '../../definitions/tool-definitions.js';
+import { askPermissionGuard, ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions.js';
 import i18n from 'i18next';
 import { FileUtils } from '@utils';
 
@@ -25,10 +25,9 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    invoke: async function(input: ReadFileInput, context: ToolUseContext): Promise<string> {
+    invoke: async function(input: ReadFileInput): Promise<string> {
         const { filePath, limit } = input;
         const content = FileUtils.readFile(filePath);
-        context.loop.addFootPrint({ type: 'read_file', content: filePath });
         if (limit) {
             return content.slice(0, limit);
         }

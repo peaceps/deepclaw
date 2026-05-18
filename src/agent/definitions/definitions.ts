@@ -10,11 +10,12 @@ export type OneLoopContext = {
     toDoManager: TodoManager;
     toDoUpdated: boolean;
     turnCount: number;
-    transitionReason?: 'tool_result' | 'no_tool_use';
+    transitionReason?: 'toolResult' | 'noToolUse';
+    footPrints: FootPrint[];
     logger: Logger;
 }
 
 export type FootPrint = {
-    type: 'read_file';
+    type: string;
     content: string;
 }

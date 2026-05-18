@@ -1,10 +1,10 @@
 import { HookManager } from "../services/hook-manager";
 import type { OneLoopContext } from "../../definitions/definitions.js";
 
-HookManager.on('preLoopStart', (oneLoopContext: OneLoopContext) => {
+HookManager.onVisitor('preLoopStart', (oneLoopContext: OneLoopContext) => {
     oneLoopContext.logger.info('Starting loop');
 });
 
-HookManager.on('preTurnStart', (oneLoopContext: OneLoopContext) => {
+HookManager.onVisitor('preTurnStart', (oneLoopContext: OneLoopContext) => {
     oneLoopContext.logger.info(`Starting turn ${oneLoopContext.turnCount + 1}`);
 });

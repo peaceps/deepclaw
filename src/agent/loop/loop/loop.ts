@@ -65,21 +65,30 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
                 toDoManager: new TodoManager(),
                 toDoUpdated: false,
                 turnCount: 0,
+                footPrints: this.footPrints,
                 logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString())
             },
         };
-        return await this.agentLoop(state);
+        try {
+            await HookManager.emitVisitor('preLoopStart', state.oneLoopContext);
+            const result = await this.agentLoop(state);
+            return result;
+        } catch (error) {
+            const msg = `Error in loop, ${error instanceof Error ? error.message : 'Unknown error.'}`;
+            state.oneLoopContext.logger.error(error, msg);
+            return msg;
+        } finally {
+            await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
+        }
     }
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
-        await HookManager.emit('preLoopStart', state.oneLoopContext);
         while (true) {
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
                 this.streamHandler.onText(finalText);
                 return finalText;
             }
-            await HookManager.emit('preTurnStart', state.oneLoopContext);
             await this.compact(state.oneLoopContext.logger);
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
@@ -89,40 +98,48 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
+        await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
         const response = await this.llm.invoke(
             state.messages,
             this.streamHandler,
             state.oneLoopContext.logger
         );
 
-        if (this.quitLoop(response)) {
-            state.oneLoopContext.transitionReason = 'no_tool_use';
-            return false;
+        let quit: boolean = this.quitLoop(response);
+        const toolUseDefs = this.extractToolUseFromResponse(response);
+        const goAround = !quit && toolUseDefs.length > 0;
+        if (!goAround) {
+            state.oneLoopContext.transitionReason = 'noToolUse';
+        } else {
+            const results = await this.runTools(toolUseDefs, {
+                loop: this,
+                oneLoopContext: state.oneLoopContext,
+            });
+            this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
+            this.postAllToolUse(state);
         }
-
-        const results = await this.runTools(this.extractToolUseFromResponse(response), {
-            loop: this,
-            oneLoopContext: state.oneLoopContext,
-        });
-        if (!results.length) {
-            state.oneLoopContext.transitionReason = 'no_tool_use';
-            return false;
-        }
-
-        this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-
-        this.postAllToolUse(state);
-        return true;
+        await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
+        return goAround;
     }
 
     private async runTools(toolUseDefs: ToolUseDef[], context: ToolUseContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
         for (const toolUseDef of toolUseDefs) {
-            const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
-            if (toolResult.effect.outputToUser) {
-                this.streamHandler.onText(toolResult.result.content);
+            await HookManager.emitVisitor('preEachToolUse', context.oneLoopContext, toolUseDef);
+            const result = await HookManager.emitInterceptor('preEachToolUse', context.oneLoopContext, toolUseDef);
+            if (result && result.result === 'stop') {
+                results.push({
+                    id: toolUseDef.id,
+                    content: result.reason || 'Tool use rejected by hook.',
+                });
+            } else {
+                const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
+                if (toolResult.effect.outputToUser) {
+                    this.streamHandler.onText(toolResult.result.content);
+                }
+                results.push(toolResult.result);
+                await HookManager.emitVisitor('postEachToolUse', context.oneLoopContext);
             }
-            results.push(toolResult.result);
         }
         return results;
     }
@@ -138,7 +155,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
             context.toDoUpdated = false;
         }
         context.turnCount++;
-        context.transitionReason = 'tool_result';
+        context.transitionReason = 'toolResult';
     }
 
     protected addStringMessage(message: string): void {
