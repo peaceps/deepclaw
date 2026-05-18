@@ -10,6 +10,7 @@ import { ToolsManager } from '../services/tools-manager.js';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 import { loadAgentConfig, DeepclawConfig, getLogger } from '@utils';
+import { HookManager } from '../services/hook-manager.js';
 
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -71,12 +72,14 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     }
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
+        await HookManager.emit('preLoopStart', state.oneLoopContext);
         while (true) {
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
                 this.streamHandler.onText(finalText);
                 return finalText;
             }
+            await HookManager.emit('preTurnStart', state.oneLoopContext);
             await this.compact(state.oneLoopContext.logger);
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
@@ -108,7 +111,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
 
         this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
 
-        this.postToolUse(state);
+        this.postAllToolUse(state);
         return true;
     }
 
@@ -124,7 +127,7 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         return results;
     }
 
-    private postToolUse(state: LoopState<I>): void {
+    private postAllToolUse(state: LoopState<I>): void {
         const context = state.oneLoopContext;
         if (!context.toDoUpdated) {
             const reminder = context.toDoManager.noteRoundWithoutUpdate();
