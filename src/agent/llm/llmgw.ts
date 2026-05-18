@@ -2,6 +2,7 @@ import {getEnvVariable, hasEnvVariable} from '@utils';
 import { AgentStreamHandler, noopStreamHandler } from '@core';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import { loadAgentConfig } from '../../utils/app-config-utils.js';
+import type { Logger } from 'pino';
 
 const llmRetry = loadAgentConfig<number>('llmRetry');
 
@@ -32,15 +33,14 @@ export abstract class LLMModel<I, O, T, LLM> {
 
     protected abstract createLLMClient(): LLM;
 
-    public async invoke(messages: I[], streamHandler: AgentStreamHandler): Promise<O> {
+    public async invoke(messages: I[], streamHandler: AgentStreamHandler, logger: Logger): Promise<O> {
         let response: O = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`);
         for (let i = 0; i < llmRetry; i++) {
             try {
                 response = await this._invoke(messages, streamHandler);
                 break;
             } catch (error) {
-                // TODO log
-                console.error(error);
+                logger.error(error, 'LLM invoke failed');
             }
         }
         messages.push(this.convertResponseToMessages(response));
@@ -49,7 +49,7 @@ export abstract class LLMModel<I, O, T, LLM> {
 
     protected abstract _invoke(messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
 
-    public async compact(content: string): Promise<string> {
+    public async compact(content: string, logger: Logger): Promise<string> {
         const prompt =
 `Summarize this agent conversation so work can continue.
 Preserve:
@@ -63,7 +63,7 @@ Preserve:
 Be compact but concrete.
 
 ${content}`;
-        const response = await this.invoke([this.newInputMessage(prompt)], noopStreamHandler);
+        const response = await this.invoke([this.newInputMessage(prompt)], noopStreamHandler, logger);
         return this.getTextFromResponse(response);
     }
     

@@ -1,6 +1,7 @@
 import { loadAgentConfig, FileUtils } from '@utils';
 import { LLMModel } from '../../llm/llmgw';
 import { FootPrint } from '../../definitions/definitions.js';
+import type { Logger } from 'pino';
 
 type HistoryCompactContext = {
     footPrints: FootPrint[];
@@ -31,9 +32,9 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         };
     }
     
-    public async compact(messages: I[]): Promise<void> {
+    public async compact(messages: I[], logger: Logger): Promise<void> {
         this.compactOldResults(messages);
-        await this.compactFullHistory(messages);
+        await this.compactFullHistory(messages, logger);
     }
 
     private compactOldResults(messages: I[]): void {
@@ -48,11 +49,11 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         }
     }
 
-    private async compactFullHistory(messages: I[]): Promise<void> {
+    private async compactFullHistory(messages: I[], logger: Logger): Promise<void> {
         const jsonl = messages.map(message => JSON.stringify(message)).join('\n');
         if (jsonl.length > this.historyThreshold) {
             this.saveHistory(jsonl);
-            const summary = await this.summarizeHistory(jsonl);
+            const summary = await this.summarizeHistory(jsonl, logger);
             messages.splice(0, messages.length, summary);
         }
     }
@@ -62,8 +63,8 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, HISTORY_DIR, fileName, jsonl);
     }
 
-    private async summarizeHistory(jsonl: string): Promise<I> {
-        const summary = await this.llm.compact(jsonl);
+    private async summarizeHistory(jsonl: string, logger: Logger): Promise<I> {
+        const summary = await this.llm.compact(jsonl, logger);
         this.historyCompactContext.count++;
         return this.llm.newInputMessage(`
 This conversation was compacted so the agent can continue working.

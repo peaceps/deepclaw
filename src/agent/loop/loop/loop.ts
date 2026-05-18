@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { Logger } from 'pino';
 import { FlushAgent, AgentStreamHandler } from '@core';
 import { ToolUseContext, ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
@@ -8,7 +9,7 @@ import { PromptService } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
-import { loadAgentConfig, DeepclawConfig } from '@utils';
+import { loadAgentConfig, DeepclawConfig, getLogger } from '@utils';
 
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -59,14 +60,19 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         this.addStringMessage(input);
         const state: LoopState<I> = {
             messages: this.history,
-            oneLoopContext: {toDoManager: new TodoManager(), toDoUpdated: false, turnCount: 0},
+            oneLoopContext: {
+                toDoManager: new TodoManager(),
+                toDoUpdated: false,
+                turnCount: 0,
+                logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString())
+            },
         };
         return await this.agentLoop(state);
     }
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
-            await this.compact();
+            await this.compact(state.oneLoopContext.logger);
             const goAround = await this.runOneTurn(state);
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = `Reached maximum turn count. Ending session.\n${this.extractFinalText(state)}`;
@@ -80,7 +86,11 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
-        const response = await this.llm.invoke(state.messages, this.streamHandler);
+        const response = await this.llm.invoke(
+            state.messages,
+            this.streamHandler,
+            state.oneLoopContext.logger
+        );
 
         if (this.quitLoop(response)) {
             state.oneLoopContext.transitionReason = 'no_tool_use';
@@ -132,8 +142,8 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         this.history.push(this.llm.newInputMessage(message));
     }
 
-    public async compact(): Promise<void> {
-        await this.messagesCompactor.compact(this.history);
+    public async compact(logger: Logger): Promise<void> {
+        await this.messagesCompactor.compact(this.history, logger);
     }
         
     protected extractFinalText(state: LoopState<I>): string {

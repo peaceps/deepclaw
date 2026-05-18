@@ -1,4 +1,5 @@
 import { TodoManager } from '../loop/services/todo-manager.js';
+import type { Logger } from 'pino';
 
 export type LoopState<I> = {
     messages: I[];
@@ -10,6 +11,7 @@ export type OneLoopContext = {
     toDoUpdated: boolean;
     turnCount: number;
     transitionReason?: 'tool_result' | 'no_tool_use';
+    logger: Logger;
 }
 
 export type FootPrint = {

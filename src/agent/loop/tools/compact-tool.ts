@@ -17,7 +17,7 @@ export const compactTool: ToolDesc<CompactInput> = {
     agentMode: ['agent', 'plan', 'chat'],
     parallelSafe: false,
     invoke: async function(_: CompactInput, context: ToolUseContext): Promise<string> {
-        await context.loop.compact();
+        await context.loop.compact(context.oneLoopContext.logger);
         return 'History compacted.';
     },
 }
