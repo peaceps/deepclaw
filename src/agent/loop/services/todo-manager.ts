@@ -24,7 +24,7 @@ export class TodoManager {
     }
 
     update(items: TodoItem[]): string {
-        if (this.items.length === 0) {
+        if (items.length === 0) {
             return i18n.t('agent.tools.todo.empty');
         }
         this.roundsSinceUpdate = -1;
