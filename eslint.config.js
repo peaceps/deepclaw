@@ -20,10 +20,10 @@ const tsLanguageOptions = {
 
 export default [
   {
-    ignores: ['dist/**/*', 'node_modules/**/*'],
+    ignores: ['**/dist/**/*', '**/node_modules/**/*'],
   },
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ['**/src/**/*.ts', '**/src/**/*.tsx'],
     languageOptions: tsLanguageOptions,
     plugins: {
       '@typescript-eslint': tseslint.plugin,
@@ -35,15 +35,15 @@ export default [
     },
   },
   {
-    files: ['src/ui/**/*.{ts,tsx}', 'main.tsx'],
+    files: ['apps/deepclaw-tui/src/**/*.{ts,tsx}'],
     ...react.configs.flat.recommended,
     ...react.configs.flat['jsx-runtime'],
     ...reactHooks.configs.flat.recommended,
     languageOptions: tsLanguageOptions,
   },
   ...tseslint.configs.recommended.map(config => ({
-    files: ['src/**/*.ts'],
-    ignores: ['src/ui/**/*'],
+    files: ['**/src/**/*.ts'],
+    ignores: ['apps/deepclaw-tui/src/**/*'],
     ...config,
     languageOptions: tsLanguageOptions,
     rules: {

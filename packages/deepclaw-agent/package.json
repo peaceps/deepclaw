@@ -1,0 +1,27 @@
+{
+	"name": "@deepclaw/agent",
+	"version": "0.0.1",
+    "packageManager": "pnpm@10.33.0",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=21"
+	},
+	"scripts": {
+		"build": "rollup -c",
+		"lint": "eslint **/*.ts",
+        "test": "vitest run"
+	},
+    "exports": {
+      ".": {
+        "import": "./src/index.ts"
+      }
+    },
+	"dependencies": {
+		"@anthropic-ai/sdk": "0.91.1",
+		"@deepclaw/i18n": "workspace:*",
+		"@deepclaw/utils": "workspace:*",
+		"gray-matter": "4.0.3",
+		"openai": "6.36.0"
+	}
+}

@@ -1,0 +1,40 @@
+export const zh = {
+    agent: {
+        maxTurnReached: '超过最大迭代次数，运行中止。\n{{finalText}}',
+        llm: {
+            openai: {
+                response: {
+                    output: {
+                        failed: '出错了。{{message}}',
+                        error: '{{param}}出错了！错误码{{code}}：{{message}}。',
+                        empty: '没有收到回复。',
+                    },
+                },
+            },
+        },
+        tools: {
+            permission: {
+                request: '是否允许(y/n)：',
+            },
+            file: {
+                guard: 'Deepclaw想要访问当前工作区外的文件。',
+                write: '写入文件{{path}}成功，共{{length}}字节。',
+                edit: '编辑文件{{path}}成功。',
+            },
+            shell: {
+                guard: {
+                    danger: '禁止执行危险命令({{command}})。',
+                    warn: '检测到危险命令({{command}})。',
+                    mode: 'Deepclaw未运行在agent模式，但模型想要运行shell命令({{command}})。',
+                },
+                empty: '（无输出内容）',
+                error: '出错了。{{message}}。',
+                timeout: '命令运行{{timeout}}秒超时。',
+            },
+            todo: {
+                empty: '没有待办项。',
+                current: '当前进度：\n{{steps}}\n',
+            },
+        },
+    },
+};

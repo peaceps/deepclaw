@@ -1,0 +1,22 @@
+import type { Logger } from '@deepclaw/utils';
+import { TodoManager } from '../loop/services/todo-manager.js';
+import { type FlushAgent } from '../../core/flush-agent.js';
+
+export type LoopState<I> = {
+    messages: I[];
+    oneLoopContext: OneLoopContext;
+}
+
+export type OneLoopContext = {
+    todoManager: TodoManager;
+    turnCount: number;
+    transitionReason?: 'toolResult' | 'noToolUse';
+    footPrints: FootPrint[];
+    logger: Logger;
+    newSubLoop: (fork?: boolean) => FlushAgent;
+}
+
+export type FootPrint = {
+    type: string;
+    content: string;
+}
