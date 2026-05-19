@@ -1,12 +1,12 @@
 import i18n, { Module } from 'i18next';
-import {DEFAULT_LANG, loadUIConfig} from '@deepclaw/utils';
+import {DEFAULT_LANG, loadConfig} from '@deepclaw/utils';
 
 const locales = {
     en: {translation: {}},
     zh: {translation: {}}
 }
 
-let lang = loadUIConfig<string>('lang');
+let lang = loadConfig<string>('ui.lang');
 if (!(lang in locales)) {
   lang = DEFAULT_LANG;
 }

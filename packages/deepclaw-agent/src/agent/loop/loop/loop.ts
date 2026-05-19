@@ -9,12 +9,12 @@ import { PromptService } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
-import { loadAgentConfig, DeepclawConfig, getLogger } from '@deepclaw/utils';
+import { loadConfig, DeepclawConfig, getLogger } from '@deepclaw/utils';
 import { HookManager } from '../services/hook-manager.js';
 
 export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
-    private turnLimit: number = loadAgentConfig<DeepclawConfig['agent']['loopTurnLimit']>('loopTurnLimit');
+    private turnLimit: number = loadConfig<DeepclawConfig['agent']['loopTurnLimit']>('agent.loopTurnLimit');
     protected parentSessionId: string;
     private sessionId: string;
     protected history: I[] = [];
@@ -39,7 +39,6 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
             this.streamHandler
         );
         this.llm = new (this.getLLMConstructor())(
-            PromptService.provideSystemPrompt(this.isSubLoop()),
             tools.map(tool => tool.tool)
         ) as LLM;
         this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId, this.footPrints);
@@ -85,17 +84,20 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
                 this.streamHandler.onText(finalText);
                 return finalText;
             }
-            await this.messagesCompactor.compact(this.history, state.oneLoopContext.logger);
-            const goAround = await this.runOneTurn(state);
+            this.messagesCompactor.compactOldResults(this.history);
+            const system = PromptService.provideSystemPrompt(this.isSubLoop());
+            await this.messagesCompactor.compactFullHistory(system, this.history, state.oneLoopContext.logger);
+            const goAround = await this.runOneTurn(system, state);
             if (!goAround) {
                 return this.extractFinalText(state);
             }
         }
     }
 
-    private async runOneTurn(state: LoopState<I>): Promise<boolean> {
+    private async runOneTurn(system: string, state: LoopState<I>): Promise<boolean> {
         await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
         const response = await this.llm.invoke(
+            system,
             state.messages,
             this.streamHandler,
             state.oneLoopContext.logger

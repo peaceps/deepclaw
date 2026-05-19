@@ -98,15 +98,7 @@ export function writeAppConfig(config: DeepclawConfig) {
     deepclawConfig = loadAppConfig();
 }
 
-export function loadAgentConfig<T extends AgentConfigValue>(key: string): T {
-    return getConfigValue<T>(`agent.${key}`);
-}
-
-export function loadUIConfig<T extends AgentConfigValue>(key: string): T {
-    return getConfigValue<T>(`ui.${key}`);
-}
-
-function getConfigValue<T>(key: string): T {
+export function loadConfig<T>(key: string): T {
     const keyPath = key.split('.');
     let value: any = deepclawConfig;
     for (const key of keyPath) {

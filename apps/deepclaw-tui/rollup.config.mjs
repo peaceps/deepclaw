@@ -29,9 +29,7 @@ export default {
     nodeResolve({
       preferBuiltins: true
     }),
-
     commonjs(),
-
-    typescript()
+    typescript({outputToFilesystem: true})
   ]
 };

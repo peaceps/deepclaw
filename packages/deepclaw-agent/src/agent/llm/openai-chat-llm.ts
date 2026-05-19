@@ -39,11 +39,14 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
     }
 
     protected override async _invoke(
+        system: string,
         messages: ThinkingMessage[],
         streamHandler: AgentStreamHandler
     ): Promise<ThinkingResponse> {
         if (messages.length === 1) {
-            messages.unshift({role: 'system', content: this.system});
+            messages.unshift({role: 'system', content: system});
+        } else {
+            messages[0]!.content = system;
         }
         const stream = await this.client.chat.completions.create({
             model: this.gw.model,

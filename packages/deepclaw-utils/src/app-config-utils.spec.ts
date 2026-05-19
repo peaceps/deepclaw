@@ -1,13 +1,13 @@
 import {describe, expect, test} from 'vitest';
-import {loadAgentConfig, loadUIConfig} from './app-config-utils';
+import {loadConfig} from './app-config-utils';
 
 describe('config-utils', () => {
     test('loads configured agent values', () => {
-        expect(loadAgentConfig<number>('llmRetry')).toBe(3);
+        expect(loadConfig<number>('agent.llmRetry')).toBe(3);
     });
 
     test('returns undefined for missing keys', () => {
-        expect(loadAgentConfig<string | undefined>('not.exists')).toBeUndefined();
-        expect(loadUIConfig<string | undefined>('theme')).toBeUndefined();
+        expect(loadConfig<string | undefined>('agent.not.exists')).toBeUndefined();
+        expect(loadConfig<string | undefined>('ui.theme')).toBeUndefined();
     });
 });

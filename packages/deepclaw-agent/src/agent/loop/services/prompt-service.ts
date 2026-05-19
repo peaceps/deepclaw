@@ -1,7 +1,7 @@
 import process from 'node:process';
 import fs from 'fs';
 import { SkillsManager } from './skills-manager.js';
-import { DeepclawConfig, loadAgentConfig, loadUIConfig } from '@deepclaw/utils';
+import { DeepclawConfig, loadConfig } from '@deepclaw/utils';
 
 const LANG_MAP: {[k: string]: string} = {
     en: 'English',
@@ -9,11 +9,9 @@ const LANG_MAP: {[k: string]: string} = {
 };
 
 export class PromptService {
-    private static systemPrompt: string = this.combineSystemPrompt(false);
-    private static subLoopSystemPrompt: string = this.combineSystemPrompt(true);
 
     public static provideSystemPrompt(isSubLoop: boolean): string {
-        return isSubLoop ? this.subLoopSystemPrompt : this.systemPrompt;
+        return this.combineSystemPrompt(isSubLoop);
     }
 
     private static combineSystemPrompt(isSubLoop: boolean): string {
@@ -35,7 +33,7 @@ ${this.availableSkills()}`;
     }
 
     private static mainIdentity(isSubLoop: boolean): string {
-        return !isSubLoop ? fs.readFileSync(loadAgentConfig<string>('identityFile'), 'utf8') : 
+        return !isSubLoop ? fs.readFileSync(loadConfig<string>('agent.identityFile'), 'utf8') : 
         `You are a subloop agent for specific task described in the prompt.
 Complete the given task, then summarize your findings.
 You don't have access to file writing tools, and don't use shell tool to create or edit file.
@@ -44,12 +42,12 @@ When you need to create or generate any content, just return it as the output of
     }
 
     private static language(): string {
-        const lang = LANG_MAP[loadUIConfig<string>('lang')];
+        const lang = LANG_MAP[loadConfig<string>('ui.lang')];
         return `User set ${lang} as the preferred language, please answer in ${lang} by default.`;
     }
 
     private static agentMode(isSubLoop: boolean): string {
-        const agentMode = loadAgentConfig<DeepclawConfig['agent']['mode']>('mode');
+        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode');
         let prompt = '';
         switch (agentMode) {
             case 'agent':

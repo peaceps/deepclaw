@@ -38,13 +38,14 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     }
     
     protected override async _invoke(
+        system: string,
         messages: ThinkingMessage[],
         streamHandler: AgentStreamHandler
     ): Promise<ThinkingResponse> {
 
         const stream = await this.client.responses.create({
             model: this.gw.model,
-            instructions: this.system,
+            instructions: system,
             input: messages,
             stream: true,
             tools: this.tools,
@@ -92,7 +93,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             output_text: '',
             error: null,
             incomplete_details: null,
-            instructions: this.system,
+            instructions: '',
             metadata: null,
             model: this.gw.model,
             tools: [],

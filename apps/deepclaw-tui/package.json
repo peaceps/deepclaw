@@ -13,7 +13,8 @@
 	"scripts": {
 		"build": "rollup -c",
 		"lint": "eslint **/*.{ts,tsx}",
-		"test": "vitest run"
+		"test": "vitest run",
+		"dev": "npx tsx src/main.tsx"
 	},
 	"dependencies": {
 		"@deepclaw/agent": "workspace:*",

@@ -1,14 +1,13 @@
-import {getEnvVariable, hasEnvVariable, loadAgentConfig, type Logger} from '@deepclaw/utils';
+import {getEnvVariable, hasEnvVariable, loadConfig, type Logger} from '@deepclaw/utils';
 import { AgentStreamHandler, noopStreamHandler } from '../../core/flush-agent';
 import { LLMTool } from '../definitions/tool-definitions.js';
 
-const llmRetry = loadAgentConfig<number>('llmRetry');
+const llmRetry = loadConfig<number>('agent.llmRetry');
 
-export type LLMConstructor<I, O, T, LLM> = new (system: string, tools: LLMTool[]) => LLMModel<I, O, T, LLM>;
+export type LLMConstructor<I, O, T, LLM> = new (tools: LLMTool[]) => LLMModel<I, O, T, LLM>;
 
 export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
-    protected system: string;
     protected tools?: T[];
     protected gw = {
         model: getEnvVariable('MODEL_ID'),
@@ -21,8 +20,7 @@ export abstract class LLMModel<I, O, T, LLM> {
         maxTokens: 8000
     };
 
-    constructor(system: string, tools: LLMTool[] = []) {
-        this.system = system;
+    constructor(tools: LLMTool[] = []) {
         this.tools = this.convertTools(tools);
         this.client = this.createLLMClient();
     }
@@ -31,11 +29,11 @@ export abstract class LLMModel<I, O, T, LLM> {
 
     protected abstract createLLMClient(): LLM;
 
-    public async invoke(messages: I[], streamHandler: AgentStreamHandler, logger: Logger): Promise<O> {
+    public async invoke(system: string, messages: I[], streamHandler: AgentStreamHandler, logger: Logger): Promise<O> {
         let response: O = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`);
         for (let i = 0; i < llmRetry; i++) {
             try {
-                response = await this._invoke(messages, streamHandler);
+                response = await this._invoke(system, messages, streamHandler);
                 break;
             } catch (error) {
                 logger.error(error, 'LLM invoke failed');
@@ -45,9 +43,9 @@ export abstract class LLMModel<I, O, T, LLM> {
         return response;
     }
 
-    protected abstract _invoke(messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
+    protected abstract _invoke(system: string, messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
 
-    public async compact(content: string, logger: Logger): Promise<string> {
+    public async compact(system: string, content: string, logger: Logger): Promise<string> {
         const prompt =
 `Summarize this agent conversation so work can continue.
 Preserve:
@@ -61,7 +59,7 @@ Preserve:
 Be compact but concrete.
 
 ${content}`;
-        const response = await this.invoke([this.newInputMessage(prompt)], noopStreamHandler, logger);
+        const response = await this.invoke(system, [this.newInputMessage(prompt)], noopStreamHandler, logger);
         return this.getTextFromResponse(response);
     }
     

@@ -5,12 +5,12 @@ const execAsync = promisify(exec);
 import { i18nInstance } from '@deepclaw/i18n';
 
 import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions.js';
-import { DeepclawConfig, loadAgentConfig } from '@deepclaw/utils';
+import { DeepclawConfig, loadConfig } from '@deepclaw/utils';
 
 const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
 const timeout = 120;
-const trunkcateThreshold = loadAgentConfig<number>('toolResult.truncate.lengthThreshold');
-const agentMode = loadAgentConfig<DeepclawConfig['agent']['mode']>('mode');
+const trunkcateThreshold = loadConfig<number>('agent.toolResult.truncate.lengthThreshold');
+const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode');
 
 type ShellInput = {
     command: string;

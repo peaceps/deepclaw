@@ -1,4 +1,4 @@
-import { loadAgentConfig, FileUtils, type Logger } from '@deepclaw/utils';
+import { loadConfig, FileUtils, type Logger } from '@deepclaw/utils';
 import { LLMModel } from '../../llm/llmgw';
 import { FootPrint } from '../../definitions/definitions.js';
 
@@ -14,11 +14,11 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     protected sessionId: string;
     private llm: LLM;
 
-    private maxRecent: number = loadAgentConfig<number>('toolResult.removeLegacy.maxRecent');
-    private toolResultThreshold: number = loadAgentConfig<number>('toolResult.removeLegacy.lengthThreshold');
+    private maxRecent: number = loadConfig<number>('agent.toolResult.removeLegacy.maxRecent');
+    private toolResultThreshold: number = loadConfig<number>('agent.toolResult.removeLegacy.lengthThreshold');
     private toolResultCompactedMessage: string = 'Earlier tool result compacted. Re-run the tool if you need full detail.';
 
-    private historyThreshold: number = loadAgentConfig<number>('history.compactThreshold');
+    private historyThreshold: number = loadConfig<number>('agent.history.compactThreshold');
     private historyCompactContext: HistoryCompactContext;
 
     constructor(llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
@@ -30,13 +30,8 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
             count: 0
         };
     }
-    
-    public async compact(messages: I[], logger: Logger): Promise<void> {
-        this.compactOldResults(messages);
-        await this.compactFullHistory(messages, logger);
-    }
 
-    private compactOldResults(messages: I[]): void {
+    public compactOldResults(messages: I[]): void {
         const toolResultMessages = this.getToolResults(messages);
         if (toolResultMessages.length > this.maxRecent) {
             const oldestResult = toolResultMessages.slice(0, toolResultMessages.length - this.maxRecent);
@@ -48,11 +43,11 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         }
     }
 
-    private async compactFullHistory(messages: I[], logger: Logger): Promise<void> {
+    public async compactFullHistory(system: string, messages: I[], logger: Logger): Promise<void> {
         const jsonl = messages.map(message => JSON.stringify(message)).join('\n');
         if (jsonl.length > this.historyThreshold) {
             this.saveHistory(jsonl);
-            const summary = await this.summarizeHistory(jsonl, logger);
+            const summary = await this.summarizeHistory(system, jsonl, logger);
             messages.splice(0, messages.length, summary);
         }
     }
@@ -62,8 +57,8 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, HISTORY_DIR, fileName, jsonl);
     }
 
-    private async summarizeHistory(jsonl: string, logger: Logger): Promise<I> {
-        const summary = await this.llm.compact(jsonl, logger);
+    private async summarizeHistory(system: string, jsonl: string, logger: Logger): Promise<I> {
+        const summary = await this.llm.compact(system, jsonl, logger);
         this.historyCompactContext.count++;
         return this.llm.newInputMessage(`
 This conversation was compacted so the agent can continue working.
