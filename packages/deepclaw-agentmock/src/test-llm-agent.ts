@@ -1,4 +1,4 @@
-import { FlushAgent } from '@deepclaw/agent';
+import { FlushAgent } from '@deepclaw/core';
 
 export class TestLlmAgent extends FlushAgent {
 

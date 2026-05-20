@@ -1,6 +1,6 @@
 import { FileUtils, loadConfig } from '@deepclaw/utils';
 import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions.js";
-import { type SealedAgentStreamHandler } from '../../../core/flush-agent.js';
+import { type SealedAgentStreamHandler } from '@deepclaw/core';
 import { OneLoopContext } from '../../definitions/definitions.js';
 
 export type ToolUseServiceResult = {

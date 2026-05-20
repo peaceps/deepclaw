@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { i18nInstance } from '@deepclaw/i18n';
-import { FlushAgent, type AgentStreamHandler } from '../../../core/flush-agent.js';
+import { FlushAgent, type AgentStreamHandler } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
 import { FootPrint, LoopState, OneLoopContext} from '../../definitions/definitions.js';

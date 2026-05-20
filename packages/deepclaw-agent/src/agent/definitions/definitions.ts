@@ -1,6 +1,6 @@
 import type { Logger } from '@deepclaw/utils';
+import { type FlushAgent } from '@deepclaw/core';
 import { TodoManager } from '../loop/services/todo-manager.js';
-import { type FlushAgent } from '../../core/flush-agent.js';
 
 export type LoopState<I> = {
     messages: I[];

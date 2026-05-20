@@ -1,4 +1,4 @@
-import { AgentEvent } from '@deepclaw/agent';
+import { AgentEvent } from '@deepclaw/core';
 import { validateEnvFile, EnvConfig, writeEnvConfig, DeepclawConfig, validateAppConfig, writeAppConfig} from '@deepclaw/utils';
 import {useState, useEffect} from 'react';
 

@@ -12,7 +12,7 @@ import {
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { type AgentStreamHandler } from '../../core/flush-agent.js';
+import { type AgentStreamHandler } from '@deepclaw/core';
 
 export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
 

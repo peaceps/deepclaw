@@ -8,25 +8,27 @@
 		"node": ">=21"
 	},
     "bin": {
-        "deepclaw-tui": "./dist/cli.js"
+        "deepclaw-tui": "./bin/cli.js"
     },
 	"scripts": {
 		"build": "rollup -c",
 		"lint": "eslint **/*.{ts,tsx}",
 		"test": "vitest run",
-		"dev": "npx tsx src/main.tsx"
+		"dev": "npx tsx src/main.tsx",
+		"e2e": "npx tsx e2e/main.tsx"
 	},
 	"dependencies": {
+		"@deepclaw/core": "workspace:*",
 		"@deepclaw/agent": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
 		"@deepclaw/utils": "workspace:*",
 		"ink": "7.0.1",
-		"meow": "14.1.0",
 		"react": "19.2.5",
 		"react-i18next": "17.0.8",
 		"string-width": "8.2.1"
 	},
 	"devDependencies": {
+		"@deepclaw/agentmock": "workspace:*",
 		"@rollup/plugin-commonjs": "29.0.2",
 		"@types/react": "19.2.14",
 		"ink-testing-library": "4.0.0",

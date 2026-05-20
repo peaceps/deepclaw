@@ -35,6 +35,9 @@ importers:
       globals:
         specifier: 17.0.0
         version: 17.0.0
+      only-allow:
+        specifier: 1.2.2
+        version: 1.2.2
       rollup:
         specifier: 4.60.4
         version: 4.60.4
@@ -62,6 +65,9 @@ importers:
       '@deepclaw/agent':
         specifier: workspace:*
         version: link:../../packages/deepclaw-agent
+      '@deepclaw/core':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-core
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../../packages/deepclaw-i18n
@@ -71,9 +77,6 @@ importers:
       ink:
         specifier: 7.0.1
         version: 7.0.1(@types/react@19.2.14)(react-devtools-core@7.0.1)(react@19.2.5)
-      meow:
-        specifier: 14.1.0
-        version: 14.1.0
       react:
         specifier: 19.2.5
         version: 19.2.5
@@ -84,6 +87,9 @@ importers:
         specifier: 8.2.1
         version: 8.2.1
     devDependencies:
+      '@deepclaw/agentmock':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-agentmock
       '@rollup/plugin-commonjs':
         specifier: 29.0.2
         version: 29.0.2(rollup@4.60.4)
@@ -102,6 +108,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: 0.91.1
         version: 0.91.1(zod@4.4.3)
+      '@deepclaw/core':
+        specifier: workspace:*
+        version: link:../deepclaw-core
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../deepclaw-i18n
@@ -115,6 +124,14 @@ importers:
         specifier: 6.36.0
         version: 6.36.0(ws@8.20.1)(zod@4.4.3)
 
+  packages/deepclaw-agentmock:
+    dependencies:
+      '@deepclaw/core':
+        specifier: workspace:*
+        version: link:../deepclaw-core
+
+  packages/deepclaw-core: {}
+
   packages/deepclaw-i18n:
     dependencies:
       '@deepclaw/utils':
@@ -123,6 +140,18 @@ importers:
       i18next:
         specifier: 26.2.0
         version: 26.2.0(typescript@6.0.3)
+
+  packages/deepclaw-im:
+    dependencies:
+      '@deepclaw/agent':
+        specifier: workspace:*
+        version: link:../deepclaw-agent
+      '@deepclaw/i18n':
+        specifier: workspace:*
+        version: link:../deepclaw-i18n
+      '@deepclaw/utils':
+        specifier: workspace:*
+        version: link:../deepclaw-utils
 
   packages/deepclaw-utils:
     dependencies:
@@ -2031,10 +2060,6 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
-  meow@14.1.0:
-    resolution: {integrity: sha512-EDYo6VlmtnumlcBCbh1gLJ//9jvM/ndXHfVXIFrZVr6fGcwTUyCTFNTLCKuY3ffbK8L/+3Mzqnd58RojiZqHVw==}
-    engines: {node: '>=20'}
-
   merge-stream@2.0.0:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
 
@@ -2131,6 +2156,10 @@ packages:
   onetime@5.1.2:
     resolution: {integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==}
     engines: {node: '>=6'}
+
+  only-allow@1.2.2:
+    resolution: {integrity: sha512-uxyNYDsCh5YIJ780G7hC5OHjVUr9reHsbZNMM80L9tZlTpb3hUzb36KXgW4ZUGtJKQnGA3xegmWg1BxhWV0jJA==}
+    hasBin: true
 
   openai@6.36.0:
     resolution: {integrity: sha512-Has2YbIusMq9wQEierFsgf9c783dy1y9arX459LmphNacEkkM5yxi2RIyXP0LmkOroQyW19iTwALHL8Yf26UKA==}
@@ -2855,6 +2884,10 @@ packages:
   which-collection@1.0.2:
     resolution: {integrity: sha512-K4jVyjnBdgvc86Y6BkaLZEN933SwYOuBFkdmBu9ZfkcAbdVbpITnDmjvZ/aQjRXQrv5EPkTnD1s39GiiqbngCw==}
     engines: {node: '>= 0.4'}
+
+  which-pm-runs@1.1.0:
+    resolution: {integrity: sha512-n1brCuqClxfFfq/Rb0ICg9giSZqCS+pLtccdag6C2HyufBrh3fBOiy9nb6ggRMvWOVH5GrdJskj5iGTZNxd7SA==}
+    engines: {node: '>=4'}
 
   which-typed-array@1.1.20:
     resolution: {integrity: sha512-LYfpUkmqwl0h9A2HL09Mms427Q1RZWuOHsukfVcKRq9q95iQxdw0ix1JQrqbcDR9PH1QDwf5Qo8OZb5lksZ8Xg==}
@@ -4894,8 +4927,6 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  meow@14.1.0: {}
-
   merge-stream@2.0.0: {}
 
   mimic-fn@2.1.0: {}
@@ -4986,6 +5017,10 @@ snapshots:
   onetime@5.1.2:
     dependencies:
       mimic-fn: 2.1.0
+
+  only-allow@1.2.2:
+    dependencies:
+      which-pm-runs: 1.1.0
 
   openai@6.36.0(ws@8.20.1)(zod@4.4.3):
     optionalDependencies:
@@ -5774,6 +5809,8 @@ snapshots:
       is-set: 2.0.3
       is-weakmap: 2.0.2
       is-weakset: 2.0.4
+
+  which-pm-runs@1.1.0: {}
 
   which-typed-array@1.1.20:
     dependencies:

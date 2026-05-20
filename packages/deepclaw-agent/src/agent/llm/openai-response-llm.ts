@@ -11,7 +11,7 @@ import {
     ResponseFunctionToolCall,
     ResponseOutputMessage,
 } from "openai/resources/responses/responses.js";
-import { type AgentStreamHandler } from '../../core/flush-agent.js';
+import { type AgentStreamHandler } from '@deepclaw/core';
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
 

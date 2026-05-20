@@ -6,7 +6,7 @@ import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 import { OpenAIChatMessagesCompactor } from '../compactor/openai-chat-compactor.js';
 import { LLMConstructor } from '../../llm/llmgw.js';
-import { noopStreamHandler } from '../../../core/flush-agent.js';
+import { noopStreamHandler } from '@deepclaw/core';
 
 export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
 

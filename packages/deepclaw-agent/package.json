@@ -19,6 +19,7 @@
     },
 	"dependencies": {
 		"@anthropic-ai/sdk": "0.91.1",
+		"@deepclaw/core": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
 		"@deepclaw/utils": "workspace:*",
 		"gray-matter": "4.0.3",

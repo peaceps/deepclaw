@@ -9,7 +9,7 @@ import {
  } from 'openai/resources/chat/completions.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { type AgentStreamHandler } from '../../core/flush-agent.js';
+import { type AgentStreamHandler } from '@deepclaw/core';
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |

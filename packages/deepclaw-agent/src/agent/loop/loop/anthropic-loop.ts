@@ -6,7 +6,7 @@ import { ToolUseDef } from "../services/tool-use-service";
 import { MessagesCompactor } from "../compactor/messages-compactor.js";
 import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor.js";
 import { LLMConstructor } from '../../llm/llmgw';
-import { noopStreamHandler } from '../../../core/flush-agent.js';
+import { noopStreamHandler } from '@deepclaw/core';
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
 

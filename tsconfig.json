@@ -1,9 +1,12 @@
 {
     "files": [],
     "references": [
-      { "path": "./packages/deepclaw-agent" },
-      { "path": "./packages/deepclaw-utils" },
-      { "path": "./packages/deepclaw-i18n" },
-      { "path": "./apps/deepclaw-tui" }
+        { "path": "./packages/deepclaw-core" },
+        { "path": "./packages/deepclaw-im" },
+        { "path": "./packages/deepclaw-agent" },
+        { "path": "./packages/deepclaw-agentmock" },
+         { "path": "./packages/deepclaw-utils" },
+        { "path": "./packages/deepclaw-i18n" },
+        { "path": "./apps/deepclaw-tui" }
     ]
 }

@@ -1,5 +1,5 @@
 import {getEnvVariable, hasEnvVariable, loadConfig, type Logger} from '@deepclaw/utils';
-import { AgentStreamHandler, noopStreamHandler } from '../../core/flush-agent';
+import { AgentStreamHandler, noopStreamHandler } from '@deepclaw/core';
 import { LLMTool } from '../definitions/tool-definitions.js';
 
 const llmRetry = loadConfig<number>('agent.llmRetry');

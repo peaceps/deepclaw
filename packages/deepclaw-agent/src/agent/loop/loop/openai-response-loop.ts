@@ -6,7 +6,7 @@ import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
 import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor.js';
 import { LLMConstructor } from '../../llm/llmgw';
-import { noopStreamHandler } from '../../../core/flush-agent.js';
+import { noopStreamHandler } from '@deepclaw/core';
 
 export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
 

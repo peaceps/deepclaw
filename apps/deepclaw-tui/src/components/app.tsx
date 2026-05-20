@@ -1,7 +1,7 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent} from 'react';
 import { Box, Static, useApp } from 'ink';
 import { i18nInstance } from '@deepclaw/i18n';
-import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@deepclaw/agent';
+import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/utils';
 import {HistoryLine, type HistoryItem} from './history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from '../hooks/static-context.js';

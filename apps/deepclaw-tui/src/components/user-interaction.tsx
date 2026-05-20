@@ -3,7 +3,7 @@ import { Box} from 'ink';
 import {TextInput} from './input/text-input';
 import {ReadOnlyInput} from './input/readonly-input';
 import {SelectInput} from './input/select-input';
-import { AgentEvent } from '@deepclaw/agent';
+import { AgentEvent } from '@deepclaw/core';
 import { type TFunction } from '@deepclaw/i18n';
 import { useTranslation } from 'react-i18next';
 
