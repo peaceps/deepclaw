@@ -8,6 +8,6 @@ dist/
 .deepclaw.config.json
 .logs/
 **/tsconfig.tsbuildinfo
-
+.memory/
 .vitest/
 .rollup.cache/

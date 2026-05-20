@@ -43,10 +43,11 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         messages: ThinkingMessage[],
         streamHandler: AgentStreamHandler
     ): Promise<ThinkingResponse> {
-        if (messages.length === 1) {
-            messages.unshift({role: 'system', content: system});
+        const systemIdx = messages.findIndex(m => m.role === 'system');
+        if (systemIdx >= 0) {
+            (messages[systemIdx] as ChatCompletionSystemMessageParam).content = system;
         } else {
-            messages[0]!.content = system;
+            messages.unshift({role: 'system', content: system});
         }
         const stream = await this.client.chat.completions.create({
             model: this.gw.model,

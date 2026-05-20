@@ -18,6 +18,23 @@ export class FileUtils {
         return fs.readFileSync(absolutePath, 'utf8');
     }
 
+    public static readDir(dirPath: string, fileToRead?: ((fileName: string) => string)): {[key: string]: string} {
+        const files: {[key: string]: string} = {};
+        dirPath = this.getAbsolutePath(dirPath);
+        if (fs.existsSync(dirPath)) {
+            for (const fileName of fs.readdirSync(dirPath)) {
+                const filePath = fileToRead ? fileToRead(fileName) : fileName;
+                if (!filePath) continue;
+                try {
+                    files[filePath] = this.readFile(`${dirPath}/${filePath}`);
+                } catch (error) {
+                    continue;
+                }
+            }
+        }
+        return files;
+    }
+
     public static writeFile(filePath: string, content: string): void {
         const absolutePath = this.getAbsolutePath(filePath);
         this.ensureFolderExist(absolutePath);
@@ -30,6 +47,10 @@ export class FileUtils {
         this.ensureFolderExist(absolutePath);
         fs.writeFileSync(absolutePath, content, 'utf8');
         return fullPath;
+    }
+
+    public static sanitizeFileName(fileName: string): string {
+        return fileName.replace(/[\/\*?<>&|:'"\\%^@`~]/g, '_');
     }
 
     public static isPathInWorkspace(filePath: string): boolean {
