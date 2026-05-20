@@ -34,7 +34,7 @@ export function validateEnvFile(): Partial<EnvConfig> {
         config.model = getEnvVariable('MODEL_ID');
     }
     if (provider === 'openai' && hasEnvVariable('OPENAI_RESPONSE_API')) {
-        config.responseApi = getEnvVariable('OPENAI_RESPONSE_API').toLowerCase()
+        config.responseApi = getEnvVariable('OPENAI_RESPONSE_API');
     }
     return config;
 }
@@ -55,7 +55,7 @@ function writeResponseApi(config: EnvConfig): string {
     if (config.provider !== 'openai') {
         return '';
     }
-    return `OPENAI_RESPONSE_API=${config.responseApi?.toLocaleLowerCase() === 'true' ? 'TRUE' : 'FALSE'}`;
+    return `OPENAI_RESPONSE_API=${config.responseApi?.toLocaleLowerCase() === 'false' ? 'FALSE' : 'TRUE'}`;
 }
 
 export function hasEnvVariable(name: string): boolean {

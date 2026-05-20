@@ -79,7 +79,10 @@ But you can call tools to write files owned by the agent program itself, such as
     }
 
     private static availableSkills(): string {
-        return `Below available skills are not tools nor MCP tools, they cannot be used directly,
+        return `MCP server is not installed, do not use mcp_call.
+IMPORTANT: You can only use local function calls, no mcp_calls.
+
+Below available skills are not tools nor MCP tools, they cannot be used directly,
 load_skill tool is a local function to get the detailed information of skills.
 You always need to use load_skill tool with function_call first.
 
