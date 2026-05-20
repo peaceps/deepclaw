@@ -8,7 +8,7 @@ import '../agent/loop/hooks/hooks.js';
 export class LoopInitializer {
     public static getLoopClass(): FlushAgentConstructor {
         if (hasEnvVariable('OPENAI_BASE_URL')) {
-            return getEnvVariable('OPENAI_RESPONSE_API').toLowerCase() === 'true' ? OpenAIResponseLoop : OpenAIChatLoop;
+            return getEnvVariable('OPENAI_RESPONSE_API').toLowerCase() === 'false' ? OpenAIChatLoop : OpenAIResponseLoop;
         } else if (hasEnvVariable('ANTHROPIC_BASE_URL')) {
             return AnthropicLoop;
         } else {
