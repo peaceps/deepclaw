@@ -1,6 +1,16 @@
 import type { Logger } from '@deepclaw/utils';
 import { type FlushAgent } from '@deepclaw/core';
-import { TodoManager } from '../loop/services/todo-manager.js';
+
+export type TodoItem = {
+    content: string;
+    status: 'pending' | 'inProgress' | 'completed';
+    activeForm?: string;
+}
+
+export type FootPrint = {
+    type: string;
+    content: string;
+}
 
 export type LoopState<I> = {
     messages: I[];
@@ -8,15 +18,15 @@ export type LoopState<I> = {
 }
 
 export type OneLoopContext = {
-    todoManager: TodoManager;
     turnCount: number;
     transitionReason?: 'toolResult' | 'noToolUse';
-    footPrints: FootPrint[];
+    system: string;
     logger: Logger;
-    newSubLoop: (fork?: boolean) => FlushAgent;
-}
-
-export type FootPrint = {
-    type: string;
-    content: string;
+    actions: {
+        newSubLoop: (fork?: boolean) => FlushAgent;
+        remindTodoIfNeeded: () => void;
+        updateTodo: (items: TodoItem[]) => string;
+        addFootPrint: (footPrint: FootPrint) => void;
+        compactIfNeeded: () => Promise<void>;
+    }
 }

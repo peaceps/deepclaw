@@ -42,7 +42,7 @@ const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentEvent} = {
 };
 
 const APP_CONFIG_EVENTS: {[key: string]: AgentEvent} = {
-    language: {
+    ['ui.lang']: {
         key: 'lang',
         type: 'select',
         content: 'config.app.lang.prompt',
@@ -51,7 +51,7 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentEvent} = {
             {label: 'config.app.lang.options.en', value: 'en'},
         ],
     },
-    agentMode: {
+    ['agent.mode']: {
         type: 'select',
         content: 'config.app.agentMode.prompt',
         options: [
@@ -59,6 +59,30 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentEvent} = {
             {label: 'config.app.agentMode.options.plan', value: 'plan'},
             {label: 'config.app.agentMode.options.chat', value: 'chat'},
         ],
+    },
+    ['agent.headlessEnabled']: {
+        type: 'select',
+        content: 'config.app.headless.prompt',
+        options: [
+            {label: 'common.yes', value: 'true'},
+            {label: 'common.no', value: 'false'},
+        ],
+    },
+    ['im.engine']: {
+        type: 'select',
+        content: 'config.app.im.engine.prompt',
+        options: [
+            {label: 'config.app.im.engine.options.dingtalk', value: 'dingtalk'},
+            {label: 'config.app.im.engine.options.feishu', value: 'feishu'},
+        ],
+    },
+    ['im.appId']: {
+        type: 'input',
+        content: 'config.app.im.appId'
+    },
+    ['im.secret']: {
+        type: 'input',
+        content: 'config.app.im.secret'
     }
 };
 
@@ -71,44 +95,60 @@ async function ensureConfig(
     setConfigReady: React.Dispatch<React.SetStateAction<boolean>>,
     handleAgentEvent: (event: AgentEvent) => Promise<string>,
 ) {
-    await ensureAppConfig(handleAgentEvent);
-    await ensureEnvConfig(handleAgentEvent);
+    const appConfig = validateAppConfig(false);
+    const envConfig = validateEnvFile();
+    if (appConfig.lacks.length > 0 || envConfig.lacks.length > 0) {
+        await handleAgentEvent(HINT);
+        if (appConfig.lacks.length > 0) {
+            await ensureAppConfig(appConfig, handleAgentEvent);
+        }
+        if (envConfig.lacks.length > 0) {
+            await ensureEnvConfig(envConfig, handleAgentEvent);
+        }
+    }
     setConfigReady(true);
 }
 
 async function ensureAppConfig(
+    {config, lacks}: {config: DeepclawConfig, lacks: string[]},
     handleAgentEvent: (event: AgentEvent) => Promise<string>,
 ) {
-    const currentConfig: DeepclawConfig = validateAppConfig();
-    const noLang = !currentConfig.ui.lang;
-    if (noLang) {
-        const answer = await handleAgentEvent(APP_CONFIG_EVENTS['language']!);
-        currentConfig.ui.lang = answer;
+    for (const lack of lacks) {
+        const event = APP_CONFIG_EVENTS[lack]!;
+        const answer = await handleAgentEvent(event);
+        setConfigValue(config, lack, answer);
     }
-    if (!currentConfig.agent.mode) {
-        const answer = await handleAgentEvent(APP_CONFIG_EVENTS['agentMode']!);
-        currentConfig.agent.mode = answer as 'agent' | 'plan' | 'chat';
+    if (config.agent.headlessEnabled === 'true') {
+        config.agent.im = {engine: 'dingtalk', appId: '', secret: ''};
+        for (const key of ['engine', 'appId', 'secret']) {
+            const event = APP_CONFIG_EVENTS[`im.${key}`]!;
+            const answer = await handleAgentEvent(event);
+            setConfigValue(config.agent.im, key, answer);
+        }
     }
-    writeAppConfig(currentConfig);
+    writeAppConfig(config);
+}
+
+function setConfigValue(target: any, path: string, value: any) {
+    const keys = path.split('.');
+    let current = target;
+    for (let i = 0; i < keys.length; i++) {
+        if (i === keys.length - 1) {
+            current[keys[i]!] = value;
+        } else {
+            current = current[keys[i]!];
+        }
+    }
 }
 
 async function ensureEnvConfig(
+    {config, lacks}: {config: Partial<EnvConfig>, lacks: (keyof EnvConfig)[]},
     handleAgentEvent: (event: AgentEvent) => Promise<string>
 ): Promise<void> {
-    const currentConfig = validateEnvFile();
-    const keys: (keyof EnvConfig)[] = ['provider', 'baseUrl', 'apiKey', 'model'];
-    const lacks = keys.filter(key => !(key in currentConfig))
-    if (lacks.length === 0) {
-        return;
-    }
-    await handleAgentEvent(HINT);
     for (const lack of lacks) {
         const event = ENV_CONFIG_EVENTS[lack]!;
         const answer = await handleAgentEvent(event);
-        currentConfig[lack] = answer;
+        config[lack] = answer;
     }
-    if (currentConfig.provider === 'openai' && !('responseApi' in currentConfig)) {
-        currentConfig.responseApi = await handleAgentEvent(ENV_CONFIG_EVENTS.responseApi!)
-    }
-    writeEnvConfig(currentConfig as EnvConfig);
+    writeEnvConfig(config as EnvConfig);
 }

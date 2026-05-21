@@ -1,0 +1,28 @@
+{
+	"name": "@deepclaw/launcher",
+	"version": "0.0.1",
+	"packageManager": "pnpm@10.33.0",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=21"
+	},
+    "bin": {
+        "deepclaw": "./bin/cli.js"
+    },
+	"scripts": {
+		"build": "rollup -c",
+		"lint": "eslint **/*.{ts,tsx}",
+		"test": "vitest run",
+		"dev": "npx tsx src/main.ts"
+	},
+	"dependencies": {
+		"@deepclaw/tui": "workspace:*",
+		"@deepclaw/agent": "workspace:*",
+		"@deepclaw/im": "workspace:*",
+		"@deepclaw/utils": "workspace:*",
+        "meow": "14.1.0"
+	},
+	"devDependencies": {
+	}
+}

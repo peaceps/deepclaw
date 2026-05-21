@@ -8,6 +8,7 @@ type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject};
 
 export type DeepclawConfig = {
     agent: {
+        headlessEnabled?: string;
         im?: {
             engine: 'dingtalk' | 'feishu';
             appId: string;
@@ -87,15 +88,34 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
     return target;
 }
 
-export function validateAppConfig(): DeepclawConfig {
+export function validateAppConfig(headless: boolean): {config: DeepclawConfig, lacks: string[]} {
+    const lacks: string[] = [];
     const cloned: DeepclawConfig = mergeAbsence({}, deepclawConfig) as DeepclawConfig;
-    if (cloned.agent.mode && !['agent', 'plan', 'chat'].includes(cloned.agent.mode)) {
-        cloned.agent.mode = undefined;
-    }
     if (cloned.ui.lang && !['en', 'zh'].includes(cloned.ui.lang)) {
         cloned.ui.lang = undefined;
     }
-    return cloned;
+    if (!cloned.ui.lang) {
+        lacks.push('ui.lang');
+    }
+    if (cloned.agent.mode && !['agent', 'plan', 'chat'].includes(cloned.agent.mode)) {
+        cloned.agent.mode = undefined;
+    }
+    if (!cloned.agent.mode) {
+        lacks.push('agent.mode');
+    }
+    if (cloned.agent.headlessEnabled && !['true', 'false'].includes(cloned.agent.headlessEnabled)) {
+        cloned.agent.headlessEnabled = undefined;
+    }
+    if (!cloned.agent.headlessEnabled) {
+        lacks.push('agent.headlessEnabled');
+    }
+    if (cloned.agent.im && cloned.agent.im.engine && !['dingtalk', 'feishu'].includes(cloned.agent.im.engine)) {
+        cloned.agent.im = undefined;
+    }
+    if (headless && !cloned.agent.im) {
+        lacks.push('agent.im');
+    }
+    return {config: cloned, lacks};
 }
 
 export function writeAppConfig(config: DeepclawConfig) {

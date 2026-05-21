@@ -21,7 +21,7 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
     parallelSafe: true,
     exclusiveInSubLoop: true,
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
-        const subLoop = context.newSubLoop(false);
+        const subLoop = context.actions.newSubLoop(false);
         const result = await subLoop.invoke(input.prompt);
         return result;
     },
@@ -45,7 +45,7 @@ export const subLoopWithHistoryTool: ToolDesc<SubLoopInput> = {
     parallelSafe: true,
     exclusiveInSubLoop: true,
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
-        const subLoop = context.newSubLoop(true);
+        const subLoop = context.actions.newSubLoop(true);
         const result = await subLoop.invoke(input.prompt);
         return result;
     },

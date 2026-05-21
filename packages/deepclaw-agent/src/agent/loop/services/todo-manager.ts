@@ -1,10 +1,5 @@
 import { i18nInstance } from '@deepclaw/i18n';
-
-export type TodoItem = {
-    content: string;
-    status: 'pending' | 'inProgress' | 'completed';
-    activeForm?: string;
-}
+import { TodoItem } from '../../definitions/definitions.js';
 
 const MARKERS = {
     pending: '[ ]',
@@ -56,12 +51,12 @@ export class TodoManager {
             return line;
         });
         const completed = this.items.filter(item => item.status === 'completed').length;
-        lines.push(`(${completed}/${this.items.length} completed)`);
+        lines.push(i18nInstance.t('agent.tools.todo.completed', {completed, total: this.items.length}));
         const steps = lines.join('\n');
         return i18nInstance.t('agent.tools.todo.current', {steps});
     }
 
-    onTurnFinished(): void {
+    remindIfNeeded(): void {
         if (this.items.length > 0) {
             this.roundsSinceUpdate++;
             if (this.roundsSinceUpdate >= this.threshold) {

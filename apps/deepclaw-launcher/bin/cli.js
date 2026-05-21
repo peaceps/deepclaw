@@ -12,10 +12,10 @@ if (!fs.existsSync(deepclawHome)) {
 process.chdir(deepclawHome);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const entry = path.join(__dirname, '..', 'dist', 'cli.js');
+const entry = path.join(__dirname, '..', 'dist', 'deepclaw.js');
 if (!fs.existsSync(entry)) {
     console.error(
-        `deepclaw-tui: missing ${entry}. Build the package first (e.g. pnpm --filter @deepclaw/tui build).`
+        `deepclaw-launcher: missing ${entry}. Build the package first (e.g. pnpm --filter @deepclaw/launcher build).`
     );
     process.exit(1);
 }

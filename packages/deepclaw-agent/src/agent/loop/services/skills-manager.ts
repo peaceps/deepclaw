@@ -15,14 +15,7 @@ const SKILL_DIR = 'skills';
 
 export class SkillsManager {
     private static skills: Map<string, SkillDocument> = this.loadSkills();
-
-    public static getAvailableSkills(): string {
-        if (this.skills.size === 0) {
-            return '(no skills available)';
-        }
-        return Array.from(this.skills.values()).map(skill => skill.manifest)
-            .reduce((acc, skill) => acc + `- ${skill.name}: ${skill.description}\n`, '');
-    }
+    private static skillPrompt: string = this.generateSkillPrompt();
 
     public static getSkillContent(skillName: string): string {
         const skillDocument = this.skills.get(skillName);
@@ -58,5 +51,29 @@ export class SkillsManager {
             },
             body: content,
         };
+    }
+
+    public static getSkillPrompt(): string {
+        return this.skillPrompt;
+    }
+
+    private static generateSkillPrompt(): string {
+        return `MCP server is not installed, do not use mcp_call.
+IMPORTANT: You can only use local function calls, no mcp_calls.
+
+Below available skills are not tools nor MCP tools, they cannot be used directly,
+load_skill tool is a local function to get the detailed information of skills.
+You always need to use load_skill tool with function_call first.
+
+Skills available:
+${SkillsManager.getAvailableSkills()}`
+    }
+
+    private static getAvailableSkills(): string {
+        if (this.skills.size === 0) {
+            return '(no skills available)';
+        }
+        return Array.from(this.skills.values()).map(skill => skill.manifest)
+            .reduce((acc, skill) => acc + `- ${skill.name}: ${skill.description}\n`, '');
     }
 }

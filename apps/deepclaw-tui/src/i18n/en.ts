@@ -1,8 +1,10 @@
 export const en = {
-    bye: 'Bye!',
     common: {
+        bye: 'Bye!',
         error: 'Error: ',
         unexpected: 'Unexpected error.',
+        yes: 'Yes',
+        no: 'No',
     },
     banner: {
         prefix: 'What can I do for you? Press',
@@ -10,6 +12,20 @@ export const en = {
     },
     config: {
         app: {
+            headless: {
+                prompt: 'Will you use the headless mode with an IM service?',
+            },
+            im: {
+                engine: {
+                    prompt: 'Which IM service will be used?',
+                    options: {
+                        dingtalk: 'DingTalk',
+                        feishu: 'Feishu',
+                    },
+                },
+                appId: 'Please enter the App ID:',
+                secret: 'Please enter the Secret:',
+            },
             lang: {
                 prompt: 'Choose your language:',
                 options: {
@@ -27,7 +43,7 @@ export const en = {
             },
         },
         env: {
-            hint: 'Your env config seems to be incomplete, Deepclaw will lead you to finish the env config, press enter to continue...',
+            hint: 'Your config seems to be incomplete, Deepclaw will lead you to finish the config step by step, press enter to continue...',
             provider: {
                 prompt: 'Which LLM provider will be used?',
                 options: {

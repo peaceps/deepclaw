@@ -33,6 +33,7 @@ type Memory = {
 
 export class MemoryManager {
     private static memories: Map<string, Map<string, Memory>> = this.loadMemories();
+    private static memoryPrompt: string = this.generateMemoryPrompt();
 
     public static loadMemories(): Map<string, Map<string, Memory>> {
         const memories: Map<string, Map<string, Memory>> = new Map();
@@ -62,7 +63,7 @@ export class MemoryManager {
         return memories;
     }
 
-    public static getMemoryPrompt(): string {
+    private static generateMemoryPrompt(): string {
         let prompt = `${MEMORY_PROMPT}\n\n`;
         prompt += '# Memories (persistent across sessions)\n\n';
         if (this.memories.size === 0) {
@@ -78,6 +79,10 @@ export class MemoryManager {
             ).join('\n');
         }
         return prompt;
+    }
+
+    public static getMemoryPrompt(): string {
+        return this.memoryPrompt;
     }
 
     public static addMemory(memory: Omit<Memory, 'datetime'>): void {
@@ -101,6 +106,7 @@ export class MemoryManager {
         });
         FileUtils.writeFile(`${MEMORY_DIR}/${sanitizeFileName}.md`, md);
         this.rewriteIndex();
+        this.memoryPrompt = this.generateMemoryPrompt();
     }
 
     private static rewriteIndex(): void {

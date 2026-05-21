@@ -1,35 +1,26 @@
 import typescript from "@rollup/plugin-typescript";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
-import commonjs from "@rollup/plugin-commonjs";
 
 export default {
-  input: "src/main.tsx",
+  input: "src/main.ts",
 
   output: {
-    file: "dist/main.js",
+    file: "dist/deepclaw.js",
     format: "esm",
-
-    banner: "#!/usr/bin/env node"
   },
 
   external: [
     /^node:/,
     '@deepclaw/agent',
-    '@deepclaw/utils',
-    '@deepclaw/i18n',
-    '@deepclaw/core',
-    'ink',
-    'react',
-    'react-i18next',
-    'react/jsx-runtime',
-    'string-width',
+    '@deepclaw/im',
+    '@deepclaw/tui',
+    'meow',
   ],
 
   plugins: [
     nodeResolve({
       preferBuiltins: true
     }),
-    commonjs(),
     typescript()
   ]
 };

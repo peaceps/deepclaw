@@ -3,7 +3,7 @@ import { i18nInstance } from '@deepclaw/i18n';
 import { FlushAgent, type AgentStreamHandler } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
-import { FootPrint, LoopState, OneLoopContext} from '../../definitions/definitions.js';
+import { FootPrint, LoopState, OneLoopContext, TodoItem} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
@@ -54,14 +54,20 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
+        const todoManager = new TodoManager(this.addStringMessage.bind(this));
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
-                todoManager: new TodoManager(this.addStringMessage.bind(this)),
                 turnCount: 0,
-                footPrints: this.footPrints,
+                system: '',
                 logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
-                newSubLoop: this.createSubLoop.bind(this)
+                actions: {
+                    newSubLoop: this.createSubLoop.bind(this),
+                    remindTodoIfNeeded: () => todoManager.remindIfNeeded(),
+                    updateTodo: (items: TodoItem[]) => todoManager.update(items),
+                    addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
+                    compactIfNeeded: () => this.compactIfNeeded(state.oneLoopContext),
+                }
             },
         };
         try {
@@ -84,20 +90,23 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
                 this.streamHandler.onText(finalText);
                 return finalText;
             }
-            this.messagesCompactor.compactOldResults(this.history);
-            const system = PromptService.provideSystemPrompt(this.isSubLoop());
-            await this.messagesCompactor.compactFullHistory(system, this.history, state.oneLoopContext.logger);
-            const goAround = await this.runOneTurn(system, state);
+            state.oneLoopContext.system = PromptService.provideSystemPrompt(this.isSubLoop());
+            const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 return this.extractFinalText(state);
             }
         }
     }
 
-    private async runOneTurn(system: string, state: LoopState<I>): Promise<boolean> {
+    private async compactIfNeeded(context: OneLoopContext): Promise<void> {
+        this.messagesCompactor.compactOldResults(this.history);
+        await this.messagesCompactor.compactFullHistory(context.system, this.history, context.logger);
+    }
+
+    private async runOneTurn(state: LoopState<I>): Promise<boolean> {
         await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
         const response = await this.llm.invoke(
-            system,
+            state.oneLoopContext.system,
             state.messages,
             this.streamHandler,
             state.oneLoopContext.logger

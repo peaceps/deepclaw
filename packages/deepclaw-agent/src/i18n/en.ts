@@ -33,7 +33,8 @@ export const en = {
             },
             todo: {
                 empty: 'No steps.',
-                current: 'Current step:\n{{steps}}\n',
+                current: '\nCurrent step:\n{{steps}}\n',
+                completed: '({{completed}}/{{total}} completed)',
             },
         },
     },

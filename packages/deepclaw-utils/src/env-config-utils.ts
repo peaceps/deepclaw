@@ -15,28 +15,46 @@ export type EnvConfig = {
     responseApi?: string;
 }
 
-export function validateEnvFile(): Partial<EnvConfig> {
+export function validateEnvFile(): {
+    config: Partial<EnvConfig>,
+    lacks: (keyof EnvConfig)[]
+} {
     const config: Partial<EnvConfig> = {};
+    const lacks: (keyof EnvConfig)[] = [];
 
     const provider = (hasEnvVariable('OPENAI_API_KEY') || hasEnvVariable('OPENAI_BASE_URL')) ? 'openai'
     : ((hasEnvVariable('ANTHROPIC_API_KEY') || hasEnvVariable('ANTHROPIC_BASE_URL')) ? 'anthropic' : undefined);
 
     if (provider) {
        config.provider = provider;
+    } else {
+        lacks.push('provider');
     }
     if (hasEnvVariable('OPENAI_BASE_URL') || hasEnvVariable('ANTHROPIC_BASE_URL')) {
         config.baseUrl = getEnvVariable('OPENAI_BASE_URL') ?? getEnvVariable('ANTHROPIC_BASE_URL');
+    } else {
+        lacks.push('baseUrl');
     }
     if (hasEnvVariable('OPENAI_API_KEY') || hasEnvVariable('ANTHROPIC_API_KEY')) {
         config.apiKey = getEnvVariable('OPENAI_API_KEY') ?? getEnvVariable('ANTHROPIC_API_KEY');
+    } else {
+        lacks.push('apiKey');
     }
     if (hasEnvVariable('MODEL_ID')) {
         config.model = getEnvVariable('MODEL_ID');
+    } else {
+        lacks.push('model');
     }
     if (provider === 'openai' && hasEnvVariable('OPENAI_RESPONSE_API')) {
-        config.responseApi = getEnvVariable('OPENAI_RESPONSE_API');
+        if (!['true', 'false'].includes(
+            getEnvVariable('OPENAI_RESPONSE_API')?.toLocaleLowerCase()
+        )) {
+            config.responseApi = undefined;
+        } else {
+            config.responseApi = getEnvVariable('OPENAI_RESPONSE_API');
+        }
     }
-    return config;
+    return { config, lacks };
 }
 
 export function writeEnvConfig(config: EnvConfig) {

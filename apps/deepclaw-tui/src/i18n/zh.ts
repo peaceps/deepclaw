@@ -1,8 +1,10 @@
 export const zh = {
-    bye: '再见！',
     common: {
+        bye: '再见！',
         error: '出错了：',
         unexpected: '发生未知错误。',
+        yes: '是',
+        no: '否',
     },
     banner: {
         prefix: '有什么可以效劳？按下',
@@ -10,6 +12,20 @@ export const zh = {
     },
     config: {
         app: {
+            headless: {
+                prompt: '是否使用headless模式并接入即时通讯软件？',
+            },
+            im: {
+                engine: {
+                    prompt: '选择通讯工具:',
+                    options: {
+                        dingtalk: '钉钉',
+                        feishu: '飞书',
+                    },
+                },
+                appId: '请输入App ID:',
+                secret: '请输入Secret:',
+            },
             lang: {
                 prompt: '选择您的语言:',
                 options: {
@@ -27,7 +43,7 @@ export const zh = {
             },
         },
         env: {
-            hint: '您的环境配置不完整，Deepclaw将引导您完成配置，按回车继续...',
+            hint: '您的程序配置不完整，Deepclaw将引导您初始化程序配置，按回车继续...',
             provider: {
                 prompt: '请选择您的LLM接口类型：',
                 options: {

@@ -33,7 +33,8 @@ export const zh = {
             },
             todo: {
                 empty: '没有待办项。',
-                current: '当前进度：\n{{steps}}\n',
+                current: '\n当前进度：\n{{steps}}\n',
+                completed: '{{completed}}/{{total}} 已完成\n',
             },
         },
     },
