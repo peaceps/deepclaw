@@ -20,6 +20,7 @@
 	"dependencies": {
 		"@deepclaw/core": "workspace:*",
 		"@deepclaw/agent": "workspace:*",
+		"@deepclaw/im": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
 		"@deepclaw/utils": "workspace:*",
 		"ink": "7.0.1",

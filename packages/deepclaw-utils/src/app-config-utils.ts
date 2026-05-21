@@ -8,6 +8,11 @@ type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject};
 
 export type DeepclawConfig = {
     agent: {
+        im?: {
+            engine: 'dingtalk' | 'feishu';
+            appId: string;
+            secret: string;
+        },
         mode?: 'agent' | 'plan' | 'chat';
         toolResult: {
             truncate: {
@@ -98,11 +103,11 @@ export function writeAppConfig(config: DeepclawConfig) {
     deepclawConfig = loadAppConfig();
 }
 
-export function loadConfig<T>(key: string): T {
+export function loadConfig<T>(key: string, defaultValue?: T): T {
     const keyPath = key.split('.');
     let value: any = deepclawConfig;
     for (const key of keyPath) {
         value = value?.[key as keyof typeof value];
     }
-    return value as T;
+    return (value ?? defaultValue) as T;
 }

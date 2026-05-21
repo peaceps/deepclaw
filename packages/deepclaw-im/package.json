@@ -7,21 +7,19 @@
 	"engines": {
 		"node": ">=21"
 	},
-    "exports": {
-      ".": {
-        "import": "./src/index.ts"
-      }
-    },
+	"exports": {
+		".": {
+			"import": "./src/index.ts"
+		}
+	},
 	"scripts": {
 		"build": "rollup -c",
 		"lint": "eslint **/*.{ts,tsx}",
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@deepclaw/agent": "workspace:*",
-		"@deepclaw/i18n": "workspace:*",
-		"@deepclaw/utils": "workspace:*"
-	},
-	"devDependencies": {
+		"@deepclaw/core": "workspace:*",
+		"@deepclaw/utils": "workspace:*",
+		"dingtalk-stream": "2.1.5"
 	}
 }

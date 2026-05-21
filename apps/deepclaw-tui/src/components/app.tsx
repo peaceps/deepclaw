@@ -9,6 +9,7 @@ import {UserChat} from './user-chat.js';
 import {LlmOutput} from './llm-output.js';
 import { UserInteraction } from './user-interaction.js';
 import { useConfig } from '../hooks/use-config.js';
+import { connectIM } from '@deepclaw/im';
 
 export type AppConfig = {
     getAgentClass: () => FlushAgentConstructor;
@@ -78,7 +79,10 @@ export function App({app}: {app: AppConfig}): ReactElement {
                 onText: handleLlmStreamText, 
                 onEvent: handleAgentEvent
             });
+            const {disconnect} = connectIM(agent);
+            return disconnect;
         }
+        return () => {};
 	}, [app, handleAgentEvent, envConfigReady]);
 
 	return (

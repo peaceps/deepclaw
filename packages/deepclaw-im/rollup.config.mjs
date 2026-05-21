@@ -12,9 +12,8 @@ export default {
   external: [
     /^node:/,
     '@deepclaw/core',
-    '@deepclaw/agent',
     '@deepclaw/utils',
-    '@deepclaw/i18n'
+    'dingtalk-stream'
   ],
 
   plugins: [
