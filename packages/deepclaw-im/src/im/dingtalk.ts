@@ -2,23 +2,32 @@ import {DWClient, DWClientDownStream, EventAck, TOPIC_ROBOT} from 'dingtalk-stre
 import { IM } from '../im-definitions';
 import { FlushAgent } from '@deepclaw/core';
 
-const onBotMessage = (agent: FlushAgent) => async (event: DWClientDownStream) => {
-    let message = JSON.parse(event.data);
-    let content = (message?.text?.content || '').trim();
-    let webhook = message?.sessionWebhook || '';
+const onBotMessage = (client: DWClient, agent: FlushAgent) => async (event: DWClientDownStream) => {
 
-    const response = await agent.invoke(content);
-    void fetch(webhook, {
+    try {
+        client.socketCallBackResponse(event.headers.messageId, {status: EventAck.SUCCESS, message: 'OK'});
+
+        const message = JSON.parse(event.data);
+        const content = (message?.text?.content || '').trim();
+        sendMessage(message, '请稍侯');
+        agent.invoke(content).then(res => {
+            sendMessage(message, res);
+        });
+    } catch(e) {
+        console.error('simply ignore', e);
+    }
+}
+
+function sendMessage(message: any, content: string) {
+    void fetch(message?.sessionWebhook || '', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             msgtype: 'text',
-            text: {content: response},
+            text: {content},
             at: {atUserIds: [message?.senderStaffId || '']}
         })
     });
-
-    return {status: EventAck.SUCCESS, message: 'OK'}; // message 属性可以是任意字符串；
 }
 
 function connect(appId: string, secret: string, agent: FlushAgent): { disconnect: () => void } {
@@ -26,7 +35,7 @@ function connect(appId: string, secret: string, agent: FlushAgent): { disconnect
       clientId: appId,
       clientSecret: secret,
     });
-    client.registerCallbackListener(TOPIC_ROBOT, onBotMessage(agent)).connect();
+    client.registerCallbackListener(TOPIC_ROBOT, onBotMessage(client, agent)).connect();
     return {
         disconnect: () => client.disconnect()
     };
