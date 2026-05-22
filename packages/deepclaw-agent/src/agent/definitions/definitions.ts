@@ -12,7 +12,7 @@ export type FootPrint = {
     content: string;
 }
 
-export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'refused' | 'error';
+export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens' | 'refused' | 'error';
 
 export type LoopState<I> = {
     messages: I[];

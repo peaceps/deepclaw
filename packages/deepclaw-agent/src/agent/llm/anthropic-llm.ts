@@ -62,6 +62,10 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
         return this.setTransitionReason(response as unknown as ThinkingResponse);
     }
 
+    protected override isInputExceedLimit(error: any): boolean {
+        return error.status === 400 && error.type === 'invalid_request_error' && error.message.toLowerCase().includes('large');
+    }
+
     protected override newResponse(content: string, transitionReason: TransitionReason = 'endLoop'): ThinkingResponse {
         return {
             transitionReason,

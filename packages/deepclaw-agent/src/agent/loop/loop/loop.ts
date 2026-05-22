@@ -130,6 +130,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 const results = await this.runTools(toolUseDefs, state.oneLoopContext);
                 this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
                 break;
+            case 'inputMaxTokens':
+                await this.compactIfNeeded(state.oneLoopContext);
+                break;
             case 'maxTokens':
                 state.oneLoopContext.recoveryState.maxTokenRetries++;
                 if (state.oneLoopContext.recoveryState.maxTokenRetries >= this.maxTokenRetries) {

@@ -61,11 +61,16 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         const summary = await this.llm.compact(system, jsonl, logger);
         this.historyCompactContext.count++;
         return this.llm.newInputMessage(`
+This session continues from a previous conversation that was compacted.
 This conversation was compacted so the agent can continue working.
+Summary of prior context:
 
 ${summary}
 
-${this.getFootPrintsText()}`);
+The action trace of the conversation:
+${this.getFootPrintsText()}
+
+Continue from where we left off without re-asking the user.`);
     }
 
     private getFootPrintsText(): string {

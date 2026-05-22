@@ -129,6 +129,10 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         }
     }
 
+    protected override isInputExceedLimit(error: any): boolean {
+        return error.status === 400 && error.error.type === 'invalid_request_error' && error.error.code === 'context_length_exceeded';
+    }
+
     protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {
         const functionCalls = response.output.filter(out => out.type === 'function_call' as const);
         if (functionCalls.length > 0) {

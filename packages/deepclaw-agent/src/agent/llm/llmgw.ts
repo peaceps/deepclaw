@@ -38,10 +38,14 @@ export abstract class LLMModel<I, O, T, LLM> {
                 break;
             } catch (error) {
                 logger.error(error, 'LLM invoke failed');
-                const unrecoverableError = this.isUnrecoverableError(error);
-                if (unrecoverableError) {
-                    response = this.newResponse(`ERROR: Unrecoverable error: ${unrecoverableError}.`, 'error');
-                    break;
+                if (this.isInputExceedLimit(error)) {
+                    response = this.newResponse('Input token exceeds the limit.', 'inputMaxTokens');
+                } else {
+                    const unrecoverableError = this.isUnrecoverableError(error);
+                    if (unrecoverableError) {
+                        response = this.newResponse(`ERROR: Unrecoverable error: ${unrecoverableError}.`, 'error');
+                        break;
+                    }
                 }
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
@@ -53,15 +57,17 @@ export abstract class LLMModel<I, O, T, LLM> {
         return response;
     }
 
+    protected abstract _invoke(system: string, messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
+
+    protected abstract isInputExceedLimit(error: any): boolean;
+
     private isUnrecoverableError(error: any): string {
         const code = error?.status;
-        if (code === 429 || code === 403 || code === 401 || code === 404) {
+        if (code === 400 || code === 429 || code === 403 || code === 401 || code === 404) {
             return error?.message ?? code.toString();
         }
         return '';
     }
-
-    protected abstract _invoke(system: string, messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
 
     public async compact(system: string, content: string, logger: Logger): Promise<string> {
         const prompt =

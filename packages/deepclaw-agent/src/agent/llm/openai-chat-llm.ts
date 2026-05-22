@@ -155,6 +155,10 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         return thinkingResponse;
     }
 
+    protected override isInputExceedLimit(error: any): boolean {
+        return error.status === 400 && error.error.type === 'invalid_request_error' && error.error.code === 'context_length_exceeded';
+    }
+
     protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {
         const delta = response.delta;
         return [{
