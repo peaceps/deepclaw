@@ -5,6 +5,7 @@ function withCleanup(onShutdown: () => void): (signal: string, code?: number) =>
         if (isShuttingDown) return;
         isShuttingDown = true;
     
+        // TODO: 记录日志优化
         console.info('exit:', signal);
         try {
             onShutdown();

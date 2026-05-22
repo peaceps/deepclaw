@@ -15,21 +15,6 @@ export type DeepclawConfig = {
             secret: string;
         },
         mode?: 'agent' | 'plan' | 'chat';
-        toolResult: {
-            truncate: {
-                lengthThreshold: number;
-                previewLength: number;
-            },
-            removeLegacy: {
-                maxRecent: number;
-                lengthThreshold: number;
-            }
-        },
-        history: {
-            compactThreshold: number;
-        },
-        loopTurnLimit: number;
-        llmRetry: number;
         identityFile: string;
     },
     ui: {
@@ -41,21 +26,6 @@ export const DEFAULT_LANG = 'en';
 
 const defaultConfig: DeepclawConfig = {
     agent: {
-        toolResult: {
-            truncate: {
-                lengthThreshold: 20000,
-                previewLength: 1000
-            },
-            removeLegacy: {
-                maxRecent: 1,
-                lengthThreshold: 120
-            }
-        },
-        history: {
-            compactThreshold: 200000,
-        },
-        loopTurnLimit: 100,
-        llmRetry: 3,
         identityFile: 'DEEPCLAW.md'
     },
     ui: {

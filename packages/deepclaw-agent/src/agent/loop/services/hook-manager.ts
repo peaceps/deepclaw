@@ -7,6 +7,7 @@ type VisitorHook =
     'preLoopStart' |
     'postLoopEnd' |
     'preTurnStart' |
+    'turnError' |
     'postTurnEnd' |
     'preEachToolUse' |
     'postEachToolUse';

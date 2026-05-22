@@ -3,18 +3,19 @@ import { i18nInstance } from '@deepclaw/i18n';
 import { FlushAgent, type AgentStreamHandler } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { TodoManager } from '../services/todo-manager.js';
-import { FootPrint, LoopState, OneLoopContext, TodoItem} from '../../definitions/definitions.js';
+import { FootPrint, LoopState, OneLoopContext, TodoItem, TransitionReason} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw.js';
 import { MessagesCompactor } from '../compactor/messages-compactor.js';
-import { loadConfig, DeepclawConfig, getLogger } from '@deepclaw/utils';
+import { getLogger } from '@deepclaw/utils';
 import { HookManager } from '../services/hook-manager.js';
 
-export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
+export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
-    private turnLimit: number = loadConfig<DeepclawConfig['agent']['loopTurnLimit']>('agent.loopTurnLimit');
+    private turnLimit: number = 100;
+    private maxTokenRetries: number = 3;
     protected parentSessionId: string;
     private sessionId: string;
     protected history: I[] = [];
@@ -61,6 +62,10 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
                 turnCount: 0,
                 system: '',
                 logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
+                recoveryState: {
+                    maxTokenRetries: 0,
+                    refusalState: '',
+                },
                 actions: {
                     newSubLoop: this.createSubLoop.bind(this),
                     remindTodoIfNeeded: () => todoManager.remindIfNeeded(),
@@ -93,7 +98,11 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
             state.oneLoopContext.system = PromptService.provideSystemPrompt(this.isSubLoop());
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
-                return this.extractFinalText(state);
+                const finalText = this.extractFinalText(state);
+                if (finalText && state.oneLoopContext.transitionReason === 'error') {
+                    this.streamHandler.onText(finalText);
+                }
+                return finalText;
             }
         }
     }
@@ -112,19 +121,34 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
             state.oneLoopContext.logger
         );
 
-        let quit: boolean = this.quitLoop(response);
-        const toolUseDefs = this.extractToolUseFromResponse(response);
-        const goAround = !quit && toolUseDefs.length > 0;
-        if (!goAround) {
-            state.oneLoopContext.transitionReason = 'noToolUse';
-        } else {
-            const results = await this.runTools(toolUseDefs, state.oneLoopContext);
-            this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-            state.oneLoopContext.turnCount++;
-            state.oneLoopContext.transitionReason = 'toolResult';
+        state.oneLoopContext.turnCount++;
+        state.oneLoopContext.transitionReason = response.transitionReason;
+
+        switch (state.oneLoopContext.transitionReason) {
+            case 'toolUse':
+                const toolUseDefs = this.extractToolUseFromResponse(response);
+                const results = await this.runTools(toolUseDefs, state.oneLoopContext);
+                this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
+                break;
+            case 'maxTokens':
+                state.oneLoopContext.recoveryState.maxTokenRetries++;
+                if (state.oneLoopContext.recoveryState.maxTokenRetries >= this.maxTokenRetries) {
+                    state.oneLoopContext.transitionReason = 'error';
+                    break;
+                }
+                // TODO: Handle max tokens/输入测token管理
+                this.addStringMessage(`Output limit hit. Continue directly from where you stopped -- 
+                    no recap, no repetition. Pick up mid-sentence if needed.`);
+                break;
+            case 'refused':
+                // TODO: Handle refused 输入侧意图识别分类/模式匹配 -> 询问用户
+                break;
+        }
+        if (state.oneLoopContext.transitionReason === 'error') {
+            await HookManager.emitVisitor('turnError', state.oneLoopContext);
         }
         await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
-        return goAround;
+        return state.oneLoopContext.transitionReason !== 'endLoop' && state.oneLoopContext.transitionReason !== 'error';
     }
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
@@ -157,8 +181,6 @@ export abstract class LoopAgent<I, O, LLM extends LLMModel<I, O, unknown, unknow
         return state.messages.length === 0 ? '' :
             this.llm.getTextFromInputMessage(state.messages[state.messages.length - 1]!);
     }
-
-    protected abstract quitLoop(result: O): boolean;
 
     protected abstract extractToolUseFromResponse(result: O): ToolUseDef[];
 

@@ -9,7 +9,7 @@ import { DeepclawConfig, loadConfig } from '@deepclaw/utils';
 
 const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
 const timeout = 120;
-const trunkcateThreshold = loadConfig<number>('agent.toolResult.truncate.lengthThreshold');
+const trunkcateThreshold = 20000;
 const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode');
 
 type ShellInput = {

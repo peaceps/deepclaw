@@ -18,10 +18,6 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
         return new AnthropicMessagesCompactor(this.llm, parentSessionId, sessionId, footPrints);
     }
 
-    protected override quitLoop(result: ThinkingResponse): boolean {
-        return result.stop_reason != 'tool_use';
-    }
-
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
         const content = toolResults.map(toolResult => ({
             type: 'tool_result' as const,

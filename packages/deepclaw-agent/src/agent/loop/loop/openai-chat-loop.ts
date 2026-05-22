@@ -18,10 +18,6 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
         return new OpenAIChatMessagesCompactor(this.llm, parentSessionId, sessionId, footPrints);
     }
 
-    protected override quitLoop(result: ThinkingResponse): boolean {
-        return result.finish_reason === 'stop';
-    }
-
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
         return toolResults.map(toolResult => ({
             role: 'tool',

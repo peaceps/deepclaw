@@ -38,7 +38,7 @@ export class MemoryManager {
     public static loadMemories(): Map<string, Map<string, Memory>> {
         const memories: Map<string, Map<string, Memory>> = new Map();
         const files = FileUtils.readDir(MEMORY_DIR, (file: string) => file === MEMORY_INDEX_FILE ? '' : file);
-        for (const [_f, fileContent] of Object.entries(files)) {
+        for (const fileContent of Object.values(files)) {
             try {
                 const {data, content} = matter(fileContent.replace(/\r\n/g, '\n'));
                 if (data && data['type'] && data['name'] && data['description']) {
@@ -56,7 +56,8 @@ export class MemoryManager {
                         content,
                     });
                 }
-            } catch (error) {
+            } catch {
+                // TODO: Handle error
                 continue;
             }
         }

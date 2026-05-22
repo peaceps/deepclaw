@@ -1,8 +1,9 @@
-import {getEnvVariable, hasEnvVariable, loadConfig, type Logger} from '@deepclaw/utils';
+import {getEnvVariable, hasEnvVariable, type Logger} from '@deepclaw/utils';
 import { AgentStreamHandler, noopStreamHandler } from '@deepclaw/core';
 import { LLMTool } from '../definitions/tool-definitions.js';
+import { TransitionReason } from '../definitions/definitions.js';
 
-const llmRetry = loadConfig<number>('agent.llmRetry');
+const llmRetry = 3;
 
 export type LLMConstructor<I, O, T, LLM> = new (tools: LLMTool[]) => LLMModel<I, O, T, LLM>;
 
@@ -30,17 +31,34 @@ export abstract class LLMModel<I, O, T, LLM> {
     protected abstract createLLMClient(): LLM;
 
     public async invoke(system: string, messages: I[], streamHandler: AgentStreamHandler, logger: Logger): Promise<O> {
-        let response: O = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`);
+        let response: O | null = null;
         for (let i = 0; i < llmRetry; i++) {
             try {
                 response = await this._invoke(system, messages, streamHandler);
                 break;
             } catch (error) {
                 logger.error(error, 'LLM invoke failed');
+                const unrecoverableError = this.isUnrecoverableError(error);
+                if (unrecoverableError) {
+                    response = this.newResponse(`ERROR: Unrecoverable error: ${unrecoverableError}.`, 'error');
+                    break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
+        }
+        if (!response) {
+            response = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`, 'error');
         }
         messages.push(...this.convertResponseToMessages(response));
         return response;
+    }
+
+    private isUnrecoverableError(error: any): string {
+        const code = error?.status;
+        if (code === 429 || code === 403 || code === 401 || code === 404) {
+            return error?.message ?? code.toString();
+        }
+        return '';
     }
 
     protected abstract _invoke(system: string, messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
@@ -67,7 +85,9 @@ ${content}`;
         return {role: 'user', content} as I;
     }
 
-    protected abstract newResponse(content: string): O;
+    protected abstract setTransitionReason(response: O): O;
+
+    protected abstract newResponse(content: string, transitionReason?: TransitionReason): O;
 
     protected abstract convertResponseToMessages(response: O): I[];
 

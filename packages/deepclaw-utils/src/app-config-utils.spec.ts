@@ -3,7 +3,7 @@ import {loadConfig} from './app-config-utils';
 
 describe('config-utils', () => {
     test('loads configured agent values', () => {
-        expect(loadConfig<number>('agent.llmRetry')).toBe(3);
+        expect(loadConfig<number>('agent.identityFile')).toBe('DEEPCLAW.md');
     });
 
     test('returns undefined for missing keys', () => {

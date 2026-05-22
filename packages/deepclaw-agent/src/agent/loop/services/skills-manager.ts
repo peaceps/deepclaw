@@ -28,7 +28,7 @@ export class SkillsManager {
     private static loadSkills(): Map<string, SkillDocument> {
         const skills: Map<string, SkillDocument> = new Map();
         const files = FileUtils.readDir(SKILL_DIR, (fileName: string) => `${fileName}/SKILL.md`);
-        for (const [_f, fileContent] of Object.entries(files)) {
+        for (const fileContent of Object.values(files)) {
             const skillDocument = this.parseSkillDocument(fileContent.replace(/\r\n/g, '\n'));
             if (skillDocument) {
                 skills.set(skillDocument.manifest.name, skillDocument);

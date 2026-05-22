@@ -1,4 +1,4 @@
-import { loadConfig, FileUtils, type Logger } from '@deepclaw/utils';
+import { FileUtils, type Logger } from '@deepclaw/utils';
 import { LLMModel } from '../../llm/llmgw';
 import { FootPrint } from '../../definitions/definitions.js';
 
@@ -14,11 +14,11 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     protected sessionId: string;
     private llm: LLM;
 
-    private maxRecent: number = loadConfig<number>('agent.toolResult.removeLegacy.maxRecent');
-    private toolResultThreshold: number = loadConfig<number>('agent.toolResult.removeLegacy.lengthThreshold');
+    private maxRecent: number = 5;
+    private toolResultThreshold: number = 120;
     private toolResultCompactedMessage: string = 'Earlier tool result compacted. Re-run the tool if you need full detail.';
 
-    private historyThreshold: number = loadConfig<number>('agent.history.compactThreshold');
+    private historyThreshold: number = 200000;
     private historyCompactContext: HistoryCompactContext;
 
     constructor(llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {

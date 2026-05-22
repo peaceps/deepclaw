@@ -12,6 +12,7 @@ import {
     ResponseOutputMessage,
 } from "openai/resources/responses/responses.js";
 import { type AgentStreamHandler } from '@deepclaw/core';
+import { TransitionReason } from "../definitions/definitions.js";
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
 
@@ -19,6 +20,7 @@ type ThinkingResponseOutput = ResponseOutputMessage | ResponseFunctionToolCall;
 
 export type ThinkingResponse = Omit<Response, 'output'> & {
     output: ThinkingResponseOutput[];
+    transitionReason: TransitionReason;
 };
 
 export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, OpenAI> {
@@ -59,27 +61,50 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
                     streamHandler.onText(event.delta);
                     break;
                 case 'response.completed':
-                    return event.response as ThinkingResponse;
+                    return this.setTransitionReason(event.response);
                 case 'response.failed':
-                    return this.flushAndRespond(streamHandler, i18nInstance.t('agent.llm.openai.response.output.failed', {message: event.response.error?.message || ''}));
+                    return this.flushAndRespondError(streamHandler, i18nInstance.t('agent.llm.openai.response.output.failed', {message: event.response.error?.message || ''}));
                 case 'error':
-                    return this.flushAndRespond(streamHandler, i18nInstance.t(
+                    return this.flushAndRespondError(streamHandler, i18nInstance.t(
                         'agent.llm.openai.response.output.error',
                         {code: event.code, param: event.param, message: event.message}
                     ));
             }
         }
 
-        return this.flushAndRespond(streamHandler, i18nInstance.t('agent.llm.openai.response.output.empty'));
+        return this.flushAndRespondError(streamHandler,
+            i18nInstance.t('agent.llm.openai.response.output.empty'));
     }
 
-    private flushAndRespond(streamHandler: AgentStreamHandler, message: string): ThinkingResponse {
+    protected override setTransitionReason(response: Response): ThinkingResponse {
+        const thinkingResponse = response as ThinkingResponse;
+        if (thinkingResponse.status === 'completed') {
+            thinkingResponse.transitionReason = thinkingResponse.output.some(item => item.type === 'function_call') ?
+                'toolUse' : 'endLoop';
+        } else if (thinkingResponse.status === 'incomplete') {
+            switch (thinkingResponse.incomplete_details?.reason) {
+                case 'max_output_tokens':
+                    thinkingResponse.transitionReason = 'maxTokens';
+                    break;
+                case 'content_filter':
+                    thinkingResponse.transitionReason = 'refused';
+            }
+        }
+        if (!thinkingResponse.transitionReason) {
+            thinkingResponse.transitionReason = 'error';
+            throw new Error('Invalid response status: ' + thinkingResponse.status);
+        }
+        return thinkingResponse;
+    }
+
+    private flushAndRespondError(streamHandler: AgentStreamHandler, message: string): ThinkingResponse {
         streamHandler.onText(message);
-        return this.newResponse(message);
+        return this.newResponse(message, 'error');
     }
 
-    protected override newResponse(message: string): ThinkingResponse {
+    protected override newResponse(message: string, transitionReason: TransitionReason = 'endLoop'): ThinkingResponse {
         return {
+            transitionReason,
             id: randomUUID(),
             object: 'response',
             created_at: Date.now(),

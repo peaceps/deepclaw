@@ -1,4 +1,4 @@
-import { FileUtils, loadConfig } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/utils';
 import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions.js";
 import { type SealedAgentStreamHandler } from '@deepclaw/core';
 import { OneLoopContext } from '../../definitions/definitions.js';
@@ -23,8 +23,8 @@ export class ToolUseService {
     private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
     private streamHandler: SealedAgentStreamHandler;
-    private truncateThreshold: number = loadConfig<number>('agent.toolResult.truncate.lengthThreshold');
-    private previewChars: number = loadConfig<number>('agent.toolResult.truncate.previewLength');
+    private truncateThreshold: number = 20000;
+    private previewChars: number = 1000;
 
     constructor(
         tools: ToolDesc[],

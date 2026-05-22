@@ -18,9 +18,15 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
         return new OpenAIResponseMessagesCompactor(this.llm, parentSessionId, sessionId, footPrints);
     }
 
-    protected override quitLoop(result: ThinkingResponse): boolean {
-        return result.status === 'completed' && !result.incomplete_details 
-            && !result.output.some(item => item.type === 'function_call');
+    protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
+        const toolCalls = result.output.filter((item) => item.type === 'function_call' as const);
+        return toolCalls.map((item) => {
+            return {
+                name: item.name,
+                input: item.arguments,
+                id: item.call_id,
+            }
+        });
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
@@ -31,17 +37,6 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
             type: 'function_call_output',
             status: 'completed'
         }));
-    }
-
-    protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
-        const toolCalls = result.output.filter((item) => item.type === 'function_call' as const);
-        return toolCalls.map((item) => {
-            return {
-                name: item.name,
-                input: item.arguments,
-                id: item.call_id,
-            }
-        });
     }
 
     protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {

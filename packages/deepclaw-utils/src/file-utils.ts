@@ -27,7 +27,8 @@ export class FileUtils {
                 if (!filePath) continue;
                 try {
                     files[filePath] = this.readFile(`${dirPath}/${filePath}`);
-                } catch (error) {
+                } catch {
+                    // TODO: Handle error
                     continue;
                 }
             }

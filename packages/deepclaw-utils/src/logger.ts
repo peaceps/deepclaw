@@ -1,44 +1,24 @@
 import pino from 'pino'
 
-const isDev = process.env['NODE_ENV'] !== 'production'
+const LOG_FILE = `./.logs/runtime_${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}.log`;
 
 const logger = pino({
-  level: isDev ? 'debug' : 'warn',
-
-  base: {
-    pid: process.pid
-  },
-
-  timestamp: pino.stdTimeFunctions.isoTime,
-
-  transport: isDev
-    ? {
-        targets: [
-        //   {
-        //     target: 'pino-pretty'
-        //   },
-          {
-            target: 'pino/file',
-            options: {
-              destination: './.logs/runtime.log',
-              mkdir: true
-            }
-          }
-        ]
-      }
-    : {
+    level: process.env['NODE_ENV'] !== 'production' ? 'debug' : 'warn',
+    base: { pid: process.pid },
+    timestamp: pino.stdTimeFunctions.isoTime,
+    transport: {
         target: 'pino/file',
         options: {
-          destination: './.logs/runtime.log',
-          mkdir: true
+            destination: LOG_FILE,
+            mkdir: true
         }
-      }
+    }
 });
 
 export function getLogger(parentSessionId: string, sessionId: string, loopId: string) {
-  return logger.child({
-    parentSessionId,
-    sessionId,
-    loopId
-  });
+    return logger.child({
+        parentSessionId,
+        sessionId,
+        loopId
+    });
 }

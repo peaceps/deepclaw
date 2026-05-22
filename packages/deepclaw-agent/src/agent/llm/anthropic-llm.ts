@@ -13,6 +13,7 @@ import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import { type AgentStreamHandler } from '@deepclaw/core';
+import { TransitionReason } from '../definitions/definitions.js';
 
 export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
 
@@ -22,6 +23,7 @@ export type ThinkingMessage = Omit<MessageParam, 'content'> & {
 
 export type ThinkingResponse = Omit<Message, 'content'> & {
     content: (TextBlock | ToolUseBlock)[];
+    transitionReason: TransitionReason;
 };
 
 export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, ToolUnion, Anthropic> {
@@ -56,11 +58,13 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
             streamHandler.onText(text);
         });
 
-        return await stream.finalMessage() as ThinkingResponse;
+        const response = await stream.finalMessage();
+        return this.setTransitionReason(response as unknown as ThinkingResponse);
     }
 
-    protected override newResponse(content: string): ThinkingResponse {
+    protected override newResponse(content: string, transitionReason: TransitionReason = 'endLoop'): ThinkingResponse {
         return {
+            transitionReason,
             id: randomUUID(),
             container: null,
             model: this.gw.model,
@@ -81,6 +85,27 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
                 output_tokens: 0,
             }
         };
+    }
+
+    protected override setTransitionReason(result: ThinkingResponse): ThinkingResponse {
+        const thinkingResponse = result;
+        switch (result.stop_reason) {
+            case 'tool_use':
+                thinkingResponse.transitionReason = 'toolUse';
+                break;
+            case 'max_tokens':
+                thinkingResponse.transitionReason = 'maxTokens';
+                break;
+            case 'refusal':
+                thinkingResponse.transitionReason = 'refused';
+                break;
+            case 'end_turn':
+                thinkingResponse.transitionReason = 'endLoop';
+                break;
+            default:
+                thinkingResponse.transitionReason = 'endLoop';
+        }
+        return thinkingResponse;
     }
 
     protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {

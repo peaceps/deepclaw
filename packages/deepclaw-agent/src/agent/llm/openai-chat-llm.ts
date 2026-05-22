@@ -10,6 +10,7 @@ import {
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import { type AgentStreamHandler } from '@deepclaw/core';
+import { TransitionReason } from '../definitions/definitions.js';
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |
@@ -21,6 +22,7 @@ export type ThinkingMessage = (
 }
 
 export type ThinkingResponse = ChatCompletionChunk.Choice & {
+    transitionReason: TransitionReason;
     delta: ChatCompletionChunk.Choice.Delta & {
         reasoning_content: string;
     }
@@ -111,15 +113,16 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                     response.delta.reasoning_content = reasoningContent;
                 }
                 
-                return response;
+                return this.setTransitionReason(response);
             }
         }
 
         return this.newResponse('Error: No response from LLM.');
     }
 
-    protected override newResponse(content: string): ThinkingResponse {
+    protected override newResponse(content: string, transitionReason: TransitionReason = 'endLoop'): ThinkingResponse {
         return {
+            transitionReason,
             finish_reason: 'stop',
             index: 0,
             delta: {
@@ -128,6 +131,28 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                 tool_calls: []
             }
         };
+    }
+
+    protected override setTransitionReason(result: ThinkingResponse): ThinkingResponse {
+        const thinkingResponse = result as ThinkingResponse;
+        switch (result.finish_reason) {
+            case 'stop':
+                thinkingResponse.transitionReason = 'endLoop';
+                break;
+            case 'length':
+                thinkingResponse.transitionReason = 'maxTokens';
+                break;
+            case 'tool_calls':
+                thinkingResponse.transitionReason = 'toolUse';
+                break;
+            case 'content_filter':
+                thinkingResponse.transitionReason = 'refused';
+                break;
+            default:
+                thinkingResponse.transitionReason = 'endLoop';
+                break;
+        }
+        return thinkingResponse;
     }
 
     protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {
