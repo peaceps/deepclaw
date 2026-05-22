@@ -1,5 +1,5 @@
 {
-	"name": "@deepclaw/launcher",
+	"name": "@deepclaw/headless",
 	"version": "0.0.1",
 	"packageManager": "pnpm@10.33.0",
 	"license": "MIT",
@@ -7,8 +7,10 @@
 	"engines": {
 		"node": ">=21"
 	},
-    "bin": {
-        "deepclaw": "./bin/cli.js"
+    "exports": {
+        ".": {
+            "import": "./src/main.ts"
+        }
     },
 	"scripts": {
 		"build": "rollup -c",
@@ -17,8 +19,9 @@
 		"dev": "npx tsx src/main.ts"
 	},
 	"dependencies": {
-		"@deepclaw/tui": "workspace:*",
-		"@deepclaw/headless": "workspace:*",
-        "meow": "14.1.0"
+		"@deepclaw/agent": "workspace:*",
+		"@deepclaw/im": "workspace:*",
+		"@deepclaw/i18n": "workspace:*",
+		"@deepclaw/utils": "workspace:*"
 	}
 }

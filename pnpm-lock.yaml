@@ -60,20 +60,29 @@ importers:
         specifier: 4.1.6
         version: 4.1.6(@types/node@25.6.0)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.27.7)(tsx@4.21.0))
 
-  apps/deepclaw-launcher:
+  apps/deepclaw-headless:
     dependencies:
       '@deepclaw/agent':
         specifier: workspace:*
         version: link:../../packages/deepclaw-agent
+      '@deepclaw/i18n':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-i18n
       '@deepclaw/im':
         specifier: workspace:*
         version: link:../../packages/deepclaw-im
-      '@deepclaw/tui':
-        specifier: workspace:*
-        version: link:../deepclaw-tui
       '@deepclaw/utils':
         specifier: workspace:*
         version: link:../../packages/deepclaw-utils
+
+  apps/deepclaw-launcher:
+    dependencies:
+      '@deepclaw/headless':
+        specifier: workspace:*
+        version: link:../deepclaw-headless
+      '@deepclaw/tui':
+        specifier: workspace:*
+        version: link:../deepclaw-tui
       meow:
         specifier: 14.1.0
         version: 14.1.0
@@ -164,6 +173,9 @@ importers:
       '@deepclaw/core':
         specifier: workspace:*
         version: link:../deepclaw-core
+      '@deepclaw/i18n':
+        specifier: workspace:*
+        version: link:../deepclaw-i18n
       '@deepclaw/utils':
         specifier: workspace:*
         version: link:../deepclaw-utils

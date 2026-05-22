@@ -5,15 +5,16 @@ export default {
   input: "src/main.ts",
 
   output: {
-    file: "dist/deepclaw.js",
+    file: "dist/main.js",
     format: "esm",
   },
 
   external: [
     /^node:/,
-    '@deepclaw/headless',
-    '@deepclaw/tui',
-    'meow',
+    '@deepclaw/agent',
+    '@deepclaw/im',
+    '@deepclaw/utils',
+    '@deepclaw/i18n',
   ],
 
   plugins: [

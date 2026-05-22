@@ -1,24 +1,39 @@
 import {DWClient, DWClientDownStream, EventAck, TOPIC_ROBOT} from 'dingtalk-stream';
 import { IM } from '../im-definitions';
 import { FlushAgent } from '@deepclaw/core';
+import { i18nInstance } from '@deepclaw/i18n';
+
+const handledMessages = new Set<string>();
 
 const onBotMessage = (client: DWClient, agent: FlushAgent) => async (event: DWClientDownStream) => {
 
     try {
         client.socketCallBackResponse(event.headers.messageId, {status: EventAck.SUCCESS, message: 'OK'});
-
+    } catch(e) {
+        console.error(`message ${event.headers.messageId} send response failed.`, e);
+        handledMessages.add(event.headers.messageId);
+        setTimeout(() => {
+            handledMessages.delete(event.headers.messageId);
+        }, 3 * 60 * 1000);
+    }
+    try {
+        if (handledMessages.has(event.headers.messageId)) {
+            return;
+        }
         const message = JSON.parse(event.data);
         const content = (message?.text?.content || '').trim();
-        sendMessage(message, '请稍侯');
+        sendMessage(message, i18nInstance.t('im.wait'));
         agent.invoke(content).then(res => {
             sendMessage(message, res);
+        }).catch(() => {
+            sendMessage(message, i18nInstance.t('im.error'));
         });
     } catch(e) {
-        console.error('simply ignore', e);
+        console.error(`message ${event.headers.messageId} processing error, simply ignore it.`, e);
     }
 }
 
-function sendMessage(message: any, content: string) {
+function sendMessage(message: {sessionWebhook: string, senderStaffId: string}, content: string) {
     void fetch(message?.sessionWebhook || '', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},

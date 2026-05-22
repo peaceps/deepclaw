@@ -29,7 +29,7 @@ const cli = meow(`
 );
 
 if (cli.flags.headless) {
-    void import('./headless.js');
+    void import('@deepclaw/headless');
 } else if (cli.flags.tui) {
 	void import('@deepclaw/tui');
 }
