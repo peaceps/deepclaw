@@ -9,6 +9,7 @@
         { "path": "./packages/deepclaw-i18n" },
         { "path": "./apps/deepclaw-tui" },
         { "path": "./apps/deepclaw-headless" },
+        { "path": "./apps/deepclaw-web" },
         { "path": "./apps/deepclaw-launcher" }
     ]
 }

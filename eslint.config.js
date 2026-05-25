@@ -3,6 +3,7 @@ import tseslint from "typescript-eslint";
 import globals from 'globals';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
+import nextVitals from 'eslint-config-next/core-web-vitals'
 
 const tsLanguageOptions = {
   parser: tsParser,
@@ -20,7 +21,7 @@ const tsLanguageOptions = {
 
 export default [
   {
-    ignores: ['**/dist/**/*', '**/node_modules/**/*'],
+    ignores: ['**/dist/**/*', '**/node_modules/**/*', '**/.next/**', '**/out/**', '**/build/**', '**/*.d.ts', '**/*.d.tsx'],
   },
   {
     files: ['**/src/**/*.ts', '**/src/**/*.tsx'],
@@ -34,6 +35,15 @@ export default [
       '@typescript-eslint/no-unused-vars': 'error',
     },
   },
+  // eslint-config-next exports a Config[]; spread it into this array, never into a {...} object.
+  ...nextVitals.map((config) =>
+    config.files == null
+      ? config
+      : {
+          ...config,
+          files: ['apps/deepclaw-web/**/*.{ts,tsx}'],
+        },
+  ),
   {
     files: ['apps/deepclaw-tui/src/**/*.{ts,tsx}'],
     ...react.configs.flat.recommended,
@@ -43,7 +53,7 @@ export default [
   },
   ...tseslint.configs.recommended.map(config => ({
     files: ['**/src/**/*.ts'],
-    ignores: ['apps/deepclaw-tui/src/**/*'],
+    ignores: ['apps/deepclaw-tui/src/**/*', 'apps/deepclaw-web/src/**/*'],
     ...config,
     languageOptions: tsLanguageOptions,
     rules: {

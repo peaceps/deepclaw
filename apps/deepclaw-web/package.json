@@ -11,21 +11,24 @@
 		"dev": "next dev",
 		"build": "next build",
 		"start": "next start",
-		"lint": "next lint"
+		"lint": "eslint \"src/**/*.{ts,tsx}\"",
+		"test": "vitest run"
 	},
 	"dependencies": {
 		"@deepclaw/core": "workspace:*",
 		"@deepclaw/agent": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
 		"@deepclaw/utils": "workspace:*",
-		"next": "15.3.5",
+		"next": "16.2.6",
 		"react": "19.2.5",
-		"react-dom": "19.2.5"
+		"react-dom": "19.2.5",
+        "zustand": "5.0.13",
+        "lucide-react": "1.16.0"
 	},
 	"devDependencies": {
-		"@types/node": "25.6.0",
 		"@types/react": "19.2.14",
-		"@types/react-dom": "19.2.10",
-		"typescript": "6.0.3"
+		"@types/react-dom": "19.2.3",
+        "@tailwindcss/postcss": "4.3.0",
+        "tailwindcss": "4.3.0"
 	}
 }

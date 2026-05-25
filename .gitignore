@@ -11,3 +11,9 @@ dist/
 .memory/
 .vitest/
 .rollup.cache/
+
+.next/
+out/
+build/
+
+package-lock.json
