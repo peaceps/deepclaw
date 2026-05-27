@@ -11,11 +11,11 @@ export function LlmOutput({
     llmOutput: string;
     userAction: boolean;
 }): ReactElement {
-    const {indent} = useContext(StaticContext);
+    const {indent, prompt} = useContext(StaticContext);
     const rowWidth = useWidth(indent);
     return (
         <Box marginLeft={indent} width={rowWidth}>
-            {!llmOutput && !userAction ? <Dots/> : <Text color="#EDCF53" wrap="hard">{llmOutput}</Text>}
+            {!llmOutput && !userAction ? <Dots/> : <Text color="#EDCF53" wrap="hard">{prompt} {llmOutput}</Text>}
         </Box>
     );
 }
