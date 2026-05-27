@@ -6,6 +6,7 @@ import {subLoopTool, subLoopWithHistoryTool} from '../tools/sub-loop-tool.js';
 import {loadSkillTool} from '../tools/skill-tool.js';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool.js';
 import {saveMemoryTool} from '../tools/save-memory-tool.js';
+import {createProjectTool, getProjectInfoTool, updateTaskTool} from '../tools/project-tool.js';
 import { loadConfig, DeepclawConfig } from '@deepclaw/utils';
 
 const tools: ToolDesc<any>[] = [
@@ -17,7 +18,10 @@ const tools: ToolDesc<any>[] = [
     readFileTool,
     writeFileTool,
     editFileTool,
-    saveMemoryTool
+    saveMemoryTool,
+    createProjectTool,
+    updateTaskTool,
+    getProjectInfoTool,
 ];
 
 export class ToolsManager {

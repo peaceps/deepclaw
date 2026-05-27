@@ -16,4 +16,6 @@ dist/
 out/
 build/
 
+.projects/
+
 package-lock.json

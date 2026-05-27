@@ -37,41 +37,32 @@ export class FileUtils {
     }
 
     public static writeFile(filePath: string, content: string): void {
-        const absolutePath = this.getAbsolutePath(filePath);
+        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
         this.ensureFolderExist(absolutePath);
         fs.writeFileSync(absolutePath, content, 'utf8');
     }
 
     public static writeFileToSession(parentSessionId: string, sessionId: string, dirName: string, fileName: string, content: string): string {
-        const fullPath = path.join(SESSION_DIR, parentSessionId, sessionId, dirName, fileName);
+        const fullPath = path.join(SESSION_DIR, parentSessionId, sessionId, dirName, this.sanitizeFileName(fileName));
         const absolutePath = this.getAbsolutePath(fullPath);
         this.ensureFolderExist(absolutePath);
         fs.writeFileSync(absolutePath, content, 'utf8');
         return fullPath;
     }
 
-    public static sanitizeFileName(fileName: string): string {
-        return fileName.replace(/[\/\*?<>&|:'"\\%^@`~]/g, '_');
-    }
-
     public static isPathInWorkspace(filePath: string): boolean {
-        const workspacePath = this.normalizeForCompare(process.cwd());
-        const targetPath = this.normalizeForCompare(filePath);
-        const workspacePrefix = workspacePath.endsWith(path.sep) ? workspacePath : `${workspacePath}${path.sep}`;
+        let workspacePath = this.getAbsolutePath(process.cwd());
+        let targetPath = this.getAbsolutePath(filePath);
+        if (process.platform === 'win32' || process.platform === 'darwin') {
+            workspacePath = workspacePath.toLowerCase();
+            targetPath = targetPath.toLowerCase();
+        }
+        const workspacePrefix = workspacePath.endsWith('/') ? workspacePath : `${workspacePath}/`;
         return targetPath === workspacePath || targetPath.startsWith(workspacePrefix);
     }
 
-    private static normalizeForCompare(value: string): string {
-        const normalized = path.normalize(path.resolve(value));
-        return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
-    }
-
     private static getAbsolutePath(relativePath: string): string {
-        relativePath = this.formatSlash(relativePath);
-        if (path.isAbsolute(relativePath)) return relativePath;
-        relativePath = relativePath.startsWith('./') ? relativePath.substring(2) : relativePath;
-        relativePath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
-        return `${this.formatSlash(path.resolve())}/${relativePath}`;
+        return this.formatSlash(path.isAbsolute(relativePath) ? relativePath : path.resolve(relativePath));
     }
 
     private static ensureFolderExist(pathStr: string): void {
@@ -84,5 +75,9 @@ export class FileUtils {
 
     private static formatSlash(pathStr: string): string {
         return pathStr.replace(/\\/g, '/').replace(/\/\//g, '/');
+    }
+
+    private static sanitizeFileName(fileName: string): string {
+        return this.formatSlash(fileName).replace(/[\*?<>&|:'"%^@`~]/g, '_');
     }
 }

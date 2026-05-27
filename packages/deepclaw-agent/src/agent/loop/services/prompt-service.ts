@@ -1,8 +1,8 @@
 import process from 'node:process';
-import fs from 'fs';
 import { SkillsManager } from './skills-manager.js';
-import { DeepclawConfig, loadConfig } from '@deepclaw/utils';
+import { DeepclawConfig, loadConfig, FileUtils } from '@deepclaw/utils';
 import { MemoryManager } from './memory-manager.js';
+import { ProjectManager } from './project-manager.js';
 
 const LANG_MAP: {[k: string]: string} = {
     en: 'English',
@@ -27,7 +27,9 @@ ${this.agentMode()}
 
 ${this.memory()}
 
-${this.availableSkills()}`;
+${this.availableSkills()}
+
+${this.project()}`;
     }
 
     private static platform(): string {
@@ -37,14 +39,19 @@ ${this.availableSkills()}`;
     }
 
     private static mainIdentity(): {loop: string, subloop: string} {
+        const commonIdentity = `Use task tools to plan and track work, tasks will be persisted on local filesystem.
+You have todo tool to manage each task if needed, todo items are transient and will be removed after the task is completed.`;
         return {
-            loop: fs.readFileSync(loadConfig<string>('agent.identityFile'), 'utf8'),
+            loop: `${FileUtils.readFile(loadConfig<string>('agent.identityFile'))}
+
+${commonIdentity}`,
             subloop: `You are a subloop agent for specific task described in the prompt.
 Complete the given task, then summarize your findings.
 You don't have access to file writing tools, and don't use shell tool to create or edit file.
-You have todo tool to manage your work if needed.
 When you need to create or generate any content,
-just return it as the output of the agent without writing it to any file.`
+just return it as the output of the agent without writing it to any file.
+
+${commonIdentity}`
         };
     }
 
@@ -96,5 +103,10 @@ But you can call tools to write files owned by the agent program itself, such as
 
     private static availableSkills(): string {
         return SkillsManager.getSkillPrompt();
+    }
+
+    private static project(): string {
+        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
+        return agentMode === 'chat' ? '' : ProjectManager.prompts();
     }
 }

@@ -31,6 +31,7 @@ type Memory = {
     content: string;
 };
 
+// TODO 定期整理记忆库，删除过期、重复、不重要的记忆
 export class MemoryManager {
     private static memories: Map<string, Map<string, Memory>> = this.loadMemories();
     private static memoryPrompt: string = this.generateMemoryPrompt();
@@ -87,25 +88,24 @@ export class MemoryManager {
     }
 
     public static addMemory(memory: Omit<Memory, 'datetime'>): void {
-        const sanitizeFileName = FileUtils.sanitizeFileName(memory.name);
         const datetime = new Date().toISOString();
         if (!this.memories.has(memory.type)) {
             this.memories.set(memory.type, new Map());
         }
-        this.memories.get(memory.type)!.set(sanitizeFileName, {
+        this.memories.get(memory.type)!.set(memory.name, {
             type: memory.type,
             datetime,
-            name: sanitizeFileName,
+            name: memory.name,
             description: memory.description,
             content: memory.content,
         });
         const md = matter.stringify(memory.content, {
             type: memory.type,
-            name: sanitizeFileName,
+            name: memory.name,
             description: memory.description,
             datetime,
         });
-        FileUtils.writeFile(`${MEMORY_DIR}/${sanitizeFileName}.md`, md);
+        FileUtils.writeFile(`${MEMORY_DIR}/${memory.name}.md`, md);
         this.rewriteIndex();
         this.memoryPrompt = this.generateMemoryPrompt();
     }
