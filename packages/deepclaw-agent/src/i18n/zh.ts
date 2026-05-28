@@ -36,6 +36,15 @@ export const zh = {
                 current: '\n当前进度：\n{{steps}}\n',
                 completed: '{{completed}}/{{total}} 已完成\n',
             },
+            project: {
+                standaloneTask: {
+                    prompt: 'Agent想要创建一个独立于任何项目的任务。你想把它保存在文件系统中还是只保存在内存里？',
+                    options: {
+                        persistent: '保存在文件系统中',
+                        transient: '只保存在内存里',
+                    },
+                }, 
+            }
         },
     },
 };

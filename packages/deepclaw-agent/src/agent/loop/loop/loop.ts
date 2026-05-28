@@ -72,6 +72,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     updateTodo: (items: TodoItem[]) => todoManager.update(items),
                     addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
                     compactIfNeeded: () => this.compactIfNeeded(state.oneLoopContext),
+                    streamHandler: this.streamHandler,
                 }
             },
         };

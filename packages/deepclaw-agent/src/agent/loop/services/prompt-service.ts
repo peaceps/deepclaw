@@ -4,6 +4,8 @@ import { DeepclawConfig, loadConfig, FileUtils } from '@deepclaw/utils';
 import { MemoryManager } from './memory-manager.js';
 import { ProjectManager } from './project-manager.js';
 
+const IDENTITY_FILE = 'DEEPCLAW.md';
+
 const LANG_MAP: {[k: string]: string} = {
     en: 'English',
     zh: 'Simplified Chinese'
@@ -42,7 +44,7 @@ ${this.project()}`;
         const commonIdentity = `Use task tools to plan and track work, tasks will be persisted on local filesystem.
 You have todo tool to manage each task if needed, todo items are transient and will be removed after the task is completed.`;
         return {
-            loop: `${FileUtils.readFile(loadConfig<string>('agent.identityFile'))}
+            loop: `${FileUtils.readFile(IDENTITY_FILE)}
 
 ${commonIdentity}`,
             subloop: `You are a subloop agent for specific task described in the prompt.

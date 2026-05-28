@@ -15,7 +15,7 @@ export type DeepclawConfig = {
             secret: string;
         },
         mode?: 'agent' | 'plan' | 'chat';
-        identityFile: string;
+        standaloneTask: 'transient' | 'persistent' | 'ask';
     },
     ui: {
         lang?: string;
@@ -26,7 +26,7 @@ export const DEFAULT_LANG = 'en';
 
 const defaultConfig: DeepclawConfig = {
     agent: {
-        identityFile: 'DEEPCLAW.md'
+        standaloneTask: 'transient',
     },
     ui: {
     }

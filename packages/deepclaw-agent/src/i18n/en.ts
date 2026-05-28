@@ -36,6 +36,15 @@ export const en = {
                 current: '\nCurrent step:\n{{steps}}\n',
                 completed: '({{completed}}/{{total}} completed)',
             },
+            project: {
+                standaloneTask: {
+                    prompt: 'The agent is going to create a standalone task. Do you want to persist it in file system or just save in memory?',
+                    options: {
+                        persistent: 'Persistent, saved in file system',
+                        transient: 'Transient, only exist in memory',
+                    },
+                },
+            },
         },
     },
 };

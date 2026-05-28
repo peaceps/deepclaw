@@ -1,5 +1,5 @@
 import type { Logger } from '@deepclaw/utils';
-import { type FlushAgent } from '@deepclaw/core';
+import { AgentStreamHandler, type FlushAgent } from '@deepclaw/core';
 
 export type TodoItem = {
     content: string;
@@ -34,5 +34,6 @@ export type OneLoopContext = {
         updateTodo: (items: TodoItem[]) => string;
         addFootPrint: (footPrint: FootPrint) => void;
         compactIfNeeded: () => Promise<void>;
+        streamHandler: AgentStreamHandler
     }
 }

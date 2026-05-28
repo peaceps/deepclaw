@@ -1,14 +1,27 @@
 import { DeepclawConfig, FileUtils, loadConfig } from '@deepclaw/utils';
 
-export type Project = {
+export type Project<T extends Task> = {
     id: string;
     title: string;
     description: string;
-    createdAt: string;
+    createdAt?: string;
     closedAt?: string;
     creator: string;
-    tasks: Record<string, Task>;
+    tasks: Record<string, T>;
+    ongoingTasks?: string[];
+    canStartTasks?: string[];
 };
+
+export type ProjectListInfo = {
+    projects: {
+        open: {id: string; title: string; description: string}[]; 
+        closed: {id: string; title: string; description: string}[]
+    };
+    standaloneTasks: {
+        open: {title: string; description: string}[];
+        closed: {title: string; description: string}[]
+    }
+}
 
 export type Task = {
     title: string;
@@ -22,44 +35,89 @@ export type Task = {
     creator: string;
 };
 
+export type StandaloneTask = Task & {
+    createdAt: string; // for standalone tasks
+}
+
 const PROJECT_DIR = './.projects';
 
 export class ProjectManager {
-    private static projects: Project[] = this.loadProjects();
 
-    private static loadProjects(): Project[] {
-        const projects: Project[] = [];
+    private static projects: {
+        projects: {[key: string]: Project<Task>};
+        standalone: {
+            persistent: Record<string, StandaloneTask>;
+            transient: Record<string, StandaloneTask>;
+        };
+    } = {
+        standalone: {
+            persistent: {},
+            transient: {},
+        },
+        projects: {},
+    };
+
+    static {
+        this.loadProjects();
+    }
+
+    private static loadProjects(): void {
         const files = FileUtils.readDir(PROJECT_DIR);
         for (const fileContent of Object.values(files)) {
             try {
                 const project = JSON.parse(fileContent);
                 if (project && project.id && project.title && project.description) {
-                    projects.push(project);
+                    if (project.id === 'standalone') {
+                        this.projects.standalone.persistent = project.tasks;
+                    } else {
+                        this.projects.projects[project.id] = project;
+                    }
                 }
             } catch {
                 // TODO: Handle error
                 continue;
             }
         }
-        return projects;
     }
 
-    private static saveProjects(project: Project): void {
+    private static saveProjects(project: Project<Task>): void {
         FileUtils.writeFile(`${PROJECT_DIR}/${project.id}.json`, JSON.stringify(project));
     }
 
-    public static createProject(project: Project): Project {
-        this.projects.push(project);
+    private static saveStandaloneProject(): void {
+        const standaloneProject: Project<StandaloneTask> = {
+            id: 'standalone',
+            title: 'Standalone tasks',
+            description: 'A virtual project to hold standalone tasks that are not associated with any project.',
+            creator: 'main',
+            tasks: this.projects.standalone.persistent,
+        };
+        this.saveProjects(standaloneProject);
+    }
+
+    public static createProject(project: Project<Task>): Project<Task> {
+        this.projects.projects[project.id] = project;
         this.saveProjects(project);
         return project;
     }
 
-    public static updateTask(projectId: string, taskInfo: {title: string; assignee?: string; status: Task['status']}): void {
-        const project = this.projects.find(p => p.id === projectId);
-        if (!project) {
-            throw new Error('Project not found.');
+    public static addStandaloneTask(task: StandaloneTask, persistent: boolean): void {
+        const standaloneProject = this.projects.standalone;
+        if (persistent) {
+            standaloneProject.persistent[task.title] = task;
+            this.saveStandaloneProject();
+        } else {
+            standaloneProject.transient[task.title] = task;
         }
-        const task = project.tasks[taskInfo.title];
+    }
+
+    public static updateTask(projectId: string, taskInfo: {title: string; assignee?: string; status: Task['status']}): void {
+        let task;
+        if (projectId === 'standalone') {
+            task = this.projects.standalone.persistent[taskInfo.title] || this.projects.standalone.transient[taskInfo.title];
+        } else {
+             task = this.projects.projects[projectId]?.tasks?.[taskInfo.title];
+        }
         if (!task) {
             throw new Error('Task not found.');
         }
@@ -73,53 +131,95 @@ export class ProjectManager {
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();
         }
-        if (!project.closedAt && Object.values(project.tasks).every(task => task.status === 'done')) {
-            project.closedAt = new Date().toISOString();
+        if (projectId !== 'standalone') {
+            const project = this.projects.projects[projectId]!;
+            if (!project.closedAt && Object.values(project.tasks).every(task => task.status === 'done')) {
+                project.closedAt = new Date().toISOString();
+            }
+            this.saveProjects(project);
+        } else if (this.projects.standalone.persistent[taskInfo.title]) {
+            this.saveStandaloneProject();
         }
-        this.saveProjects(project);
     }
 
-    public static getProjectInfo(projectId: string): string {
-        const project = this.projects.find(p => p.id === projectId);
-        if (!project) {
-            return '<Project not found.>';
+    public static getProjectList(includingClosed: boolean): ProjectListInfo {
+        const res = {
+            projects: {
+                open: [],
+                closed: [],
+            },
+            standaloneTasks: {
+                open: [],
+                closed: [],
+            },
+        } as ProjectListInfo;
+        for (const project of Object.values(this.projects.projects)) {
+            const toPush = {
+                id: project.id,
+                title: project.title,
+                description: project.description,
+            };
+            if (project.closedAt) {
+                if (includingClosed) {
+                    res.projects.closed.push(toPush);
+                }
+            } else {
+                res.projects.open.push(toPush);
+            }
         }
-        return JSON.stringify({
-            id: project.id,
-            title: project.title,
-            description: project.description,
-            createdAt: project.createdAt,
-            closedAt: project.closedAt,
-            tasks: Object.values(project.tasks).map(task => ({
+        for (const task of Object.values(this.projects.standalone.persistent)
+                .concat(Object.values(this.projects.standalone.transient))) {
+            const toPush = {
                 title: task.title,
                 description: task.description,
-                status: task.status,
-                priority: task.priority,
-                blockedBy: task.blockedBy,
-                blocks: task.blocks,
-                assignee: task.assignee,
-                closedAt: task.closedAt,
-            })),
-            ongoingTasks: Object.values(project.tasks).filter(task => task.status === 'ongoing'),
+            };
+            if (task.status === 'done') {
+                if (includingClosed) {
+                    res.standaloneTasks.closed.push(toPush);
+                }
+            } else {
+                res.standaloneTasks.open.push(toPush);
+            }
+        }
+        return res;
+    }
+
+    public static getProjectDetail(projectId: string): Project<Task> {
+        const project = this.projects.projects[projectId];
+        if (!project) {
+            throw new Error('Project not found.');
+        }
+        return {
+            ...project,
+            ongoingTasks: Object.values(project.tasks).filter(task => task.status === 'ongoing').map(task => task.title),
             canStartTasks: Object.values(project.tasks).filter(task => task.status === 'todo' &&
-                task.blockedBy.every(blockedBy => project.tasks[blockedBy]?.status === 'done')),
-        });
+                task.blockedBy.every(blockedBy => project.tasks[blockedBy]?.status === 'done')).map(task => task.title),
+        };
+    }
+
+    public static getStandaloneTaskDetail(taskTitle: string): StandaloneTask {
+        const task = this.projects.standalone.persistent[taskTitle] || this.projects.standalone.transient[taskTitle];
+        if (!task) {
+            throw new Error('Standalone task not found.');
+        }
+        return task;
     }
 
     public static prompts(): string {
         const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
-        const ongoingProjects = this.projects.filter(p => !p.closedAt);
-        const finishedProjects = this.projects.filter(p => !!p.closedAt);
         return `
 You can use project tool to manage projects, which are considered long term goals that can be broken down into tasks,
 they will be persisted in file system.
 If you consider a job should be a project, use create_project tool to create it.
-${agentMode !== 'agent' ? 'You are in plan mode so you can only plan and chat. You don\'t have update_task tool.' : ''}
 
-Here are the projects ongoing:
-${ongoingProjects.map(p => `${p.id}: ${p.title}`).join('\n') || '<No projects ongoing.>'}
-Here are the projects finished:
-${finishedProjects.map(p => `${p.id}: ${p.title}`).join('\n') || '<No projects finished.>'}
-You can get detailed project infos with their tasks status with get_project_info tool.`;
+If one job is not big enough to be a project, you can directly create a standalone task with create_standalone_task without putting it into a project.
+A standalone task may be persistent in file system or be transient only in memory depending on the app config. But it's not important for you to care.
+
+
+${agentMode !== 'agent' ? 'You are in plan mode so you can only plan and chat. You don\'t have update_task tool and cannot update the task status.' :
+     'You can update a task with update_task tool. For standalone tasks just set project id "standalone".'}
+
+You can get all projects info with get_project_list tool, and get detailed info of a project with get_project_detail tool
+and for standalone task with get_standalone_task_detail tool.`;
     }
 }
