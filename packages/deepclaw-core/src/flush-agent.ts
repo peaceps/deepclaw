@@ -2,7 +2,7 @@ export type FlushAgentConstructor = new (
     handler: AgentStreamHandler
 ) => FlushAgent;
 
-export type AgentEvent = {
+export type AgentInteractionEvent = {
     content: string;
     key?: string;
 } & ({
@@ -14,14 +14,17 @@ export type AgentEvent = {
     options: (string | {label: string; value: string})[];
 });
 
+export type AgentInfoEvent = {
+
+};
+
 export type AgentStreamHandler = {
     onText(content: string, done?: boolean): void;
-    onEvent(event: AgentEvent): Promise<string>;
+    onEvent(event: AgentInteractionEvent): Promise<string>;
 }
 
-export type SealedAgentStreamHandler = {
+export type SealedAgentStreamHandler = AgentStreamHandler & {
     onText(content: string): void;
-    onEvent(event: AgentEvent): Promise<string>;
 }
 
 export const noopStreamHandler: AgentStreamHandler = {

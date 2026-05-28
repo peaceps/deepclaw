@@ -1,8 +1,8 @@
-import { AgentEvent } from '@deepclaw/core';
+import { AgentInteractionEvent } from '@deepclaw/core';
 import { validateEnvFile, EnvConfig, writeEnvConfig, DeepclawConfig, validateAppConfig, writeAppConfig} from '@deepclaw/utils';
 import {useState, useEffect} from 'react';
 
-export function useConfig(handleAgentEvent: (event: AgentEvent) => Promise<string>): boolean {
+export function useConfig(handleAgentEvent: (event: AgentInteractionEvent) => Promise<string>): boolean {
     const [configReady, setConfigReady] = useState<boolean>(false);
     useEffect(() => {
         ensureConfig(setConfigReady, handleAgentEvent);
@@ -10,7 +10,7 @@ export function useConfig(handleAgentEvent: (event: AgentEvent) => Promise<strin
     return configReady;
 }
 
-const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentEvent} = {
+const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentInteractionEvent} = {
     provider: {
         type: 'select',
         content: 'config.env.provider.prompt',
@@ -41,7 +41,7 @@ const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentEvent} = {
     }
 };
 
-const APP_CONFIG_EVENTS: {[key: string]: AgentEvent} = {
+const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
     ['ui.lang']: {
         key: 'lang',
         type: 'select',
@@ -86,14 +86,14 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentEvent} = {
     }
 };
 
-const HINT: AgentEvent = {
+const HINT: AgentInteractionEvent = {
     type: 'readonly',
     content: 'config.env.hint'
 };
 
 async function ensureConfig(
     setConfigReady: React.Dispatch<React.SetStateAction<boolean>>,
-    handleAgentEvent: (event: AgentEvent) => Promise<string>,
+    handleAgentEvent: (event: AgentInteractionEvent) => Promise<string>,
 ) {
     const appConfig = validateAppConfig(false);
     const envConfig = validateEnvFile();
@@ -111,7 +111,7 @@ async function ensureConfig(
 
 async function ensureAppConfig(
     {config, lacks}: {config: DeepclawConfig, lacks: string[]},
-    handleAgentEvent: (event: AgentEvent) => Promise<string>,
+    handleAgentEvent: (event: AgentInteractionEvent) => Promise<string>,
 ) {
     for (const lack of lacks) {
         const event = APP_CONFIG_EVENTS[lack]!;
@@ -143,7 +143,7 @@ function setConfigValue(target: any, path: string, value: any) {
 
 async function ensureEnvConfig(
     {config, lacks}: {config: Partial<EnvConfig>, lacks: (keyof EnvConfig)[]},
-    handleAgentEvent: (event: AgentEvent) => Promise<string>
+    handleAgentEvent: (event: AgentInteractionEvent) => Promise<string>
 ): Promise<void> {
     for (const lack of lacks) {
         const event = ENV_CONFIG_EVENTS[lack]!;

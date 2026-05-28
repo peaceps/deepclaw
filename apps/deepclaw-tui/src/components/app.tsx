@@ -1,7 +1,7 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent} from 'react';
 import { Box, Static, useApp } from 'ink';
 import { i18nInstance } from '@deepclaw/i18n';
-import { FlushAgent, type FlushAgentConstructor, AgentEvent } from '@deepclaw/core';
+import { FlushAgent, type FlushAgentConstructor, AgentInteractionEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/utils';
 import {HistoryLine, type HistoryItem} from './history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from '../hooks/static-context.js';
@@ -21,7 +21,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [histories, setHistories] = useState([] as HistoryItem[]);
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
-    const [agentEvent, setAgentEvent] = useState(null as AgentEvent | null);
+    const [agentEvent, setAgentEvent] = useState(null as AgentInteractionEvent | null);
     const [agentResolver, setAgentResolver] = useState(null as any);
 
 	const staticRows = useMemo((): HistoryItem[] => {
@@ -46,7 +46,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         });
     }, [handleLlmDone]);
 
-    const handleAgentEvent = useCallback((event: AgentEvent): Promise<string> => {
+    const handleAgentEvent = useCallback((event: AgentInteractionEvent): Promise<string> => {
         setAgentEvent(event);
         return new Promise((resolve) => {
             setAgentResolver(() => (choice: string) => {
