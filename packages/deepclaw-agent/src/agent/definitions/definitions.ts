@@ -1,12 +1,6 @@
 import type { Logger } from '@deepclaw/utils';
 import { AgentStreamHandler, type FlushAgent } from '@deepclaw/core';
 
-export type TodoItem = {
-    content: string;
-    status: 'pending' | 'inProgress' | 'completed';
-    activeForm?: string;
-}
-
 export type FootPrint = {
     type: string;
     content: string;
@@ -30,8 +24,6 @@ export type OneLoopContext = {
     },
     actions: {
         newSubLoop: (fork?: boolean) => FlushAgent;
-        remindTodoIfNeeded: () => void;
-        updateTodo: (items: TodoItem[]) => string;
         addFootPrint: (footPrint: FootPrint) => void;
         compactIfNeeded: () => Promise<void>;
         streamHandler: AgentStreamHandler

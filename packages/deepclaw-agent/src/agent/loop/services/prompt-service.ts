@@ -27,11 +27,11 @@ ${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
 
 ${this.agentMode()}
 
+${this.project()}
+
 ${this.memory()}
 
-${this.availableSkills()}
-
-${this.project()}`;
+${this.availableSkills()}`;
     }
 
     private static platform(): string {
@@ -41,19 +41,20 @@ ${this.project()}`;
     }
 
     private static mainIdentity(): {loop: string, subloop: string} {
-        const commonIdentity = `Use task tools to plan and track work, tasks will be persisted on local filesystem.
-You have todo tool to manage each task if needed, todo items are transient and will be removed after the task is completed.`;
+        const commonIdentity = FileUtils.readFile(IDENTITY_FILE) || `You are a helpful and efficient assistant for the user.
+You can help the user with various tasks, such as answering questions, providing suggestions,
+and completing tasks via tools. Always try your best to help the user and complete the task. 
+If you are not sure about what the user wants, ask questions to clarify. 
+Always think step by step and be specific when you answer.`;
         return {
-            loop: `${FileUtils.readFile(IDENTITY_FILE)}
-
-${commonIdentity}`,
-            subloop: `You are a subloop agent for specific task described in the prompt.
+            loop: commonIdentity,
+            subloop: `${commonIdentity}
+What's more you are a subloop agent for specific task described in the prompt.
 Complete the given task, then summarize your findings.
 You don't have access to file writing tools, and don't use shell tool to create or edit file.
 When you need to create or generate any content,
 just return it as the output of the agent without writing it to any file.
-
-${commonIdentity}`
+`
         };
     }
 

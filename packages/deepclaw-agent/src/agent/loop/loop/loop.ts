@@ -2,8 +2,7 @@ import crypto from 'node:crypto';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FlushAgent, type AgentStreamHandler } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
-import { TodoManager } from '../services/todo-manager.js';
-import { FootPrint, LoopState, OneLoopContext, TodoItem, TransitionReason} from '../../definitions/definitions.js';
+import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import { ToolsManager } from '../services/tools-manager.js';
@@ -55,7 +54,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
-        const todoManager = new TodoManager(this.addStringMessage.bind(this));
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
@@ -68,8 +66,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 },
                 actions: {
                     newSubLoop: this.createSubLoop.bind(this),
-                    remindTodoIfNeeded: () => todoManager.remindIfNeeded(),
-                    updateTodo: (items: TodoItem[]) => todoManager.update(items),
                     addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
                     compactIfNeeded: () => this.compactIfNeeded(state.oneLoopContext),
                     streamHandler: this.streamHandler,

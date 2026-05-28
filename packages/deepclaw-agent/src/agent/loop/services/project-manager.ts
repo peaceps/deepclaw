@@ -1,4 +1,5 @@
 import { DeepclawConfig, FileUtils, loadConfig } from '@deepclaw/utils';
+import { TaskStepsManager } from './task-steps-manager';
 
 export type Project<T extends Task> = {
     id: string;
@@ -101,7 +102,7 @@ export class ProjectManager {
         return project;
     }
 
-    public static addStandaloneTask(task: StandaloneTask, persistent: boolean): void {
+    public static createStandaloneTask(task: StandaloneTask, persistent: boolean): void {
         const standaloneProject = this.projects.standalone;
         if (persistent) {
             standaloneProject.persistent[task.title] = task;
@@ -125,6 +126,9 @@ export class ProjectManager {
             task.status === 'ongoing' && taskInfo.status === 'todo' ||
             task.status === 'done' && taskInfo.status !== 'done') {
             throw new Error('You can only update the status from todo to ongoing or from ongoing to done.');
+        }
+        if (taskInfo.status === 'done' && !TaskStepsManager.isStepsCompleted(projectId, taskInfo.title)) {
+            throw new Error('All steps should be completed before marking the task as done.');
         }
         task.status = taskInfo.status;
         task.assignee = taskInfo.assignee || task.assignee;
@@ -208,16 +212,24 @@ export class ProjectManager {
     public static prompts(): string {
         const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
         return `
-You can use project tool to manage projects, which are considered long term goals that can be broken down into tasks,
+
+Use project related tools to plan and track tasks.
+Also standalone tasks can be created without a project.
+
+You can use project related tools to manage projects, which are considered long term goals that can be broken down into tasks,
 they will be persisted in file system.
 If you consider a job should be a project, use create_project tool to create it.
 
 If one job is not big enough to be a project, you can directly create a standalone task with create_standalone_task without putting it into a project.
 A standalone task may be persistent in file system or be transient only in memory depending on the app config. But it's not important for you to care.
 
+Always create a project/standalone task if asked to do something, even if the user didn\'t explicitly ask you to create one.
+You can create detailed steps for each task if needed,
+steps info are transient and will not be persisted after app restart, so make sure to update them in a timely manner.
 
-${agentMode !== 'agent' ? 'You are in plan mode so you can only plan and chat. You don\'t have update_task tool and cannot update the task status.' :
-     'You can update a task with update_task tool. For standalone tasks just set project id "standalone".'}
+${agentMode !== 'agent' ? 'You are in plan mode so you can only plan and chat. You don\'t have update tools and cannot update the task status.' :
+    `You can update a task with update_task tool and update the step index with update_task_current_step tool.
+For standalone tasks just set project id "standalone".`}
 
 You can get all projects info with get_project_list tool, and get detailed info of a project with get_project_detail tool
 and for standalone task with get_standalone_task_detail tool.`;

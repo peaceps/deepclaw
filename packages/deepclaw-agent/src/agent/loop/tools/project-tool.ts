@@ -4,6 +4,7 @@ import { Project, ProjectManager, StandaloneTask, Task } from "../services/proje
 import { loadConfig, DeepclawConfig } from "@deepclaw/utils";
 import {i18nInstance} from '@deepclaw/i18n';
 import { OneLoopContext } from '../../definitions/definitions.js';
+import { TaskStepsManager } from '../services/task-steps-manager.js';
 
 type CreateProjectInput = {
     title: string;
@@ -12,6 +13,7 @@ type CreateProjectInput = {
         title: string;
         description: string;
         priority: Task['priority'];
+        steps?: string[];
         blockedBy?: string[];
     }[];
 };
@@ -59,6 +61,13 @@ export const createProjectTool: ToolDesc<CreateProjectInput> = {
                                 enum: ['low', 'medium', 'high', 'urgent'],
                                 description: 'The priority of the task.'
                             },
+                            steps: {
+                                type: 'array',
+                                items: {type: 'string'},
+                                description: `The detailed steps to complete the task. Max step count is 12.
+You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
+All steps should be done when task is going to be marked as done.`
+                            },
                             blockedBy: {
                                 type: 'array',
                                 items: {type: 'string'},
@@ -78,6 +87,15 @@ export const createProjectTool: ToolDesc<CreateProjectInput> = {
     outputToUser: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateProjectInput): Promise<string> {
+
+        const project: Project<Task> = ProjectManager.createProject({
+            id: crypto.randomUUID(),
+            title: input.title,
+            description: input.description,
+            createdAt: new Date().toISOString(),
+            creator: 'main',
+            tasks: {},
+        });
         const tasks: Record<string, Task> = input.tasks.reduce((p, n) => {
             if (p[n.title]) {
                 throw new Error(`Task title '${n.title}' is not unique across tasks in this project.`);
@@ -92,6 +110,9 @@ export const createProjectTool: ToolDesc<CreateProjectInput> = {
                 blockedBy: n.blockedBy || [],
                 blocks: [],
             };
+            if (n.steps?.length) {
+                TaskStepsManager.init(project.id, n.title, n.steps);
+            }
             return p;
         }, {} as Record<string, Task>);
 
@@ -100,14 +121,7 @@ export const createProjectTool: ToolDesc<CreateProjectInput> = {
                 tasks[blockedBy]?.blocks?.push(task.title);
             });
         });
-        const project: Project<Task> = ProjectManager.createProject({
-            id: crypto.randomUUID(),
-            title: input.title,
-            description: input.description,
-            createdAt: new Date().toISOString(),
-            creator: 'main',
-            tasks,
-        });
+        project.tasks = tasks;
         return `Project created successfully.
 Here's the project info:
 ${JSON.stringify(project)}`;
@@ -118,6 +132,7 @@ type CreateStandaloneTaskInput = {
     title: string;
     description: string;
     priority: Task['priority'];
+    steps?: string[];
 };
 
 export const createStandaloneTaskTool: ToolDesc<CreateStandaloneTaskInput> = {
@@ -145,6 +160,13 @@ export const createStandaloneTaskTool: ToolDesc<CreateStandaloneTaskInput> = {
                     type: 'string',
                     enum: ['low', 'medium', 'high', 'urgent'],
                     description: 'The priority of the task.'
+                },
+                steps: {
+                    type: 'array',
+                    items: {type: 'string'},
+                    description: `The detailed steps to complete the task. Max step count is 12.
+You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
+All steps should be done when task is going to be marked as done.`
                 },
             },
             required: ['title', 'description', 'priority'],
@@ -177,7 +199,10 @@ export const createStandaloneTaskTool: ToolDesc<CreateStandaloneTaskInput> = {
                 ]
             }) as 'persistent' | 'transient';
         }
-        ProjectManager.addStandaloneTask(task, standaloneStrategy === 'persistent');
+        ProjectManager.createStandaloneTask(task, standaloneStrategy === 'persistent');
+        if (input.steps?.length) {
+            TaskStepsManager.init('standalone', task.title, input.steps);
+        }
         return `Standalone task created successfully.
 Here's the task info:
 ${JSON.stringify({
@@ -235,6 +260,41 @@ Here's the related info:
 ${JSON.stringify(input.projectId === 'standalone' ?
     ProjectManager.getStandaloneTaskDetail(input.taskTitle) :
     ProjectManager.getProjectDetail(input.projectId))}`;
+    },
+};
+
+type UpdateTaskCurrentStepInput = {
+    projectId: string;
+    taskTitle: string;
+    stepIndex: number;
+};
+
+export const updateTaskCurrentStepTool: ToolDesc<UpdateTaskCurrentStepInput> = {
+    tool: {
+        name: 'update_task_current_step',
+        description: `Update the current step index of an ongoing task that is being worked on. This is used to keep track of the progress of the task.`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                projectId: {type: 'string', description: 'The ID of the project. If it\'s a standalone task, this should be "standalone".'},
+                taskTitle: {type: 'string', description: 'The title of the task.'},
+                stepIndex: {
+                    type: 'number',
+                    description: `The current step index of the ongoing task that is being worked on. 
+The stepIndex starts from 0 and should be updated from small to large.
+If all steps are done, set stepIndex to the length of steps, and then the task can be marked as done via update_task tool.`
+                },
+            },
+            required: ['projectId', 'taskTitle', 'stepIndex'],
+        },
+    },
+    agentMode: ['agent'],
+    parallelSafe: true,
+    outputToUser: true,
+    exclusiveInSubLoop: true,
+    invoke: async function(input: UpdateTaskCurrentStepInput): Promise<string> {
+        return TaskStepsManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
     },
 };
 
