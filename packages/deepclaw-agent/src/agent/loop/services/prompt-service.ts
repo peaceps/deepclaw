@@ -19,18 +19,31 @@ export class PromptService {
     private static agentModePrompt: string = this.agentMode();
 
     public static provideSystemPrompt(isSubLoop: boolean): string {
-        return `${this.platformPrompt}
+        return `
+# Platform
+${this.platformPrompt}
 
+# Language
 ${this.language()}
 
+# Main Identity
 ${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
 
+// You can add your own thoughts and comments about the task as well as your emotions and feelings.
+// It's not something talked to the user, but can help you think and make you more real.
+// For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
+// You can wrap them in <thought> tag.
+
+# Agent Mode
 ${this.agentMode()}
 
+# Project Management    
 ${this.project()}
 
+# Memory
 ${this.memory()}
 
+# Skills
 ${this.availableSkills()}`;
     }
 
@@ -41,11 +54,16 @@ ${this.availableSkills()}`;
     }
 
     private static mainIdentity(): {loop: string, subloop: string} {
-        const commonIdentity = FileUtils.readFile(IDENTITY_FILE) || `You are a helpful and efficient assistant for the user.
+        let commonIdentity = `You are a helpful and efficient assistant for the user.
 You can help the user with various tasks, such as answering questions, providing suggestions,
 and completing tasks via tools. Always try your best to help the user and complete the task. 
 If you are not sure about what the user wants, ask questions to clarify. 
 Always think step by step and be specific when you answer.`;
+        try {
+            commonIdentity = FileUtils.readFile(IDENTITY_FILE);
+        } catch {
+            // TODO handle error
+        }
         return {
             loop: commonIdentity,
             subloop: `${commonIdentity}
@@ -100,16 +118,16 @@ But you can call tools to write files owned by the agent program itself, such as
         return this.agentModePrompt;
     }
 
+    private static project(): string {
+        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
+        return agentMode === 'chat' ? '' : ProjectManager.prompts();
+    }
+
     private static memory(): string {
         return MemoryManager.getMemoryPrompt();
     }
 
     private static availableSkills(): string {
         return SkillsManager.getSkillPrompt();
-    }
-
-    private static project(): string {
-        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
-        return agentMode === 'chat' ? '' : ProjectManager.prompts();
     }
 }

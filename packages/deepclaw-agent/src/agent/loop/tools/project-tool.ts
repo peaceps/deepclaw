@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { ToolDesc } from "../../definitions/tool-definitions.js";
-import { Project, ProjectManager, StandaloneTask, Task } from "../services/project-manager.js";
+import { ProjectManager, StandaloneTask, Task } from "../services/project-manager.js";
 import { loadConfig, DeepclawConfig } from "@deepclaw/utils";
 import {i18nInstance} from '@deepclaw/i18n';
 import { OneLoopContext } from '../../definitions/definitions.js';
@@ -87,15 +87,7 @@ All steps should be done when task is going to be marked as done.`
     outputToUser: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateProjectInput): Promise<string> {
-
-        const project: Project<Task> = ProjectManager.createProject({
-            id: crypto.randomUUID(),
-            title: input.title,
-            description: input.description,
-            createdAt: new Date().toISOString(),
-            creator: 'main',
-            tasks: {},
-        });
+        const projectId = crypto.randomUUID();
         const tasks: Record<string, Task> = input.tasks.reduce((p, n) => {
             if (p[n.title]) {
                 throw new Error(`Task title '${n.title}' is not unique across tasks in this project.`);
@@ -111,7 +103,7 @@ All steps should be done when task is going to be marked as done.`
                 blocks: [],
             };
             if (n.steps?.length) {
-                TaskStepsManager.init(project.id, n.title, n.steps);
+                TaskStepsManager.init(projectId, n.title, n.steps);
             }
             return p;
         }, {} as Record<string, Task>);
@@ -121,10 +113,18 @@ All steps should be done when task is going to be marked as done.`
                 tasks[blockedBy]?.blocks?.push(task.title);
             });
         });
-        project.tasks = tasks;
+        
+        ProjectManager.createProject({
+            id: projectId,
+            title: input.title,
+            description: input.description,
+            createdAt: new Date().toISOString(),
+            creator: 'main',
+            tasks,
+        });
         return `Project created successfully.
 Here's the project info:
-${JSON.stringify(project)}`;
+${JSON.stringify(ProjectManager.getProjectDetail(projectId))}`;
     },
 }
 
@@ -190,7 +190,7 @@ All steps should be done when task is going to be marked as done.`
         };
         let standaloneStrategy = loadConfig<DeepclawConfig['agent']['standaloneTask']>('agent.standaloneTask', 'transient')!;
         if (standaloneStrategy === 'ask') {
-            standaloneStrategy = await context.actions.streamHandler.onEvent({
+            standaloneStrategy = await context.actions.agentHandler.onInteractionEvent({
                 type: 'select',
                 content: i18nInstance.t('agent.tools.project.standaloneTask.prompt'),
                 options: [
@@ -247,7 +247,7 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
     agentMode: ['agent'],
     parallelSafe: false,
     outputToUser: false,
-    exclusiveInSubLoop: true,
+    exclusiveInSubLoop: false,
     invoke: async function(input: UpdateTaskInput): Promise<string> {
         ProjectManager.updateTask(input.projectId, {
             title: input.taskTitle,
@@ -292,7 +292,7 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
     agentMode: ['agent'],
     parallelSafe: true,
     outputToUser: true,
-    exclusiveInSubLoop: true,
+    exclusiveInSubLoop: false,
     invoke: async function(input: UpdateTaskCurrentStepInput): Promise<string> {
         return TaskStepsManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
     },
@@ -319,7 +319,7 @@ closed projects and done standalone tasks will also be included.`,
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
     outputToUser: false,
-    exclusiveInSubLoop: true,
+    exclusiveInSubLoop: false,
     invoke: async function(input: GetProjectListInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectList(input.includingClosed));
     },
@@ -344,7 +344,7 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
     },
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
-    exclusiveInSubLoop: true,
+    exclusiveInSubLoop: false,
     outputToUser: false,
     invoke: async function(input: GetProjectDetailInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectDetail(input.projectId));
@@ -370,7 +370,7 @@ export const getStandaloneTaskInfoTool: ToolDesc<GetStandaloneTaskDetailInput> =
     },
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
-    exclusiveInSubLoop: true,
+    exclusiveInSubLoop: false,
     outputToUser: false,
     invoke: async function(input: GetStandaloneTaskDetailInput): Promise<string> {
         return JSON.stringify(ProjectManager.getStandaloneTaskDetail(input.title));

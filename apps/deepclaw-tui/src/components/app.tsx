@@ -75,8 +75,9 @@ export function App({app}: {app: AppConfig}): ReactElement {
         }
         if (envConfigReady) {
             agent = new (app.getAgentClass())({
-                onText: handleLlmStreamText, 
-                onEvent: handleAgentEvent
+                onStreamText: handleLlmStreamText, 
+                onToolText: (text: string) => handleLlmStreamText(text, false),
+                onInteractionEvent: handleAgentEvent
             });
         }
 	}, [app, handleAgentEvent, envConfigReady]);

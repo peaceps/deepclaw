@@ -11,8 +11,10 @@ if (envConfig.lacks.length > 0 || appConfig.lacks.length > 0) {
 }
 
 const agent = new (LoopInitializer.getLoopClass())({
-    onText: () => {},
-    onEvent: async () => Promise.resolve(''),
+    onStreamText: () => {},
+    onToolText: () => {},
+    // TODO: How to handle interaction event in headless mode?
+    onInteractionEvent: async () => Promise.reject('Not supported in headless mode.'),
 });
 
 const {disconnect} = connectIM(agent);

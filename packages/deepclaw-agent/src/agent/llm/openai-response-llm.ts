@@ -11,7 +11,6 @@ import {
     ResponseFunctionToolCall,
     ResponseOutputMessage,
 } from "openai/resources/responses/responses.js";
-import { type AgentStreamHandler } from '@deepclaw/core';
 import { TransitionReason } from "../definitions/definitions.js";
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
@@ -42,7 +41,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     protected override async _invoke(
         system: string,
         messages: ThinkingMessage[],
-        streamHandler: AgentStreamHandler
+        streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
 
         const stream = await this.client.responses.create({
@@ -58,21 +57,21 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         for await (const event of stream) {
             switch (event.type) {
                 case 'response.output_text.delta':
-                    streamHandler.onText(event.delta);
+                    streamer(event.delta);
                     break;
                 case 'response.completed':
                     return this.setTransitionReason(event.response);
                 case 'response.failed':
-                    return this.flushAndRespondError(streamHandler, i18nInstance.t('agent.llm.openai.response.output.failed', {message: event.response.error?.message || ''}));
+                    return this.flushAndRespondError(streamer, i18nInstance.t('agent.llm.openai.response.output.failed', {message: event.response.error?.message || ''}));
                 case 'error':
-                    return this.flushAndRespondError(streamHandler, i18nInstance.t(
+                    return this.flushAndRespondError(streamer, i18nInstance.t(
                         'agent.llm.openai.response.output.error',
                         {code: event.code, param: event.param, message: event.message}
                     ));
             }
         }
 
-        return this.flushAndRespondError(streamHandler,
+        return this.flushAndRespondError(streamer,
             i18nInstance.t('agent.llm.openai.response.output.empty'));
     }
 
@@ -97,8 +96,8 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         return thinkingResponse;
     }
 
-    private flushAndRespondError(streamHandler: AgentStreamHandler, message: string): ThinkingResponse {
-        streamHandler.onText(message);
+    private flushAndRespondError(streamer: (text: string) => void, message: string): ThinkingResponse {
+        streamer(message);
         return this.newResponse(message, 'error');
     }
 

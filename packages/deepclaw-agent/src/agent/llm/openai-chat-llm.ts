@@ -9,7 +9,6 @@ import {
  } from 'openai/resources/chat/completions.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { type AgentStreamHandler } from '@deepclaw/core';
 import { TransitionReason } from '../definitions/definitions.js';
 
 export type ThinkingMessage = (
@@ -43,7 +42,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
     protected override async _invoke(
         system: string,
         messages: ThinkingMessage[],
-        streamHandler: AgentStreamHandler
+        streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
         const systemIdx = messages.findIndex(m => m.role === 'system');
         if (systemIdx >= 0) {
@@ -70,7 +69,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             reasoningContent += (response?.delta?.reasoning_content || '');
             if (chunkContent) {
                 content += chunkContent;
-                streamHandler.onText(chunkContent);
+                streamer(chunkContent);
             }
             const toolCalls = response?.delta?.tool_calls || [];
             for (const toolCall of toolCalls) {

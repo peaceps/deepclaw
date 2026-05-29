@@ -17,20 +17,16 @@ export class TaskStepsManager {
     private static tasks: Record<string, Record<string, TaskStepsContext>> = {};
 
     public static init(projectId: string, taskTitle: string, steps: string[]): void {
-        if (!this.tasks[projectId]) {
-            this.tasks[projectId] = {};
-        }
-        if (!this.tasks[projectId][taskTitle]) {
-            this.tasks[projectId][taskTitle] = {
-                steps: [],
-                currentStepIndex: -1
-            };
-        }
-        const context = this.tasks[projectId][taskTitle];
         if (steps.length > MAX_TODO_ITEM) {
             throw new Error(`Keep the session plan short (max ${MAX_TODO_ITEM} items)`);
         }
-        context.steps = steps;
+        if (!this.tasks[projectId]) {
+            this.tasks[projectId] = {};
+        }
+        this.tasks[projectId][taskTitle] = {
+            steps,
+            currentStepIndex: -1
+        };
     }
 
     public static updateCurrentStep(projectId: string, taskTitle: string, stepIndex: number): string {
@@ -50,8 +46,8 @@ export class TaskStepsManager {
 
     public static isStepsCompleted(projectId: string, taskTitle: string): boolean {
         const context = this.tasks[projectId]?.[taskTitle];
-        if (!context) {
-            throw new Error('No todo found for the specified task.');
+        if (!context || context.steps.length === 0) {
+            return true;
         }
         return context.currentStepIndex === context.steps.length;
     }

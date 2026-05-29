@@ -1,5 +1,5 @@
 import type { Logger } from '@deepclaw/utils';
-import { AgentStreamHandler, type FlushAgent } from '@deepclaw/core';
+import { SealedAgentHandler, type FlushAgent } from '@deepclaw/core';
 
 export type FootPrint = {
     type: string;
@@ -26,6 +26,6 @@ export type OneLoopContext = {
         newSubLoop: (fork?: boolean) => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
         compactIfNeeded: () => Promise<void>;
-        streamHandler: AgentStreamHandler
+        agentHandler: SealedAgentHandler
     }
 }

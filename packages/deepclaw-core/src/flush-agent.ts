@@ -1,5 +1,5 @@
 export type FlushAgentConstructor = new (
-    handler: AgentStreamHandler
+    handler: AgentHandler
 ) => FlushAgent;
 
 export type AgentInteractionEvent = {
@@ -14,36 +14,34 @@ export type AgentInteractionEvent = {
     options: (string | {label: string; value: string})[];
 });
 
+// TODO: Implement this
 export type AgentInfoEvent = {
 
 };
 
-export type AgentStreamHandler = {
-    onText(content: string, done?: boolean): void;
-    onEvent(event: AgentInteractionEvent): Promise<string>;
+export type AgentHandler = {
+    onStreamText(content: string, done?: boolean): void;
+    onToolText(content: string): void;
+    onInteractionEvent(event: AgentInteractionEvent): Promise<string>;
 }
 
-export type SealedAgentStreamHandler = AgentStreamHandler & {
-    onText(content: string): void;
-}
-
-export const noopStreamHandler: AgentStreamHandler = {
-    onText: () => {},
-    onEvent: () => Promise.resolve(''),
+export type SealedAgentHandler = AgentHandler & {
+    onStreamText(content: string): void;
 }
 
 export abstract class FlushAgent {
-    protected streamHandler: SealedAgentStreamHandler;
+    protected agentHandler: SealedAgentHandler;
     private flusher: (content: string, done: boolean) => void;
 
     constructor(
-        handler: AgentStreamHandler
+        handler: AgentHandler
     ) {
-        this.flusher = (text: string, done: boolean) => handler.onText(this.formatLLMText(text), done),
-        this.streamHandler = {
-            onText: (text: string) => this.flusher(text, false),
-            onEvent: handler.onEvent
-        }
+        this.flusher = (text: string, done: boolean) => handler.onStreamText(this.formatLLMText(text, done), done);
+        this.agentHandler = {
+            onStreamText: (text: string) => this.flusher(text, false),
+            onToolText: (text: string) => handler.onToolText(text),
+            onInteractionEvent: handler.onInteractionEvent
+        };
     }
 
     protected abstract _invoke(input: string): Promise<string>;
@@ -66,7 +64,12 @@ export abstract class FlushAgent {
         });
     }
     
-    private formatLLMText(text: string): string {
-        return !text ? '' : text.replace(/\r\n/g, '\n').trimEnd();
+    private formatLLMText(text: string, done: boolean): string {
+        if (!text) return '';
+        let result = text.replace(/\r\n/g, '\n');
+        if (done) {
+            result = result.trimEnd();
+        }
+        return result;
     }
 }

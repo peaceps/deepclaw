@@ -1,5 +1,5 @@
 import { DeepclawConfig, FileUtils, loadConfig } from '@deepclaw/utils';
-import { TaskStepsManager } from './task-steps-manager';
+import { TaskStepsManager } from './task-steps-manager.js';
 
 export type Project<T extends Task> = {
     id: string;
@@ -212,26 +212,28 @@ export class ProjectManager {
     public static prompts(): string {
         const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
         return `
+## Project Management tools
+You can use project related tools to plan, manage projects as well as standalone tasks.
+Projects are considered long term goals that can be broken down into tasks, they will be persisted in file system.
+Standalone tasks are independent tasks that are not associated with any project,
+they can be persisted in file system or be transient only in memory, but you don't need to care if it's persistent or transient.
 
-Use project related tools to plan and track tasks.
-Also standalone tasks can be created without a project.
+## Get project and standalone task info
+You can get all projects info with get_project_list tool, and get detailed info of a project with get_project_detail tool
+and for standalone task with get_standalone_task_detail tool.
 
-You can use project related tools to manage projects, which are considered long term goals that can be broken down into tasks,
-they will be persisted in file system.
+## Create project and standalone task
+If you are not a subloop agent, you can create project and standalone tasks.
 If you consider a job should be a project, use create_project tool to create it.
-
 If one job is not big enough to be a project, you can directly create a standalone task with create_standalone_task without putting it into a project.
-A standalone task may be persistent in file system or be transient only in memory depending on the app config. But it's not important for you to care.
-
 Always create a project/standalone task if asked to do something, even if the user didn\'t explicitly ask you to create one.
 You can create detailed steps for each task if needed,
 steps info are transient and will not be persisted after app restart, so make sure to update them in a timely manner.
 
+## Update task status
 ${agentMode !== 'agent' ? 'You are in plan mode so you can only plan and chat. You don\'t have update tools and cannot update the task status.' :
     `You can update a task with update_task tool and update the step index with update_task_current_step tool.
-For standalone tasks just set project id "standalone".`}
-
-You can get all projects info with get_project_list tool, and get detailed info of a project with get_project_detail tool
-and for standalone task with get_standalone_task_detail tool.`;
+For standalone tasks just set project id "standalone".
+It's also allowed for subloop agents to take action on tasks, and update task status.`}`;
     }
 }

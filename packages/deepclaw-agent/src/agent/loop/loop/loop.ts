@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { i18nInstance } from '@deepclaw/i18n';
-import { FlushAgent, type AgentStreamHandler } from '@deepclaw/core';
+import { AgentInteractionEvent, FlushAgent, type AgentHandler } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions.js';
 import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions.js';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
@@ -23,7 +23,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private footPrints: FootPrint[] = [];
 
     constructor(
-        handler: AgentStreamHandler,
+        handler: AgentHandler,
         history: I[] = [],
         parentSessionId: string = '',
     ) {
@@ -36,7 +36,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             tools,
             this.parentSessionId,
             this.sessionId,
-            this.streamHandler
+            this.agentHandler
         );
         this.llm = new (this.getLLMConstructor())(
             tools.map(tool => tool.tool)
@@ -68,7 +68,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     newSubLoop: this.createSubLoop.bind(this),
                     addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
                     compactIfNeeded: () => this.compactIfNeeded(state.oneLoopContext),
-                    streamHandler: this.streamHandler,
+                    agentHandler: this.agentHandler,
                 }
             },
         };
@@ -89,7 +89,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         while (true) {
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 const finalText = i18nInstance.t('agent.maxTurnReached', {finalText: this.extractFinalText(state)});
-                this.streamHandler.onText(finalText);
+                this.agentHandler.onStreamText(finalText);
                 return finalText;
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(this.isSubLoop());
@@ -97,7 +97,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             if (!goAround) {
                 const finalText = this.extractFinalText(state);
                 if (finalText && state.oneLoopContext.transitionReason === 'error') {
-                    this.streamHandler.onText(finalText);
+                    this.agentHandler.onStreamText(finalText);
                 }
                 return finalText;
             }
@@ -114,7 +114,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         const response = await this.llm.invoke(
             state.oneLoopContext.system,
             state.messages,
-            this.streamHandler,
+            (text: string) => this.agentHandler.onStreamText(text),
             state.oneLoopContext.logger
         );
 
@@ -164,7 +164,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             } else {
                 const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
                 if (toolResult.effect.outputToUser) {
-                    this.streamHandler.onText(toolResult.result.content);
+                    this.agentHandler.onToolText(toolResult.result.content);
                 }
                 results.push(toolResult.result);
                 await HookManager.emitVisitor('postEachToolUse', context);
@@ -190,8 +190,16 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         if (this.isSubLoop()) {
             throw new Error('Sub-loop cannot create a sub-loop');
         }
-        return this.newSubLoop(this.sessionId, fork);
+        return this.newSubLoop({
+            onStreamText: () => {},
+            onToolText: (content: string) => this.agentHandler.onToolText(content),
+            onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
+        }, fork ? this.history : [], this.sessionId);
     }
 
-    protected abstract newSubLoop(parentSessionId: string, fork?: boolean): LoopAgent<I, O, LLM>;
+    protected abstract newSubLoop(
+        subLoopAgentHandler: AgentHandler,
+        history: I[],
+        parentSessionId: string,
+    ): LoopAgent<I, O, LLM>;
 }

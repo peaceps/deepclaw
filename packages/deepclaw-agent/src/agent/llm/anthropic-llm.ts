@@ -12,7 +12,6 @@ import {
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw.js';
 import { LLMTool } from '../definitions/tool-definitions.js';
-import { type AgentStreamHandler } from '@deepclaw/core';
 import { TransitionReason } from '../definitions/definitions.js';
 
 export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
@@ -45,7 +44,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
     protected override async _invoke(
         system: string,
         messages: ThinkingMessage[],
-        streamHandler: AgentStreamHandler
+        streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
         const stream = this.client.messages.stream({
             model: this.gw.model,
@@ -55,7 +54,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature
         }).on('text', (text) => {
-            streamHandler.onText(text);
+            streamer(text);
         });
 
         const response = await stream.finalMessage();

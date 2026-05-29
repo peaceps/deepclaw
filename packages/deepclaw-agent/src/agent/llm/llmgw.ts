@@ -1,5 +1,4 @@
 import {getEnvVariable, hasEnvVariable, type Logger} from '@deepclaw/utils';
-import { AgentStreamHandler, noopStreamHandler } from '@deepclaw/core';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import { TransitionReason } from '../definitions/definitions.js';
 
@@ -30,11 +29,11 @@ export abstract class LLMModel<I, O, T, LLM> {
 
     protected abstract createLLMClient(): LLM;
 
-    public async invoke(system: string, messages: I[], streamHandler: AgentStreamHandler, logger: Logger): Promise<O> {
+    public async invoke(system: string, messages: I[], streamer: (text: string) => void, logger: Logger): Promise<O> {
         let response: O | null = null;
         for (let i = 0; i < llmRetry; i++) {
             try {
-                response = await this._invoke(system, messages, streamHandler);
+                response = await this._invoke(system, messages, streamer);
                 break;
             } catch (error) {
                 logger.error(error, 'LLM invoke failed');
@@ -57,7 +56,7 @@ export abstract class LLMModel<I, O, T, LLM> {
         return response;
     }
 
-    protected abstract _invoke(system: string, messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
+    protected abstract _invoke(system: string, messages: I[], streamer: (text: string) => void): Promise<O>;
 
     protected abstract isInputExceedLimit(error: any): boolean;
 
@@ -83,7 +82,7 @@ Preserve:
 Be compact but concrete.
 
 ${content}`;
-        const response = await this.invoke(system, [this.newInputMessage(prompt)], noopStreamHandler, logger);
+        const response = await this.invoke(system, [this.newInputMessage(prompt)], () => {}, logger);
         return this.getTextFromResponse(response);
     }
     

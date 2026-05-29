@@ -1,6 +1,6 @@
 import { FileUtils } from '@deepclaw/utils';
 import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions.js";
-import { type SealedAgentStreamHandler } from '@deepclaw/core';
+import { type SealedAgentHandler } from '@deepclaw/core';
 import { OneLoopContext } from '../../definitions/definitions.js';
 
 export type ToolUseServiceResult = {
@@ -22,7 +22,7 @@ export class ToolUseService {
     private parentSessionId: string;
     private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
-    private streamHandler: SealedAgentStreamHandler;
+    private agentHandler: SealedAgentHandler;
     private truncateThreshold: number = 20000;
     private previewChars: number = 1000;
 
@@ -30,14 +30,14 @@ export class ToolUseService {
         tools: ToolDesc[],
         parentSessionId: string,
         sessionId: string,
-        streamHandler: SealedAgentStreamHandler
+        agentHandler: SealedAgentHandler
     ) {
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
         for (const tool of tools) {
             this.toolMap.set(tool.tool.name, tool);
         }
-        this.streamHandler = streamHandler;
+        this.agentHandler = agentHandler;
     }
 
     public async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
@@ -58,7 +58,7 @@ export class ToolUseService {
             if (guardResult.result === 'denied') {
                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
             } else if (guardResult.result === 'ask') {
-                const choice = await this.streamHandler.onEvent({type: 'input', content: guardResult.question || ''});
+                const choice = await this.agentHandler.onInteractionEvent({type: 'input', content: guardResult.question || ''});
                 if (!guardResult.checkAnswer(choice)) {
                     return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
                 }

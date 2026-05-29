@@ -1,0 +1,848 @@
+From 13808a5ef4daafed4ba623f7669ac839726693a3 Mon Sep 17 00:00:00 2001
+From: sacephor <peaceps@aliyun.com>
+Date: Fri, 29 May 2026 11:17:10 +0800
+Subject: [PATCH] bug fix && task update for subloop
+
+---
+ apps/deepclaw-headless/src/headless.ts        |  6 ++-
+ apps/deepclaw-tui/src/components/app.tsx      |  5 ++-
+ .../src/agent/definitions/definitions.ts      |  4 +-
+ .../src/agent/llm/anthropic-llm.ts            |  5 +--
+ .../deepclaw-agent/src/agent/llm/llmgw.ts     |  9 ++--
+ .../src/agent/llm/openai-chat-llm.ts          |  5 +--
+ .../src/agent/llm/openai-response-llm.ts      | 15 +++----
+ .../src/agent/loop/loop/anthropic-loop.ts     | 10 +++--
+ .../src/agent/loop/loop/loop.ts               | 28 +++++++-----
+ .../src/agent/loop/loop/openai-chat-loop.ts   | 10 +++--
+ .../agent/loop/loop/openai-response-loop.ts   | 10 +++--
+ .../agent/loop/services/project-manager.ts    | 26 +++++------
+ .../src/agent/loop/services/prompt-service.ts | 27 +++++++++---
+ .../agent/loop/services/task-steps-manager.ts | 22 ++++------
+ .../agent/loop/services/tool-use-service.ts   | 10 ++---
+ .../src/agent/loop/tools/project-tool.ts      | 38 ++++++++--------
+ .../deepclaw-agentmock/src/test-llm-agent.ts  |  2 +-
+ packages/deepclaw-core/src/flush-agent.ts     | 43 ++++++++++---------
+ .../src/app-config-utils.spec.ts              |  2 +-
+ 19 files changed, 155 insertions(+), 122 deletions(-)
+
+diff --git a/apps/deepclaw-headless/src/headless.ts b/apps/deepclaw-headless/src/headless.ts
+index 0ccf866..7cb485b 100644
+--- a/apps/deepclaw-headless/src/headless.ts
++++ b/apps/deepclaw-headless/src/headless.ts
+@@ -11,8 +11,10 @@ if (envConfig.lacks.length > 0 || appConfig.lacks.length > 0) {
+ }
+ 
+ const agent = new (LoopInitializer.getLoopClass())({
+-    onText: () => {},
+-    onEvent: async () => Promise.resolve(''),
++    onStreamText: () => {},
++    onToolText: () => {},
++    // TODO: How to handle interaction event in headless mode?
++    onInteractionEvent: async () => Promise.reject('Not supported in headless mode.'),
+ });
+ 
+ const {disconnect} = connectIM(agent);
+diff --git a/apps/deepclaw-tui/src/components/app.tsx b/apps/deepclaw-tui/src/components/app.tsx
+index 89f0486..1ae575e 100644
+--- a/apps/deepclaw-tui/src/components/app.tsx
++++ b/apps/deepclaw-tui/src/components/app.tsx
+@@ -75,8 +75,9 @@ export function App({app}: {app: AppConfig}): ReactElement {
+         }
+         if (envConfigReady) {
+             agent = new (app.getAgentClass())({
+-                onText: handleLlmStreamText, 
+-                onEvent: handleAgentEvent
++                onStreamText: handleLlmStreamText, 
++                onToolText: (text: string) => handleLlmStreamText(text, false),
++                onInteractionEvent: handleAgentEvent
+             });
+         }
+ 	}, [app, handleAgentEvent, envConfigReady]);
+diff --git a/packages/deepclaw-agent/src/agent/definitions/definitions.ts b/packages/deepclaw-agent/src/agent/definitions/definitions.ts
+index 81ea424..8bc7624 100644
+--- a/packages/deepclaw-agent/src/agent/definitions/definitions.ts
++++ b/packages/deepclaw-agent/src/agent/definitions/definitions.ts
+@@ -1,5 +1,5 @@
+ import type { Logger } from '@deepclaw/utils';
+-import { AgentStreamHandler, type FlushAgent } from '@deepclaw/core';
++import { SealedAgentHandler, type FlushAgent } from '@deepclaw/core';
+ 
+ export type FootPrint = {
+     type: string;
+@@ -26,6 +26,6 @@ export type OneLoopContext = {
+         newSubLoop: (fork?: boolean) => FlushAgent;
+         addFootPrint: (footPrint: FootPrint) => void;
+         compactIfNeeded: () => Promise<void>;
+-        streamHandler: AgentStreamHandler
++        agentHandler: SealedAgentHandler
+     }
+ }
+diff --git a/packages/deepclaw-agent/src/agent/llm/anthropic-llm.ts b/packages/deepclaw-agent/src/agent/llm/anthropic-llm.ts
+index c80bd05..8545498 100644
+--- a/packages/deepclaw-agent/src/agent/llm/anthropic-llm.ts
++++ b/packages/deepclaw-agent/src/agent/llm/anthropic-llm.ts
+@@ -12,7 +12,6 @@ import {
+ import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
+ import { LLMModel } from './llmgw.js';
+ import { LLMTool } from '../definitions/tool-definitions.js';
+-import { type AgentStreamHandler } from '@deepclaw/core';
+ import { TransitionReason } from '../definitions/definitions.js';
+ 
+ export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
+@@ -45,7 +44,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
+     protected override async _invoke(
+         system: string,
+         messages: ThinkingMessage[],
+-        streamHandler: AgentStreamHandler
++        streamer: (text: string) => void
+     ): Promise<ThinkingResponse> {
+         const stream = this.client.messages.stream({
+             model: this.gw.model,
+@@ -55,7 +54,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
+             max_tokens: this.gw.maxTokens,
+             temperature: this.gw.temperature
+         }).on('text', (text) => {
+-            streamHandler.onText(text);
++            streamer(text);
+         });
+ 
+         const response = await stream.finalMessage();
+diff --git a/packages/deepclaw-agent/src/agent/llm/llmgw.ts b/packages/deepclaw-agent/src/agent/llm/llmgw.ts
+index 9ddb4f5..33e8985 100644
+--- a/packages/deepclaw-agent/src/agent/llm/llmgw.ts
++++ b/packages/deepclaw-agent/src/agent/llm/llmgw.ts
+@@ -1,5 +1,4 @@
+ import {getEnvVariable, hasEnvVariable, type Logger} from '@deepclaw/utils';
+-import { AgentStreamHandler, noopStreamHandler } from '@deepclaw/core';
+ import { LLMTool } from '../definitions/tool-definitions.js';
+ import { TransitionReason } from '../definitions/definitions.js';
+ 
+@@ -30,11 +29,11 @@ export abstract class LLMModel<I, O, T, LLM> {
+ 
+     protected abstract createLLMClient(): LLM;
+ 
+-    public async invoke(system: string, messages: I[], streamHandler: AgentStreamHandler, logger: Logger): Promise<O> {
++    public async invoke(system: string, messages: I[], streamer: (text: string) => void, logger: Logger): Promise<O> {
+         let response: O | null = null;
+         for (let i = 0; i < llmRetry; i++) {
+             try {
+-                response = await this._invoke(system, messages, streamHandler);
++                response = await this._invoke(system, messages, streamer);
+                 break;
+             } catch (error) {
+                 logger.error(error, 'LLM invoke failed');
+@@ -57,7 +56,7 @@ export abstract class LLMModel<I, O, T, LLM> {
+         return response;
+     }
+ 
+-    protected abstract _invoke(system: string, messages: I[], streamHandler: AgentStreamHandler): Promise<O>;
++    protected abstract _invoke(system: string, messages: I[], streamer: (text: string) => void): Promise<O>;
+ 
+     protected abstract isInputExceedLimit(error: any): boolean;
+ 
+@@ -83,7 +82,7 @@ Preserve:
+ Be compact but concrete.
+ 
+ ${content}`;
+-        const response = await this.invoke(system, [this.newInputMessage(prompt)], noopStreamHandler, logger);
++        const response = await this.invoke(system, [this.newInputMessage(prompt)], () => {}, logger);
+         return this.getTextFromResponse(response);
+     }
+     
+diff --git a/packages/deepclaw-agent/src/agent/llm/openai-chat-llm.ts b/packages/deepclaw-agent/src/agent/llm/openai-chat-llm.ts
+index 634c0e0..e9c72f3 100644
+--- a/packages/deepclaw-agent/src/agent/llm/openai-chat-llm.ts
++++ b/packages/deepclaw-agent/src/agent/llm/openai-chat-llm.ts
+@@ -9,7 +9,6 @@ import {
+  } from 'openai/resources/chat/completions.js';
+ import { LLMModel } from './llmgw.js';
+ import { LLMTool } from '../definitions/tool-definitions.js';
+-import { type AgentStreamHandler } from '@deepclaw/core';
+ import { TransitionReason } from '../definitions/definitions.js';
+ 
+ export type ThinkingMessage = (
+@@ -43,7 +42,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
+     protected override async _invoke(
+         system: string,
+         messages: ThinkingMessage[],
+-        streamHandler: AgentStreamHandler
++        streamer: (text: string) => void
+     ): Promise<ThinkingResponse> {
+         const systemIdx = messages.findIndex(m => m.role === 'system');
+         if (systemIdx >= 0) {
+@@ -70,7 +69,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
+             reasoningContent += (response?.delta?.reasoning_content || '');
+             if (chunkContent) {
+                 content += chunkContent;
+-                streamHandler.onText(chunkContent);
++                streamer(chunkContent);
+             }
+             const toolCalls = response?.delta?.tool_calls || [];
+             for (const toolCall of toolCalls) {
+diff --git a/packages/deepclaw-agent/src/agent/llm/openai-response-llm.ts b/packages/deepclaw-agent/src/agent/llm/openai-response-llm.ts
+index 8b5aba9..aa7822c 100644
+--- a/packages/deepclaw-agent/src/agent/llm/openai-response-llm.ts
++++ b/packages/deepclaw-agent/src/agent/llm/openai-response-llm.ts
+@@ -11,7 +11,6 @@ import {
+     ResponseFunctionToolCall,
+     ResponseOutputMessage,
+ } from "openai/resources/responses/responses.js";
+-import { type AgentStreamHandler } from '@deepclaw/core';
+ import { TransitionReason } from "../definitions/definitions.js";
+ 
+ export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
+@@ -42,7 +41,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
+     protected override async _invoke(
+         system: string,
+         messages: ThinkingMessage[],
+-        streamHandler: AgentStreamHandler
++        streamer: (text: string) => void
+     ): Promise<ThinkingResponse> {
+ 
+         const stream = await this.client.responses.create({
+@@ -58,21 +57,21 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
+         for await (const event of stream) {
+             switch (event.type) {
+                 case 'response.output_text.delta':
+-                    streamHandler.onText(event.delta);
++                    streamer(event.delta);
+                     break;
+                 case 'response.completed':
+                     return this.setTransitionReason(event.response);
+                 case 'response.failed':
+-                    return this.flushAndRespondError(streamHandler, i18nInstance.t('agent.llm.openai.response.output.failed', {message: event.response.error?.message || ''}));
++                    return this.flushAndRespondError(streamer, i18nInstance.t('agent.llm.openai.response.output.failed', {message: event.response.error?.message || ''}));
+                 case 'error':
+-                    return this.flushAndRespondError(streamHandler, i18nInstance.t(
++                    return this.flushAndRespondError(streamer, i18nInstance.t(
+                         'agent.llm.openai.response.output.error',
+                         {code: event.code, param: event.param, message: event.message}
+                     ));
+             }
+         }
+ 
+-        return this.flushAndRespondError(streamHandler,
++        return this.flushAndRespondError(streamer,
+             i18nInstance.t('agent.llm.openai.response.output.empty'));
+     }
+ 
+@@ -97,8 +96,8 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
+         return thinkingResponse;
+     }
+ 
+-    private flushAndRespondError(streamHandler: AgentStreamHandler, message: string): ThinkingResponse {
+-        streamHandler.onText(message);
++    private flushAndRespondError(streamer: (text: string) => void, message: string): ThinkingResponse {
++        streamer(message);
+         return this.newResponse(message, 'error');
+     }
+ 
+diff --git a/packages/deepclaw-agent/src/agent/loop/loop/anthropic-loop.ts b/packages/deepclaw-agent/src/agent/loop/loop/anthropic-loop.ts
+index 4dabfa6..6d25b50 100644
+--- a/packages/deepclaw-agent/src/agent/loop/loop/anthropic-loop.ts
++++ b/packages/deepclaw-agent/src/agent/loop/loop/anthropic-loop.ts
+@@ -6,7 +6,7 @@ import { ToolUseDef } from "../services/tool-use-service";
+ import { MessagesCompactor } from "../compactor/messages-compactor.js";
+ import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor.js";
+ import { LLMConstructor } from '../../llm/llmgw';
+-import { noopStreamHandler } from '@deepclaw/core';
++import { AgentHandler } from '@deepclaw/core';
+ 
+ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
+ 
+@@ -36,8 +36,12 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
+         }));
+     }
+ 
+-    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
+-        return new AnthropicLoop(noopStreamHandler, fork ? this.history : [], parentSessionId);
++    protected override newSubLoop(
++        subLoopAgentHandler: AgentHandler,
++        history: ThinkingMessage[],
++        parentSessionId: string,
++    ): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
++        return new AnthropicLoop(subLoopAgentHandler, history, parentSessionId);
+     }
+ 
+ }
+diff --git a/packages/deepclaw-agent/src/agent/loop/loop/loop.ts b/packages/deepclaw-agent/src/agent/loop/loop/loop.ts
+index 2b7a24f..8aa372b 100644
+--- a/packages/deepclaw-agent/src/agent/loop/loop/loop.ts
++++ b/packages/deepclaw-agent/src/agent/loop/loop/loop.ts
+@@ -1,6 +1,6 @@
+ import crypto from 'node:crypto';
+ import { i18nInstance } from '@deepclaw/i18n';
+-import { FlushAgent, type AgentStreamHandler } from '@deepclaw/core';
++import { AgentInteractionEvent, FlushAgent, type AgentHandler } from '@deepclaw/core';
+ import { ToolUseResult } from '../../definitions/tool-definitions.js';
+ import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions.js';
+ import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
+@@ -23,7 +23,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
+     private footPrints: FootPrint[] = [];
+ 
+     constructor(
+-        handler: AgentStreamHandler,
++        handler: AgentHandler,
+         history: I[] = [],
+         parentSessionId: string = '',
+     ) {
+@@ -36,7 +36,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
+             tools,
+             this.parentSessionId,
+             this.sessionId,
+-            this.streamHandler
++            this.agentHandler
+         );
+         this.llm = new (this.getLLMConstructor())(
+             tools.map(tool => tool.tool)
+@@ -68,7 +68,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
+                     newSubLoop: this.createSubLoop.bind(this),
+                     addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
+                     compactIfNeeded: () => this.compactIfNeeded(state.oneLoopContext),
+-                    streamHandler: this.streamHandler,
++                    agentHandler: this.agentHandler,
+                 }
+             },
+         };
+@@ -89,7 +89,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
+         while (true) {
+             if (state.oneLoopContext.turnCount >= this.turnLimit) {
+                 const finalText = i18nInstance.t('agent.maxTurnReached', {finalText: this.extractFinalText(state)});
+-                this.streamHandler.onText(finalText);
++                this.agentHandler.onStreamText(finalText);
+                 return finalText;
+             }
+             state.oneLoopContext.system = PromptService.provideSystemPrompt(this.isSubLoop());
+@@ -97,7 +97,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
+             if (!goAround) {
+                 const finalText = this.extractFinalText(state);
+                 if (finalText && state.oneLoopContext.transitionReason === 'error') {
+-                    this.streamHandler.onText(finalText);
++                    this.agentHandler.onStreamText(finalText);
+                 }
+                 return finalText;
+             }
+@@ -114,7 +114,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
+         const response = await this.llm.invoke(
+             state.oneLoopContext.system,
+             state.messages,
+-            this.streamHandler,
++            (text: string) => this.agentHandler.onStreamText(text),
+             state.oneLoopContext.logger
+         );
+ 
+@@ -164,7 +164,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
+             } else {
+                 const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
+                 if (toolResult.effect.outputToUser) {
+-                    this.streamHandler.onText(toolResult.result.content);
++                    this.agentHandler.onToolText(toolResult.result.content);
+                 }
+                 results.push(toolResult.result);
+                 await HookManager.emitVisitor('postEachToolUse', context);
+@@ -190,8 +190,16 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
+         if (this.isSubLoop()) {
+             throw new Error('Sub-loop cannot create a sub-loop');
+         }
+-        return this.newSubLoop(this.sessionId, fork);
++        return this.newSubLoop({
++            onStreamText: () => {},
++            onToolText: (content: string) => this.agentHandler.onToolText(content),
++            onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
++        }, fork ? this.history : [], this.sessionId);
+     }
+ 
+-    protected abstract newSubLoop(parentSessionId: string, fork?: boolean): LoopAgent<I, O, LLM>;
++    protected abstract newSubLoop(
++        subLoopAgentHandler: AgentHandler,
++        history: I[],
++        parentSessionId: string,
++    ): LoopAgent<I, O, LLM>;
+ }
+diff --git a/packages/deepclaw-agent/src/agent/loop/loop/openai-chat-loop.ts b/packages/deepclaw-agent/src/agent/loop/loop/openai-chat-loop.ts
+index daddf57..3dba604 100644
+--- a/packages/deepclaw-agent/src/agent/loop/loop/openai-chat-loop.ts
++++ b/packages/deepclaw-agent/src/agent/loop/loop/openai-chat-loop.ts
+@@ -6,7 +6,7 @@ import { ToolUseResult } from '../../definitions/tool-definitions.js';
+ import { MessagesCompactor } from '../compactor/messages-compactor.js';
+ import { OpenAIChatMessagesCompactor } from '../compactor/openai-chat-compactor.js';
+ import { LLMConstructor } from '../../llm/llmgw.js';
+-import { noopStreamHandler } from '@deepclaw/core';
++import { AgentHandler } from '@deepclaw/core';
+ 
+ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
+ 
+@@ -34,7 +34,11 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
+         })) || [];
+     }
+ 
+-    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
+-        return new OpenAIChatLoop(noopStreamHandler, fork ? this.history : [], parentSessionId);
++    protected override newSubLoop(
++        subLoopAgentHandler: AgentHandler,
++        history: ThinkingMessage[],
++        parentSessionId: string,
++    ): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
++        return new OpenAIChatLoop(subLoopAgentHandler, history, parentSessionId);
+     }
+ }
+diff --git a/packages/deepclaw-agent/src/agent/loop/loop/openai-response-loop.ts b/packages/deepclaw-agent/src/agent/loop/loop/openai-response-loop.ts
+index 05ed76a..22ccc35 100644
+--- a/packages/deepclaw-agent/src/agent/loop/loop/openai-response-loop.ts
++++ b/packages/deepclaw-agent/src/agent/loop/loop/openai-response-loop.ts
+@@ -6,7 +6,7 @@ import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/
+ import { MessagesCompactor } from '../compactor/messages-compactor.js';
+ import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor.js';
+ import { LLMConstructor } from '../../llm/llmgw';
+-import { noopStreamHandler } from '@deepclaw/core';
++import { AgentHandler } from '@deepclaw/core';
+ 
+ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
+ 
+@@ -39,7 +39,11 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
+         }));
+     }
+ 
+-    protected override newSubLoop(parentSessionId: string, fork: boolean = false): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
+-        return new OpenAIResponseLoop(noopStreamHandler, fork ? this.history : [], parentSessionId);
++    protected override newSubLoop(
++        subLoopAgentHandler: AgentHandler,
++        history: ThinkingMessage[],
++        parentSessionId: string,
++    ): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
++        return new OpenAIResponseLoop(subLoopAgentHandler, history, parentSessionId);
+     }
+ }
+diff --git a/packages/deepclaw-agent/src/agent/loop/services/project-manager.ts b/packages/deepclaw-agent/src/agent/loop/services/project-manager.ts
+index 2797765..dcff070 100644
+--- a/packages/deepclaw-agent/src/agent/loop/services/project-manager.ts
++++ b/packages/deepclaw-agent/src/agent/loop/services/project-manager.ts
+@@ -1,5 +1,5 @@
+ import { DeepclawConfig, FileUtils, loadConfig } from '@deepclaw/utils';
+-import { TaskStepsManager } from './task-steps-manager';
++import { TaskStepsManager } from './task-steps-manager.js';
+ 
+ export type Project<T extends Task> = {
+     id: string;
+@@ -212,26 +212,28 @@ export class ProjectManager {
+     public static prompts(): string {
+         const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
+         return `
++## Project Management tools
++You can use project related tools to plan, manage projects as well as standalone tasks.
++Projects are considered long term goals that can be broken down into tasks, they will be persisted in file system.
++Standalone tasks are independent tasks that are not associated with any project,
++they can be persisted in file system or be transient only in memory, but you don't need to care if it's persistent or transient.
+ 
+-Use project related tools to plan and track tasks.
+-Also standalone tasks can be created without a project.
++## Get project and standalone task info
++You can get all projects info with get_project_list tool, and get detailed info of a project with get_project_detail tool
++and for standalone task with get_standalone_task_detail tool.
+ 
+-You can use project related tools to manage projects, which are considered long term goals that can be broken down into tasks,
+-they will be persisted in file system.
++## Create project and standalone task
++If you are not a subloop agent, you can create project and standalone tasks.
+ If you consider a job should be a project, use create_project tool to create it.
+-
+ If one job is not big enough to be a project, you can directly create a standalone task with create_standalone_task without putting it into a project.
+-A standalone task may be persistent in file system or be transient only in memory depending on the app config. But it's not important for you to care.
+-
+ Always create a project/standalone task if asked to do something, even if the user didn\'t explicitly ask you to create one.
+ You can create detailed steps for each task if needed,
+ steps info are transient and will not be persisted after app restart, so make sure to update them in a timely manner.
+ 
++## Update task status
+ ${agentMode !== 'agent' ? 'You are in plan mode so you can only plan and chat. You don\'t have update tools and cannot update the task status.' :
+     `You can update a task with update_task tool and update the step index with update_task_current_step tool.
+-For standalone tasks just set project id "standalone".`}
+-
+-You can get all projects info with get_project_list tool, and get detailed info of a project with get_project_detail tool
+-and for standalone task with get_standalone_task_detail tool.`;
++For standalone tasks just set project id "standalone".
++It's also allowed for subloop agents to take action on tasks, and update task status.`}`;
+     }
+ }
+diff --git a/packages/deepclaw-agent/src/agent/loop/services/prompt-service.ts b/packages/deepclaw-agent/src/agent/loop/services/prompt-service.ts
+index f28c46c..0f40849 100644
+--- a/packages/deepclaw-agent/src/agent/loop/services/prompt-service.ts
++++ b/packages/deepclaw-agent/src/agent/loop/services/prompt-service.ts
+@@ -19,18 +19,26 @@ export class PromptService {
+     private static agentModePrompt: string = this.agentMode();
+ 
+     public static provideSystemPrompt(isSubLoop: boolean): string {
+-        return `${this.platformPrompt}
++        return `
++# Platform
++${this.platformPrompt}
+ 
++# Language
+ ${this.language()}
+ 
++# Main Identity
+ ${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
+ 
++# Agent Mode
+ ${this.agentMode()}
+ 
++# Project Management    
+ ${this.project()}
+ 
++# Memory
+ ${this.memory()}
+ 
++# Skills
+ ${this.availableSkills()}`;
+     }
+ 
+@@ -41,11 +49,16 @@ ${this.availableSkills()}`;
+     }
+ 
+     private static mainIdentity(): {loop: string, subloop: string} {
+-        const commonIdentity = FileUtils.readFile(IDENTITY_FILE) || `You are a helpful and efficient assistant for the user.
++        let commonIdentity = `You are a helpful and efficient assistant for the user.
+ You can help the user with various tasks, such as answering questions, providing suggestions,
+ and completing tasks via tools. Always try your best to help the user and complete the task. 
+ If you are not sure about what the user wants, ask questions to clarify. 
+ Always think step by step and be specific when you answer.`;
++        try {
++            commonIdentity = FileUtils.readFile(IDENTITY_FILE);
++        } catch {
++            // TODO handle error
++        }
+         return {
+             loop: commonIdentity,
+             subloop: `${commonIdentity}
+@@ -100,6 +113,11 @@ But you can call tools to write files owned by the agent program itself, such as
+         return this.agentModePrompt;
+     }
+ 
++    private static project(): string {
++        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
++        return agentMode === 'chat' ? '' : ProjectManager.prompts();
++    }
++
+     private static memory(): string {
+         return MemoryManager.getMemoryPrompt();
+     }
+@@ -107,9 +125,4 @@ But you can call tools to write files owned by the agent program itself, such as
+     private static availableSkills(): string {
+         return SkillsManager.getSkillPrompt();
+     }
+-
+-    private static project(): string {
+-        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
+-        return agentMode === 'chat' ? '' : ProjectManager.prompts();
+-    }
+ }
+diff --git a/packages/deepclaw-agent/src/agent/loop/services/task-steps-manager.ts b/packages/deepclaw-agent/src/agent/loop/services/task-steps-manager.ts
+index 26608bb..0e01c7f 100644
+--- a/packages/deepclaw-agent/src/agent/loop/services/task-steps-manager.ts
++++ b/packages/deepclaw-agent/src/agent/loop/services/task-steps-manager.ts
+@@ -17,20 +17,16 @@ export class TaskStepsManager {
+     private static tasks: Record<string, Record<string, TaskStepsContext>> = {};
+ 
+     public static init(projectId: string, taskTitle: string, steps: string[]): void {
+-        if (!this.tasks[projectId]) {
+-            this.tasks[projectId] = {};
+-        }
+-        if (!this.tasks[projectId][taskTitle]) {
+-            this.tasks[projectId][taskTitle] = {
+-                steps: [],
+-                currentStepIndex: -1
+-            };
+-        }
+-        const context = this.tasks[projectId][taskTitle];
+         if (steps.length > MAX_TODO_ITEM) {
+             throw new Error(`Keep the session plan short (max ${MAX_TODO_ITEM} items)`);
+         }
+-        context.steps = steps;
++        if (!this.tasks[projectId]) {
++            this.tasks[projectId] = {};
++        }
++        this.tasks[projectId][taskTitle] = {
++            steps,
++            currentStepIndex: -1
++        };
+     }
+ 
+     public static updateCurrentStep(projectId: string, taskTitle: string, stepIndex: number): string {
+@@ -50,8 +46,8 @@ export class TaskStepsManager {
+ 
+     public static isStepsCompleted(projectId: string, taskTitle: string): boolean {
+         const context = this.tasks[projectId]?.[taskTitle];
+-        if (!context) {
+-            throw new Error('No todo found for the specified task.');
++        if (!context || context.steps.length === 0) {
++            return true;
+         }
+         return context.currentStepIndex === context.steps.length;
+     }
+diff --git a/packages/deepclaw-agent/src/agent/loop/services/tool-use-service.ts b/packages/deepclaw-agent/src/agent/loop/services/tool-use-service.ts
+index cfb1fb9..9fb477f 100644
+--- a/packages/deepclaw-agent/src/agent/loop/services/tool-use-service.ts
++++ b/packages/deepclaw-agent/src/agent/loop/services/tool-use-service.ts
+@@ -1,6 +1,6 @@
+ import { FileUtils } from '@deepclaw/utils';
+ import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions.js";
+-import { type SealedAgentStreamHandler } from '@deepclaw/core';
++import { type SealedAgentHandler } from '@deepclaw/core';
+ import { OneLoopContext } from '../../definitions/definitions.js';
+ 
+ export type ToolUseServiceResult = {
+@@ -22,7 +22,7 @@ export class ToolUseService {
+     private parentSessionId: string;
+     private sessionId: string;
+     private toolMap: Map<string, ToolDesc> = new Map();
+-    private streamHandler: SealedAgentStreamHandler;
++    private agentHandler: SealedAgentHandler;
+     private truncateThreshold: number = 20000;
+     private previewChars: number = 1000;
+ 
+@@ -30,14 +30,14 @@ export class ToolUseService {
+         tools: ToolDesc[],
+         parentSessionId: string,
+         sessionId: string,
+-        streamHandler: SealedAgentStreamHandler
++        agentHandler: SealedAgentHandler
+     ) {
+         this.parentSessionId = parentSessionId;
+         this.sessionId = sessionId;
+         for (const tool of tools) {
+             this.toolMap.set(tool.tool.name, tool);
+         }
+-        this.streamHandler = streamHandler;
++        this.agentHandler = agentHandler;
+     }
+ 
+     public async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
+@@ -58,7 +58,7 @@ export class ToolUseService {
+             if (guardResult.result === 'denied') {
+                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
+             } else if (guardResult.result === 'ask') {
+-                const choice = await this.streamHandler.onEvent({type: 'input', content: guardResult.question || ''});
++                const choice = await this.agentHandler.onInteractionEvent({type: 'input', content: guardResult.question || ''});
+                 if (!guardResult.checkAnswer(choice)) {
+                     return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
+                 }
+diff --git a/packages/deepclaw-agent/src/agent/loop/tools/project-tool.ts b/packages/deepclaw-agent/src/agent/loop/tools/project-tool.ts
+index f669f31..78b902d 100644
+--- a/packages/deepclaw-agent/src/agent/loop/tools/project-tool.ts
++++ b/packages/deepclaw-agent/src/agent/loop/tools/project-tool.ts
+@@ -1,6 +1,6 @@
+ import crypto from 'crypto';
+ import { ToolDesc } from "../../definitions/tool-definitions.js";
+-import { Project, ProjectManager, StandaloneTask, Task } from "../services/project-manager.js";
++import { ProjectManager, StandaloneTask, Task } from "../services/project-manager.js";
+ import { loadConfig, DeepclawConfig } from "@deepclaw/utils";
+ import {i18nInstance} from '@deepclaw/i18n';
+ import { OneLoopContext } from '../../definitions/definitions.js';
+@@ -87,15 +87,7 @@ All steps should be done when task is going to be marked as done.`
+     outputToUser: false,
+     exclusiveInSubLoop: true,
+     invoke: async function(input: CreateProjectInput): Promise<string> {
+-
+-        const project: Project<Task> = ProjectManager.createProject({
+-            id: crypto.randomUUID(),
+-            title: input.title,
+-            description: input.description,
+-            createdAt: new Date().toISOString(),
+-            creator: 'main',
+-            tasks: {},
+-        });
++        const projectId = crypto.randomUUID();
+         const tasks: Record<string, Task> = input.tasks.reduce((p, n) => {
+             if (p[n.title]) {
+                 throw new Error(`Task title '${n.title}' is not unique across tasks in this project.`);
+@@ -111,7 +103,7 @@ All steps should be done when task is going to be marked as done.`
+                 blocks: [],
+             };
+             if (n.steps?.length) {
+-                TaskStepsManager.init(project.id, n.title, n.steps);
++                TaskStepsManager.init(projectId, n.title, n.steps);
+             }
+             return p;
+         }, {} as Record<string, Task>);
+@@ -121,10 +113,18 @@ All steps should be done when task is going to be marked as done.`
+                 tasks[blockedBy]?.blocks?.push(task.title);
+             });
+         });
+-        project.tasks = tasks;
++        
++        ProjectManager.createProject({
++            id: projectId,
++            title: input.title,
++            description: input.description,
++            createdAt: new Date().toISOString(),
++            creator: 'main',
++            tasks,
++        });
+         return `Project created successfully.
+ Here's the project info:
+-${JSON.stringify(project)}`;
++${JSON.stringify(ProjectManager.getProjectDetail(projectId))}`;
+     },
+ }
+ 
+@@ -190,7 +190,7 @@ All steps should be done when task is going to be marked as done.`
+         };
+         let standaloneStrategy = loadConfig<DeepclawConfig['agent']['standaloneTask']>('agent.standaloneTask', 'transient')!;
+         if (standaloneStrategy === 'ask') {
+-            standaloneStrategy = await context.actions.streamHandler.onEvent({
++            standaloneStrategy = await context.actions.agentHandler.onInteractionEvent({
+                 type: 'select',
+                 content: i18nInstance.t('agent.tools.project.standaloneTask.prompt'),
+                 options: [
+@@ -247,7 +247,7 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
+     agentMode: ['agent'],
+     parallelSafe: false,
+     outputToUser: false,
+-    exclusiveInSubLoop: true,
++    exclusiveInSubLoop: false,
+     invoke: async function(input: UpdateTaskInput): Promise<string> {
+         ProjectManager.updateTask(input.projectId, {
+             title: input.taskTitle,
+@@ -292,7 +292,7 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
+     agentMode: ['agent'],
+     parallelSafe: true,
+     outputToUser: true,
+-    exclusiveInSubLoop: true,
++    exclusiveInSubLoop: false,
+     invoke: async function(input: UpdateTaskCurrentStepInput): Promise<string> {
+         return TaskStepsManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
+     },
+@@ -319,7 +319,7 @@ closed projects and done standalone tasks will also be included.`,
+     agentMode: ['agent', 'plan'],
+     parallelSafe: false,
+     outputToUser: false,
+-    exclusiveInSubLoop: true,
++    exclusiveInSubLoop: false,
+     invoke: async function(input: GetProjectListInput): Promise<string> {
+         return JSON.stringify(ProjectManager.getProjectList(input.includingClosed));
+     },
+@@ -344,7 +344,7 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
+     },
+     agentMode: ['agent', 'plan'],
+     parallelSafe: false,
+-    exclusiveInSubLoop: true,
++    exclusiveInSubLoop: false,
+     outputToUser: false,
+     invoke: async function(input: GetProjectDetailInput): Promise<string> {
+         return JSON.stringify(ProjectManager.getProjectDetail(input.projectId));
+@@ -370,7 +370,7 @@ export const getStandaloneTaskInfoTool: ToolDesc<GetStandaloneTaskDetailInput> =
+     },
+     agentMode: ['agent', 'plan'],
+     parallelSafe: false,
+-    exclusiveInSubLoop: true,
++    exclusiveInSubLoop: false,
+     outputToUser: false,
+     invoke: async function(input: GetStandaloneTaskDetailInput): Promise<string> {
+         return JSON.stringify(ProjectManager.getStandaloneTaskDetail(input.title));
+diff --git a/packages/deepclaw-agentmock/src/test-llm-agent.ts b/packages/deepclaw-agentmock/src/test-llm-agent.ts
+index 1a6953e..a431633 100644
+--- a/packages/deepclaw-agentmock/src/test-llm-agent.ts
++++ b/packages/deepclaw-agentmock/src/test-llm-agent.ts
+@@ -28,7 +28,7 @@ export class TestLlmAgent extends FlushAgent {
+         let i = 0;
+         return new Promise((resolve) => {
+             const interval = setInterval(() => {
+-                this.streamHandler.onText(lines[i++]!);
++                this.agentHandler.onStreamText(lines[i++]!);
+                 if (i >= lines.length) {
+                     clearInterval(interval);
+                     resolve('its done.');
+diff --git a/packages/deepclaw-core/src/flush-agent.ts b/packages/deepclaw-core/src/flush-agent.ts
+index 9c1db5b..e458656 100644
+--- a/packages/deepclaw-core/src/flush-agent.ts
++++ b/packages/deepclaw-core/src/flush-agent.ts
+@@ -1,5 +1,5 @@
+ export type FlushAgentConstructor = new (
+-    handler: AgentStreamHandler
++    handler: AgentHandler
+ ) => FlushAgent;
+ 
+ export type AgentInteractionEvent = {
+@@ -14,36 +14,34 @@ export type AgentInteractionEvent = {
+     options: (string | {label: string; value: string})[];
+ });
+ 
++// TODO: Implement this
+ export type AgentInfoEvent = {
+ 
+ };
+ 
+-export type AgentStreamHandler = {
+-    onText(content: string, done?: boolean): void;
+-    onEvent(event: AgentInteractionEvent): Promise<string>;
++export type AgentHandler = {
++    onStreamText(content: string, done?: boolean): void;
++    onToolText(content: string): void;
++    onInteractionEvent(event: AgentInteractionEvent): Promise<string>;
+ }
+ 
+-export type SealedAgentStreamHandler = AgentStreamHandler & {
+-    onText(content: string): void;
+-}
+-
+-export const noopStreamHandler: AgentStreamHandler = {
+-    onText: () => {},
+-    onEvent: () => Promise.resolve(''),
++export type SealedAgentHandler = AgentHandler & {
++    onStreamText(content: string): void;
+ }
+ 
+ export abstract class FlushAgent {
+-    protected streamHandler: SealedAgentStreamHandler;
++    protected agentHandler: SealedAgentHandler;
+     private flusher: (content: string, done: boolean) => void;
+ 
+     constructor(
+-        handler: AgentStreamHandler
++        handler: AgentHandler
+     ) {
+-        this.flusher = (text: string, done: boolean) => handler.onText(this.formatLLMText(text), done),
+-        this.streamHandler = {
+-            onText: (text: string) => this.flusher(text, false),
+-            onEvent: handler.onEvent
+-        }
++        this.flusher = (text: string, done: boolean) => handler.onStreamText(this.formatLLMText(text, done), done);
++        this.agentHandler = {
++            onStreamText: (text: string) => this.flusher(text, false),
++            onToolText: (text: string) => handler.onToolText(text),
++            onInteractionEvent: handler.onInteractionEvent
++        };
+     }
+ 
+     protected abstract _invoke(input: string): Promise<string>;
+@@ -66,7 +64,12 @@ export abstract class FlushAgent {
+         });
+     }
+     
+-    private formatLLMText(text: string): string {
+-        return !text ? '' : text.replace(/\r\n/g, '\n').trimEnd();
++    private formatLLMText(text: string, done: boolean): string {
++        if (!text) return '';
++        let result = text.replace(/\r\n/g, '\n');
++        if (done) {
++            result = result.trimEnd();
++        }
++        return result;
+     }
+ }
+diff --git a/packages/deepclaw-utils/src/app-config-utils.spec.ts b/packages/deepclaw-utils/src/app-config-utils.spec.ts
+index 6387cf7..6ca2a33 100644
+--- a/packages/deepclaw-utils/src/app-config-utils.spec.ts
++++ b/packages/deepclaw-utils/src/app-config-utils.spec.ts
+@@ -3,7 +3,7 @@ import {loadConfig} from './app-config-utils';
+ 
+ describe('config-utils', () => {
+     test('loads configured agent values', () => {
+-        expect(loadConfig<'transient' | 'persisted' | 'ask'>('agent.standaloneTask')).toBe('transient');
++        expect(loadConfig<'transient' | 'persistent' | 'ask'>('agent.standaloneTask')).toBe('transient');
+     });
+ 
+     test('returns undefined for missing keys', () => {
+-- 
+2.47.1.windows.1
+
