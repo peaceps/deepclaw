@@ -1,9 +1,8 @@
 import { FlushAgent } from "@deepclaw/core";
-import { loadConfig } from "@deepclaw/utils";
+import { loadConfig, DeepclawConfig } from "@deepclaw/config";
 import { dingTalk } from "./im/dingtalk";
 import { feishu } from "./im/feishu";
 import type { IM } from "./im-definitions";
-import type { DeepclawConfig } from "@deepclaw/utils";
 
 type ImConfig = NonNullable<DeepclawConfig["agent"]["im"]>;
 

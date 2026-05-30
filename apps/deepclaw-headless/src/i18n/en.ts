@@ -1,5 +1,5 @@
 export const en = {
     headless: {
-        invalidConfig: 'Invalid config, please run TUI mode first.',
+        selectOption: 'Please select a number: ',
     },
 };

@@ -1,5 +1,5 @@
 {
-	"name": "@deepclaw/i18n",
+	"name": "@deepclaw/config",
 	"version": "0.0.1",
     "packageManager": "pnpm@10.33.0",
 	"license": "MIT",
@@ -15,10 +15,12 @@
 	"scripts": {
 		"build": "rollup -c",
 		"lint": "eslint **/*.ts",
-        "test": "vitest run"
+		"test": "vitest run"
 	},
-    "dependencies": {
-		"i18next": "26.2.0",
-        "@deepclaw/config": "workspace:*"
-    }
+	"dependencies": {
+		"@deepclaw/core": "workspace:*",
+		"@deepclaw/utils": "workspace:*",
+		"@deepclaw/i18n": "workspace:*",
+		"dotenv": "17.4.2"
+	}
 }

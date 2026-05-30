@@ -1,5 +1,5 @@
 import i18n, { Module } from 'i18next';
-import {DEFAULT_LANG, loadConfig} from '@deepclaw/utils';
+import {DEFAULT_LANG, loadConfig} from '@deepclaw/config';
 
 const locales = {
     en: {translation: {}},

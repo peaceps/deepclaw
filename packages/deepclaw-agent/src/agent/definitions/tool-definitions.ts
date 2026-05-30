@@ -1,5 +1,5 @@
 import { OneLoopContext } from './definitions.js';
-import { DeepclawConfig } from '@deepclaw/utils';
+import { DeepclawConfig } from '@deepclaw/config';
 import { i18nInstance } from '@deepclaw/i18n';
 
 export type LLMTool = {

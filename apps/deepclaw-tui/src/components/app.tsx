@@ -2,7 +2,7 @@ import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent}
 import { Box, Static, useApp } from 'ink';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FlushAgent, type FlushAgentConstructor, AgentInteractionEvent } from '@deepclaw/core';
-import { DEFAULT_LANG } from '@deepclaw/utils';
+import { DEFAULT_LANG } from '@deepclaw/config';
 import {HistoryLine, type HistoryItem} from './history.js';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from '../hooks/static-context.js';
 import {UserChat} from './user-chat.js';

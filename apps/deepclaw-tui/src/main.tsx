@@ -10,4 +10,4 @@ const appWrapper: AppConfig = {
 
 const {waitUntilExit} = render(<App app={appWrapper}/>);
 await waitUntilExit();
-console.log(`\n  ${i18nInstance.t('common.bye')}`);
+console.log(`\n  ${i18nInstance.t('common.exit')}`);

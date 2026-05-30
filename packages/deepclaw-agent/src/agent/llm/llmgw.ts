@@ -1,4 +1,5 @@
-import {getEnvVariable, hasEnvVariable, type Logger} from '@deepclaw/utils';
+import {getEnvVariable, hasEnvVariable} from '@deepclaw/config';
+import {type Logger} from '@deepclaw/utils';
 import { LLMTool } from '../definitions/tool-definitions.js';
 import { TransitionReason } from '../definitions/definitions.js';
 

@@ -22,9 +22,9 @@
 	},
 	"dependencies": {
 		"@deepclaw/core": "workspace:*",
+		"@deepclaw/config": "workspace:*",
 		"@deepclaw/agent": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
-		"@deepclaw/utils": "workspace:*",
 		"ink": "7.0.1",
 		"react": "19.2.5",
 		"react-i18next": "17.0.8",

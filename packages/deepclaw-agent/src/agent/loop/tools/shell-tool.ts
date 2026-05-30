@@ -5,7 +5,7 @@ const execAsync = promisify(exec);
 import { i18nInstance } from '@deepclaw/i18n';
 
 import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions.js';
-import { DeepclawConfig, loadConfig } from '@deepclaw/utils';
+import { DeepclawConfig, loadConfig } from '@deepclaw/config';
 
 const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
 const timeout = 120;

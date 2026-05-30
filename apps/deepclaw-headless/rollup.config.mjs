@@ -14,6 +14,8 @@ export default {
     '@deepclaw/agent',
     '@deepclaw/im',
     '@deepclaw/utils',
+		"@deepclaw/core",
+		"@deepclaw/config",
     '@deepclaw/i18n',
   ],
 

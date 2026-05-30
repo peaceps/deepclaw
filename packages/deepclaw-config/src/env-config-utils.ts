@@ -1,7 +1,7 @@
 import process from "node:process";
 import path from 'path';
 import dotenv from 'dotenv';
-import { FileUtils } from './file-utils';
+import { FileUtils } from '@deepclaw/utils';
 
 const ENV_PATH = '.env';
 

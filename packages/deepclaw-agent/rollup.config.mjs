@@ -19,6 +19,7 @@ export default [
       '@deepclaw/i18n',
       '@deepclaw/utils',
       '@deepclaw/core',
+      '@deepclaw/config',
       'gray-matter',
       'openai',
     ],

@@ -68,6 +68,12 @@ importers:
       '@deepclaw/agent':
         specifier: workspace:*
         version: link:../../packages/deepclaw-agent
+      '@deepclaw/config':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-config
+      '@deepclaw/core':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-core
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../../packages/deepclaw-i18n
@@ -95,15 +101,15 @@ importers:
       '@deepclaw/agent':
         specifier: workspace:*
         version: link:../../packages/deepclaw-agent
+      '@deepclaw/config':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-config
       '@deepclaw/core':
         specifier: workspace:*
         version: link:../../packages/deepclaw-core
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../../packages/deepclaw-i18n
-      '@deepclaw/utils':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-utils
       ink:
         specifier: 7.0.1
         version: 7.0.1(@types/react@19.2.14)(react-devtools-core@7.0.1)(react@19.2.5)
@@ -181,6 +187,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: 0.91.1
         version: 0.91.1(zod@4.4.3)
+      '@deepclaw/config':
+        specifier: workspace:*
+        version: link:../deepclaw-config
       '@deepclaw/core':
         specifier: workspace:*
         version: link:../deepclaw-core
@@ -203,18 +212,7 @@ importers:
         specifier: workspace:*
         version: link:../deepclaw-core
 
-  packages/deepclaw-core: {}
-
-  packages/deepclaw-i18n:
-    dependencies:
-      '@deepclaw/utils':
-        specifier: workspace:*
-        version: link:../deepclaw-utils
-      i18next:
-        specifier: 26.2.0
-        version: 26.2.0(typescript@6.0.3)
-
-  packages/deepclaw-im:
+  packages/deepclaw-config:
     dependencies:
       '@deepclaw/core':
         specifier: workspace:*
@@ -225,15 +223,38 @@ importers:
       '@deepclaw/utils':
         specifier: workspace:*
         version: link:../deepclaw-utils
+      dotenv:
+        specifier: 17.4.2
+        version: 17.4.2
+
+  packages/deepclaw-core: {}
+
+  packages/deepclaw-i18n:
+    dependencies:
+      '@deepclaw/config':
+        specifier: workspace:*
+        version: link:../deepclaw-config
+      i18next:
+        specifier: 26.2.0
+        version: 26.2.0(typescript@6.0.3)
+
+  packages/deepclaw-im:
+    dependencies:
+      '@deepclaw/config':
+        specifier: workspace:*
+        version: link:../deepclaw-config
+      '@deepclaw/core':
+        specifier: workspace:*
+        version: link:../deepclaw-core
+      '@deepclaw/i18n':
+        specifier: workspace:*
+        version: link:../deepclaw-i18n
       dingtalk-stream:
         specifier: 2.1.5
         version: 2.1.5
 
   packages/deepclaw-utils:
     dependencies:
-      dotenv:
-        specifier: 17.4.2
-        version: 17.4.2
       pino:
         specifier: 10.3.1
         version: 10.3.1

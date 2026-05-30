@@ -1,5 +1,5 @@
 import { type FlushAgentConstructor } from '@deepclaw/core';
-import {hasEnvVariable, getEnvVariable} from '@deepclaw/utils';
+import {hasEnvVariable, getEnvVariable} from '@deepclaw/config';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop.js';
 import { OpenAIResponseLoop } from './loop/loop/openai-response-loop.js';
 import { AnthropicLoop } from './loop/loop/anthropic-loop.js';

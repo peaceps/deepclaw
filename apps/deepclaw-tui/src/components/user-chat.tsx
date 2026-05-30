@@ -2,7 +2,7 @@ import { ReactElement, useMemo } from 'react';
 import {TextInput} from './input/text-input';
 import { i18nInstance } from '@deepclaw/i18n';
 import {useTranslation} from 'react-i18next';
-import {DEFAULT_LANG} from '@deepclaw/utils';
+import {DEFAULT_LANG} from '@deepclaw/config';
 
 const initSeed = Math.random();
 

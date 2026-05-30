@@ -1,4 +1,4 @@
-import { FileUtils } from './file-utils';
+import { FileUtils } from '@deepclaw/utils';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 
@@ -76,14 +76,16 @@ export function validateAppConfig(headless: boolean): {config: DeepclawConfig, l
     if (cloned.agent.headlessEnabled && !['true', 'false'].includes(cloned.agent.headlessEnabled)) {
         cloned.agent.headlessEnabled = undefined;
     }
-    if (!cloned.agent.headlessEnabled) {
+    if (!headless && !cloned.agent.headlessEnabled) {
         lacks.push('agent.headlessEnabled');
     }
-    if (cloned.agent.im && cloned.agent.im.engine && !['dingtalk', 'feishu'].includes(cloned.agent.im.engine)) {
-        cloned.agent.im = undefined;
+    if (headless) {
+        cloned.agent.headlessEnabled = 'true';
     }
-    if (headless && !cloned.agent.im) {
-        lacks.push('agent.im');
+    if (cloned.agent.im && cloned.agent.im.engine && (
+        !['dingtalk', 'feishu'].includes(cloned.agent.im.engine) || !cloned.agent.im.appId || !cloned.agent.im.secret
+    )) {
+        cloned.agent.im = undefined;
     }
     return {config: cloned, lacks};
 }

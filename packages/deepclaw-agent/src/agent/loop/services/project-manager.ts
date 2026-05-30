@@ -1,4 +1,5 @@
-import { DeepclawConfig, FileUtils, loadConfig } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/utils';
+import { DeepclawConfig, loadConfig } from '@deepclaw/config';
 import { TaskStepsManager } from './task-steps-manager.js';
 
 export type Project<T extends Task> = {

@@ -15,9 +15,9 @@ export default {
   external: [
     /^node:/,
     '@deepclaw/agent',
-    '@deepclaw/utils',
     '@deepclaw/i18n',
     '@deepclaw/core',
+    '@deepclaw/config',
     'ink',
     'react',
     'react-i18next',

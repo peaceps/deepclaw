@@ -7,7 +7,7 @@ import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool.js';
 import {saveMemoryTool} from '../tools/save-memory-tool.js';
 import {createProjectTool, createStandaloneTaskTool, updateTaskTool, updateTaskCurrentStepTool, getProjectListTool,
     getProjectDetailTool, getStandaloneTaskInfoTool} from '../tools/project-tool.js';
-import { loadConfig, DeepclawConfig } from '@deepclaw/utils';
+import { loadConfig, DeepclawConfig } from '@deepclaw/config';
 
 const tools: ToolDesc<any>[] = [
     shellTool,

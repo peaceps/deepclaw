@@ -14,8 +14,11 @@ export default [
 
     external: [
       /^node:/,
+      '@deepclaw/core',
+      '@deepclaw/i18n',
+      '@deepclaw/utils',
       // CJS packages: bundling breaks default import interop; leave to Node at runtime.
-      'pino',
+      'dotenv',
     ],
 
     plugins: [

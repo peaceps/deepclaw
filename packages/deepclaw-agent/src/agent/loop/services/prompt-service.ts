@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { SkillsManager } from './skills-manager.js';
-import { DeepclawConfig, loadConfig, FileUtils } from '@deepclaw/utils';
+import { DeepclawConfig, loadConfig } from '@deepclaw/config';
+import { FileUtils } from '@deepclaw/utils';
 import { MemoryManager } from './memory-manager.js';
 import { ProjectManager } from './project-manager.js';
 

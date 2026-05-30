@@ -2,6 +2,7 @@
     "files": [],
     "references": [
         { "path": "./packages/deepclaw-core" },
+        { "path": "./packages/deepclaw-config" },
         { "path": "./packages/deepclaw-im" },
         { "path": "./packages/deepclaw-agent" },
         { "path": "./packages/deepclaw-agentmock" },

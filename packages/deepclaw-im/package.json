@@ -19,7 +19,7 @@
 	},
 	"dependencies": {
 		"@deepclaw/core": "workspace:*",
-		"@deepclaw/utils": "workspace:*",
+		"@deepclaw/config": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
 		"dingtalk-stream": "2.1.5"
 	}
