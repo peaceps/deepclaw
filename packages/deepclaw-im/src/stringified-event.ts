@@ -1,0 +1,37 @@
+import { AgentInteractionEvent } from '@deepclaw/core';
+import { i18nInstance } from '@deepclaw/i18n';
+
+export function stringifiedInteractionEvent(event: AgentInteractionEvent): string {
+    let answer = '';
+    if (event.type === 'input') {
+        answer = i18nInstance.t(event.content || '') + ' ';
+    } else if (event.type === 'select') {
+        answer = i18nInstance.t(event.content || '') + '\n';
+        const options = event.options!.map((option) => i18nInstance.t(typeof option === 'string' ? option : option.label));
+        answer += options.map((option, i) => `[${i + 1}] ${option}`).join('\n') + '\n';
+        answer += i18nInstance.t('headless.selectOption');
+    } else if (event.type === 'readonly') {
+        answer = i18nInstance.t(event.content || '');
+    }
+    return answer;
+}
+
+export async function parseStringifiedAnswer(
+    event: AgentInteractionEvent,
+    answer: string,
+    notify: (message: string) => void,
+    callSelf: (event: AgentInteractionEvent) => Promise<string>
+): Promise<string> {
+    if (event.type !== 'select') {
+        return answer;
+    }
+    let index = Number(answer) - 1;
+    if (isNaN(index) || index < 0 || index >= event.options!.length) {
+        notify(i18nInstance.t('im.invalidSelection'));
+        answer = await callSelf(event);
+    } else {
+        const selected = event.options![index]!;
+        answer = typeof selected === 'string' ? selected : selected.value;
+    }
+    return answer;
+}

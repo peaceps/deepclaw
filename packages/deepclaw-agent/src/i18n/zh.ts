@@ -31,11 +31,6 @@ export const zh = {
                 error: '出错了。{{message}}。',
                 timeout: '命令运行{{timeout}}秒超时。',
             },
-            todo: {
-                empty: '没有待办项。',
-                current: '\n当前进度：\n{{steps}}\n',
-                completed: '{{completed}}/{{total}} 已完成\n',
-            },
             project: {
                 standaloneTask: {
                     prompt: 'Agent想要创建一个独立于任何项目的任务。你想把它保存在文件系统中还是只保存在内存里？',
@@ -43,7 +38,12 @@ export const zh = {
                         persistent: '保存在文件系统中',
                         transient: '只保存在内存里',
                     },
-                }, 
+                },
+                taskSteps: {
+                    empty: '没有步骤。',
+                    current: '\n当前步骤：\n{{steps}}\n',
+                    completed: '({{completed}}/{{total}} 已完成)',
+                }
             }
         },
     },

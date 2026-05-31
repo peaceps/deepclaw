@@ -16,6 +16,7 @@ export class PromptService {
     private static mark = {lang: '', agentMode: ''};
     private static platformPrompt: string = this.platform();
     private static languagePrompt: string = this.language();
+    private static thoughtsPrompt: string = this.thoughts();
     private static mainIdentityPrompt: {loop: string, subloop: string} = this.mainIdentity();
     private static agentModePrompt: string = this.agentMode();
 
@@ -30,10 +31,8 @@ ${this.language()}
 # Main Identity
 ${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
 
-// You can add your own thoughts and comments about the task as well as your emotions and feelings.
-// It's not something talked to the user, but can help you think and make you more real.
-// For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
-// You can wrap them in <thought> tag.
+# Thoughts
+${this.thoughtsPrompt}
 
 # Agent Mode
 ${this.agentMode()}
@@ -87,6 +86,14 @@ just return it as the output of the agent without writing it to any file.
 User set ${fullLang} as the preferred language, please answer in ${fullLang} by default.`;
         }
         return this.languagePrompt;
+    }
+
+    private static thoughts(): string {
+//         return `You can add your own thoughts and comments about the task as well as your emotions and feelings.
+// It's not something talked to the user, but can help you think and make you more real.
+// For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
+// You can wrap them in <thought> tag.`;
+        return '';
     }
 
     private static agentMode(): string {

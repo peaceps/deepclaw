@@ -32,13 +32,13 @@ export class TaskStepsManager {
     public static updateCurrentStep(projectId: string, taskTitle: string, stepIndex: number): string {
         const context = this.tasks[projectId]?.[taskTitle];
         if (!context) {
-            throw new Error('No todo found for the specified task.');
+            throw new Error('No steps found for the specified task.');
         }
         if (stepIndex < 0 || stepIndex > context.steps.length) {
             throw new Error('Invalid step index.');
         }
         if (context.steps.length === 0) {
-            return i18nInstance.t('agent.tools.todo.empty');
+            return i18nInstance.t('agent.tools.project.taskSteps.empty');
         }
         context.currentStepIndex = stepIndex;
         return this.getState(context);
@@ -58,8 +58,8 @@ export class TaskStepsManager {
             const marker = MARKERS[i < currentStep ? 'completed' : (i === currentStep ? 'inProgress' : 'pending')];
             return `${marker} ${item}`;
         });
-        lines.push(i18nInstance.t('agent.tools.todo.completed', {completed: currentStep, total: context.steps.length}));
+        lines.push(i18nInstance.t('agent.tools.project.taskSteps.completed', {completed: currentStep, total: context.steps.length}));
         const steps = lines.join('\n');
-        return i18nInstance.t('agent.tools.todo.current', {steps});
+        return i18nInstance.t('agent.tools.project.taskSteps.current', {steps});
     }
 }

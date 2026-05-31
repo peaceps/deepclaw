@@ -31,11 +31,6 @@ export const en = {
                 error: 'Error: {{message}}.',
                 timeout: 'Error: Timeout ({{timeout}}s).',
             },
-            todo: {
-                empty: 'No steps.',
-                current: '\nCurrent step:\n{{steps}}\n',
-                completed: '({{completed}}/{{total}} completed)',
-            },
             project: {
                 standaloneTask: {
                     prompt: 'The agent is going to create a standalone task. Do you want to persist it in file system or just save in memory?',
@@ -44,6 +39,11 @@ export const en = {
                         transient: 'Transient, only exist in memory',
                     },
                 },
+                taskSteps: {
+                    empty: 'No steps.',
+                    current: '\nCurrent step:\n{{steps}}\n',
+                    completed: '({{completed}}/{{total}} completed)'
+                }
             },
         },
     },

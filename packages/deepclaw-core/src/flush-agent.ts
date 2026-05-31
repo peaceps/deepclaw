@@ -1,23 +1,8 @@
+import { AgentInteractionEvent } from './agent-event';
+
 export type FlushAgentConstructor = new (
     handler: AgentHandler
 ) => FlushAgent;
-
-export type AgentInteractionEvent = {
-    content: string;
-    key?: string;
-} & ({
-    type: 'readonly';
-} | {
-    type: 'input';
-} | {
-    type: 'select';
-    options: (string | {label: string; value: string})[];
-});
-
-// TODO: Implement this
-export type AgentInfoEvent = {
-
-};
 
 export type AgentHandler = {
     onStreamText(content: string, done?: boolean): void;
