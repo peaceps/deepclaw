@@ -1,8 +1,8 @@
 import process from 'node:process';
 import {afterEach, describe, expect, test} from 'vitest';
-import {getEnvVariable, hasEnvVariable} from './env-config-utils';
+import {getEnvVariable, hasEnvVariable} from './env-config';
 
-describe('env-utils', () => {
+describe('env-config', () => {
     const envName = 'DEEPCLAW_TEST_ENV';
 
     afterEach(() => {

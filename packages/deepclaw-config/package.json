@@ -22,5 +22,8 @@
 		"@deepclaw/utils": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
 		"dotenv": "17.4.2"
+	},
+	"devDependencies": {
+		"rollup-plugin-copy": "3.5.0"
 	}
 }

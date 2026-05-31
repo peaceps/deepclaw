@@ -61,6 +61,19 @@ export class FileUtils {
         return targetPath === workspacePath || targetPath.startsWith(workspacePrefix);
     }
 
+    public static copyResource(fromDir: string, fileName: string): void {
+        const destination = path.resolve(process.cwd(), fileName);
+        if (!fs.existsSync(destination)) {
+            let source = path.join(fromDir, 'resources', fileName);
+            if (!fs.existsSync(source)) {
+                source = path.join(fromDir, '..', 'resources', fileName);
+            }
+            if (fs.existsSync(source)) {
+                fs.cpSync(source, destination, { recursive: true });
+            }
+        }
+    }
+
     private static getAbsolutePath(relativePath: string): string {
         return this.formatSlash(path.isAbsolute(relativePath) ? relativePath : path.resolve(relativePath));
     }

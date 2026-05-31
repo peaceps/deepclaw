@@ -1,6 +1,7 @@
 import {AgentInteractionEvent} from "@deepclaw/core";
-import {validateEnvFile, EnvConfig, writeEnvConfig} from "./env-config-utils";
-import {DeepclawConfig, validateAppConfig, writeAppConfig} from "./app-config-utils";
+import {validateEnvFile, EnvConfig, writeEnvConfig} from "./env-config.js";
+import {DeepclawConfig, validateAppConfig, writeAppConfig} from "./app-config.js";
+import { FileUtils } from "@deepclaw/utils";
 
 const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentInteractionEvent} = {
     provider: {
@@ -98,6 +99,7 @@ export async function validateAndFixConfig(
             await ensureEnvConfig(envConfig, handleAgentEvent);
         }
     }
+    ensureBasicFiles();
 }
 
 async function ensureAppConfig(
@@ -142,4 +144,9 @@ async function ensureEnvConfig(
         config[lack] = answer;
     }
     writeEnvConfig(config as EnvConfig);
+}
+
+function ensureBasicFiles() {
+    FileUtils.copyResource(import.meta.dirname, 'DEEPCLAW.md');
+    FileUtils.copyResource(import.meta.dirname, 'skills');
 }

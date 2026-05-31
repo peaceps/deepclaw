@@ -14,10 +14,13 @@ type SkillDocument = {
 const SKILL_DIR = 'skills';
 
 export class SkillsManager {
-    private static skills: Map<string, SkillDocument> = this.loadSkills();
-    private static skillPrompt: string = this.generateSkillPrompt();
+    private static skills: Map<string, SkillDocument>;
+    private static skillPrompt: string;
 
     public static getSkillContent(skillName: string): string {
+        if (!this.skills) {
+            this.loadSkills();
+        }
         const skillDocument = this.skills.get(skillName);
         if (!skillDocument) {
             return `Error: Unknown skill: ${skillName}. Available skills: ${Array.from(this.skills.keys()).join(', ')}.`;
@@ -25,7 +28,7 @@ export class SkillsManager {
         return `<skill name="${skillName}">\n${skillDocument.body}\n</skill>`;
     }
 
-    private static loadSkills(): Map<string, SkillDocument> {
+    private static loadSkills(): void {
         const skills: Map<string, SkillDocument> = new Map();
         const files = FileUtils.readDir(SKILL_DIR, (fileName: string) => `${fileName}/SKILL.md`);
         for (const fileContent of Object.values(files)) {
@@ -34,7 +37,8 @@ export class SkillsManager {
                 skills.set(skillDocument.manifest.name, skillDocument);
             }
         }
-        return skills;
+        this.skills = skills;
+        this.skillPrompt = this.generateSkillPrompt();
     }
 
     private static parseSkillDocument(fileContent: string): SkillDocument | null {
@@ -54,6 +58,9 @@ export class SkillsManager {
     }
 
     public static getSkillPrompt(): string {
+        if (!this.skills) {
+            this.loadSkills();
+        }
         return this.skillPrompt;
     }
 

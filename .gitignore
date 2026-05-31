@@ -18,4 +18,9 @@ build/
 
 .projects/
 
+apps/*/DEEPCLAW.md
+packages/*/DEEPCLAW.md
+apps/*/skills
+packages/*/skills
+
 package-lock.json

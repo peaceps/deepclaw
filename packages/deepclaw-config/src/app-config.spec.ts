@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest';
-import {loadConfig} from './app-config-utils';
+import {loadConfig} from './app-config';
 
 describe('config-utils', () => {
     test('loads configured agent values', () => {
