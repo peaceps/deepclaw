@@ -4,7 +4,7 @@ import process from 'node:process';
 const execAsync = promisify(exec);
 import { i18nInstance } from '@deepclaw/i18n';
 
-import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions.js';
+import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions';
 import { DeepclawConfig, loadConfig } from '@deepclaw/config';
 
 const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';

@@ -1,5 +1,5 @@
-import type { OneLoopContext } from '../../definitions/definitions.js';
-import type { ToolUseDef } from './tool-use-service.js';
+import type { OneLoopContext } from '../../definitions/definitions';
+import type { ToolUseDef } from './tool-use-service';
 
 type Hook = InterceptorHook | VisitorHook;
 type InterceptorHook = 'preEachToolUse';

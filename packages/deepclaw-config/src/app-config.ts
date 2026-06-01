@@ -82,10 +82,16 @@ export function validateAppConfig(headless: boolean): {config: DeepclawConfig, l
     if (headless) {
         cloned.agent.headlessEnabled = 'true';
     }
-    if (cloned.agent.im && cloned.agent.im.engine && (
-        !['dingtalk', 'feishu'].includes(cloned.agent.im.engine) || !cloned.agent.im.appId || !cloned.agent.im.secret
+    if (cloned.agent.im && (
+        !['dingtalk', 'feishu'].includes(cloned.agent.im.engine)
+        || !cloned.agent.im.appId
+        || !cloned.agent.im.secret
     )) {
         cloned.agent.im = undefined;
+    }
+    if (cloned.agent.headlessEnabled === 'true' && !cloned.agent.im) {
+        cloned.agent.im = {} as DeepclawConfig['agent']['im'];
+        lacks.push('agent.im.engine', 'agent.im.appId', 'agent.im.secret');
     }
     return {config: cloned, lacks};
 }

@@ -1,8 +1,8 @@
 import {ReactElement, useContext, useState} from 'react';
 import {Box, Text, useCursor, useInput} from 'ink';
 import stringWidth from 'string-width';
-import { useWidth } from '../../hooks/use-width.js';
-import {StaticContext} from '../../hooks/static-context.js';
+import { useWidth } from '../../hooks/use-width';
+import {StaticContext} from '../../hooks/static-context';
 
 function measureWrappedCursor(text: string, safeWidth: number): {x: number; y: number} {
 	let x = 0;

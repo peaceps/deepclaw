@@ -1,8 +1,8 @@
 import { 
     ToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
-import { ThinkingMessage, ThinkingResponse, AnthropicLLM } from "../../llm/anthropic-llm.js";
-import { MessagesCompactor } from "./messages-compactor.js";
+import { ThinkingMessage, ThinkingResponse, AnthropicLLM } from "../../llm/anthropic-llm";
+import { MessagesCompactor } from "./messages-compactor";
 
 export class AnthropicMessagesCompactor extends MessagesCompactor<ThinkingMessage, ThinkingResponse, ToolResultBlockParam, AnthropicLLM> {
 

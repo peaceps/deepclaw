@@ -1,10 +1,10 @@
 import { LoopAgent } from './loop'
 import { ToolUseDef } from '../services/tool-use-service';
-import { FootPrint } from '../../definitions/definitions.js';
-import { ToolUseResult } from '../../definitions/tool-definitions.js';
+import { FootPrint } from '../../definitions/definitions';
+import { ToolUseResult } from '../../definitions/tool-definitions';
 import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
-import { MessagesCompactor } from '../compactor/messages-compactor.js';
-import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor.js';
+import { MessagesCompactor } from '../compactor/messages-compactor';
+import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor';
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
 

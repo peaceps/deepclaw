@@ -10,9 +10,9 @@ import {
     ToolUseBlock
 } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
-import { LLMModel } from './llmgw.js';
-import { LLMTool } from '../definitions/tool-definitions.js';
-import { TransitionReason } from '../definitions/definitions.js';
+import { LLMModel } from './llmgw';
+import { LLMTool } from '../definitions/tool-definitions';
+import { TransitionReason } from '../definitions/definitions';
 
 export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
 

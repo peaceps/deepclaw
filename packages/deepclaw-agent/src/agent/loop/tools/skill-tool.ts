@@ -1,5 +1,5 @@
-import { ToolDesc } from "../../definitions/tool-definitions.js";
-import { SkillsManager } from "../services/skills-manager.js";
+import { ToolDesc } from "../../definitions/tool-definitions";
+import { SkillsManager } from "../services/skills-manager";
 
 type SkillInput = {
     name: string;

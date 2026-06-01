@@ -1,10 +1,10 @@
 import { AnthropicLLM, ThinkingMessage, ThinkingResponse } from "../../llm/anthropic-llm";
 import { LoopAgent } from "./loop";
 import { FootPrint } from "../../definitions/definitions";
-import { ToolUseResult } from "../../definitions/tool-definitions.js";
+import { ToolUseResult } from "../../definitions/tool-definitions";
 import { ToolUseDef } from "../services/tool-use-service";
-import { MessagesCompactor } from "../compactor/messages-compactor.js";
-import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor.js";
+import { MessagesCompactor } from "../compactor/messages-compactor";
+import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
 

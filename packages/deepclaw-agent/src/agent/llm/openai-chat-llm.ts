@@ -7,9 +7,9 @@ import {
     ChatCompletionAssistantMessageParam,
     ChatCompletionToolMessageParam,
  } from 'openai/resources/chat/completions.js';
-import { LLMModel } from './llmgw.js';
-import { LLMTool } from '../definitions/tool-definitions.js';
-import { TransitionReason } from '../definitions/definitions.js';
+import { LLMModel } from './llmgw';
+import { LLMTool } from '../definitions/tool-definitions';
+import { TransitionReason } from '../definitions/definitions';
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |

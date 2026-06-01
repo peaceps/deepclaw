@@ -1,8 +1,8 @@
 import {ReactElement, useContext} from 'react';
 import {Box, Text} from 'ink';
-import Banner from './banner.js';
-import {useWidth} from '../hooks/use-width.js';
-import {StaticContext} from '../hooks/static-context.js';
+import Banner from './banner';
+import {useWidth} from '../hooks/use-width';
+import {StaticContext} from '../hooks/static-context';
 
 export type HistoryItem = {
 	role: 'user' | 'assistant' | 'banner';

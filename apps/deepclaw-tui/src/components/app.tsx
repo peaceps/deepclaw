@@ -1,20 +1,20 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent} from 'react';
 import { Box, Static, useApp } from 'ink';
 import { i18nInstance } from '@deepclaw/i18n';
-import { FlushAgent, type FlushAgentConstructor, AgentInteractionEvent } from '@deepclaw/core';
+import { AgentInteractionEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/config';
-import {HistoryLine, type HistoryItem} from './history.js';
-import {StaticContext, STATIC_CONTEXT_DEFAULT} from '../hooks/static-context.js';
-import {UserChat} from './user-chat.js';
-import {LlmOutput} from './llm-output.js';
-import { UserInteraction } from './user-interaction.js';
-import { useConfig } from '../hooks/use-config.js';
+import {LoopGateway} from '@deepclaw/gateway';
+import {HistoryLine, type HistoryItem} from './history';
+import {StaticContext, STATIC_CONTEXT_DEFAULT} from '../hooks/static-context';
+import {UserChat} from './user-chat';
+import {LlmOutput} from './llm-output';
+import { UserInteraction } from './user-interaction';
+import { useConfig } from '../hooks/use-config';
 
 export type AppConfig = {
-    getAgentClass: () => FlushAgentConstructor;
 }
 
-let agent: FlushAgent | null = null;
+let agent: LoopGateway | null = null;
 
 export function App({app}: {app: AppConfig}): ReactElement {
     const {exit} = useApp();
@@ -74,7 +74,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
             }
         }
         if (envConfigReady) {
-            agent = new (app.getAgentClass())({
+            agent = LoopGateway.init({
                 onStreamText: handleLlmStreamText, 
                 onToolText: (text: string) => handleLlmStreamText(text, false),
                 onInteractionEvent: handleAgentEvent

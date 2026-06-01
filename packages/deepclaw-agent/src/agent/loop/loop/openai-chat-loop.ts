@@ -1,11 +1,11 @@
-import { OpenAIChatLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-chat-llm.js';
-import { LoopAgent } from './loop.js';
-import { ToolUseDef } from '../services/tool-use-service.js';
-import { FootPrint } from '../../definitions/definitions.js';
-import { ToolUseResult } from '../../definitions/tool-definitions.js';
-import { MessagesCompactor } from '../compactor/messages-compactor.js';
-import { OpenAIChatMessagesCompactor } from '../compactor/openai-chat-compactor.js';
-import { LLMConstructor } from '../../llm/llmgw.js';
+import { OpenAIChatLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-chat-llm';
+import { LoopAgent } from './loop';
+import { ToolUseDef } from '../services/tool-use-service';
+import { FootPrint } from '../../definitions/definitions';
+import { ToolUseResult } from '../../definitions/tool-definitions';
+import { MessagesCompactor } from '../compactor/messages-compactor';
+import { OpenAIChatMessagesCompactor } from '../compactor/openai-chat-compactor';
+import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
 
 export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {

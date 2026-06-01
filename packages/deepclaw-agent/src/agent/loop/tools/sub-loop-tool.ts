@@ -1,5 +1,5 @@
-import { OneLoopContext } from '../../definitions/definitions.js';
-import { ToolDesc } from '../../definitions/tool-definitions.js';
+import { OneLoopContext } from '../../definitions/definitions';
+import { ToolDesc } from '../../definitions/tool-definitions';
 
 type SubLoopInput = {
     prompt: string;

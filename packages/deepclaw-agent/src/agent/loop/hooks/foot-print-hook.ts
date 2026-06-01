@@ -1,6 +1,6 @@
 import { HookManager } from "../services/hook-manager";
-import type { OneLoopContext } from "../../definitions/definitions.js";
-import type { ToolUseDef } from "../services/tool-use-service.js";
+import type { OneLoopContext } from "../../definitions/definitions";
+import type { ToolUseDef } from "../services/tool-use-service";
 
 HookManager.onVisitor('preEachToolUse', (oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef) => {
     oneLoopContext.actions.addFootPrint({

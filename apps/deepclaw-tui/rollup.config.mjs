@@ -14,10 +14,10 @@ export default {
 
   external: [
     /^node:/,
-    '@deepclaw/agent',
     '@deepclaw/i18n',
     '@deepclaw/core',
     '@deepclaw/config',
+    '@deepclaw/gateway',
     'ink',
     'react',
     'react-i18next',

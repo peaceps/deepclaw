@@ -91,6 +91,9 @@ export class FileUtils {
     }
 
     private static sanitizeFileName(fileName: string): string {
-        return this.formatSlash(fileName).replace(/[\*?<>&|:'"%^@`~]/g, '_');
+        const index = fileName.indexOf(':');
+        const prefix = index !== -1 ? fileName.slice(0, index + 1) : '';
+        const suffix = index !== -1 ? fileName.slice(index + 1) : fileName;
+        return prefix + this.formatSlash(suffix).replace(/[\*?<>&|:'"%^@`~]/g, '_');
     }
 }

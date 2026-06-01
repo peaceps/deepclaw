@@ -1,3 +1,3 @@
-import './foot-print-hook.js';
-import './log-hook.js';
-import './compact-hook.js';
+import './foot-print-hook';
+import './log-hook';
+import './compact-hook';

@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const entry = path.join(__dirname, '..', 'dist', 'deepclaw.js');
 if (!fs.existsSync(entry)) {
     console.error(
-        `deepclaw-launcher: missing ${entry}. Build the package first (e.g. pnpm --filter @deepclaw/launcher build).`
+        `deepclaw-deepclaw: missing ${entry}. Build the package first (e.g. pnpm --filter @deepclaw/deepclaw build).`
     );
     process.exit(1);
 }

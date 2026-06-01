@@ -1,4 +1,4 @@
-import { OneLoopContext } from './definitions.js';
+import { OneLoopContext } from './definitions';
 import { DeepclawConfig } from '@deepclaw/config';
 import { i18nInstance } from '@deepclaw/i18n';
 

@@ -1,2 +1,2 @@
-import './i18n/index.js';
-import './headless.js';
+import './i18n/index';
+import './headless';

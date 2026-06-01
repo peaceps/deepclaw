@@ -1,7 +1,7 @@
 import {ReactElement, useContext, } from 'react';
 import {Box, Text, useInput} from 'ink';
-import { useWidth } from '../../hooks/use-width.js';
-import {StaticContext} from '../../hooks/static-context.js';
+import { useWidth } from '../../hooks/use-width';
+import {StaticContext} from '../../hooks/static-context';
 
 export function ReadOnlyInput({
     onEnter,

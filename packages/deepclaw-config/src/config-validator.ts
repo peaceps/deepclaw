@@ -1,6 +1,6 @@
 import {AgentInteractionEvent} from "@deepclaw/core";
-import {validateEnvFile, EnvConfig, writeEnvConfig} from "./env-config.js";
-import {DeepclawConfig, validateAppConfig, writeAppConfig} from "./app-config.js";
+import {validateEnvFile, EnvConfig, writeEnvConfig} from "./env-config";
+import {DeepclawConfig, validateAppConfig, writeAppConfig} from "./app-config";
 import { FileUtils } from "@deepclaw/utils";
 
 const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentInteractionEvent} = {
@@ -111,7 +111,8 @@ async function ensureAppConfig(
         const answer = await handleAgentEvent(event);
         setConfigValue(config, lack, answer);
     }
-    if (config.agent.headlessEnabled === 'true') {
+    // for non-headless
+    if (config.agent.headlessEnabled === 'true' && !config.agent.im) {
         config.agent.im = {} as DeepclawConfig['agent']['im'];
         for (const key of ['engine', 'appId', 'secret']) {
             const event = APP_CONFIG_EVENTS[`agent.im.${key}`]!;

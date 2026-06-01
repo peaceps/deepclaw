@@ -1,8 +1,8 @@
 import {ReactElement, useContext} from 'react';
 import { Box, Text } from "ink";
-import { useWidth } from '../hooks/use-width.js';
-import {Dots} from './dots.js';
-import {StaticContext} from '../hooks/static-context.js';
+import { useWidth } from '../hooks/use-width';
+import {Dots} from './dots';
+import {StaticContext} from '../hooks/static-context';
 
 export function LlmOutput({
     llmOutput,

@@ -1,8 +1,8 @@
 import {
     ChatCompletionToolMessageParam,
  } from 'openai/resources/chat/completions.js';
-import { ThinkingMessage, ThinkingResponse, OpenAIChatLLM } from "../../llm/openai-chat-llm.js";
-import { MessagesCompactor } from "./messages-compactor.js";
+import { ThinkingMessage, ThinkingResponse, OpenAIChatLLM } from "../../llm/openai-chat-llm";
+import { MessagesCompactor } from "./messages-compactor";
 
 export class OpenAIChatMessagesCompactor extends MessagesCompactor<ThinkingMessage, ThinkingResponse, ChatCompletionToolMessageParam, OpenAIChatLLM> {
 

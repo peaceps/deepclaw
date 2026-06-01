@@ -15,13 +15,13 @@ export default [
     external: [
       /^node:/,
       // CJS packages: bundling breaks default import interop; leave to Node at runtime.
-      '@anthropic-ai/sdk',
       '@deepclaw/i18n',
       '@deepclaw/utils',
       '@deepclaw/core',
       '@deepclaw/config',
       'gray-matter',
-      'openai',
+      /^@anthropic-ai\/sdk(\/.*)?$/,
+      /^openai(\/.*)?$/,
     ],
 
     plugins: [

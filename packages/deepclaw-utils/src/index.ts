@@ -1,4 +1,4 @@
-export * from './file-utils.js';
-export * from './logger.js';
-export * from './graceful-shutdown.js';
+export * from './file-utils';
+export * from './logger';
+export * from './graceful-shutdown';
 export type { Logger } from 'pino';

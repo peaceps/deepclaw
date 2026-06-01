@@ -63,6 +63,18 @@ importers:
         specifier: 4.1.6
         version: 4.1.6(@types/node@25.6.0)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0))
 
+  apps/deepclaw-deepclaw:
+    dependencies:
+      '@deepclaw/headless':
+        specifier: workspace:*
+        version: link:../deepclaw-headless
+      '@deepclaw/tui':
+        specifier: workspace:*
+        version: link:../deepclaw-tui
+      meow:
+        specifier: 14.1.0
+        version: 14.1.0
+
   apps/deepclaw-headless:
     dependencies:
       '@deepclaw/agent':
@@ -84,29 +96,17 @@ importers:
         specifier: workspace:*
         version: link:../../packages/deepclaw-utils
 
-  apps/deepclaw-launcher:
-    dependencies:
-      '@deepclaw/headless':
-        specifier: workspace:*
-        version: link:../deepclaw-headless
-      '@deepclaw/tui':
-        specifier: workspace:*
-        version: link:../deepclaw-tui
-      meow:
-        specifier: 14.1.0
-        version: 14.1.0
-
   apps/deepclaw-tui:
     dependencies:
-      '@deepclaw/agent':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-agent
       '@deepclaw/config':
         specifier: workspace:*
         version: link:../../packages/deepclaw-config
       '@deepclaw/core':
         specifier: workspace:*
         version: link:../../packages/deepclaw-core
+      '@deepclaw/gateway':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-gateway
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../../packages/deepclaw-i18n
@@ -141,18 +141,9 @@ importers:
 
   apps/deepclaw-web:
     dependencies:
-      '@deepclaw/agent':
+      '@deepclaw/gateway':
         specifier: workspace:*
-        version: link:../../packages/deepclaw-agent
-      '@deepclaw/core':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-core
-      '@deepclaw/i18n':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-i18n
-      '@deepclaw/utils':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-utils
+        version: link:../../packages/deepclaw-gateway
       lucide-react:
         specifier: 1.16.0
         version: 1.16.0(react@19.2.5)
@@ -217,9 +208,6 @@ importers:
       '@deepclaw/core':
         specifier: workspace:*
         version: link:../deepclaw-core
-      '@deepclaw/i18n':
-        specifier: workspace:*
-        version: link:../deepclaw-i18n
       '@deepclaw/utils':
         specifier: workspace:*
         version: link:../deepclaw-utils
@@ -233,7 +221,14 @@ importers:
 
   packages/deepclaw-core: {}
 
-  packages/deepclaw-gateway: {}
+  packages/deepclaw-gateway:
+    dependencies:
+      '@deepclaw/agent':
+        specifier: workspace:*
+        version: link:../deepclaw-agent
+      '@deepclaw/core':
+        specifier: workspace:*
+        version: link:../deepclaw-core
 
   packages/deepclaw-i18n:
     dependencies:
@@ -246,6 +241,9 @@ importers:
 
   packages/deepclaw-im:
     dependencies:
+      '@deepclaw/agent':
+        specifier: workspace:*
+        version: link:../deepclaw-agent
       '@deepclaw/config':
         specifier: workspace:*
         version: link:../deepclaw-config

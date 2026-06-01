@@ -1,12 +1,12 @@
-import { ToolDesc } from '../../definitions/tool-definitions.js';
+import { ToolDesc } from '../../definitions/tool-definitions';
 
-import {shellTool} from '../tools/shell-tool.js';
-import {subLoopTool, subLoopWithHistoryTool} from '../tools/sub-loop-tool.js';
-import {loadSkillTool} from '../tools/skill-tool.js';
-import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool.js';
-import {saveMemoryTool} from '../tools/save-memory-tool.js';
+import {shellTool} from '../tools/shell-tool';
+import {subLoopTool, subLoopWithHistoryTool} from '../tools/sub-loop-tool';
+import {loadSkillTool} from '../tools/skill-tool';
+import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool';
+import {saveMemoryTool} from '../tools/save-memory-tool';
 import {createProjectTool, createStandaloneTaskTool, updateTaskTool, updateTaskCurrentStepTool, getProjectListTool,
-    getProjectDetailTool, getStandaloneTaskInfoTool} from '../tools/project-tool.js';
+    getProjectDetailTool, getStandaloneTaskInfoTool} from '../tools/project-tool';
 import { loadConfig, DeepclawConfig } from '@deepclaw/config';
 
 const tools: ToolDesc<any>[] = [

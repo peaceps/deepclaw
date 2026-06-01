@@ -1,4 +1,3 @@
-import { FlushAgentConstructor } from "@deepclaw/core";
 import { loadConfig, DeepclawConfig } from "@deepclaw/config";
 import { dingTalk } from "./im/dingtalk";
 import { feishu } from "./im/feishu";
@@ -19,12 +18,12 @@ const getIM = (engine: ImConfig["engine"]): IM => {
     return im;
 }
 
-export function connectIM(agentClass: FlushAgentConstructor): { disconnect: () => void } {
+export function connectIM(): { disconnect: () => void } {
     const engine = loadConfig<ImConfig["engine"]>("agent.im.engine");
     const appId = loadConfig<string>('agent.im.appId');
     const secret = loadConfig<string>('agent.im.secret');
     if (!engine || !appId || !secret) {
         return {disconnect: () => {}};
     }
-    return getIM(engine).connect(appId, secret, agentClass);
+    return getIM(engine).connect(appId, secret);
 }

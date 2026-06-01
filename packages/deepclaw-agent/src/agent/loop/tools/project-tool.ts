@@ -1,10 +1,10 @@
 import crypto from 'crypto';
-import { ToolDesc } from "../../definitions/tool-definitions.js";
-import { ProjectManager, StandaloneTask, Task } from "../services/project-manager.js";
+import { ToolDesc } from "../../definitions/tool-definitions";
+import { ProjectManager, StandaloneTask, Task } from "../services/project-manager";
 import { loadConfig, DeepclawConfig } from "@deepclaw/config";
 import {i18nInstance} from '@deepclaw/i18n';
-import { OneLoopContext } from '../../definitions/definitions.js';
-import { TaskStepsManager } from '../services/task-steps-manager.js';
+import { OneLoopContext } from '../../definitions/definitions';
+import { TaskStepsManager } from '../services/task-steps-manager';
 
 type CreateProjectInput = {
     title: string;

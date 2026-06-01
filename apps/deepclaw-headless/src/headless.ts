@@ -1,6 +1,5 @@
 import readline from 'readline/promises';
 import { stdin, stdout } from 'process';
-import { LoopInitializer } from '@deepclaw/agent';
 import { cleanupOnShutdown } from '@deepclaw/utils';
 import { validateAndFixConfig, DEFAULT_LANG } from '@deepclaw/config';
 import { connectIM, stringifiedInteractionEvent, parseStringifiedAnswer } from '@deepclaw/im';
@@ -35,6 +34,10 @@ async function handleInteractionEvent(event: AgentInteractionEvent): Promise<str
 }
 
 validateAndFixConfig(handleInteractionEvent, true).then(() => {
-    const {disconnect} = connectIM(LoopInitializer.getLoopClass());
+    const {disconnect} = connectIM();
     cleanupOnShutdown(disconnect);
+}).catch(error => {
+    // TODO handle error
+    console.error(error);
+    process.exit(1);
 });

@@ -1,9 +1,9 @@
 import process from 'node:process';
-import { SkillsManager } from './skills-manager.js';
+import { SkillsManager } from './skills-manager';
 import { DeepclawConfig, loadConfig } from '@deepclaw/config';
 import { FileUtils } from '@deepclaw/utils';
-import { MemoryManager } from './memory-manager.js';
-import { ProjectManager } from './project-manager.js';
+import { MemoryManager } from './memory-manager';
+import { ProjectManager } from './project-manager';
 
 const IDENTITY_FILE = 'DEEPCLAW.md';
 

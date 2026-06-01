@@ -18,5 +18,7 @@
         "test": "vitest run"
 	},
 	"dependencies": {
+		"@deepclaw/core": "workspace:*",
+		"@deepclaw/agent": "workspace:*"
 	}
 }

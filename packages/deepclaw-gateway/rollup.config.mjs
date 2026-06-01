@@ -14,6 +14,8 @@ export default [
 
     external: [
       /^node:/,
+      '@deepclaw/core',
+      '@deepclaw/agent',
     ],
 
     plugins: [

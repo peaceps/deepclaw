@@ -1,4 +1,4 @@
-import {ThinkingMessage, ThinkingContent} from './anthropic-llm.js';
+import {ThinkingMessage, ThinkingContent} from './anthropic-llm';
 
 export function normalizeMessages(messages: ThinkingMessage[]): ThinkingMessage[] {
     const cleaned: ThinkingMessage[] = [];

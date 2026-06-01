@@ -1,15 +1,15 @@
 import crypto from 'node:crypto';
 import { i18nInstance } from '@deepclaw/i18n';
-import { AgentInteractionEvent, FlushAgent, type AgentHandler } from '@deepclaw/core';
-import { ToolUseResult } from '../../definitions/tool-definitions.js';
-import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions.js';
-import { ToolUseService, ToolUseDef } from '../services/tool-use-service.js';
-import { PromptService } from '../services/prompt-service.js';
-import { ToolsManager } from '../services/tools-manager.js';
-import { LLMModel, LLMConstructor } from '../../llm/llmgw.js';
-import { MessagesCompactor } from '../compactor/messages-compactor.js';
+import { AgentInfoEvent, AgentInteractionEvent, FlushAgent, type AgentHandler } from '@deepclaw/core';
+import { ToolUseResult } from '../../definitions/tool-definitions';
+import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions';
+import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
+import { PromptService } from '../services/prompt-service';
+import { ToolsManager } from '../services/tools-manager';
+import { LLMModel, LLMConstructor } from '../../llm/llmgw';
+import { MessagesCompactor } from '../compactor/messages-compactor';
 import { getLogger } from '@deepclaw/utils';
-import { HookManager } from '../services/hook-manager.js';
+import { HookManager } from '../services/hook-manager';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -194,6 +194,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             onStreamText: () => {},
             onToolText: (content: string) => this.agentHandler.onToolText(content),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
+            onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
         }, fork ? this.history : [], this.sessionId);
     }
 

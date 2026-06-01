@@ -1,7 +1,7 @@
 import {Fragment, ReactElement, useContext, useState} from 'react';
 import {Box, Newline, Text, useInput} from 'ink';
-import { useWidth } from '../../hooks/use-width.js';
-import {StaticContext} from '../../hooks/static-context.js';
+import { useWidth } from '../../hooks/use-width';
+import {StaticContext} from '../../hooks/static-context';
 
 export function SelectInput({
     onEnter,

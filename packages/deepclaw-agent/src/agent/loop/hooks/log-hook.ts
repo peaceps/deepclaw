@@ -1,5 +1,5 @@
 import { HookManager } from "../services/hook-manager";
-import type { OneLoopContext } from "../../definitions/definitions.js";
+import type { OneLoopContext } from "../../definitions/definitions";
 
 HookManager.onVisitor('preLoopStart', (oneLoopContext: OneLoopContext) => {
     oneLoopContext.logger.info('Starting loop');

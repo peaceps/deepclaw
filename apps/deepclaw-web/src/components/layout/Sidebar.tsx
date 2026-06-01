@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings, Sun } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: '工作台', icon: LayoutDashboard },
   { href: '/tasks/board', label: '任务看板', icon: ClipboardList },
   { href: '/chat', label: '消息中心', icon: MessageSquare },
+  { href: '/demo', label: '演示', icon: Sun },
   { href: '/org', label: '组织架构', icon: Users },
   { href: '/settings', label: '设置', icon: Settings },
 ];

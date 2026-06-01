@@ -1,7 +1,7 @@
 import { FileUtils } from '@deepclaw/utils';
-import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions.js";
+import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions";
 import { type SealedAgentHandler } from '@deepclaw/core';
-import { OneLoopContext } from '../../definitions/definitions.js';
+import { OneLoopContext } from '../../definitions/definitions';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;

@@ -1,7 +1,7 @@
 import {getEnvVariable, hasEnvVariable} from '@deepclaw/config';
 import {type Logger} from '@deepclaw/utils';
-import { LLMTool } from '../definitions/tool-definitions.js';
-import { TransitionReason } from '../definitions/definitions.js';
+import { LLMTool } from '../definitions/tool-definitions';
+import { TransitionReason } from '../definitions/definitions';
 
 const llmRetry = 3;
 

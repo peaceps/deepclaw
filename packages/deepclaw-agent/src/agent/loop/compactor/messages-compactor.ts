@@ -1,6 +1,6 @@
 import { FileUtils, type Logger } from '@deepclaw/utils';
 import { LLMModel } from '../../llm/llmgw';
-import { FootPrint } from '../../definitions/definitions.js';
+import { FootPrint } from '../../definitions/definitions';
 
 type HistoryCompactContext = {
     footPrints: FootPrint[];

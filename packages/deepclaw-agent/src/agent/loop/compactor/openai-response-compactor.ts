@@ -1,6 +1,6 @@
 import { ResponseInputItem } from "openai/resources/responses/responses";
-import { ThinkingMessage, ThinkingResponse, OpenAIResponseLLM } from "../../llm/openai-response-llm.js";
-import { MessagesCompactor } from "./messages-compactor.js";
+import { ThinkingMessage, ThinkingResponse, OpenAIResponseLLM } from "../../llm/openai-response-llm";
+import { MessagesCompactor } from "./messages-compactor";
 
 export class OpenAIResponseMessagesCompactor extends MessagesCompactor<ThinkingMessage, ThinkingResponse, ResponseInputItem.FunctionCallOutput, OpenAIResponseLLM> {
 

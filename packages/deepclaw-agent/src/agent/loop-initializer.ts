@@ -1,12 +1,17 @@
-import { type FlushAgentConstructor } from '@deepclaw/core';
+import { FlushAgent, type AgentHandler, type FlushAgentConstructor } from '@deepclaw/core';
 import {hasEnvVariable, getEnvVariable} from '@deepclaw/config';
-import { OpenAIChatLoop } from './loop/loop/openai-chat-loop.js';
-import { OpenAIResponseLoop } from './loop/loop/openai-response-loop.js';
-import { AnthropicLoop } from './loop/loop/anthropic-loop.js';
-import './loop/hooks/hooks.js';
+import { OpenAIChatLoop } from './loop/loop/openai-chat-loop';
+import { OpenAIResponseLoop } from './loop/loop/openai-response-loop';
+import { AnthropicLoop } from './loop/loop/anthropic-loop';
+import './loop/hooks/hooks';
 
 export class LoopInitializer {
-    public static getLoopClass(): FlushAgentConstructor {
+    public static getLoop(handler: AgentHandler): FlushAgent {
+        let loopClass: FlushAgentConstructor = this.getLoopClass();
+        return new loopClass(handler);
+    }
+
+    private static getLoopClass(): FlushAgentConstructor {
         if (hasEnvVariable('OPENAI_BASE_URL')) {
             return getEnvVariable('OPENAI_RESPONSE_API').toLowerCase() === 'false' ? OpenAIChatLoop : OpenAIResponseLoop;
         } else if (hasEnvVariable('ANTHROPIC_BASE_URL')) {

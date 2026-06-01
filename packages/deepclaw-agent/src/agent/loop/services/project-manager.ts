@@ -1,6 +1,6 @@
 import { FileUtils } from '@deepclaw/utils';
 import { DeepclawConfig, loadConfig } from '@deepclaw/config';
-import { TaskStepsManager } from './task-steps-manager.js';
+import { TaskStepsManager } from './task-steps-manager';
 
 export type Project<T extends Task> = {
     id: string;
@@ -145,6 +145,11 @@ export class ProjectManager {
         } else if (this.projects.standalone.persistent[taskInfo.title]) {
             this.saveStandaloneProject();
         }
+    }
+
+    // Todo to remove
+    public static getTestTasks(): Task[] {
+        return Object.values(this.projects.standalone.persistent).concat(Object.values(this.projects.standalone.transient));
     }
 
     public static getProjectList(includingClosed: boolean): ProjectListInfo {

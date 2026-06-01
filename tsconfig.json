@@ -12,6 +12,6 @@
         { "path": "./apps/deepclaw-tui" },
         { "path": "./apps/deepclaw-headless" },
         { "path": "./apps/deepclaw-web" },
-        { "path": "./apps/deepclaw-launcher" }
+        { "path": "./apps/deepclaw-deepclaw" }
     ]
 }

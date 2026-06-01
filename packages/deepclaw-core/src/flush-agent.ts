@@ -1,4 +1,4 @@
-import { AgentInteractionEvent } from './agent-event';
+import { AgentInfoEvent, AgentInteractionEvent } from './agent-event';
 
 export type FlushAgentConstructor = new (
     handler: AgentHandler
@@ -8,6 +8,7 @@ export type AgentHandler = {
     onStreamText(content: string, done?: boolean): void;
     onToolText(content: string): void;
     onInteractionEvent(event: AgentInteractionEvent): Promise<string>;
+    onInfoEvent(event: AgentInfoEvent): void;
 }
 
 export type SealedAgentHandler = AgentHandler & {
@@ -15,7 +16,7 @@ export type SealedAgentHandler = AgentHandler & {
 }
 
 export abstract class FlushAgent {
-    protected agentHandler: SealedAgentHandler;
+    protected agentHandler: AgentHandler;
     private flusher: (content: string, done: boolean) => void;
 
     constructor(
@@ -25,7 +26,8 @@ export abstract class FlushAgent {
         this.agentHandler = {
             onStreamText: (text: string) => this.flusher(text, false),
             onToolText: (text: string) => handler.onToolText(text),
-            onInteractionEvent: handler.onInteractionEvent
+            onInteractionEvent: handler.onInteractionEvent,
+            onInfoEvent: handler.onInfoEvent
         };
     }
 

@@ -1,8 +1,9 @@
 import {DWClient, DWClientDownStream, EventAck, TOPIC_ROBOT} from 'dingtalk-stream';
 import { IM } from '../im-definitions';
-import { AgentInteractionEvent, FlushAgentConstructor } from '@deepclaw/core';
+import { AgentInteractionEvent } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
-import {stringifiedInteractionEvent, parseStringifiedAnswer} from '../stringified-event.js';
+import {stringifiedInteractionEvent, parseStringifiedAnswer} from '../stringified-event';
+import { LoopInitializer } from '@deepclaw/agent';
 
 type EndPoint = {
     sessionWebhook: string;
@@ -11,14 +12,17 @@ type EndPoint = {
 
 const handledMessages = new Set<string>();
 
-const onBotMessage = (client: DWClient, agentClass: FlushAgentConstructor) => {
+// TODO multi session control
+const onBotMessage = (client: DWClient) => {
     const endPoint = {sessionWebhook: '', senderStaffId: ''};
     let interactionResolver: Function | null = null;
+    let sequentialInteraction: Promise<void> = Promise.resolve();
 
-    const agent = new agentClass({
+    const agent = LoopInitializer.getLoop({
         onStreamText: () => {},
         onToolText: () => {},
         onInteractionEvent: handleInteractionEvent,
+        onInfoEvent: () => Promise.resolve(''),
     });
 
     async function handleInteractionEvent(event: AgentInteractionEvent): Promise<string> {
@@ -61,19 +65,26 @@ const onBotMessage = (client: DWClient, agentClass: FlushAgentConstructor) => {
             }
             
             sendMessage(endPoint, i18nInstance.t('im.wait'));
-            agent.invoke(content).then(res => {
-                sendMessage(endPoint, res);
-            }).catch(() => {
-                sendMessage(endPoint, i18nInstance.t('im.error'));
-            });
+            sequentialInteraction = sequentialInteraction.then(
+                () => agent.invoke(content).then(res => {
+                    sendMessage(endPoint, res);
+                }).catch(() => {
+                    sendMessage(endPoint, i18nInstance.t('im.error'));
+                })
+            );
         } catch(e) {
             console.error(`message ${event.headers.messageId} processing error, simply ignore it.`, e);
         }
     }
 }
 
-function sendMessage(endPoint: EndPoint, content: string) {
-    void fetch(endPoint.sessionWebhook || '', {
+function sendMessage(endPoint: EndPoint, content: string): void {
+    if (!endPoint.sessionWebhook) {
+        // TODO handle error
+        console.info('DingTalk sessionWebhook is not set.');
+        return;
+    }
+    void fetch(endPoint.sessionWebhook, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -81,15 +92,18 @@ function sendMessage(endPoint: EndPoint, content: string) {
             text: {content},
             at: {atUserIds: [endPoint.senderStaffId || '']}
         })
+    }).catch(error => {
+        // TODO handle error
+        console.error(`send message to ${endPoint.sessionWebhook} failed.`, error);
     });
 }
 
-function connect(appId: string, secret: string, agentClass: FlushAgentConstructor): { disconnect: () => void } {
+function connect(appId: string, secret: string): { disconnect: () => void } {
     const client = new DWClient({
       clientId: appId,
       clientSecret: secret,
     });
-    client.registerCallbackListener(TOPIC_ROBOT, onBotMessage(client, agentClass)).connect();
+    client.registerCallbackListener(TOPIC_ROBOT, onBotMessage(client)).connect();
     return {
         disconnect: () => client.disconnect()
     };

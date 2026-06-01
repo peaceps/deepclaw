@@ -1,3 +1,3 @@
-import './i18n/index.js';
-export * from './i18n.js';
+import './i18n/index';
+export * from './i18n';
 export {type Module, type TFunction} from 'i18next';

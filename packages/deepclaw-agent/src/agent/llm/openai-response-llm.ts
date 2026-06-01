@@ -1,8 +1,8 @@
 import { OpenAI } from "openai";
 import { randomUUID } from "node:crypto";
 import { i18nInstance } from '@deepclaw/i18n';
-import { LLMModel } from './llmgw.js';
-import { LLMTool } from '../definitions/tool-definitions.js';
+import { LLMModel } from './llmgw';
+import { LLMTool } from '../definitions/tool-definitions';
 import {
     ResponseInputItem,
     Tool,
@@ -11,7 +11,7 @@ import {
     ResponseFunctionToolCall,
     ResponseOutputMessage,
 } from "openai/resources/responses/responses.js";
-import { TransitionReason } from "../definitions/definitions.js";
+import { TransitionReason } from "../definitions/definitions";
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
 
