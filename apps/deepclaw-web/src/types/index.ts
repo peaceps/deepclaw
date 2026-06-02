@@ -12,7 +12,7 @@ export interface AgentEmployee {
   skills: string[];
   expertise: string[];
   status: 'online' | 'busy' | 'idle' | 'offline';
-  currentTask: Task | null;
+  currentTaskId: string | null; // 改为 ID 引用
   mood: 'happy' | 'focused' | 'tired' | 'confused';
   stats: {
     tasksCompleted: number;
@@ -27,7 +27,7 @@ export interface Task {
   description: string;
   status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  assignee: AgentEmployee;
+  assigneeId: string; // 改为 ID 引用，避免数据副本
   creator: { id: string; name: string };
   createdAt: string;
   startedAt?: string;
@@ -45,4 +45,16 @@ export interface Message {
   content: string;
   type: 'user' | 'agent' | 'thought';
   timestamp: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  status: 'active' | 'paused' | 'completed' | 'archived';
+  tasks: Task[];
+  createdAt: string;
+  updatedAt: string;
+  owner: { id: string; name: string };
+  memberIds: string[]; // 改为 ID 数组引用
 }
