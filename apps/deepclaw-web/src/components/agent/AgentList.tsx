@@ -3,8 +3,17 @@
 import { useAppStore } from '@/lib/store';
 import { AgentCard } from './AgentCard';
 
-export function AgentList() {
+interface AgentListProps {
+  onSelect?: () => void;
+}
+
+export function AgentList({ onSelect }: AgentListProps) {
   const { agents, selectedAgentId, setSelectedAgent } = useAppStore();
+
+  const handleSelect = (agentId: string) => {
+    setSelectedAgent(agentId);
+    onSelect?.();
+  };
 
   return (
     <div className="space-y-3">
@@ -15,7 +24,7 @@ export function AgentList() {
             key={agent.id}
             agent={agent}
             isSelected={selectedAgentId === agent.id}
-            onClick={() => setSelectedAgent(agent.id)}
+            onClick={() => handleSelect(agent.id)}
           />
         ))}
       </div>

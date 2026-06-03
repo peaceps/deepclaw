@@ -2,7 +2,7 @@
 
 import { useAppStore } from '@/lib/store';
 import { TaskCard } from './TaskCard';
-import { Folder, CheckCircle2, Clock, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { Folder, CheckCircle2, Clock, Users, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Project } from '@/types';
 
@@ -31,31 +31,38 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
       {/* 项目头部 - 可点击展开/收起 */}
       <div
         onClick={onToggle}
-        className="px-6 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
+        className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
             {/* 展开图标 */}
-            <div className="text-gray-400">
+            <div className="text-gray-400 flex-shrink-0">
               {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
             </div>
 
             {/* 项目图标 */}
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white flex-shrink-0">
               <Folder size={20} />
             </div>
 
             {/* 项目信息 */}
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg">{project.name}</h3>
-              <p className="text-sm text-gray-500">{project.description}</p>
+            <div className="min-w-0">
+              <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate">{project.name}</h3>
+              <p className="text-sm text-gray-500 truncate hidden sm:block">{project.description}</p>
             </div>
           </div>
 
           {/* 右侧统计 */}
-          <div className="flex items-center gap-6">
-            {/* 进度条 */}
-            <div className="w-32">
+          <div className="flex items-center gap-3 sm:gap-6 flex-wrap">
+            {/* 负责人 */}
+            <div className="flex items-center gap-1.5 text-sm bg-purple-50 px-2 py-1 rounded-lg">
+              <User size={16} className="text-purple-500" />
+              <span className="text-gray-500">负责人:</span>
+              <span className="font-medium text-purple-700">{project.owner.name}</span>
+            </div>
+
+            {/* 进度条 - 移动端隐藏 */}
+            <div className="hidden sm:block w-32">
               <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                 <span>进度</span>
                 <span>{progress}%</span>
@@ -69,7 +76,7 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
             </div>
 
             {/* 统计数字 */}
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-3 sm:gap-4 text-sm">
               <div className="flex items-center gap-1.5 text-gray-600">
                 <Users size={16} className="text-blue-500" />
                 <span>{project.memberIds.length}</span>
@@ -88,7 +95,7 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
 
             {/* 状态标签 */}
             <span className={`
-              px-3 py-1 rounded-full text-xs font-medium
+              px-3 py-1 rounded-full text-xs font-medium flex-shrink-0
               ${project.status === 'active' ? 'bg-green-100 text-green-700' : ''}
               ${project.status === 'paused' ? 'bg-yellow-100 text-yellow-700' : ''}
               ${project.status === 'completed' ? 'bg-blue-100 text-blue-700' : ''}
@@ -107,14 +114,14 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
               <p>该项目暂无任务</p>
             </div>
           ) : (
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400" style={{ minWidth: '100%' }}>
+            <div className="flex flex-col sm:flex-row gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400" style={{ minWidth: '100%' }}>
               {columns.map((column) => {
                 const columnTasks = project.tasks.filter((t) => t.status === column.id);
 
                 return (
                   <div
                     key={column.id}
-                    className={`w-64 ${column.color} rounded-lg p-3 flex-shrink-0`}
+                    className={`w-full sm:w-64 ${column.color} rounded-lg p-3 flex-shrink-0`}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-semibold text-gray-800 text-sm">{column.title}</h4>
@@ -181,9 +188,9 @@ export function TaskBoard() {
   return (
     <div className="h-full flex flex-col bg-gray-100">
       {/* 页面头部 */}
-      <div className="px-6 py-4 bg-white border-b border-gray-200 flex items-center justify-between">
+      <div className="px-4 sm:px-6 py-4 bg-white border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">项目任务</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900">项目任务</h1>
           <p className="text-sm text-gray-500 mt-1">{projects.length} 个项目，管理所有任务</p>
         </div>
         <div className="flex items-center gap-4 text-sm text-gray-600">

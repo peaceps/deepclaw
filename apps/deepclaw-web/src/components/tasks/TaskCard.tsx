@@ -54,7 +54,7 @@ function AgentDetailTooltip({ agent, visible, anchorRef, onClose }: {
   return (
     <div
       ref={tooltipRef}
-      className="fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-72 animate-in fade-in zoom-in-95 duration-200"
+      className="fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-72"
       style={{
         top: position.top,
         left: position.left,
