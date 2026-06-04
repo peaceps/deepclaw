@@ -21,11 +21,11 @@ export const zh = {
                 write: '写入文件{{path}}成功，共{{length}}字节。',
                 edit: '编辑文件{{path}}成功。',
             },
-            shell: {
+            syncCommand: {
                 guard: {
                     danger: '禁止执行危险命令({{command}})。',
                     warn: '检测到危险命令({{command}})。',
-                    mode: 'Deepclaw未运行在agent模式，但模型想要运行shell命令({{command}})。',
+                    mode: 'Deepclaw未运行在agent模式，但模型想要运行命令({{command}})。',
                 },
                 empty: '（无输出内容）',
                 error: '出错了。{{message}}。',

@@ -21,7 +21,7 @@ export const en = {
                 write: 'Wrote {{length}} bytes to {{path}}.',
                 edit: 'Edit {{path}} successfully.',
             },
-            shell: {
+            syncCommand: {
                 guard: {
                     danger: 'Dangerous command({{command}}) blocked.',
                     warn: 'Need permission to run command({{command}}).',

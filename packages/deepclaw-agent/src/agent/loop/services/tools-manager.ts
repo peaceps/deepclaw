@@ -1,16 +1,17 @@
 import { ToolDesc } from '../../definitions/tool-definitions';
 
-import {shellTool} from '../tools/shell-tool';
+import {syncCommandTool} from '../tools/sync-command-tool';
 import {subLoopTool, subLoopWithHistoryTool} from '../tools/sub-loop-tool';
 import {loadSkillTool} from '../tools/skill-tool';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool';
+import {runBackgroundCommandTool, checkAllBackgroundCommandStatusTool, checkBackgroundCommandStatusTool} from '../tools/background-command-tool';
 import {saveMemoryTool} from '../tools/save-memory-tool';
 import {createProjectTool, createStandaloneTaskTool, updateTaskTool, updateTaskCurrentStepTool, getProjectListTool,
     getProjectDetailTool, getStandaloneTaskInfoTool} from '../tools/project-tool';
 import { loadConfig, DeepclawConfig } from '@deepclaw/config';
 
 const tools: ToolDesc<any>[] = [
-    shellTool,
+    syncCommandTool,
     subLoopTool,
     subLoopWithHistoryTool,
     loadSkillTool,
@@ -24,7 +25,10 @@ const tools: ToolDesc<any>[] = [
     getProjectDetailTool,
     getProjectListTool,
     getStandaloneTaskInfoTool,
-    createStandaloneTaskTool
+    createStandaloneTaskTool,
+    runBackgroundCommandTool,
+    checkAllBackgroundCommandStatusTool,
+    checkBackgroundCommandStatusTool
 ];
 
 export class ToolsManager {

@@ -69,7 +69,7 @@ Always think step by step and be specific when you answer.`;
             subloop: `${commonIdentity}
 What's more you are a subloop agent for specific task described in the prompt.
 Complete the given task, then summarize your findings.
-You don't have access to file writing tools, and don't use shell tool to create or edit file.
+You don't have access to file writing tools, and don't use run_sync_command tool to create or edit file.
 When you need to create or generate any content,
 just return it as the output of the agent without writing it to any file.
 `

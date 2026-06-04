@@ -26,6 +26,6 @@ export type OneLoopContext = {
         newSubLoop: (fork?: boolean) => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
         compactIfNeeded: () => Promise<void>;
-        agentHandler: SealedAgentHandler
+        agentHandler: SealedAgentHandler;
     }
 }
