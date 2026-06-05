@@ -74,7 +74,7 @@ async function execute(input: SyncCommandInput): Promise<string> {
     const { command } = input;
     try {
         const { preview } = await runCommand(command);
-        return !preview ? i18nInstance.t('agent.tools.sync_command.empty'): '';
+        return !preview ? i18nInstance.t('agent.tools.sync_command.empty'): preview;
     } catch (error: any) {
         return error?.killed && error?.signal === 'SIGTERM' ? i18nInstance.t('agent.tools.sync_command.timeout', {childProcessTimeout})
             : i18nInstance.t('agent.tools.sync_command.error', {message: error?.message || ''});

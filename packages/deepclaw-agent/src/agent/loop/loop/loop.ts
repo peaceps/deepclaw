@@ -69,6 +69,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
                     compactIfNeeded: () => this.compactIfNeeded(state.oneLoopContext),
                     agentHandler: this.agentHandler,
+                    addStringMessage: this.addStringMessage.bind(this),
                 }
             },
         };

@@ -18,10 +18,10 @@ export type BackgroundCommand = BackGroundCommandInfo & {
     creator: string;
 };
 
-const OUTPUT_DIR = '.project/background_commands';
+const OUTPUT_DIR = '.projects/background_commands';
 
 export class BackgroundCommandManager {
-    private static finishiedCommands: string[] = [];
+    private static completedCommands: string[] = [];
     private static commands: Map<string, BackgroundCommand> = new Map();
     
     public static runCommand(command: BackgroundCommand): void { 
@@ -35,7 +35,7 @@ export class BackgroundCommandManager {
             command.output = `Error: ${e?.message || 'Unknown error'}`;
             command.preview = command.output;
         }).finally(() => {
-            this.finishiedCommands.push(id);
+            this.completedCommands.push(id);
             command.completedAt = new Date().toISOString();
             command.status = 'completed';
             FileUtils.writeFile(command.outputPath!, command.output || '');
@@ -70,10 +70,12 @@ export class BackgroundCommandManager {
         return allCommands;
     }
 
-    // TODO to call in hook
-    public static drainFinishedCommands(): void {
-        for (const id of this.finishiedCommands) {
-            this.commands.delete(id);
-        }   
+    public static drainFinishedCommands(): BackGroundCommandInfo[] {
+        const finishedCommands: BackGroundCommandInfo[] = [];
+        for (const id of this.completedCommands) {
+            finishedCommands.push(this.getCommandStatus(id));
+        }
+        this.completedCommands = [];
+        return finishedCommands;
     }
 }

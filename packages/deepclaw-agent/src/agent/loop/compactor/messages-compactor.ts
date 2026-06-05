@@ -14,9 +14,9 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     protected sessionId: string;
     private llm: LLM;
 
-    private maxRecent: number = 5;
-    private toolResultThreshold: number = 120;
-    private toolResultCompactedMessage: string = 'Earlier tool result compacted. Re-run the tool if you need full detail.';
+    private maxRecent: number = 20;
+    private toolResultThreshold: number = 1200;
+    private toolResultCompactedMessage: string = '<tool result compacted> Earlier tool result compacted. Re-run the tool if you need full detail.</tool result compacted>';
 
     private historyThreshold: number = 200000;
     private historyCompactContext: HistoryCompactContext;

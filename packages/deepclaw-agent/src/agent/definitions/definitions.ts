@@ -27,5 +27,6 @@ export type OneLoopContext = {
         addFootPrint: (footPrint: FootPrint) => void;
         compactIfNeeded: () => Promise<void>;
         agentHandler: SealedAgentHandler;
+        addStringMessage: (message: string) => void;
     }
 }

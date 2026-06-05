@@ -18,6 +18,8 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-        "pino": "10.3.1"
+        "pino": "10.3.1",
+        "chardet": "2.1.1",
+        "iconv-lite": "0.7.2"
 	}
 }
