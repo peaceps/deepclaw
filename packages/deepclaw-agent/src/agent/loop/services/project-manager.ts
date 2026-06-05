@@ -10,6 +10,7 @@ export type Project<T extends Task> = {
     closedAt?: string;
     creator: string;
     tasks: Record<string, T>;
+    completedTasks?: string[];
     ongoingTasks?: string[];
     canStartTasks?: string[];
 };
@@ -34,7 +35,9 @@ export type Task = {
     blocks: string[];
     assignee?: string;
     closedAt?: string;
-    creator: string;
+    creator: string; // standalone
+    progress?: number;
+    tags?: string[];
 };
 
 export type StandaloneTask = Task & {
@@ -147,11 +150,6 @@ export class ProjectManager {
         }
     }
 
-    // Todo to remove
-    public static getTestTasks(): Task[] {
-        return Object.values(this.projects.standalone.persistent).concat(Object.values(this.projects.standalone.transient));
-    }
-
     public static getProjectList(includingClosed: boolean): ProjectListInfo {
         const res = {
             projects: {
@@ -201,6 +199,7 @@ export class ProjectManager {
         }
         return {
             ...project,
+            completedTasks: Object.values(project.tasks).filter(task => task.status === 'done').map(task => task.title),
             ongoingTasks: Object.values(project.tasks).filter(task => task.status === 'ongoing').map(task => task.title),
             canStartTasks: Object.values(project.tasks).filter(task => task.status === 'todo' &&
                 task.blockedBy.every(blockedBy => project.tasks[blockedBy]?.status === 'done')).map(task => task.title),

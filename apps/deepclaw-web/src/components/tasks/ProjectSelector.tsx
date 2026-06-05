@@ -1,17 +1,17 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import { Project } from '@/types';
+import { Project, Task } from '@/types';
 
 interface ProjectOptionProps {
-  project: Project;
+  project: Project<Task>;
   isSelected: boolean;
   onClick: () => void;
 }
 
 function ProjectOption({ project, isSelected, onClick }: ProjectOptionProps) {
-  const taskCount = project.tasks.length;
-  const completedCount = project.tasks.filter(t => t.status === 'done').length;
+  const taskCount = Object.keys(project.tasks).length;
+  const completedCount = Object.values(project.tasks).filter(t => t.status === 'done').length;
   const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
 
   return (
@@ -26,17 +26,17 @@ function ProjectOption({ project, isSelected, onClick }: ProjectOptionProps) {
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-900 truncate">{project.name}</span>
+            <span className="font-medium text-gray-900 truncate">{project.title}</span>
             <span
               className={`text-xs px-2 py-0.5 rounded-full ${
-                project.status === 'active'
+                !!project.ongoingTasks!.length
                   ? 'bg-green-100 text-green-700'
-                  : project.status === 'paused'
-                  ? 'bg-yellow-100 text-yellow-700'
+                  : !!project.createdAt
+                  ? 'bg-blue-100 text-blue-700'
                   : 'bg-gray-100 text-gray-600'
               }`}
             >
-              {project.status === 'active' ? '进行中' : project.status === 'paused' ? '已暂停' : project.status === 'completed' ? '已完成' : '已归档'}
+              {!!project.ongoingTasks!.length ? '进行中' : !!project.createdAt ? '已完成' : '未开始'}
             </span>
           </div>
           <p className="text-sm text-gray-500 mt-1 truncate">{project.description}</p>

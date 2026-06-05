@@ -2,13 +2,15 @@
 
 import { useAppStore } from '@/lib/store';
 import { AgentCard } from './AgentCard';
+import { AgentEmployee } from '@deepclaw/gateway';
 
 interface AgentListProps {
+  agents: AgentEmployee[];
   onSelect?: () => void;
 }
 
-export function AgentList({ onSelect }: AgentListProps) {
-  const { agents, selectedAgentId, setSelectedAgent } = useAppStore();
+export function AgentList({ agents, onSelect }: AgentListProps) {
+  const { selectedAgentId, setSelectedAgent } = useAppStore();
 
   const handleSelect = (agentId: string) => {
     setSelectedAgent(agentId);

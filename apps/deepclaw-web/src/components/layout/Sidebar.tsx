@@ -7,9 +7,8 @@ import { useState } from 'react';
 
 const navItems = [
   { href: '/tasks/board', label: '任务看板', icon: ClipboardList },
-  { href: '/', label: '员工', icon: Users },
+  { href: '/agents', label: '员工', icon: Users },
   { href: '/chat', label: '消息中心', icon: MessageSquare },
-  { href: '/demo', label: '演示', icon: Sun },
   { href: '/org', label: '组织架构', icon: LayoutDashboard },
   { href: '/settings', label: '设置', icon: Settings },
 ];

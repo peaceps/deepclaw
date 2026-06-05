@@ -128,18 +128,10 @@ function AgentHeader({ agent }: { agent: AgentEmployee }) {
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 flex items-center justify-center">
                 <Clock size={16} className="sm:w-5 sm:h-5 text-blue-600" />
               </div>
-              <div>
-                <div className="text-base sm:text-lg font-bold text-gray-900">{agent.stats.avgResponseTime}s</div>
-                <div className="text-xs text-gray-500">平均响应</div>
-              </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-yellow-50 flex items-center justify-center">
                 <Star size={16} className="sm:w-5 sm:h-5 text-yellow-600" />
-              </div>
-              <div>
-                <div className="text-base sm:text-lg font-bold text-gray-900">{agent.stats.satisfaction}</div>
-                <div className="text-xs text-gray-500">满意度</div>
               </div>
             </div>
           </div>
@@ -202,7 +194,7 @@ function SkillsSection({ agent }: { agent: AgentEmployee }) {
         <div>
           <label className="text-sm text-gray-500 mb-2 block">技能</label>
           <div className="flex flex-wrap gap-2">
-            {agent.skills.map((skill) => (
+            {agent.skills?.map((skill) => (
               <TraitBadge key={skill} text={skill} color="blue" />
             ))}
           </div>
@@ -212,7 +204,7 @@ function SkillsSection({ agent }: { agent: AgentEmployee }) {
         <div>
           <label className="text-sm text-gray-500 mb-2 block">专业领域</label>
           <div className="flex flex-wrap gap-2">
-            {agent.expertise.map((exp) => (
+            {agent.expertise?.map((exp) => (
               <TraitBadge key={exp} text={exp} color="green" />
             ))}
           </div>
@@ -225,7 +217,7 @@ function SkillsSection({ agent }: { agent: AgentEmployee }) {
 function WorkStyleSection({ agent }: { agent: AgentEmployee }) {
   const { getAllTasks } = useAppStore();
   const tasks = getAllTasks();
-  const currentTask = agent.currentTaskId ? tasks.find(t => t.id === agent.currentTaskId) : null;
+  const currentTask = agent.id ? tasks.find(t => t.title === agent.id) : null;
 
   return (
     <InfoCard title="工作方式" icon={<Target size={20} />}>
@@ -251,7 +243,7 @@ function WorkStyleSection({ agent }: { agent: AgentEmployee }) {
               <p className="text-sm text-gray-600 line-clamp-2">{currentTask.description}</p>
               <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
                 <span>进度 {currentTask.progress}%</span>
-                <span>预计 {currentTask.estimatedHours} 小时</span>
+                {/* <span>预计 {currentTask.estimatedHours} 小时</span> */}
               </div>
               <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                 <div
@@ -271,16 +263,16 @@ function WorkStyleSection({ agent }: { agent: AgentEmployee }) {
           <ul className="space-y-2 text-sm text-gray-700">
             <li className="flex items-start gap-2">
               <CheckCircle2 size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
-              <span>擅长 {agent.expertise.join('、')} 领域的工作</span>
+              <span>擅长 {agent.expertise?.join('、') || '所有'} 领域的工作</span>
             </li>
-            <li className="flex items-start gap-2">
+            {/* <li className="flex items-start gap-2">
               <CheckCircle2 size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
               <span>平均响应时间 {agent.stats.avgResponseTime} 秒，效率较高</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
               <span>已完成 {agent.stats.tasksCompleted} 个任务，满意度 {agent.stats.satisfaction}</span>
-            </li>
+            </li> */}
           </ul>
         </div>
       </div>
@@ -288,8 +280,8 @@ function WorkStyleSection({ agent }: { agent: AgentEmployee }) {
   );
 }
 
-export function AgentDetail() {
-  const { agents, selectedAgentId } = useAppStore();
+export function AgentDetail({agents}: {agents: AgentEmployee[]}) {
+  const { selectedAgentId } = useAppStore();
 
   const agent = selectedAgentId
     ? agents.find((a) => a.id === selectedAgentId)

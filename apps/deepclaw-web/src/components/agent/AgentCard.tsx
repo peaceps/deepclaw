@@ -9,7 +9,7 @@ import { useAppStore } from '@/lib/store';
 function AgentCurrentTask({ taskId }: { taskId: string }) {
   const { getAllTasks } = useAppStore();
   const tasks = getAllTasks();
-  const task = tasks.find(t => t.id === taskId);
+  const task = tasks.find(t => t.title === taskId);
 
   if (!task) return null;
 
@@ -267,9 +267,11 @@ export function AgentCard({ agent, isSelected, onClick }: AgentCardProps) {
           </span>
         </div>
 
-        {agent.currentTaskId && (
-          <AgentCurrentTask taskId={agent.currentTaskId} />
-        )}
+        {
+        // agent.currentTaskId && (
+        //   <AgentCurrentTask taskId={agent.currentTaskId} />
+        // )
+        }
       </div>
 
       <AgentTooltip

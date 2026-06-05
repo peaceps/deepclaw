@@ -15,6 +15,19 @@ export type SealedAgentHandler = AgentHandler & {
     onStreamText(content: string): void;
 }
 
+export type AgentIdentity = {
+  id: string;
+  name: string;
+  role?: string;
+  personality: {
+    traits: string[];
+    communicationStyle: 'formal' | 'casual' | 'friendly';
+    emotionExpression: boolean;
+  };
+  skills?: string[];
+  expertise?: string[];
+}
+
 export abstract class FlushAgent {
     protected agentHandler: AgentHandler;
     private flusher: (content: string, done: boolean) => void;
@@ -59,4 +72,6 @@ export abstract class FlushAgent {
         }
         return result;
     }
+
+    public abstract getIdentity(): AgentIdentity;
 }

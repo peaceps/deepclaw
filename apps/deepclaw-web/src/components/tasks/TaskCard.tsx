@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Task, AgentEmployee } from '@/types';
 import { priorityColors, priorityLabels, formatDuration, statusColors, moodEmojis } from '@/lib/utils';
-import { useAppStore } from '@/lib/store';
 
 interface TaskCardProps {
   task: Task;
@@ -84,7 +83,7 @@ function AgentDetailTooltip({ agent, visible, anchorRef, onClose }: {
         <div className="mb-3">
           <p className="text-xs text-gray-500 mb-1">技能</p>
           <div className="flex flex-wrap gap-1">
-            {agent.skills.slice(0, 4).map((skill) => (
+            {agent.skills?.slice(0, 4).map((skill) => (
               <span
                 key={skill}
                 className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full"
@@ -100,14 +99,6 @@ function AgentDetailTooltip({ agent, visible, anchorRef, onClose }: {
           <div className="text-center p-2 bg-gray-50 rounded-lg">
             <div className="text-lg font-bold text-gray-900">{agent.stats.tasksCompleted}</div>
             <div className="text-xs text-gray-500">完成任务</div>
-          </div>
-          <div className="text-center p-2 bg-gray-50 rounded-lg">
-            <div className="text-lg font-bold text-gray-900">{agent.stats.avgResponseTime}s</div>
-            <div className="text-xs text-gray-500">平均响应</div>
-          </div>
-          <div className="text-center p-2 bg-gray-50 rounded-lg">
-            <div className="text-lg font-bold text-gray-900">{agent.stats.satisfaction}</div>
-            <div className="text-xs text-gray-500">满意度</div>
           </div>
         </div>
 
@@ -131,7 +122,7 @@ function AgentDetailTooltip({ agent, visible, anchorRef, onClose }: {
           <div className="flex items-start gap-2">
             <span className="text-lg">💬</span>
             <p className="text-sm text-gray-700 italic">
-              "我是{agent.name}，擅长{agent.expertise.join('、')}，随时准备为您服务！"
+              "我是{agent.name}，擅长{agent.expertise?.join('、') || '所有'}领域的工作，随时准备为您服务！"
             </p>
           </div>
         </div>
@@ -140,12 +131,11 @@ function AgentDetailTooltip({ agent, visible, anchorRef, onClose }: {
   );
 }
 
-export function TaskCard({ task }: TaskCardProps) {
+export function TaskCard({ task, agents }: TaskCardProps & { agents: AgentEmployee[] }) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
-  const { getTaskAssignee } = useAppStore();
   
-  const assignee = getTaskAssignee(task.assigneeId);
+  const assignee = agents.find(agent => agent.id === task.assignee);
 
   const handleAssigneeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -182,13 +172,13 @@ export function TaskCard({ task }: TaskCardProps) {
 
         <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
           <div className="flex items-center gap-3">
-            <span>⏱️ {formatDuration(task.estimatedHours)}</span>
+            {/* <span>⏱️ {formatDuration(task.estimatedHours)}</span>
             {task.dueDate && (
               <span>📅 {new Date(task.dueDate).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}</span>
-            )}
+            )} */}
           </div>
           <div className="flex gap-1">
-            {task.tags.slice(0, 2).map((tag) => (
+            {task.tags?.slice(0, 2).map((tag) => (
               <span key={tag} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
                 {tag}
               </span>
@@ -196,7 +186,7 @@ export function TaskCard({ task }: TaskCardProps) {
           </div>
         </div>
 
-        {task.status === 'in_progress' && (
+        {task.status === 'ongoing' && (
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-gray-500">进度</span>

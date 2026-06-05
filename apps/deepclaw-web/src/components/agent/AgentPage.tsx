@@ -6,10 +6,11 @@ import { AgentDetail } from '@/components/agent/AgentDetail';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { useAppStore } from '@/lib/store';
 import { ChevronLeft, ChevronRight, MessageSquare, ArrowLeft, X } from 'lucide-react';
+import { AgentEmployee } from '@deepclaw/gateway';
 
 type MobileView = 'list' | 'detail' | 'chat';
 
-export default function Home() {
+export function AgentPage({agents}: {agents: AgentEmployee[]}) {
   const { selectedAgentId } = useAppStore();
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState<MobileView>('list');
@@ -20,12 +21,12 @@ export default function Home() {
       <div className="hidden lg:flex h-full w-full">
         {/* Left: Agent List */}
         <div className="w-80 border-r border-gray-200 bg-gray-50 p-4 overflow-y-auto">
-          <AgentList />
+          <AgentList agents={agents} />
         </div>
 
         {/* Middle: Agent Detail */}
         <div className="flex-1 border-r border-gray-200 overflow-hidden">
-          <AgentDetail />
+          <AgentDetail agents={agents} />
         </div>
 
         {/* Right: Chat Panel */}
@@ -130,14 +131,14 @@ export default function Home() {
           {/* Agent List View */}
           {mobileView === 'list' && (
             <div className="h-full bg-gray-50 p-4 overflow-y-auto">
-              <AgentList onSelect={() => setMobileView('detail')} />
+              <AgentList agents={agents} onSelect={() => setMobileView('detail')} />
             </div>
           )}
 
           {/* Agent Detail View */}
           {mobileView === 'detail' && (
             <div className="h-full overflow-hidden">
-              <AgentDetail />
+              <AgentDetail agents={agents} />
             </div>
           )}
 

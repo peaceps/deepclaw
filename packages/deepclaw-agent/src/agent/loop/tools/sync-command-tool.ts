@@ -50,14 +50,14 @@ function syncCommandGuard(input: SyncCommandInput): ToolGuardResult {
     const { command } = input;
     const denied = checkRules(rules.deny, command);
     if (denied) {
-        return {result: 'denied', reason: i18nInstance.t('agent.tools.sync_command.guard.danger', {command})};
+        return {result: 'denied', reason: i18nInstance.t('agent.tools.syncCommand.guard.danger', {command})};
     }
     const warned = checkRules(rules.warning, command);
     if (warned) {
-        return askPermissionGuard(i18nInstance.t('agent.tools.sync_command.guard.warn', {command}));
+        return askPermissionGuard(i18nInstance.t('agent.tools.syncCommand.guard.warn', {command}));
     }
     if (agentMode !== 'agent') {
-        return askPermissionGuard(i18nInstance.t('agent.tools.sync_command.guard.mode', {command}));
+        return askPermissionGuard(i18nInstance.t('agent.tools.syncCommand.guard.mode', {command}));
     }
     return {result: 'allowed'};
 }
@@ -74,9 +74,9 @@ async function execute(input: SyncCommandInput): Promise<string> {
     const { command } = input;
     try {
         const { preview } = await runCommand(command);
-        return !preview ? i18nInstance.t('agent.tools.sync_command.empty'): preview;
+        return !preview ? i18nInstance.t('agent.tools.syncCommand.empty'): preview;
     } catch (error: any) {
-        return error?.killed && error?.signal === 'SIGTERM' ? i18nInstance.t('agent.tools.sync_command.timeout', {childProcessTimeout})
-            : i18nInstance.t('agent.tools.sync_command.error', {message: error?.message || ''});
+        return error?.killed && error?.signal === 'SIGTERM' ? i18nInstance.t('agent.tools.syncCommand.timeout', {childProcessTimeout})
+            : i18nInstance.t('agent.tools.syncCommand.error', {message: error?.message || ''});
     }
 }

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { i18nInstance } from '@deepclaw/i18n';
-import { AgentInfoEvent, AgentInteractionEvent, FlushAgent, type AgentHandler } from '@deepclaw/core';
+import { AgentInfoEvent, AgentInteractionEvent, FlushAgent, type AgentHandler, type AgentIdentity } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
 import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
@@ -186,6 +186,22 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     protected abstract extractToolUseFromResponse(result: O): ToolUseDef[];
 
     protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
+
+    // TODO test will remove
+    public getIdentity(): AgentIdentity {
+        return {
+            id: 'main',
+            name: 'main',
+            role: '全栈攻城狮',
+            personality: {
+                traits: ['严谨', '高效', '追求完美'],
+                communicationStyle: 'friendly',
+                emotionExpression: true
+            },
+            skills: ['React', 'Node.js', 'Python', '数据库设计'],
+            expertise: ['Web开发', '系统架构'],
+        };
+    }
 
     public createSubLoop(fork?: boolean): LoopAgent<I, O, LLM> {
         if (this.isSubLoop()) {

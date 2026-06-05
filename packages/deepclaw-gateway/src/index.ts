@@ -1,2 +1,3 @@
 export * from './loop-gateway';
-export { type Task } from '@deepclaw/agent';
+export * from './loop-identity';
+export { type Task, type Project } from '@deepclaw/agent';

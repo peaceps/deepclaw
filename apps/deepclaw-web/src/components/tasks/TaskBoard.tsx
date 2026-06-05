@@ -4,26 +4,25 @@ import { useAppStore } from '@/lib/store';
 import { TaskCard } from './TaskCard';
 import { Folder, CheckCircle2, Clock, Users, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { Project } from '@/types';
+import { AgentEmployee, Project, Task } from '@/types';
 
 const columns = [
-  { id: 'backlog', title: '📥 待规划', color: 'bg-gray-50' },
   { id: 'todo', title: '📋 待办', color: 'bg-blue-50' },
-  { id: 'in_progress', title: '🔄 进行中', color: 'bg-yellow-50' },
-  { id: 'review', title: '👀 审核中', color: 'bg-purple-50' },
+  { id: 'ongoing', title: '🔄 进行中', color: 'bg-yellow-50' },
   { id: 'done', title: '✅ 已完成', color: 'bg-green-50' },
 ];
 
 interface ProjectRowProps {
-  project: Project;
+  project: Project<Task>;
+  agents: AgentEmployee[];
   isExpanded: boolean;
   onToggle: () => void;
 }
 
-function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
-  const completedTasks = project.tasks.filter(t => t.status === 'done').length;
-  const inProgressTasks = project.tasks.filter(t => t.status === 'in_progress').length;
-  const totalTasks = project.tasks.length;
+function ProjectRow({ project, agents, isExpanded, onToggle }: ProjectRowProps) {
+  const totalTasks = Object.keys(project.tasks).length;
+  const inProgressTasks = project.ongoingTasks!.length;
+  const completedTasks = project.completedTasks!.length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return (
@@ -47,7 +46,7 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
 
             {/* 项目信息 */}
             <div className="min-w-0">
-              <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate">{project.name}</h3>
+              <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate">{project.title}</h3>
               <p className="text-sm text-gray-500 truncate hidden sm:block">{project.description}</p>
             </div>
           </div>
@@ -58,7 +57,7 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
             <div className="flex items-center gap-1.5 text-sm bg-purple-50 px-2 py-1 rounded-lg">
               <User size={16} className="text-purple-500" />
               <span className="text-gray-500">负责人:</span>
-              <span className="font-medium text-purple-700">{project.owner.name}</span>
+              <span className="font-medium text-purple-700">{project.creator}</span>
             </div>
 
             {/* 进度条 - 移动端隐藏 */}
@@ -77,10 +76,10 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
 
             {/* 统计数字 */}
             <div className="flex items-center gap-3 sm:gap-4 text-sm">
-              <div className="flex items-center gap-1.5 text-gray-600">
+              {/* <div className="flex items-center gap-1.5 text-gray-600">
                 <Users size={16} className="text-blue-500" />
                 <span>{project.memberIds.length}</span>
-              </div>
+              </div> */}
               <div className="flex items-center gap-1.5 text-gray-600">
                 <CheckCircle2 size={16} className="text-green-500" />
                 <span>{completedTasks}/{totalTasks}</span>
@@ -96,11 +95,11 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
             {/* 状态标签 */}
             <span className={`
               px-3 py-1 rounded-full text-xs font-medium flex-shrink-0
-              ${project.status === 'active' ? 'bg-green-100 text-green-700' : ''}
-              ${project.status === 'paused' ? 'bg-yellow-100 text-yellow-700' : ''}
-              ${project.status === 'completed' ? 'bg-blue-100 text-blue-700' : ''}
+              ${!project.closedAt && !project.ongoingTasks!.length ? 'bg-gray-100 text-gray-700' : ''}
+              ${!project.closedAt && !!project.ongoingTasks!.length ? 'bg-green-100 text-green-700' : ''}
+              ${!!project.closedAt ? 'bg-blue-100 text-blue-700' : ''}
             `}>
-              {project.status === 'active' ? '进行中' : project.status === 'paused' ? '已暂停' : project.status === 'completed' ? '已完成' : '已归档'}
+              {!!project.closedAt ? '已完成' : (!project.ongoingTasks!.length ? '未开始' : '进行中')}
             </span>
           </div>
         </div>
@@ -109,14 +108,14 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
       {/* 展开的任务看板 */}
       {isExpanded && (
         <div className="p-4 bg-gray-50/50">
-          {project.tasks.length === 0 ? (
+          {Object.keys(project.tasks).length === 0 ? (
             <div className="py-8 text-center text-gray-400">
               <p>该项目暂无任务</p>
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400" style={{ minWidth: '100%' }}>
               {columns.map((column) => {
-                const columnTasks = project.tasks.filter((t) => t.status === column.id);
+                const columnTasks = Object.values(project.tasks).filter((t) => t.status === column.id);
 
                 return (
                   <div
@@ -132,7 +131,7 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
 
                     <div className="space-y-2">
                       {columnTasks.map((task) => (
-                        <TaskCard key={task.id} task={task} />
+                        <TaskCard key={task.title} task={task} agents={agents} />
                       ))}
                     </div>
 
@@ -152,8 +151,7 @@ function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
   );
 }
 
-export function TaskBoard() {
-  const { projects } = useAppStore();
+export function TaskBoard({projects, agents}: {projects: Project<Task>[], agents: AgentEmployee[]}) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() =>
     new Set([projects[0]?.id]) // 默认展开第一个项目
   );
@@ -196,11 +194,11 @@ export function TaskBoard() {
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span className="flex items-center gap-1">
             <CheckCircle2 size={16} className="text-green-500" />
-            {projects.reduce((sum, p) => sum + p.tasks.filter(t => t.status === 'done').length, 0)} 已完成
+            {projects.filter(p => !!p.closedAt).length} 已完成
           </span>
           <span className="flex items-center gap-1">
             <Clock size={16} className="text-yellow-500" />
-            {projects.reduce((sum, p) => sum + p.tasks.filter(t => t.status === 'in_progress').length, 0)} 进行中
+            {projects.filter(p => !p.closedAt).length} 进行中
           </span>
         </div>
       </div>
@@ -211,6 +209,7 @@ export function TaskBoard() {
           <ProjectRow
             key={project.id}
             project={project}
+            agents={agents}
             isExpanded={expandedProjects.has(project.id)}
             onToggle={() => toggleProject(project.id)}
           />
