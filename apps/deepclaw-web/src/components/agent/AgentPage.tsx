@@ -62,11 +62,11 @@ export function AgentPage({agents}: {agents: AgentEmployee[]}) {
 
           {/* Chat Content */}
           {!chatCollapsed && (
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 flex flex-col overflow-hidden">
               {selectedAgentId ? (
-                <ChatInterface agentId={selectedAgentId} />
+                <ChatInterface agentId={selectedAgentId} agents={agents} />
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
                   <div className="text-5xl mb-4">👋</div>
                   <h2 className="text-lg font-semibold text-gray-700 mb-2">欢迎使用</h2>
                   <p className="text-sm text-center">从左侧选择 Agent<br/>开始对话</p>
@@ -146,7 +146,7 @@ export function AgentPage({agents}: {agents: AgentEmployee[]}) {
           {mobileView === 'chat' && (
             <div className="h-full bg-white overflow-hidden">
               {selectedAgentId ? (
-                <ChatInterface agentId={selectedAgentId} />
+                <ChatInterface agentId={selectedAgentId} agents={agents} />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 p-8">
                   <div className="text-4xl mb-4">👋</div>

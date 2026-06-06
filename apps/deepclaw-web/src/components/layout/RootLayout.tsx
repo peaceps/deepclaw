@@ -16,7 +16,7 @@ export function RootLayout({ children }: RootLayoutProps) {
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
-      <main className="flex-1 overflow-hidden w-full lg:h-screen h-[calc(100vh-57px)]">{children}</main>
+      <main className="flex-1 overflow-hidden w-full h-full pt-[57px] lg:pt-0">{children}</main>
     </>
   );
 }

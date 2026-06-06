@@ -114,8 +114,11 @@ export class LoopGateway {
         });
     }
 
-    public invoke(input: string): Promise<string> {
-        return this.loop.invoke(input);
+    public static invoke(input: string): Promise<string> {
+        if (!this.instance) {
+            LoopGateway.init({});
+        }
+        return this.instance.loop.invoke(input);
     }
 
 }

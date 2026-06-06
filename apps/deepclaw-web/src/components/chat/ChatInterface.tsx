@@ -3,29 +3,53 @@
 import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { formatDate } from '@/lib/utils';
+import { invoke } from '@/lib/invoke';
 import { Send } from 'lucide-react';
+import { AgentEmployee } from '@/types';
 
 interface ChatInterfaceProps {
   agentId: string;
+  agents: AgentEmployee[];
 }
 
-export function ChatInterface({ agentId }: ChatInterfaceProps) {
-  const { agents, messages } = useAppStore();
+export function ChatInterface({ agentId, agents }: ChatInterfaceProps) {
+  const { messages, addMessage } = useAppStore();
   const [input, setInput] = useState('');
   
   const agent = agents.find((a) => a.id === agentId);
   const agentMessages = messages.filter((m) => m.agentId === agentId);
   
-  if (!agent) return null;
+  if (!agent) {
+    return (
+      <div className="flex flex-col h-full bg-white items-center justify-center text-gray-400">
+        <p>未找到 Agent 信息</p>
+      </div>
+    );
+  }
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
     // TODO: 实际发送消息
     setInput('');
+    addMessage({
+      id: Date.now().toString(),
+      agentId,
+      content: input.trim(),
+      type: 'user',
+      timestamp: new Date().toISOString(),
+    });
+     const r = await invoke(input.trim());
+      addMessage({
+        id: Date.now().toString(),
+        agentId,
+        content: r,
+        type: 'agent',
+        timestamp: new Date().toISOString(),
+      });
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-white">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xl">
