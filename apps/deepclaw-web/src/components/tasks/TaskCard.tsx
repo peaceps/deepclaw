@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Task, AgentEmployee } from '@/types';
-import { priorityColors, priorityLabels, formatDuration, statusColors, moodEmojis } from '@/lib/utils';
+import { priorityColors, priorityLabels, moodEmojis } from '@/lib/utils';
 
 interface TaskCardProps {
   task: Task;
@@ -42,13 +42,6 @@ function AgentDetailTooltip({ agent, visible, anchorRef, onClose }: {
   }, [visible, onClose]);
 
   if (!visible) return null;
-
-  const statusLabels: Record<string, string> = {
-    online: '在线',
-    busy: '忙碌',
-    idle: '空闲',
-    offline: '离线',
-  };
 
   return (
     <div
@@ -122,7 +115,7 @@ function AgentDetailTooltip({ agent, visible, anchorRef, onClose }: {
           <div className="flex items-start gap-2">
             <span className="text-lg">💬</span>
             <p className="text-sm text-gray-700 italic">
-              "我是{agent.name}，擅长{agent.expertise?.join('、') || '所有'}领域的工作，随时准备为您服务！"
+              &quot;我是{agent.name}，擅长{agent.expertise?.join('、') || '所有'}领域的工作，随时准备为您服务！&quot;
             </p>
           </div>
         </div>

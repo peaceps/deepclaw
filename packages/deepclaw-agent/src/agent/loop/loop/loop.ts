@@ -10,7 +10,7 @@ import { LLMModel, LLMConstructor } from '../../llm/llmgw';
 import { MessagesCompactor } from '../compactor/messages-compactor';
 import { getLogger } from '@deepclaw/utils';
 import { HookManager } from '../services/hook-manager';
-import { DeepclawConfig, loadConfig } from '@deepclaw/config';
+import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -33,7 +33,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     ) {
         super(handler);
         this.name = name;
-        this.agentConfig = loadConfig<DeepclawConfig['agents']>('agents').find(agent => agent.name === name)!;
+        this.agentConfig = loadAgentConfig(name);
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
@@ -45,6 +45,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             this.agentHandler
         );
         this.llm = new (this.getLLMConstructor())(
+            this.agentConfig.llm,
             tools.map(tool => tool.tool)
         ) as LLM;
         this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId, this.footPrints);

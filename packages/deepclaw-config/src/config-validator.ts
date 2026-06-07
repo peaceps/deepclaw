@@ -1,38 +1,6 @@
 import {AgentInteractionEvent} from "@deepclaw/core";
-import {validateEnvFile, EnvConfig, writeEnvConfig} from "./env-config";
 import {DeepclawConfig, MissingAppConfig, validateAppConfig, writeAppConfig} from "./app-config";
 import { FileUtils } from "@deepclaw/utils";
-
-const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentInteractionEvent} = {
-    provider: {
-        type: 'select',
-        content: 'config.env.provider.prompt',
-        options: [
-            {label: 'config.env.provider.options.openai', value: 'openai'},
-            {label: 'config.env.provider.options.anthropic', value: 'anthropic'},
-        ],
-    },
-    baseUrl: {
-        type: 'input',
-        content: 'config.env.baseUrl'
-    },
-    apiKey: {
-        type: 'input',
-        content: 'config.env.apiKey'
-    },
-    model: {
-        type: 'input',
-        content: 'config.env.model'
-    },
-    responseApi: {
-        type: 'select',
-        content: 'config.env.responseApi.prompt',
-        options: [
-            {label: 'config.env.responseApi.options.yes', value: 'TRUE'},
-            {label: 'config.env.responseApi.options.no', value: 'FALSE'}
-        ]
-    }
-};
 
 const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
     ['ui.lang']: {
@@ -76,6 +44,26 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
     ['agents.im.secret']: {
         type: 'input',
         content: 'config.app.im.secret'
+    },
+    ['agents.llm.provider']: {
+        type: 'select',
+        content: 'config.env.provider.prompt',
+        options: [
+            {label: 'config.env.provider.options.openai', value: 'openai'},
+            {label: 'config.env.provider.options.anthropic', value: 'anthropic'},
+        ],
+    },
+    ['agents.llm.baseUrl']: {
+        type: 'input',
+        content: 'config.env.baseUrl'
+    },
+    ['agents.llm.apiKey']: {
+        type: 'input',
+        content: 'config.env.apiKey'
+    },
+    ['agents.llm.model']: {
+        type: 'input',
+        content: 'config.env.model'
     }
 };
 
@@ -89,14 +77,10 @@ export async function validateAndFixConfig(
     headless: boolean = false,
 ) {
     const appConfig = validateAppConfig(headless);
-    const envConfig = validateEnvFile();
-    if (appConfig.lacks.length > 0 || envConfig.lacks.length > 0) {
+    if (appConfig.lacks.length > 0) {
         await handleAgentEvent(HINT);
         if (appConfig.lacks.length > 0) {
             await ensureAppConfig(appConfig, handleAgentEvent);
-        }
-        if (envConfig.lacks.length > 0) {
-            await ensureEnvConfig(envConfig, handleAgentEvent);
         }
     }
     ensureBasicFiles();
@@ -122,10 +106,7 @@ async function ensureAppConfig(
                         const event = APP_CONFIG_EVENTS[`${key}.${subLack}`]!;
                         const answer = await handleAgentEvent(event);
                         setConfigValue(subConfig, subLack, answer);
-                    }
-                    if (key === 'agents') {
-                        // for non-headless
-                        if (subConfig.headlessEnabled === 'true' && !subConfig.im) {
+                        if (subLack === 'headlessEnabled' && subConfig.headlessEnabled === 'true' && !subConfig.im) {
                             subConfig.im = {} as DeepclawConfig['agents'][0]['im'];
                             for (const key of ['engine', 'appId', 'secret']) {
                                 const event = APP_CONFIG_EVENTS[`agents.im.${key}`]!;
@@ -151,18 +132,6 @@ function setConfigValue(target: any, path: string, value: any) {
             current = current[keys[i]!];
         }
     }
-}
-
-async function ensureEnvConfig(
-    {config, lacks}: {config: Partial<EnvConfig>, lacks: (keyof EnvConfig)[]},
-    handleAgentEvent: (event: AgentInteractionEvent) => Promise<string>
-): Promise<void> {
-    for (const lack of lacks) {
-        const event = ENV_CONFIG_EVENTS[lack]!;
-        const answer = await handleAgentEvent(event);
-        config[lack] = answer;
-    }
-    writeEnvConfig(config as EnvConfig);
 }
 
 function ensureBasicFiles() {

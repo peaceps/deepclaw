@@ -3,20 +3,14 @@
 import { useAppStore } from '@/lib/store';
 import { AgentEmployee } from '@/types';
 import {
-  User,
   Briefcase,
   Building2,
-  Sparkles,
-  MessageCircle,
   Heart,
   Zap,
-  Award,
   Clock,
   Star,
   Target,
-  Brain,
   Users,
-  TrendingUp,
   CheckCircle2
 } from 'lucide-react';
 

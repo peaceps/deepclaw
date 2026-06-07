@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings, Sun, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [

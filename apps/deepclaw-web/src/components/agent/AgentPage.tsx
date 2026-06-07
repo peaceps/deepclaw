@@ -1,19 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AgentList } from '@/components/agent/AgentList';
 import { AgentDetail } from '@/components/agent/AgentDetail';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { useAppStore } from '@/lib/store';
-import { ChevronLeft, ChevronRight, MessageSquare, ArrowLeft, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageSquare, ArrowLeft } from 'lucide-react';
 import { AgentEmployee } from '@deepclaw/gateway';
 
 type MobileView = 'list' | 'detail' | 'chat';
 
 export function AgentPage({agents}: {agents: AgentEmployee[]}) {
-  const { selectedAgentId } = useAppStore();
+  const { selectedAgentId, setSelectedAgent } = useAppStore();
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState<MobileView>('list');
+
+  useEffect(() => {
+    if (!agents.some(agent => agent.id === selectedAgentId)) {
+      setSelectedAgent(agents[0].id);
+    }
+  }, [agents, selectedAgentId, setSelectedAgent]);
 
   return (
     <div className="h-full flex">

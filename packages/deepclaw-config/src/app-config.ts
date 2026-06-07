@@ -9,17 +9,25 @@ type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject | ConfigObje
 export type DeepclawConfig = {
     agents: {
         name: string;
-        headlessEnabled?: string;
+        headlessEnabled: string;
         im?: {
             engine: 'dingtalk' | 'feishu';
             appId: string;
             secret: string;
         },
-        mode?: 'agent' | 'plan' | 'chat';
+        mode: 'agent' | 'plan' | 'chat';
         standaloneTask: 'transient' | 'persistent' | 'ask';
+        llm: {
+            provider: string;
+            baseUrl: string;
+            apiKey: string;
+            model: string;
+            responseApi: boolean;
+            workspace?: string;
+        }
     }[],
     ui: {
-        lang?: string;
+        lang: string;
     }
 };
 
@@ -61,8 +69,11 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
 export function validateAppConfig(headless: boolean): {config: DeepclawConfig, lacks: MissingAppConfig} {
     const lacks: MissingAppConfig = [];
     const cloned: DeepclawConfig = mergeAbsence({}, deepclawConfig) as DeepclawConfig;
+    if (!cloned.ui) {
+        cloned.ui = {} as DeepclawConfig['ui'];
+    }
     if (cloned.ui.lang && !['en', 'zh'].includes(cloned.ui.lang)) {
-        cloned.ui.lang = undefined;
+        cloned.ui.lang = 'undefined' as any;
     }
     if (!cloned.ui.lang) {
         lacks.push('ui.lang');
@@ -71,21 +82,24 @@ export function validateAppConfig(headless: boolean): {config: DeepclawConfig, l
         cloned.agents = [{
             name: 'main',
             standaloneTask: 'transient',
-        }];
-        lacks.push({agents: {0: ['mode', 'headlessEnabled']}});
+            llm: {}
+        } as DeepclawConfig['agents'][0]];
+        lacks.push({agents: {0: ['mode', 'headlessEnabled', 'llm.provider', 'llm.baseUrl', 'llm.apiKey', 'llm.model']}});
     } else {
-        cloned.agents.forEach((agent) => {
+        const agentsLacks: {[key: number]: string[]} = {};
+        cloned.agents.forEach((agent, index) => {
+            const agentLacks: string[] = [];
             if (agent.mode && !['agent', 'plan', 'chat'].includes(agent.mode)) {
-                agent.mode = undefined;
+                agent.mode = undefined as any;
             }
             if (!agent.mode) {
-                lacks.push(`mode`);
+                agentLacks.push(`mode`);
             }
             if (agent.headlessEnabled && !['true', 'false'].includes(agent.headlessEnabled)) {
-                agent.headlessEnabled = undefined;
+                agent.headlessEnabled = undefined as any;
             }
             if (!headless && !agent.headlessEnabled) {
-                lacks.push(`headlessEnabled`);
+                agentLacks.push(`headlessEnabled`);
             }
             if (headless) {
                 agent.headlessEnabled = 'true';
@@ -99,9 +113,33 @@ export function validateAppConfig(headless: boolean): {config: DeepclawConfig, l
             }
             if (agent.headlessEnabled === 'true' && !agent.im) {
                 agent.im = {} as DeepclawConfig['agents'][0]['im'];
-                lacks.push(`im.engine`, `im.appId`, `im.secret`);
+                agentLacks.push(`im.engine`, `im.appId`, `im.secret`);
+            }
+
+            if (!agent.llm) {
+                agent.llm = {responseApi: true} as DeepclawConfig['agents'][0]['llm'];
+                agentLacks.push('llm.provider', 'llm.baseUrl', 'llm.apiKey', 'llm.model');
+            } else {
+                if (!['openai', 'anthropic'].includes(agent.llm.provider || '')) {
+                    agentLacks.push('llm.provider');
+                }
+                if (!agent.llm.baseUrl) {
+                    agentLacks.push('llm.baseUrl');
+                }
+                if (!agent.llm.apiKey) {
+                    agentLacks.push('llm.apiKey');
+                }
+                if (!agent.llm.model) {
+                    agentLacks.push('llm.model');
+                }
+            }
+            if (agentLacks.length > 0) {
+                agentsLacks[index] = agentLacks;
             }
         });
+        if (Object.keys(agentsLacks).length > 0) {
+            lacks.push({agents: agentsLacks});
+        }
     }
     return {config: cloned, lacks};
 }
@@ -118,4 +156,13 @@ export function loadConfig<T>(key: string, defaultValue?: T): T {
         value = value?.[key as keyof typeof value];
     }
     return (value ?? defaultValue) as T;
+}
+
+export function loadAgentConfig(name: string): DeepclawConfig['agents'][0] {
+    const agents = loadConfig<DeepclawConfig['agents']>('agents');
+    const agent = agents.find(a => a.name === name);
+    if (!agent) {
+        throw new Error('Agent doesn\'t exit!');
+    }
+    return agent;
 }

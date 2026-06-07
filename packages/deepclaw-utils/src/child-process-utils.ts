@@ -53,7 +53,8 @@ function tryCommonEncodings(buffer: Buffer): string {
       try {
         const decoded = iconv.decode(buffer, enc);
         if (!decoded.includes('�')) return decoded;
-      } catch (e) {
+      } catch {
+        // TODO handle error
         continue;
       }
     }

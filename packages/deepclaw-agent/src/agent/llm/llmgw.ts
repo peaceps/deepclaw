@@ -1,27 +1,30 @@
-import {getEnvVariable, hasEnvVariable} from '@deepclaw/config';
+import {DeepclawConfig} from '@deepclaw/config';
 import {type Logger} from '@deepclaw/utils';
 import { LLMTool } from '../definitions/tool-definitions';
 import { TransitionReason } from '../definitions/definitions';
 
 const llmRetry = 3;
 
-export type LLMConstructor<I, O, T, LLM> = new (tools: LLMTool[]) => LLMModel<I, O, T, LLM>;
+export type LLMConstructor<I, O, T, LLM> = new (llmConfig: DeepclawConfig['agents'][0]['llm'], tools: LLMTool[]) => LLMModel<I, O, T, LLM>;
 
 export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
     protected tools?: T[];
-    protected gw = {
-        model: getEnvVariable('MODEL_ID'),
-        headers: !hasEnvVariable('WORKSPACE_NAME') ? undefined : {
-            'api-key': getEnvVariable('OPENAI_API_KEY'),
-            'workspacename': getEnvVariable('WORKSPACE_NAME'),
-        },
-        timeoutMs: 300 * 1000, // JSON: seconds → client: ms
-        temperature: 0.1,
-        maxTokens: 8000
-    };
+    protected gw;
 
-    constructor(tools: LLMTool[] = []) {
+    constructor(llmConfig: DeepclawConfig['agents'][0]['llm'], tools: LLMTool[] = []) {
+        this.gw = {
+            baseUrl: llmConfig.baseUrl,
+            apiKey: llmConfig.apiKey,
+            model: llmConfig.model,
+            headers: !llmConfig.workspace ? undefined : {
+                'api-key': llmConfig.apiKey,
+                'workspacename': llmConfig.workspace,
+            },
+            timeoutMs: 300 * 1000, // JSON: seconds → client: ms
+            temperature: 0.1,
+            maxTokens: 8000
+        }
         this.tools = this.convertTools(tools);
         this.client = this.createLLMClient();
     }

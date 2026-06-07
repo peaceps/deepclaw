@@ -35,7 +35,12 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     }
 
     protected override createLLMClient(): OpenAI {
-        return new OpenAI({timeout: this.gw.timeoutMs, defaultHeaders: this.gw.headers});
+        return new OpenAI({
+            baseURL: this.gw.baseUrl,
+            apiKey: this.gw.apiKey,
+            timeout: this.gw.timeoutMs,
+            defaultHeaders: this.gw.headers
+        });
     }
     
     protected override async _invoke(

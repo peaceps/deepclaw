@@ -1,11 +1,10 @@
 'use client';
 
-import { useAppStore } from '@/lib/store';
 import {invoke} from '@/lib/invoke';
 import { TaskCard } from './TaskCard';
-import { Folder, CheckCircle2, Clock, Users, ChevronDown, ChevronRight, User, Send, MessageSquare, ChevronLeft } from 'lucide-react';
+import { Folder, CheckCircle2, Clock, ChevronDown, ChevronRight, User, Send, MessageSquare, ChevronLeft } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { AgentEmployee, Message, Project, Task } from '@/types';
+import { AgentEmployee, Project, Task } from '@/types';
 import { formatDate } from '@/lib/utils';
 
 const columns = [
@@ -154,11 +153,13 @@ export function TaskBoard({projects, agents}: {projects: Project<Task>[], agents
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set([projects[0]?.id]));
 
   useEffect(() => {
-    setExpandedProjects(prev => {
-      const validExpanded = new Set(Array.from(prev).filter(id => projects.some(p => p.id === id)));
-      if (validExpanded.size === 0 && projects.length > 0) validExpanded.add(projects[0].id);
-      return validExpanded;
-    });
+    setTimeout(() => 
+      setExpandedProjects(prev => {
+        const validExpanded = new Set(Array.from(prev).filter(id => projects.some(p => p.id === id)));
+        if (validExpanded.size === 0 && projects.length > 0) validExpanded.add(projects[0].id);
+        return validExpanded;
+      })
+    );
   }, [projects]);
 
   const toggleProject = (projectId: string) => {

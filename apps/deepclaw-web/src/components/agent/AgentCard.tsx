@@ -3,29 +3,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { AgentEmployee } from '@/types';
 import { statusColors, statusLabels, moodEmojis } from '@/lib/utils';
-import { useAppStore } from '@/lib/store';
+// import { useAppStore } from '@/lib/store';
 
 // 显示当前任务的子组件
-function AgentCurrentTask({ taskId }: { taskId: string }) {
-  const { getAllTasks } = useAppStore();
-  const tasks = getAllTasks();
-  const task = tasks.find(t => t.title === taskId);
+// function AgentCurrentTask({ taskId }: { taskId: string }) {
+//   const { getAllTasks } = useAppStore();
+//   const tasks = getAllTasks();
+//   const task = tasks.find(t => t.title === taskId);
 
-  if (!task) return null;
+//   if (!task) return null;
 
-  return (
-    <div className="mt-3 pt-3 border-t border-gray-100">
-      <p className="text-xs text-gray-500 mb-1">当前任务</p>
-      <p className="text-sm font-medium text-gray-700 truncate">{task.title}</p>
-      <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-blue-500 rounded-full transition-all"
-          style={{ width: `${task.progress}%` }}
-        />
-      </div>
-    </div>
-  );
-}
+//   return (
+//     <div className="mt-3 pt-3 border-t border-gray-100">
+//       <p className="text-xs text-gray-500 mb-1">当前任务</p>
+//       <p className="text-sm font-medium text-gray-700 truncate">{task.title}</p>
+//       <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+//         <div
+//           className="h-full bg-blue-500 rounded-full transition-all"
+//           style={{ width: `${task.progress}%` }}
+//         />
+//       </div>
+//     </div>
+//   );
+// }
 
 // 根据心情和状态生成想法
 function getAgentThoughts(agent: AgentEmployee): { emoji: string; text: string; color: string } {

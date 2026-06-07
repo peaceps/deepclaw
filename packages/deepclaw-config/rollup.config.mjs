@@ -18,7 +18,6 @@ export default [
       '@deepclaw/core',
       '@deepclaw/utils',
       // CJS packages: bundling breaks default import interop; leave to Node at runtime.
-      'dotenv',
     ],
 
     plugins: [

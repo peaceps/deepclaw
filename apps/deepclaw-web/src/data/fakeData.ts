@@ -1,4 +1,4 @@
-import { AgentEmployee, Task, Message, Project } from '@/types';
+import { Message } from '@/types';
 
 export const fakeMessages: Message[] = [
   {

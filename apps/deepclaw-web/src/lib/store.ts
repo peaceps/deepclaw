@@ -49,8 +49,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     if (!targetTask) return state;
 
-    const newAssigneeId = targetTask.assignee || '';
-
     return {
       projects: state.projects.map((p) => ({
         ...p,
@@ -88,5 +86,5 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   getAgentById: (id) => get().agents.find(a => a.id === id),
 
-  getTaskAssignee: (assigneeId) => undefined//.get().agents.find(a => a.id === assigneeId),
+  getTaskAssignee: () => undefined//.get().agents.find(a => a.id === assigneeId),
 }));
