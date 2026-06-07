@@ -35,10 +35,11 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
     }
 
     protected override newSubLoop(
+        name: string,
         subLoopAgentHandler: AgentHandler,
         history: ThinkingMessage[],
         parentSessionId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
-        return new OpenAIChatLoop(subLoopAgentHandler, history, parentSessionId);
+        return new OpenAIChatLoop(name, subLoopAgentHandler, history, parentSessionId);
     }
 }

@@ -34,11 +34,11 @@ export type ToolCallback<T = unknown> = (input: T, context: OneLoopContext) => P
 export type ToolDesc<T = unknown> = {
     tool: LLMTool;
     parallelSafe: boolean;
-    agentMode: DeepclawConfig['agent']['mode'][];
+    agentMode: DeepclawConfig['agents'][0]['mode'][];
     exclusiveInSubLoop?: boolean; // if true, the tool will not be available in sub-loop
     invoke: ToolCallback<T>;
     outputToUser?: boolean;
-    guard?: (input: T) => ToolGuardResult;
+    guard?: (input: T, agentMode: DeepclawConfig['agents'][0]['mode']) => ToolGuardResult;
 }
 
 export function askPermissionGuard(reason: string): ToolGuardResult {

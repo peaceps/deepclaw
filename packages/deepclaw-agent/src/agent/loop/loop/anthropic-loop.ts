@@ -37,11 +37,12 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
     }
 
     protected override newSubLoop(
+        name: string,
         subLoopAgentHandler: AgentHandler,
         history: ThinkingMessage[],
         parentSessionId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
-        return new AnthropicLoop(subLoopAgentHandler, history, parentSessionId);
+        return new AnthropicLoop(name, subLoopAgentHandler, history, parentSessionId);
     }
 
 }

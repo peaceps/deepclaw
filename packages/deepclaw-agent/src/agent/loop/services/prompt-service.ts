@@ -13,14 +13,13 @@ const LANG_MAP: {[k: string]: string} = {
 };
 
 export class PromptService {
-    private static mark = {lang: '', agentMode: ''};
+    private static mark = {lang: ''};
     private static platformPrompt: string = this.platform();
     private static languagePrompt: string = this.language();
     private static thoughtsPrompt: string = this.thoughts();
     private static mainIdentityPrompt: {loop: string, subloop: string} = this.mainIdentity();
-    private static agentModePrompt: string = this.agentMode();
 
-    public static provideSystemPrompt(isSubLoop: boolean): string {
+    public static provideSystemPrompt(isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): string {
         return `
 # Platform
 ${this.platformPrompt}
@@ -35,10 +34,10 @@ ${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
 ${this.thoughtsPrompt}
 
 # Agent Mode
-${this.agentMode()}
+${this.agentMode(agentMode)}
 
 # Project Management    
-${this.project()}
+${this.project(agentMode)}
 
 # Memory
 ${this.memory()}
@@ -96,39 +95,33 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
         return '';
     }
 
-    private static agentMode(): string {
-        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
-        if (this.mark.agentMode !== agentMode) {
-            this.mark.agentMode = agentMode;
-            let prompt = '';
-            switch (agentMode) {
-                case 'agent':
-                    prompt = `
+    private static agentMode(agentMode: DeepclawConfig['agents'][0]['mode']): string {
+        let prompt = '';
+        switch (agentMode) {
+            case 'agent':
+                prompt = `
 You are running at agent mode. You can use all tools to complete the task.
 You have the access to operate this computer if you are not a subloop agent.`;
-                    break;
-                case 'plan':
-                    prompt = `
+                break;
+            case 'plan':
+                prompt = `
 You are running at plan mode. You can use tools with read access to the filesystem,
 but you cannot write to the filesystem or change the system state via user directions.
 If user ask you to do something, you should refuse and tell the user that you cannot do that.
 But you can call tools to write files owned by the agent program itself, such as save_memory tool.`;
-                    break;
-                default:
-                    prompt = `
+                break;
+            default:
+                prompt = `
 You are running at chat mode.
 You can only give answers to the user\'s questions, but cannot operate the computer via user directions.
 If user ask you to do something, you should refuse and tell the user that you cannot do that.
 But you can call tools to write files owned by the agent program itself, such as save_memory tool.`;
-            }
-            this.agentModePrompt = prompt;
         }
-        return this.agentModePrompt;
+        return prompt;
     }
 
-    private static project(): string {
-        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
-        return agentMode === 'chat' ? '' : ProjectManager.prompts();
+    private static project(agentMode: DeepclawConfig['agents'][0]['mode']): string {
+        return agentMode === 'chat' ? '' : ProjectManager.prompts(agentMode);
     }
 
     private static memory(): string {

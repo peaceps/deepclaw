@@ -10,9 +10,11 @@ import { LLMModel, LLMConstructor } from '../../llm/llmgw';
 import { MessagesCompactor } from '../compactor/messages-compactor';
 import { getLogger } from '@deepclaw/utils';
 import { HookManager } from '../services/hook-manager';
+import { DeepclawConfig, loadConfig } from '@deepclaw/config';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
+    private name: string;
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
     protected parentSessionId: string;
@@ -21,17 +23,21 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     protected toolUseService: ToolUseService;
     private messagesCompactor: MessagesCompactor<I, O, unknown, LLM>;
     private footPrints: FootPrint[] = [];
+    private agentConfig: DeepclawConfig['agents'][0];
 
     constructor(
+        name: string,
         handler: AgentHandler,
         history: I[] = [],
         parentSessionId: string = '',
     ) {
         super(handler);
+        this.name = name;
+        this.agentConfig = loadConfig<DeepclawConfig['agents']>('agents').find(agent => agent.name === name)!;
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
-        const tools = ToolsManager.provideTools(this.isSubLoop());
+        const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);
         this.toolUseService = new ToolUseService(
             tools,
             this.parentSessionId,
@@ -64,6 +70,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     maxTokenRetries: 0,
                     refusalState: '',
                 },
+                loopConfig: this.agentConfig,
                 actions: {
                     newSubLoop: this.createSubLoop.bind(this),
                     addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
@@ -93,7 +100,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 this.agentHandler.onStreamText(finalText);
                 return finalText;
             }
-            state.oneLoopContext.system = PromptService.provideSystemPrompt(this.isSubLoop());
+            state.oneLoopContext.system = PromptService.provideSystemPrompt(this.isSubLoop(), this.agentConfig.mode);
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 const finalText = this.extractFinalText(state);
@@ -207,7 +214,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         if (this.isSubLoop()) {
             throw new Error('Sub-loop cannot create a sub-loop');
         }
-        return this.newSubLoop({
+        return this.newSubLoop(this.name, {
             onStreamText: () => {},
             onToolText: (content: string) => this.agentHandler.onToolText(content),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
@@ -216,6 +223,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     }
 
     protected abstract newSubLoop(
+        name: string,
         subLoopAgentHandler: AgentHandler,
         history: I[],
         parentSessionId: string,

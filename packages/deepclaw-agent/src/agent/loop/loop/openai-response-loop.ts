@@ -40,10 +40,11 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
     }
 
     protected override newSubLoop(
+        name: string,
         subLoopAgentHandler: AgentHandler,
         history: ThinkingMessage[],
         parentSessionId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
-        return new OpenAIResponseLoop(subLoopAgentHandler, history, parentSessionId);
+        return new OpenAIResponseLoop(name, subLoopAgentHandler, history, parentSessionId);
     }
 }

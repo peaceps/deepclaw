@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager, StandaloneTask, Task } from "../services/project-manager";
-import { loadConfig, DeepclawConfig } from "@deepclaw/config";
 import {i18nInstance} from '@deepclaw/i18n';
 import { OneLoopContext } from '../../definitions/definitions';
 import { TaskStepsManager } from '../services/task-steps-manager';
@@ -188,7 +187,7 @@ All steps should be done when task is going to be marked as done.`
             blockedBy: [],
             blocks: [],
         };
-        let standaloneStrategy = loadConfig<DeepclawConfig['agent']['standaloneTask']>('agent.standaloneTask', 'transient')!;
+        let standaloneStrategy = context.loopConfig.standaloneTask;
         if (standaloneStrategy === 'ask') {
             standaloneStrategy = await context.actions.agentHandler.onInteractionEvent({
                 type: 'select',

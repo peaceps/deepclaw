@@ -1,6 +1,19 @@
-import { FlushAgent } from '@deepclaw/core';
+import { AgentIdentity, FlushAgent } from '@deepclaw/core';
 
 export class TestLlmAgent extends FlushAgent {
+    public override getIdentity(): AgentIdentity {
+        return {
+            id: 'test',
+            name: 'test',
+            personality: {
+                traits: [],
+                communicationStyle: "formal",
+                emotionExpression: false
+            },
+            skills: [],
+            expertise: []
+        };
+    }
 
     protected async _invoke(): Promise<string> {
         const text = [

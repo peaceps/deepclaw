@@ -54,7 +54,7 @@ export class ToolUseService {
             }
         }
         if (tool.guard) {
-            const guardResult = tool.guard(input);
+            const guardResult = tool.guard(input, context.loopConfig.mode);
             if (guardResult.result === 'denied') {
                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
             } else if (guardResult.result === 'ask') {

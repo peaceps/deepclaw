@@ -106,7 +106,7 @@ export class LoopGateway {
             onInteractionEvent: () => Promise.resolve(''),
             onInfoEvent: () => LoopGateway.instance.subscribers.forEach(cb => cb())
         };
-        this.loop = LoopInitializer.getLoop({
+        this.loop = LoopInitializer.getLoop('main', {
             onStreamText: agentHandler.onStreamText || defaultHandler.onStreamText,
             onToolText: agentHandler.onToolText || defaultHandler.onToolText,
             onInteractionEvent: agentHandler.onInteractionEvent || defaultHandler.onInteractionEvent,

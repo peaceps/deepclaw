@@ -6,9 +6,9 @@ import { AnthropicLoop } from './loop/loop/anthropic-loop';
 import './loop/hooks/hooks';
 
 export class LoopInitializer {
-    public static getLoop(handler: AgentHandler): FlushAgent {
+    public static getLoop(name: string, handler: AgentHandler): FlushAgent {
         let loopClass: FlushAgentConstructor = this.getLoopClass();
-        return new loopClass(handler);
+        return new loopClass(name, handler);
     }
 
     private static getLoopClass(): FlushAgentConstructor {

@@ -8,7 +8,7 @@ import {runBackgroundCommandTool, checkAllBackgroundCommandStatusTool, checkBack
 import {saveMemoryTool} from '../tools/save-memory-tool';
 import {createProjectTool, createStandaloneTaskTool, updateTaskTool, updateTaskCurrentStepTool, getProjectListTool,
     getProjectDetailTool, getStandaloneTaskInfoTool} from '../tools/project-tool';
-import { loadConfig, DeepclawConfig } from '@deepclaw/config';
+import { DeepclawConfig } from '@deepclaw/config';
 
 const tools: ToolDesc<any>[] = [
     syncCommandTool,
@@ -32,8 +32,7 @@ const tools: ToolDesc<any>[] = [
 ];
 
 export class ToolsManager {
-    public static provideTools(isSubLoop: boolean): ToolDesc<any>[] {
-        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode');
+    public static provideTools(isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): ToolDesc<any>[] {
         return tools.filter(tool =>
             tool.agentMode.includes(agentMode) && (!isSubLoop || !tool.exclusiveInSubLoop)
         );

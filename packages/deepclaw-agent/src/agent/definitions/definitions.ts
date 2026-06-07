@@ -1,5 +1,6 @@
 import type { Logger } from '@deepclaw/utils';
 import { SealedAgentHandler, type FlushAgent } from '@deepclaw/core';
+import { DeepclawConfig } from '@deepclaw/config';
 
 export type FootPrint = {
     type: string;
@@ -18,6 +19,7 @@ export type OneLoopContext = {
     transitionReason?: TransitionReason;
     system: string;
     logger: Logger;
+    loopConfig: DeepclawConfig['agents'][0];
     recoveryState: {
         maxTokenRetries: number;
         refusalState: '' // TODO: 添加拒绝状态

@@ -14,8 +14,6 @@ import { useConfig } from '../hooks/use-config';
 export type AppConfig = {
 }
 
-let agent: LoopGateway | null = null;
-
 export function App({app}: {app: AppConfig}): ReactElement {
     const {exit} = useApp();
     const [histories, setHistories] = useState([] as HistoryItem[]);
@@ -39,7 +37,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const invokeLlm = useCallback((userInput: string) => {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
-        agent!.invoke(userInput).catch(err => {
+        LoopGateway.invoke(userInput).catch(err => {
             setTimeout(() => {
                 handleLlmDone(`${i18nInstance.t('common.error')} ${err.message?.trim() || i18nInstance.t('common.unexpected')}`);
             }, 0);
@@ -74,7 +72,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
             }
         }
         if (envConfigReady) {
-            agent = LoopGateway.init({
+            LoopGateway.init({
                 onStreamText: handleLlmStreamText, 
                 onToolText: (text: string) => handleLlmStreamText(text, false),
                 onInteractionEvent: handleAgentEvent

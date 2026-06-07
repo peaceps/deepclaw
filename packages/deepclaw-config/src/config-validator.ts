@@ -1,6 +1,6 @@
 import {AgentInteractionEvent} from "@deepclaw/core";
 import {validateEnvFile, EnvConfig, writeEnvConfig} from "./env-config";
-import {DeepclawConfig, validateAppConfig, writeAppConfig} from "./app-config";
+import {DeepclawConfig, MissingAppConfig, validateAppConfig, writeAppConfig} from "./app-config";
 import { FileUtils } from "@deepclaw/utils";
 
 const ENV_CONFIG_EVENTS: {[key in keyof EnvConfig]: AgentInteractionEvent} = {
@@ -44,7 +44,7 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
             {label: 'config.app.lang.options.en', value: 'en'},
         ],
     },
-    ['agent.mode']: {
+    ['agents.mode']: {
         type: 'select',
         content: 'config.app.agentMode.prompt',
         options: [
@@ -53,7 +53,7 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
             {label: 'config.app.agentMode.options.chat', value: 'chat'},
         ],
     },
-    ['agent.headlessEnabled']: {
+    ['agents.headlessEnabled']: {
         type: 'select',
         content: 'config.app.headless.prompt',
         options: [
@@ -61,7 +61,7 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
             {label: 'common.no', value: 'false'},
         ],
     },
-    ['agent.im.engine']: {
+    ['agents.im.engine']: {
         type: 'select',
         content: 'config.app.im.engine.prompt',
         options: [
@@ -69,11 +69,11 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
             {label: 'config.app.im.engine.options.feishu', value: 'feishu'},
         ],
     },
-    ['agent.im.appId']: {
+    ['agents.im.appId']: {
         type: 'input',
         content: 'config.app.im.appId'
     },
-    ['agent.im.secret']: {
+    ['agents.im.secret']: {
         type: 'input',
         content: 'config.app.im.secret'
     }
@@ -103,21 +103,39 @@ export async function validateAndFixConfig(
 }
 
 async function ensureAppConfig(
-    {config, lacks}: {config: DeepclawConfig, lacks: string[]},
+    {config, lacks}: {config: DeepclawConfig, lacks: MissingAppConfig},
     handleAgentEvent: (event: AgentInteractionEvent) => Promise<string>,
 ) {
     for (const lack of lacks) {
-        const event = APP_CONFIG_EVENTS[lack]!;
-        const answer = await handleAgentEvent(event);
-        setConfigValue(config, lack, answer);
-    }
-    // for non-headless
-    if (config.agent.headlessEnabled === 'true' && !config.agent.im) {
-        config.agent.im = {} as DeepclawConfig['agent']['im'];
-        for (const key of ['engine', 'appId', 'secret']) {
-            const event = APP_CONFIG_EVENTS[`agent.im.${key}`]!;
+        if (typeof lack === 'string') {
+            const event = APP_CONFIG_EVENTS[lack]!;
             const answer = await handleAgentEvent(event);
-            setConfigValue(config.agent.im, key, answer);
+            setConfigValue(config, lack, answer);
+        } else {
+            for (const key of Object.keys(lack)) {
+                const subArrayConfig = config[key as keyof DeepclawConfig] as any[];
+                for (const index of Object.keys(lack[key as keyof DeepclawConfig]!)) {
+                    const subConfig = subArrayConfig[index as unknown as number];
+                    const subLacks = lack[key as keyof DeepclawConfig]![index as unknown as number]!;
+
+                    for (const subLack of subLacks) {
+                        const event = APP_CONFIG_EVENTS[`${key}.${subLack}`]!;
+                        const answer = await handleAgentEvent(event);
+                        setConfigValue(subConfig, subLack, answer);
+                    }
+                    if (key === 'agents') {
+                        // for non-headless
+                        if (subConfig.headlessEnabled === 'true' && !subConfig.im) {
+                            subConfig.im = {} as DeepclawConfig['agents'][0]['im'];
+                            for (const key of ['engine', 'appId', 'secret']) {
+                                const event = APP_CONFIG_EVENTS[`agents.im.${key}`]!;
+                                const answer = await handleAgentEvent(event);
+                                setConfigValue(subConfig.im, key, answer);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     writeAppConfig(config);

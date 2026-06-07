@@ -2,9 +2,7 @@ import { i18nInstance } from '@deepclaw/i18n';
 import { runCommand, childProcessTimeout} from '@deepclaw/utils';
 
 import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions';
-import { DeepclawConfig, loadConfig } from '@deepclaw/config';
-
-const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode');
+import { DeepclawConfig } from '@deepclaw/config';
 
 type SyncCommandInput = {
     command: string;
@@ -46,7 +44,7 @@ const rules: {deny: (string | RegExp)[], warning: (string | RegExp)[]} = {
     ]
 };
 
-function syncCommandGuard(input: SyncCommandInput): ToolGuardResult {
+function syncCommandGuard(input: SyncCommandInput, agentMode: DeepclawConfig['agents'][0]['mode']): ToolGuardResult {
     const { command } = input;
     const denied = checkRules(rules.deny, command);
     if (denied) {

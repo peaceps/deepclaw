@@ -1,5 +1,5 @@
 import { FileUtils } from '@deepclaw/utils';
-import { DeepclawConfig, loadConfig } from '@deepclaw/config';
+import { DeepclawConfig } from '@deepclaw/config';
 import { TaskStepsManager } from './task-steps-manager';
 
 export type Project<T extends Task> = {
@@ -214,8 +214,7 @@ export class ProjectManager {
         return task;
     }
 
-    public static prompts(): string {
-        const agentMode = loadConfig<DeepclawConfig['agent']['mode']>('agent.mode', 'chat')!;
+    public static prompts(agentMode: DeepclawConfig['agents'][0]['mode']): string {
         return `
 ## Project Management tools
 You can use project related tools to plan, manage projects as well as standalone tasks.
