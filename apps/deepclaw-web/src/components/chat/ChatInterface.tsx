@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { formatDate } from '@/lib/utils';
-import { invoke } from '@/lib/server-actions';
+import { invoke } from '@/server/loop';
 import { Send } from 'lucide-react';
 import { AgentEmployee } from '@/types';
 

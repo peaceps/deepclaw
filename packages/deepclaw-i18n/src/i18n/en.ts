@@ -29,12 +29,26 @@ export const en = {
                     zh: '简体中文',
                 },
             },
+            agentIndex: {
+                prompt: 'Please complete configuration for Agent {{name}}...',
+            },
+            agentName: {
+                prompt: 'Set the name of the agent',
+            },
             agentMode: {
                 prompt: 'Choose the agent mode you prefer:',
                 options: {
                     agent: 'Agent (Operate the OS, with all capability to the files on the computer)',
                     plan: 'Plan (Only do the plan, won\'t do any real operation)',
                     chat: 'Chat (A chat tool, won\'t do any operation)',
+                },
+            },
+            agentStandaloneTask: {
+                prompt: 'Choose the working mode for standalone tasks:',
+                options: {
+                    transient: 'Transient (Will not save on file system)',
+                    persistent: 'Persistent (Will save on file system)',
+                    ask: 'Ask (Alway ask user)',
                 },
             },
         },

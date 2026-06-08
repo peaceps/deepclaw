@@ -2,18 +2,19 @@ import { AgentInteractionEvent } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 
 export function stringifiedInteractionEvent(event: AgentInteractionEvent): string {
-    let answer = '';
+    let question = '';
+    const content = i18nInstance.t(event.content || '', event.i18nParam) as string;
     if (event.type === 'input') {
-        answer = i18nInstance.t(event.content || '') + ' ';
+        question = content + ' ';
     } else if (event.type === 'select') {
-        answer = i18nInstance.t(event.content || '') + '\n';
+        question = content + '\n';
         const options = event.options!.map((option) => i18nInstance.t(typeof option === 'string' ? option : option.label));
-        answer += options.map((option, i) => `[${i + 1}] ${option}`).join('\n') + '\n';
-        answer += i18nInstance.t('headless.selectOption');
+        question += options.map((option, i) => `[${i + 1}] ${option}`).join('\n') + '\n';
+        question += i18nInstance.t('headless.selectOption');
     } else if (event.type === 'readonly') {
-        answer = i18nInstance.t(event.content || '');
+        question = content;
     }
-    return answer;
+    return question;
 }
 
 export async function parseStringifiedAnswer(

@@ -9,7 +9,6 @@ type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject | ConfigObje
 export type DeepclawConfig = {
     agents: {
         name: string;
-        headlessEnabled: boolean;
         im?: {
             engine: 'dingtalk' | 'feishu';
             appId: string;
@@ -35,7 +34,7 @@ export type MissingAppConfig = (string|{[key in keyof Partial<DeepclawConfig>]: 
 
 export const DEFAULT_LANG = 'en';
 
-let deepclawConfig: DeepclawConfig = loadAppConfig();
+let currentDeepclawConfig: DeepclawConfig = loadAppConfig();
 
 function loadAppConfig(): DeepclawConfig {
     let appConfig: Partial<DeepclawConfig> = {};
@@ -72,9 +71,14 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
     return target;
 }
 
-export function validateAppConfig(headless: boolean): {config: DeepclawConfig, lacks: MissingAppConfig} {
+export function validateCurrentAppConfig(headless: boolean): {config: DeepclawConfig, lacks: MissingAppConfig} {
+    const result = validateAppConfig(headless, currentDeepclawConfig);
+    return result;
+}
+
+export function validateAppConfig(headless: boolean, configToValidate: Partial<DeepclawConfig>): {config: DeepclawConfig, lacks: MissingAppConfig} {
     const lacks: MissingAppConfig = [];
-    const cloned: DeepclawConfig = mergeAbsence({}, deepclawConfig) as DeepclawConfig;
+    const cloned: DeepclawConfig = mergeAbsence({}, configToValidate) as DeepclawConfig;
     if (cloned.ui.lang && !['en', 'zh'].includes(cloned.ui.lang)) {
         cloned.ui.lang = 'undefined' as any;
     }
@@ -82,41 +86,41 @@ export function validateAppConfig(headless: boolean): {config: DeepclawConfig, l
         lacks.push('ui.lang');
     }
     if (!cloned.agents?.length) {
-        cloned.agents = [{
-            name: 'main',
-            standaloneTask: 'transient',
-            llm: {}
-        } as DeepclawConfig['agents'][0]];
-        lacks.push({agents: {0: ['mode', 'headlessEnabled', 'llm.provider', 'llm.baseUrl', 'llm.apiKey', 'llm.model']}});
+        lacks.push('agents');
     } else {
         const agentsLacks: {[key: number]: string[]} = {};
         cloned.agents.forEach((agent, index) => {
             const agentLacks: string[] = [];
+            if (!agent.name) {
+                agentLacks.push(`name`);
+            }
             if (agent.mode && !['agent', 'plan', 'chat'].includes(agent.mode)) {
                 agent.mode = undefined as any;
             }
             if (!agent.mode) {
                 agentLacks.push(`mode`);
             }
-            if (agent.headlessEnabled && ![true, false].includes(agent.headlessEnabled)) {
-                agent.headlessEnabled = undefined as any;
+            if (agent.standaloneTask && !['transient', 'persistent', 'ask'].includes(agent.standaloneTask)) {
+                agent.standaloneTask = undefined as any;
             }
-            if (!headless && agent.headlessEnabled === undefined) {
-                agentLacks.push(`headlessEnabled`);
+            if (!agent.standaloneTask) {
+                agentLacks.push(`standaloneTask`);
             }
-            if (headless) {
-                agent.headlessEnabled = true;
-            }
-            if (agent.im && (
-                !['dingtalk', 'feishu'].includes(agent.im.engine)
-                || !agent.im.appId
-                || !agent.im.secret
-            )) {
-                agent.im = undefined;
-            }
-            if (agent.headlessEnabled === true && !agent.im) {
-                agent.im = {} as DeepclawConfig['agents'][0]['im'];
-                agentLacks.push(`im.engine`, `im.appId`, `im.secret`);
+            if (!agent.im) {
+                if (headless) {
+                    agent.im = {} as DeepclawConfig['agents'][0]['im'];
+                    agentLacks.push(`im.engine`, `im.appId`, `im.secret`);
+                }
+            } else {
+                if (!['dingtalk', 'feishu'].includes(agent.im.engine)) {
+                    agentLacks.push('im.engine');
+                }
+                if (!agent.im.appId) {
+                    agentLacks.push('im.appId');
+                }
+                if (!agent.im.secret) {
+                    agentLacks.push('im.secret');
+                }
             }
 
             if (!agent.llm) {
@@ -149,13 +153,13 @@ export function validateAppConfig(headless: boolean): {config: DeepclawConfig, l
 
 export function writeAppConfig(config: DeepclawConfig) {
     FileUtils.writeFile(APP_CONFIG_FILE, JSON.stringify(config, null, 2));
-    deepclawConfig = loadAppConfig();
+    currentDeepclawConfig = loadAppConfig();
 }
 
 export function loadConfig<T>(key?: string, defaultValue?: T): T {
-    if (!key) return deepclawConfig as T;
+    if (!key) return currentDeepclawConfig as T;
     const keyPath = key.split('.');
-    let value: any = deepclawConfig;
+    let value: any = currentDeepclawConfig;
     for (const key of keyPath) {
         value = value?.[key as keyof typeof value];
     }

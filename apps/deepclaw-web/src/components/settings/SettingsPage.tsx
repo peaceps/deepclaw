@@ -1,7 +1,7 @@
 'use client';
 
 import { SettingsForm } from '@/components/settings/SettingsForm';
-import { DeepclawConfig } from '@/lib/config';
+import { type DeepclawConfig } from '@deepclaw/gateway';
 
 export default function SettingsPage({ initialConfig, onSave }: any) {
 

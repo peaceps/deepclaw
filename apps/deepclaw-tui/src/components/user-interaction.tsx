@@ -8,7 +8,7 @@ import { type TFunction } from '@deepclaw/i18n';
 import { useTranslation } from 'react-i18next';
 
 function translateEvent(t: TFunction<"translation", undefined>, event: AgentInteractionEvent): AgentInteractionEvent {
-    const translatedContent = t(event.content);
+    const translatedContent = t(event.content, event.i18nParam) as string;
     if (event.type === 'select') {
         return {
             ...event,

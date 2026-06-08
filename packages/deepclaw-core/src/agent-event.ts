@@ -1,5 +1,6 @@
 export type AgentInteractionEvent = {
     content: string;
+    i18nParam?: any;
     key?: string;
 } & ({
     type: 'readonly';
