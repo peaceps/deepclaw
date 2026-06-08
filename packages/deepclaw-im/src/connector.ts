@@ -1,9 +1,9 @@
-import { loadConfig, DeepclawConfig } from "@deepclaw/config";
+import { loadAgentConfig, DeepclawConfig } from "@deepclaw/config";
 import { dingTalk } from "./im/dingtalk";
 import { feishu } from "./im/feishu";
 import type { IM } from "./im-definitions";
 
-type ImConfig = NonNullable<DeepclawConfig["agent"]["im"]>;
+type ImConfig = NonNullable<DeepclawConfig["agents"][0]["im"]>;
 
 const ims: Record<string, IM> = {
     dingtalk: dingTalk,
@@ -19,9 +19,10 @@ const getIM = (engine: ImConfig["engine"]): IM => {
 }
 
 export function connectIM(): { disconnect: () => void } {
-    const engine = loadConfig<ImConfig["engine"]>("agent.im.engine");
-    const appId = loadConfig<string>('agent.im.appId');
-    const secret = loadConfig<string>('agent.im.secret');
+    const agent = loadAgentConfig('main');
+    const engine = agent.im?.engine;
+    const appId = agent.im?.appId;
+    const secret = agent.im?.secret;
     if (!engine || !appId || !secret) {
         return {disconnect: () => {}};
     }

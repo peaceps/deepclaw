@@ -15,6 +15,8 @@ export default [
     external: [
       /^node:/,
       '@deepclaw/core',
+      '@deepclaw/config',
+      '@deepclaw/i18n',
       '@deepclaw/agent',
     ],
 

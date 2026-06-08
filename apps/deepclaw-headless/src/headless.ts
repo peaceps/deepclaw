@@ -8,12 +8,12 @@ import {i18nInstance} from '@deepclaw/i18n';
 
 let rl: readline.Interface | null = null;
 
-async function handleInteractionEvent(event: AgentInteractionEvent): Promise<string> {
+async function handleInteractionEvent(event: AgentInteractionEvent): Promise<string|boolean|number> {
     if (!rl) {
         rl = readline.createInterface({ input: stdin, output: stdout });
     }
     try {
-        let answer = '';
+        let answer: string|boolean|number = '';
         const question = stringifiedInteractionEvent(event);
         if (event.type === 'readonly') {
             console.log(question);
@@ -22,7 +22,7 @@ async function handleInteractionEvent(event: AgentInteractionEvent): Promise<str
             answer = await parseStringifiedAnswer(event, answer, console.log, handleInteractionEvent);
         }
         if (event.key === 'lang' && answer !== DEFAULT_LANG) {
-            i18nInstance.changeLanguage(answer);
+            i18nInstance.changeLanguage(answer as string);
         }
         return answer;
     } catch (error) {

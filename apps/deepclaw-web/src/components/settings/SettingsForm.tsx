@@ -3,9 +3,6 @@
 import { useState, useCallback } from 'react';
 import {
   DeepclawConfig,
-  AgentConfig,
-  LLMConfig,
-  IMConfig,
   imEngineOptions,
   agentModeOptions,
   standaloneTaskOptions,
@@ -24,6 +21,10 @@ import {
   MessageSquare,
   Cpu,
 } from 'lucide-react';
+
+type IMConfig = NonNullable<DeepclawConfig['agents'][0]['im']>;
+type LLMConfig = NonNullable<DeepclawConfig['agents'][0]['llm']>;
+type AgentConfig = NonNullable<DeepclawConfig['agents'][0]>;
 
 interface SettingsFormProps {
   initialConfig: DeepclawConfig;
@@ -233,6 +234,7 @@ export function SettingsForm({ initialConfig, onSave }: SettingsFormProps) {
                     agent={agent}
                     index={index}
                     isExpanded={expandedAgents.has(index)}
+                    removable={config.agents.length > 1}
                     onToggle={() => toggleAgent(index)}
                     onUpdate={updateAgent}
                     onUpdateLLM={updateAgentLLM}
@@ -275,6 +277,7 @@ interface AgentCardProps {
   agent: AgentConfig;
   index: number;
   isExpanded: boolean;
+  removable: boolean;
   onToggle: () => void;
   onUpdate: (index: number, updates: Partial<AgentConfig>) => void;
   onUpdateLLM: (index: number, updates: Partial<LLMConfig>) => void;
@@ -286,6 +289,7 @@ function AgentCard({
   agent,
   index,
   isExpanded,
+  removable,
   onToggle,
   onUpdate,
   onUpdateLLM,
@@ -325,11 +329,12 @@ function AgentCard({
         </div>
         <div className="flex items-center gap-2">
           <button
+            disabled={!removable}
             onClick={(e) => {
               e.stopPropagation();
               onRemove(index);
             }}
-            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+            className="p-2 text-gray-400 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-gray-400 transition-colors"
             title="删除 Agent"
           >
             <Trash2 size={18} />

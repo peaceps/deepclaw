@@ -9,7 +9,7 @@ type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject | ConfigObje
 export type DeepclawConfig = {
     agents: {
         name: string;
-        headlessEnabled: string;
+        headlessEnabled: boolean;
         im?: {
             engine: 'dingtalk' | 'feishu';
             appId: string;
@@ -44,6 +44,12 @@ function loadAppConfig(): DeepclawConfig {
     } catch {
         // ignore malformed or missing config file
     }
+    if (!appConfig.agents) {
+        appConfig.agents = [];
+    }
+    if (!appConfig.ui) {
+        appConfig.ui = {} as DeepclawConfig['ui'];
+    }
     return Object.freeze(appConfig) as DeepclawConfig;
 }
 
@@ -69,9 +75,6 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
 export function validateAppConfig(headless: boolean): {config: DeepclawConfig, lacks: MissingAppConfig} {
     const lacks: MissingAppConfig = [];
     const cloned: DeepclawConfig = mergeAbsence({}, deepclawConfig) as DeepclawConfig;
-    if (!cloned.ui) {
-        cloned.ui = {} as DeepclawConfig['ui'];
-    }
     if (cloned.ui.lang && !['en', 'zh'].includes(cloned.ui.lang)) {
         cloned.ui.lang = 'undefined' as any;
     }
@@ -95,14 +98,14 @@ export function validateAppConfig(headless: boolean): {config: DeepclawConfig, l
             if (!agent.mode) {
                 agentLacks.push(`mode`);
             }
-            if (agent.headlessEnabled && !['true', 'false'].includes(agent.headlessEnabled)) {
+            if (agent.headlessEnabled && ![true, false].includes(agent.headlessEnabled)) {
                 agent.headlessEnabled = undefined as any;
             }
-            if (!headless && !agent.headlessEnabled) {
+            if (!headless && agent.headlessEnabled === undefined) {
                 agentLacks.push(`headlessEnabled`);
             }
             if (headless) {
-                agent.headlessEnabled = 'true';
+                agent.headlessEnabled = true;
             }
             if (agent.im && (
                 !['dingtalk', 'feishu'].includes(agent.im.engine)
@@ -111,7 +114,7 @@ export function validateAppConfig(headless: boolean): {config: DeepclawConfig, l
             )) {
                 agent.im = undefined;
             }
-            if (agent.headlessEnabled === 'true' && !agent.im) {
+            if (agent.headlessEnabled === true && !agent.im) {
                 agent.im = {} as DeepclawConfig['agents'][0]['im'];
                 agentLacks.push(`im.engine`, `im.appId`, `im.secret`);
             }
@@ -149,7 +152,8 @@ export function writeAppConfig(config: DeepclawConfig) {
     deepclawConfig = loadAppConfig();
 }
 
-export function loadConfig<T>(key: string, defaultValue?: T): T {
+export function loadConfig<T>(key?: string, defaultValue?: T): T {
+    if (!key) return deepclawConfig as T;
     const keyPath = key.split('.');
     let value: any = deepclawConfig;
     for (const key of keyPath) {

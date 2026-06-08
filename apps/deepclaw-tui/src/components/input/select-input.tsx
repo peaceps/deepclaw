@@ -9,9 +9,9 @@ export function SelectInput({
     options = [],
     color = ''
 }: {
-    onEnter: (input: string) => void;
+    onEnter: (input: string|boolean|number) => void;
 	customPrompt: string;
-	options: (string | {label: string; value: string})[];
+	options: (string | {label: string; value: string|number|boolean})[];
 	color?: string;
 }): ReactElement {
     const [userSelection, setUserSelection] = useState(0);

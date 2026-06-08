@@ -2,7 +2,7 @@ import {AgentInteractionEvent} from "@deepclaw/core";
 import {DeepclawConfig, MissingAppConfig, validateAppConfig, writeAppConfig} from "./app-config";
 import { FileUtils } from "@deepclaw/utils";
 
-const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
+export const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
     ['ui.lang']: {
         key: 'lang',
         type: 'select',
@@ -25,8 +25,8 @@ const APP_CONFIG_EVENTS: {[key: string]: AgentInteractionEvent} = {
         type: 'select',
         content: 'config.app.headless.prompt',
         options: [
-            {label: 'common.yes', value: 'true'},
-            {label: 'common.no', value: 'false'},
+            {label: 'common.yes', value: true},
+            {label: 'common.no', value: false},
         ],
     },
     ['agents.im.engine']: {
@@ -73,7 +73,7 @@ const HINT: AgentInteractionEvent = {
 };
 
 export async function validateAndFixConfig(
-    handleAgentEvent: (event: AgentInteractionEvent) => Promise<string>,
+    handleAgentEvent: (event: AgentInteractionEvent) => Promise<string|boolean|number>,
     headless: boolean = false,
 ) {
     const appConfig = validateAppConfig(headless);
@@ -88,7 +88,7 @@ export async function validateAndFixConfig(
 
 async function ensureAppConfig(
     {config, lacks}: {config: DeepclawConfig, lacks: MissingAppConfig},
-    handleAgentEvent: (event: AgentInteractionEvent) => Promise<string>,
+    handleAgentEvent: (event: AgentInteractionEvent) => Promise<string|boolean|number>,
 ) {
     for (const lack of lacks) {
         if (typeof lack === 'string') {

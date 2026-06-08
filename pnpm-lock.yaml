@@ -223,9 +223,15 @@ importers:
       '@deepclaw/agent':
         specifier: workspace:*
         version: link:../deepclaw-agent
+      '@deepclaw/config':
+        specifier: workspace:*
+        version: link:../deepclaw-config
       '@deepclaw/core':
         specifier: workspace:*
         version: link:../deepclaw-core
+      '@deepclaw/i18n':
+        specifier: workspace:*
+        version: link:../deepclaw-i18n
 
   packages/deepclaw-i18n:
     dependencies:

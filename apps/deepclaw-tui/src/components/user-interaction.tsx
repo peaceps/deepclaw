@@ -28,7 +28,7 @@ export function UserInteraction({
     onEnter
 }: {
     event: AgentInteractionEvent,
-    onEnter: (input: string) => void
+    onEnter: (input: string|boolean|number) => void
 }): ReactElement {
     const {t} = useTranslation();
     const translatedEvent = translateEvent(t, event);

@@ -19,6 +19,8 @@
 	},
 	"dependencies": {
 		"@deepclaw/core": "workspace:*",
+		"@deepclaw/config": "workspace:*",
+		"@deepclaw/i18n": "workspace:*",
 		"@deepclaw/agent": "workspace:*"
 	}
 }

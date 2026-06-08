@@ -8,7 +8,5 @@ export type AgentEmployee = AgentIdentity & {
   mood: 'happy' | 'focused' | 'tired' | 'confused';
   stats: {
     tasksCompleted: number;
-    // avgResponseTime: number;
-    // satisfaction: number;
   };
 }

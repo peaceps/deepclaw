@@ -8,7 +8,7 @@ export type FlushAgentConstructor = new (
 export type AgentHandler = {
     onStreamText(content: string, done?: boolean): void;
     onToolText(content: string): void;
-    onInteractionEvent(event: AgentInteractionEvent): Promise<string>;
+    onInteractionEvent(event: AgentInteractionEvent): Promise<string|boolean|number>;
     onInfoEvent(event: AgentInfoEvent): void;
 }
 

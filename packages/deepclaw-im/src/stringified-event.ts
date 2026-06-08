@@ -18,10 +18,10 @@ export function stringifiedInteractionEvent(event: AgentInteractionEvent): strin
 
 export async function parseStringifiedAnswer(
     event: AgentInteractionEvent,
-    answer: string,
+    answer: string|boolean|number,
     notify: (message: string) => void,
-    callSelf: (event: AgentInteractionEvent) => Promise<string>
-): Promise<string> {
+    callSelf: (event: AgentInteractionEvent) => Promise<string|boolean|number>
+): Promise<string|boolean|number> {
     if (event.type !== 'select') {
         return answer;
     }

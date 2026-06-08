@@ -18,14 +18,14 @@ const onBotMessage = (client: DWClient) => {
     let interactionResolver: Function | null = null;
     let sequentialInteraction: Promise<void> = Promise.resolve();
 
-    const agent = LoopInitializer.getLoop({
+    const agent = LoopInitializer.getLoop('main', {
         onStreamText: () => {},
         onToolText: () => {},
         onInteractionEvent: handleInteractionEvent,
         onInfoEvent: () => Promise.resolve(''),
     });
 
-    async function handleInteractionEvent(event: AgentInteractionEvent): Promise<string> {
+    async function handleInteractionEvent(event: AgentInteractionEvent): Promise<string|boolean|number> {
         sendMessage(endPoint, stringifiedInteractionEvent(event));
         return event.type === 'readonly' ? Promise.resolve('') : new Promise<string>((resolve) => {
             interactionResolver = resolve;
