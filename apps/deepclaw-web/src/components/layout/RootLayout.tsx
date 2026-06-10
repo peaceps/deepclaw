@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {initI18n} from '@/i18n';
 import { Sidebar } from './Sidebar';
 
@@ -12,10 +12,10 @@ interface RootLayoutProps {
 
 export function RootLayout({ lang, defaultLang, children }: RootLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [i18nInit, setI18nInit] = useState(false);
-  if (!i18nInit) {
+  const i18nInitRef = useRef<boolean | null>(null);
+  if (i18nInitRef.current === null) {
       initI18n(lang, defaultLang);
-      setI18nInit(true);
+      i18nInitRef.current = true;
   }
 
   return (

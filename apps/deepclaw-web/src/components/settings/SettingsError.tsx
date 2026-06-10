@@ -1,6 +1,8 @@
 import { type ValidationResult } from '@/server/configs';
+import { useTranslation } from 'react-i18next';
 
 export function SettingsError({validationResult}: {validationResult: ValidationResult}) {
+    const {t} = useTranslation();
     const validationErrors = validationResult.errors;
     return validationErrors.length > 0 && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
@@ -10,7 +12,7 @@ export function SettingsError({validationResult}: {validationResult: ValidationR
             </div>
             <div className="flex-1">
                 <h3 className="font-semibold text-red-800 text-sm">
-                发现 {validationErrors.length} 个配置错误，请修正后保存
+                {validationErrors.length} {t('pages.settings.errors.total')}
                 </h3>
                 <div className="mt-2 space-y-1">
                 {(() => {
@@ -18,12 +20,12 @@ export function SettingsError({validationResult}: {validationResult: ValidationR
                     return (
                     <>
                         {summary.uiErrorCount > 0 && (
-                        <p className="text-red-700 text-xs">• 界面设置: {summary.uiErrorCount} 个错误</p>
+                            <p className="text-red-700 text-xs">• {t('pages.settings.errors.ui', {count: summary.uiErrorCount})}</p>
                         )}
                         {summary.agentErrorCount > 0 && (
-                        <p className="text-red-700 text-xs">
-                            • Agent 配置: {summary.affectedAgents} 个 Agent 共有 {summary.agentErrorCount} 个错误
-                        </p>
+                            <p className="text-red-700 text-xs">
+                                • {t('pages.settings.errors.agents', {agentCount: summary.affectedAgents, errorCount: summary.agentErrorCount})}
+                            </p>
                         )}
                     </>
                     );

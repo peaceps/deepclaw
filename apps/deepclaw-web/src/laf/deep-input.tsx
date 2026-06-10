@@ -1,25 +1,28 @@
 'use client';
 import {ChangeEvent} from 'react';
+import {useTranslation} from 'react-i18next';
+import {AgentInteractionEvent} from '@deepclaw/core';
 
 type DeepInputProps = {
-    label: string;
+    uiInfo: Extract<AgentInteractionEvent, {type: 'input'}>;
     value?: string;
     onInput: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void;
     placeholder?: string;
-    error?: string;
+    error?: boolean;
 }
 
 export function DeepInput({
-    label,
+    uiInfo,
     value,
     onInput,
     placeholder,
     error
 }: DeepInputProps) {
+    const {t} = useTranslation();
 
     return (
         <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">{t(uiInfo.content)}</label>
         <input
             type="text"
             value={value}
@@ -30,7 +33,7 @@ export function DeepInput({
             }`}
         />
         {error && (
-            <p className="mt-1 text-xs text-red-600">{error}</p>
+            <p className="mt-1 text-xs text-red-600">{t('config.error.input', {name: t(uiInfo.content)})}</p>
         )}
         </div>
     )

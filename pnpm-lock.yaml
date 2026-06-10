@@ -144,6 +144,9 @@ importers:
       '@deepclaw/config':
         specifier: workspace:*
         version: link:../../packages/deepclaw-config
+      '@deepclaw/core':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-core
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../../packages/deepclaw-i18n

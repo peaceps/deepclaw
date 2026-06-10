@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { DeepclawConfig } from '@deepclaw/config';
-import { languageOptions } from '@/lib/config';
+import type { CONFIGS_EVENTS, DeepclawConfig} from '@deepclaw/config';
+import { type AgentInteractionEvent } from '@deepclaw/core';
 import { Save, Plus, Bot, Globe } from 'lucide-react';
 import { AgentSettingsCard } from './AgentSettingsCard';
 import {validateConfig, type ValidationResult} from '@/server/configs';
@@ -15,11 +15,15 @@ type AgentConfig = NonNullable<DeepclawConfig['agents'][0]>;
 type IMConfig = NonNullable<AgentConfig['im']>;
 type LLMConfig = AgentConfig['llm'];
 
-export function SettingsForm({ initialConfig, initialValidation, onSave }: {
+export type SettingsProps = {
+  configEvents: CONFIGS_EVENTS;
   initialConfig: DeepclawConfig;
   initialValidation: ValidationResult;
   onSave: (config: DeepclawConfig) => void;
-}) {
+};
+
+export function SettingsForm({settings}: {settings: SettingsProps}) {
+  const { configEvents, initialConfig, initialValidation, onSave } = settings;
   const {t} = useTranslation();
   const [config, setConfig] = useState<DeepclawConfig>(initialConfig);
   const [savedMessage, setSavedMessage] = useState<string>('');
@@ -98,12 +102,9 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
     }
 
     onSave(cfg);
-    setSavedMessage('设置已保存');
-    setTimeout(() => setSavedMessage(''), 3000);
+    setSavedMessage('pages.settings.saved');
+    setTimeout(() => setSavedMessage(''), 5000);
   }, [onSave, validate]);
-
-  const uiLangError = validationResult.errors.find(e => e.field === 'ui.lang');
-  const agentsError = validationResult.errors.find(e => e.field === 'agents');
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -117,9 +118,9 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
       <div className="mb-6 flex items-center gap-4">
         <button onClick={() => handleSave(config)} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
           <Save size={20} />
-          保存设置
+          {t('pages.settings.saveButton')}
         </button>
-        {savedMessage && <span className="text-green-600 text-sm">{savedMessage}</span>}
+        {savedMessage && <span className="text-green-600 text-sm">{t(savedMessage)}</span>}
       </div>
 
       <div className="space-y-4">
@@ -127,17 +128,16 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
           name="ui"
           expanded={!!panelToggleStatus['ui']}
           onToggle={togglePanel}
-          title="界面设置"
-          description="语言和其他 UI 配置"
+          title="pages.settings.panels.ui.title"
+          description="pages.settings.panels.ui.description"
           Icon={Globe}
         >
           <div className="p-6 border-t border-gray-200">
             <DeepSelect
-              label="界面语言"
+              uiInfo={configEvents['ui.lang'] as Extract<AgentInteractionEvent, {type: 'select'}>}
               value={config.ui.lang}
               onSelect={e => updateUIConfig({ lang: e.target.value })}
-              options={languageOptions}
-              error={uiLangError?.message}
+              error={validationResult.errors.some(e => e === 'ui.lang')}
             />
           </div>
         </DeepExpandablePanel>
@@ -146,10 +146,10 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
           name="agents"
           expanded={!!panelToggleStatus['agents']}
           onToggle={togglePanel}
-          title="Agent 管理"
-          description="配置 AI 员工的参数"
+          title="pages.settings.panels.agents.title"
+          description="pages.settings.panels.agents.description"
           Icon={Bot}
-          error={agentsError?.message}
+          error={validationResult.errors.some(e => e === 'agents') ? 'config.agents.error' : ''}
         >
           <div className="p-6 border-t border-gray-200">
             <div className="space-y-4">
@@ -162,7 +162,8 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
                   agent={agent}
                   index={index}
                   removable={config.agents.length > 1}
-                  validationErrors={validationResult.errors.filter(e => e.field.startsWith(`agents.${index}.`))}
+                  configEvents={configEvents}
+                  validationErrors={validationResult.errors.filter(e => e.startsWith(`agents.${index}.`))}
                   onUpdate={updateAgent}
                   onUpdateLLM={updateAgentLLM}
                   onUpdateIM={updateAgentIM}
@@ -171,7 +172,7 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
               ))}
               <button onClick={addAgent} className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-600 transition-colors">
                 <Plus size={20} />
-                添加 Agent
+                {t('pages.settings.panels.agents.addButton')}
               </button>
             </div>
           </div>
@@ -181,9 +182,9 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
       <div className="mt-8 flex items-center gap-4">
         <button onClick={() => handleSave(config)} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
           <Save size={20} />
-          保存设置
+          {t('pages.settings.saveButton')}
         </button>
-        {savedMessage && <span className="text-green-600 text-sm">{savedMessage}</span>}
+        {savedMessage && <span className="text-green-600 text-sm">{t(savedMessage)}</span>}
       </div>
     </div>
   );

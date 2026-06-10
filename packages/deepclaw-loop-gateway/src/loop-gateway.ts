@@ -24,14 +24,15 @@ export class LoopGateway {
         projects.projects.closed.forEach(p => {
             res.push(ProjectManager.getProjectDetail(p.id));
         });
-        projects.standaloneTasks.open.forEach(t => {
+        projects.standaloneTasks.open.forEach((t, i) => {
             const task = ProjectManager.getStandaloneTaskDetail(t.title);
             const project: Project<StandaloneTask> = {
-                id: crypto.randomUUID(),
+                id: `standalone-${i}`,
                 title: t.title,
                 description: '',
                 tasks: {[t.title]: task},
                 creator: 'main',
+                priority: task.priority || 'low',
                 canStartTasks: [],
                 ongoingTasks: [],
                 completedTasks: [],
@@ -51,6 +52,9 @@ export class LoopGateway {
                 description: '',
                 tasks: {[t.title]: task},
                 creator: 'main',
+                priority: task.priority || 'low',
+                createdAt: task.createdAt,
+                closedAt: task.closedAt,
                 canStartTasks: [],
                 ongoingTasks: [],
                 completedTasks: [],

@@ -1,3 +1,5 @@
+export type AgentInteractionEventOption = string | {label: string; value: string | boolean | number};
+
 export type AgentInteractionEvent = {
     content: string;
     i18nParam?: Record<string, string | number>;
@@ -8,7 +10,7 @@ export type AgentInteractionEvent = {
     type: 'input';
 } | {
     type: 'select';
-    options: (string | {label: string; value: string | boolean | number})[];
+    options: AgentInteractionEventOption[];
 });
 
 // TODO: Implement this

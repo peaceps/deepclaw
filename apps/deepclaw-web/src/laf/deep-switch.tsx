@@ -1,5 +1,6 @@
 'use client';
 import {ChangeEvent} from 'react';
+import { useTranslation } from 'react-i18next';
 
 type DeepSwitchProps = {
     label: string;
@@ -14,12 +15,13 @@ export function DeepSwitch({
     onSwitch,
     Icon
 }: DeepSwitchProps) {
+    const {t} = useTranslation();
 
     return (
         <div className="flex items-center justify-between">
             <h5 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <Icon size={16} className="text-gray-400" />
-                {label}
+                {t(label)}
             </h5>
             <label className="relative inline-flex items-center cursor-pointer">
                 <input

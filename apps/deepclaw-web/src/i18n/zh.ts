@@ -1,8 +1,216 @@
 export const zh = {
+    common: {
+        iam: '我是{{name}}，擅长{{skills}}领域的工作，随时准备为您服务！',
+        all: '所有',
+        toggle: {
+            expand: '展开',
+            collapse: '收起',
+        },
+        priority: {
+            urgent: '紧急',
+            high: '高',
+            medium: '中',
+            low: '低',
+        },
+        notReady: '功能开发中...'
+    },
+    sidebar: {
+        subtitle: 'DeepClaw AI Agent管理系统',
+        links: {
+            agents: '员工',
+            tasks: '任务看板',
+            chat: '消息中心',
+            org: '组织架构',
+            settings: '设置',
+        },
+    },
     pages: {
+        agents: {
+            noSelection: {
+                title: '请选择一个Agent查看详情',
+                description: '从左侧列表中选择一个Agent员工，查看其角色设定、性格特点和工作方式',
+            },
+            mood: {
+                happy: '心情不错',
+                focused: '专注工作中',
+                tired: '有点疲惫',
+                confused: '有点迷茫',
+            },
+            list: {
+                title: 'Agent列表'
+            },
+            card: {
+                finishedTasks: '已完成{{count}}个任务'
+            },
+            status: {
+                busy: '忙碌',
+                idle: '空闲',
+                offline: '离线',
+            },
+            details: {
+                personality: {
+                    title: '性格设定',
+                    traits: '个性特征',
+                    communicationStyle: '沟通风格',
+                    emotionExpression: '情感表达',
+                    emotional: '会表达情感',
+                    rational: '理性克制',
+                },
+                skills: {
+                    title: '技能设定',
+                    skills: '技能',
+                    area: '专业领域',
+                },
+                workStyle: {
+                    title: '工作方式',
+                    currentProject: '当前项目',
+                    noProject: '暂无进行中的项目',
+                    workCharacteristics: '工作特点',
+                    goodAt: '擅长{{skills}}领域的工作',
+                },
+            },
+            mobile: {
+                returnToList: '返回列表',
+                returnToDetail: '返回详情',
+                selectAgent: '请先选择Agent',
+            }
+        },
+        projects: {
+            title: '任务看板',
+            projectList: '项目列表',
+            count: '个项目',
+            status: {
+                todo: '未开始',
+                ongoing: '进行中',
+                done: '已完成',
+            },
+            project: {
+                noTasks: '该项目暂无任务',
+                noTasksAtStatus: '暂无任务',
+                owner: '负责人',
+                progress: '进度',
+            }
+        },
+        chat: {
+            invalidTarget: '对象未激活',
+            type: {
+                project: {
+                    title: '项目对话',
+                    emptyPrompt: '关于这个项目说点什么吧...',
+                },
+                agent: {
+                    title: '聊天',
+                    emptyPrompt: '和{{name}}聊聊吧',
+                },
+            },
+            thinking: '思考中',
+            send: '给 {{name}} 发消息...',
+            welcome: {
+                title: '欢迎使用',
+                description: '从左侧选择Agent开始对话',
+            }
+        },
         settings: {
             title: '系统设置',
             description: '配置 DeepClaw 的各项参数',
+            saveButton: '保存设置',
+            saved: '设置已保存',
+            errors: {
+                total: '个配置错误，请修正后保存',
+                ui: '界面设置: {{count}} 个错误',
+                agents: 'Agent 设置: {{agentCount}} 个 Agent 共有 {{errorCount}} 个错误'
+            },
+            panels: {
+                ui: {
+                    title: '界面设置',
+                    description: '语言和其他UI配置'
+                },
+                agents: {
+                    title: 'Agent设置',
+                    description: '配置Agent参数',
+                    addButton: '添加Agent',
+                    removeButton: '删除Agent',
+                    header: {
+                        unnamed: '未命名',
+                        errors: '个错误'
+                    },
+                    sections: {
+                        basic: '基本信息',
+                        im: 'IM配置',
+                        llm: 'LLM配置'
+                    }
+                }
+            }
+        },
+    },
+    config: {
+        error: {
+            input: '{{name}}不能为空',
+            select: '请选择{{name}}'
+        },
+        ui: {
+            lang: {
+                prompt: '语言',
+                options: {
+                    en: 'English',
+                    zh: '简体中文',
+                },
+            },
+        },
+        agents: {
+            error: '至少需要配置一个 Agent',
+            name: {
+                prompt: '昵称',
+            },
+            mode: {
+                prompt: '运行模式',
+                options: {
+                    agent: '代理 (完整操作权限)',
+                    plan: '计划',
+                    chat: '聊天',
+                },
+            },
+            standaloneTask: {
+                prompt: '临时任务保存模式',
+                options: {
+                    transient: '总是不保存在磁盘上',
+                    persistent: '总是保存在磁盘上',
+                    ask: '每次询问',
+                },
+            },
+            im: {
+                engine: {
+                    prompt: '即时通讯工具',
+                    options: {
+                        dingtalk: '钉钉',
+                        feishu: '飞书',
+                    },
+                },
+                appId: {
+                    prompt: 'App ID',
+                },
+                secret: {
+                    prompt: 'Secret',
+                },
+            },
+            llm: {
+                provider: {
+                    prompt: '模型SDK',
+                    options: {
+                        openai: 'OpenAI',
+                        anthropic: 'Anthropic',
+                    },
+                },
+                baseUrl: {
+                    prompt: 'Base URL',
+                },
+                apiKey: {
+                    prompt: 'API key',
+                },
+                model: {
+                    prompt: '模型名称',
+                },
+            }
         },
     },
 };

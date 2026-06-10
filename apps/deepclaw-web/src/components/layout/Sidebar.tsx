@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const navItems = [
-  { href: '/agents', label: '员工', icon: Users },
-  { href: '/tasks', label: '任务看板', icon: ClipboardList },
-  { href: '/chat', label: '消息中心', icon: MessageSquare },
-  { href: '/org', label: '组织架构', icon: LayoutDashboard },
-  { href: '/settings', label: '设置', icon: Settings },
+  { href: '/agents', label: 'sidebar.links.agents', icon: Users },
+  { href: '/tasks', label: 'sidebar.links.tasks', icon: ClipboardList },
+  { href: '/chat', label: 'sidebar.links.chat', icon: MessageSquare },
+  { href: '/org', label: 'sidebar.links.org', icon: LayoutDashboard },
+  { href: '/settings', label: 'sidebar.links.settings', icon: Settings },
 ];
 
 interface SidebarProps {
@@ -21,6 +22,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const {t} = useTranslation();
 
   return (
     <>
@@ -74,7 +76,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     `}
                   >
                     <Icon size={20} />
-                    <span className="font-medium">{item.label}</span>
+                    <span className="font-medium">{t(item.label)}</span>
                   </Link>
                 </li>
               );
@@ -112,7 +114,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </div>
             <div>
               <h1 className="font-bold text-gray-900">DeepClaw</h1>
-              <p className="text-xs text-gray-500">AI Agent 管理系统</p>
+              <p className="text-xs text-gray-500">{t('sidebar.subtitle')}</p>
             </div>
           </Link>
         )}
@@ -125,7 +127,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <button
             onClick={onToggle}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-            title="收起侧边栏"
+            title={t('common.toggle.collapse')}
           >
             <ChevronLeft size={18} />
           </button>
@@ -138,7 +140,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <button
             onClick={onToggle}
             className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-            title="展开侧边栏"
+            title={t('common.toggle.expand')}
           >
             <ChevronRight size={20} />
           </button>
@@ -164,10 +166,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     }
                     ${collapsed ? 'justify-center' : ''}
                   `}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? t(item.label) : undefined}
                 >
                   <Icon size={20} />
-                  {!collapsed && <span className="font-medium">{item.label}</span>}
+                  {!collapsed && <span className="font-medium">{t(item.label)}</span>}
                 </Link>
               </li>
             );

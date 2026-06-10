@@ -9,6 +9,7 @@ export type Project<T extends Task> = {
     createdAt?: string;
     closedAt?: string;
     creator: string;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
     tasks: Record<string, T>;
     completedTasks?: string[];
     ongoingTasks?: string[];
@@ -72,6 +73,7 @@ export class ProjectManager {
             try {
                 const project = JSON.parse(fileContent);
                 if (project && project.id && project.title && project.description) {
+                    project.priority = project.priority || 'low';
                     if (project.id === 'standalone') {
                         this.projects.standalone.persistent = project.tasks;
                     } else {
@@ -96,6 +98,7 @@ export class ProjectManager {
             description: 'A virtual project to hold standalone tasks that are not associated with any project.',
             creator: 'main',
             tasks: this.projects.standalone.persistent,
+            priority: 'low',
         };
         this.saveProjects(standaloneProject);
     }

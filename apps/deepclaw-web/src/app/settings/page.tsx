@@ -1,4 +1,4 @@
-import { DeepclawConfig } from '@deepclaw/config';
+import { DeepclawConfig, APP_CONFIG_EVENTS } from '@deepclaw/config';
 import SettingsPage from '@/components/settings/SettingsPage';
 import { loadCurrentConfig, saveConfig, validateConfig } from '@/server/configs';
 
@@ -6,6 +6,13 @@ export default async function Settings() {
     const config: DeepclawConfig = await loadCurrentConfig();
     const initialValidation = await validateConfig(config);
     return (
-        <SettingsPage initialConfig={config} initialValidation={initialValidation} onSave={saveConfig} />
+        <SettingsPage
+            settings={{
+                configEvents: APP_CONFIG_EVENTS,
+                initialConfig: config,
+                initialValidation: initialValidation,
+                onSave: saveConfig
+            }}
+        />
     );
 }

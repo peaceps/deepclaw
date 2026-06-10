@@ -1,5 +1,6 @@
 'use client';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export type PanelHeaderProps = {
   name: string;
@@ -20,6 +21,7 @@ export function PanelHeader({
   expanded,
   onToggle,
 }: PanelHeaderProps) {
+  const {t} = useTranslation();
   return (
     <button
       onClick={() => onToggle(name)}
@@ -30,10 +32,10 @@ export function PanelHeader({
           <Icon size={20} className="text-blue-600" />
         </div>
         <div>
-          <h3 className="font-semibold text-gray-900">{title}</h3>
-          <p className="text-sm text-gray-500">{description}</p>
+          <h3 className="text-left font-semibold text-gray-900">{t(title)}</h3>
+          <p className="text-sm text-gray-500">{t(description)}</p>
           {error && (
-              <p className="ml-1 mt-1 text-xs text-red-600">{error}</p>
+              <p className="ml-1 mt-1 text-xs text-red-600">{t(error)}</p>
           )}
         </div>
       </div>

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { ToolDesc } from "../../definitions/tool-definitions";
-import { ProjectManager, StandaloneTask, Task } from "../services/project-manager";
+import { Project, ProjectManager, StandaloneTask, Task } from "../services/project-manager";
 import {i18nInstance} from '@deepclaw/i18n';
 import { OneLoopContext } from '../../definitions/definitions';
 import { TaskStepsManager } from '../services/task-steps-manager';
@@ -8,6 +8,7 @@ import { TaskStepsManager } from '../services/task-steps-manager';
 type CreateProjectInput = {
     title: string;
     description: string;
+    priority: Project<Task>['priority'];
     tasks: {
         title: string;
         description: string;
@@ -36,6 +37,11 @@ export const createProjectTool: ToolDesc<CreateProjectInput> = {
                     description: 'A short description of the project, will display to the user.',
                     minLength: 1,
                     maxLength: 100,
+                },
+                priority: {
+                    type: 'string',
+                    enum: ['low', 'medium', 'high', 'urgent'],
+                    description: 'The priority of the project.'
                 },
                 tasks: {
                     type: 'array',
@@ -78,7 +84,7 @@ All steps should be done when task is going to be marked as done.`
                     maxItems: 20,
                 },
             },
-            required: ['title', 'description', 'tasks'],
+            required: ['title', 'description', 'priority', 'tasks'],
         },
     },
     agentMode: ['agent', 'plan'],
@@ -117,6 +123,7 @@ All steps should be done when task is going to be marked as done.`
             id: projectId,
             title: input.title,
             description: input.description,
+            priority: input.priority,
             createdAt: new Date().toISOString(),
             creator: 'main',
             tasks,
