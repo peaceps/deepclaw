@@ -6,8 +6,8 @@ import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings, Chevron
 import { useState } from 'react';
 
 const navItems = [
-  { href: '/tasks/board', label: '任务看板', icon: ClipboardList },
   { href: '/agents', label: '员工', icon: Users },
+  { href: '/tasks', label: '任务看板', icon: ClipboardList },
   { href: '/chat', label: '消息中心', icon: MessageSquare },
   { href: '/org', label: '组织架构', icon: LayoutDashboard },
   { href: '/settings', label: '设置', icon: Settings },

@@ -1,15 +1,15 @@
 'use server';
 
-import {DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, validateCurrentAppConfig, type MissingAppConfig} from '@deepclaw/gateway';
-import {setConfigValid} from './database';
+import {DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig} from '@deepclaw/gateway';
+import { revalidatePath } from 'next/cache';
 
 export async function loadCurrentConfig(): Promise<DeepclawConfig> {
   return loadConfig<DeepclawConfig>();
 }
 
 export async function saveConfig(config: DeepclawConfig): Promise<void> {
-  await writeAppConfig(config);
-  setConfigValid(true);
+  writeAppConfig(config);
+  revalidatePath('/', 'layout');
 }
 
 type ValidationError = {
@@ -25,6 +25,7 @@ export type ValidationResult = {
     affectedAgents: number;
     agentIndices: number[];
   };
+  panelState: {[key: string]: boolean};
 };
 
 const validationMessageMapping: {[key: string]: string} = {
@@ -65,9 +66,20 @@ function transformValidationErrors(missingConfigs: MissingAppConfig): Validation
     }
   }
   const summary = getValidationSummary(errors);
+  const panelState: {[key: string]: boolean} = {};
+  if (summary.uiErrorCount > 0) {
+    panelState.ui = true;
+  }
+  if (summary.agentErrorCount > 0) {
+    panelState.agents = true;
+  }
+  summary.agentIndices.forEach(idx => {
+    panelState[`agents.${idx}`] = true;
+  });
   return {
     errors,
-    summary
+    summary,
+    panelState
   };
 
   function tryAddValidationError(key: string, parentKey?: string, i?: number): void {

@@ -10,22 +10,17 @@ export async function validateAndFixCurrentConfig(
     const appConfig = validateCurrentAppConfig(headless);
     if (appConfig.lacks.length > 0) {
         await handleAgentEvent(APP_CONFIG_EVENTS['hint']!);
-        // const agentsIndex = appConfig.lacks.indexOf('agents');
-        // if (agentsIndex !== -1) {
-        //     appConfig.config.agents = [{
-        //         standaloneTask: 'transient',
-        //         llm: {}
-        //     } as DeepclawConfig['agents'][0]];
-        //     appConfig.lacks.splice(agentsIndex, 1, {
-        //         agents: {
-        //             0: ['name', 'mode', 'headlessEnabled', 'llm.provider', 'llm.baseUrl', 'llm.apiKey', 'llm.model']
-        //         }
-        //     });
-        // }
-        // const agentsLack = appConfig.lacks.find(lack => typeof lack === 'object')?.agents;
-        // if (agentsLack) {
-        //     Object.values(agentsLack).forEach(lack => lac)
-        // }
+        const agentsIndex = appConfig.lacks.indexOf('agents');
+        if (agentsIndex !== -1) {
+            const agent = {standaloneTask: 'transient', llm: {}} as DeepclawConfig['agents'][0];
+            const missing = ['name', 'mode', 'llm.provider', 'llm.baseUrl', 'llm.apiKey', 'llm.model'];
+            if (headless) {
+                agent.im = {} as DeepclawConfig['agents'][0]['im'];
+                missing.push('im.engine', 'im.appId', 'im.secret');
+            }
+            appConfig.config.agents = [agent];
+            appConfig.lacks.splice(agentsIndex, 1, { agents: { 0: missing } });
+        }
         await ensureAppConfig(headless, appConfig, handleAgentEvent);
     }
     ensureBasicFiles();
@@ -38,15 +33,6 @@ async function ensureAppConfig(
 ) {
     for (const lack of lacks) {
         if (typeof lack === 'string') {
-            if (lack === 'agents') {
-                config.agents.push({standaloneTask: 'transient', llm: {}} as DeepclawConfig['agents'][0]);
-                lacks.push({
-                    agents: {
-                        0: ['name', 'mode', 'llm.provider', 'llm.baseUrl', 'llm.apiKey', 'llm.model']
-                    }
-                });
-                continue;
-            }
             const event = APP_CONFIG_EVENTS[lack]!;
             const answer = await handleAgentEvent(event);
             setConfigValue(config, lack, answer);
@@ -65,8 +51,10 @@ async function ensureAppConfig(
                     for (const subLack of subLacks) {
                         const event = APP_CONFIG_EVENTS[`${key}.${subLack}`]!;
                         const answer = await handleAgentEvent(event);
-                        setConfigValue(subConfig, subLack, answer);
-                        if (subLack === 'headlessEnabled' && subConfig.headlessEnabled) {
+                        if (subLack !== 'headlessEnabled') {
+                            setConfigValue(subConfig, subLack, answer);
+                        }
+                        if (subLack === 'headlessEnabled' && answer) {
                             subConfig.im = {} as DeepclawConfig['agents'][0]['im'];
                             for (const key of ['engine', 'appId', 'secret']) {
                                 const event = APP_CONFIG_EVENTS[`agents.im.${key}`]!;

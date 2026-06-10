@@ -71,9 +71,8 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
     return target;
 }
 
-export function validateCurrentAppConfig(headless: boolean): {config: DeepclawConfig, lacks: MissingAppConfig} {
-    const result = validateAppConfig(headless, currentDeepclawConfig);
-    return result;
+export function validateCurrentAppConfig(headless: boolean, reload = false): {config: DeepclawConfig, lacks: MissingAppConfig} {
+    return validateAppConfig(headless, reload ? loadAppConfig() : currentDeepclawConfig);
 }
 
 export function validateAppConfig(headless: boolean, configToValidate: Partial<DeepclawConfig>): {config: DeepclawConfig, lacks: MissingAppConfig} {

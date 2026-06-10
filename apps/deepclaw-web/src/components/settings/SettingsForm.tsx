@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { DeepclawConfig } from '@deepclaw/gateway';
 import { languageOptions } from '@/lib/config';
 import { Save, Plus, Bot, Globe } from 'lucide-react';
 import { AgentSettingsCard } from './AgentSettingsCard';
-import {validateConfig, ValidationResult} from '@/server/configs';
+import {validateConfig, type ValidationResult} from '@/server/configs';
 import {DeepExpandablePanel} from '@/laf/deep-expandable-panel';
 import {DeepSelect} from '@/laf/deep-select';
 import {SettingsError} from './SettingsError';
@@ -14,16 +14,15 @@ type AgentConfig = NonNullable<DeepclawConfig['agents'][0]>;
 type IMConfig = NonNullable<AgentConfig['im']>;
 type LLMConfig = AgentConfig['llm'];
 
-export function SettingsForm({ initialConfig, onSave }: {
+export function SettingsForm({ initialConfig, initialValidation, onSave }: {
   initialConfig: DeepclawConfig;
+  initialValidation: ValidationResult;
   onSave: (config: DeepclawConfig) => void;
 }) {
   const [config, setConfig] = useState<DeepclawConfig>(initialConfig);
-  const [panelToggleStatus, setPanelToggleStatus] = useState<{[key: string]: boolean}>({});
   const [savedMessage, setSavedMessage] = useState<string>('');
-  const [validationResult, setValidationResult] = useState<ValidationResult>({errors: [], summary: {
-    uiErrorCount: 0, agentErrorCount: 0, affectedAgents: 0, agentIndices: []
-  }});
+  const [validationResult, setValidationResult] = useState<ValidationResult>(initialValidation);
+  const [panelToggleStatus, setPanelToggleStatus] = useState<ValidationResult['panelState']>(initialValidation.panelState);
 
   const togglePanel = useCallback((name: string) => {
     setPanelToggleStatus(pre => ({...pre, [name]: !pre[name]}));
@@ -85,37 +84,21 @@ export function SettingsForm({ initialConfig, onSave }: {
     const isInvalid = validationResult.errors.length > 0;
 
     if (isInvalid) {
-      const summary = validationResult.summary;
-      setPanelToggleStatus(prev => {
-        if (summary.uiErrorCount > 0) {
-          prev['ui'] = true;
-        }
-        if (summary.agentErrorCount > 0) {
-          prev['agents'] = true;
-        }
-        summary.agentIndices.forEach(idx => {
-          prev[`agents.${idx}`] = true;
-        })
-        return {...prev};
-      })
+        setPanelToggleStatus(prev => ({...prev, ...validationResult.panelState}));
     }
     return isInvalid;
   }, []);
 
-  const handleSave = useCallback(async () => {
-    const isInvalid = await validate(config);
+  const handleSave = useCallback(async (cfg: DeepclawConfig) => {
+    const isInvalid = await validate(cfg);
     if (isInvalid) {
-      return;
+        return;
     }
 
-    onSave(config);
+    onSave(cfg);
     setSavedMessage('设置已保存');
     setTimeout(() => setSavedMessage(''), 3000);
-  }, [config, onSave]);
-
-  useEffect(() => {
-    validate(config);
-  }, []);
+  }, [onSave, validate]);
 
   const uiLangError = validationResult.errors.find(e => e.field === 'ui.lang');
   const agentsError = validationResult.errors.find(e => e.field === 'agents');
@@ -130,7 +113,7 @@ export function SettingsForm({ initialConfig, onSave }: {
       <SettingsError validationResult={validationResult}/>
 
       <div className="mb-6 flex items-center gap-4">
-        <button onClick={handleSave} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+        <button onClick={() => handleSave(config)} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
           <Save size={20} />
           保存设置
         </button>
@@ -194,7 +177,7 @@ export function SettingsForm({ initialConfig, onSave }: {
       </div>
 
       <div className="mt-8 flex items-center gap-4">
-        <button onClick={handleSave} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+        <button onClick={() => handleSave(config)} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
           <Save size={20} />
           保存设置
         </button>

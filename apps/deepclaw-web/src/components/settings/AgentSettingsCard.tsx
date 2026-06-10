@@ -15,7 +15,7 @@ import {
   standaloneTaskOptions,
   llmProviderOptions,
 } from '@/lib/config';
-import { ValidationResult } from '@/server/configs';
+import { type ValidationResult } from '@/server/configs';
 import {DeepSelect} from '@/laf/deep-select';
 import {DeepInput} from '@/laf/deep-input';
 import {DeepSwitch} from '@/laf/deep-switch';

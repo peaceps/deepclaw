@@ -1,6 +1,7 @@
+'use client';
 import {ChangeEvent} from 'react';
 
-type DeepSelectProps = {
+type DeepSwitchProps = {
     label: string;
     value: boolean;
     onSwitch: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void;
@@ -12,7 +13,7 @@ export function DeepSwitch({
     value,
     onSwitch,
     Icon
-}: DeepSelectProps) {
+}: DeepSwitchProps) {
 
     return (
         <div className="flex items-center justify-between">
