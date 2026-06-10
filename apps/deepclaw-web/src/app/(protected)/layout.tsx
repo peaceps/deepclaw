@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { validateCurrentAppConfig } from '@deepclaw/gateway';
+import { validateCurrentAppConfig } from '@deepclaw/config';
 
 let valid = false;
 

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { Task, Message, Project, AgentEmployee } from '@/types';
-import { fakeMessages } from '@/data/fakeData';
 
 interface AppState {
   agents: AgentEmployee[];
@@ -27,7 +26,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   agents: [],
   projects: [],
-  messages: fakeMessages,
+  messages: [],
   selectedAgentId: null, // 默认选中第一个员工
   selectedProjectId: null, // 默认选中第一个项目
 

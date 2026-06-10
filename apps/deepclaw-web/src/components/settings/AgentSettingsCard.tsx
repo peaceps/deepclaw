@@ -8,7 +8,7 @@ import {
   MessageSquare,
   Trash2,
 } from 'lucide-react';
-import { DeepclawConfig } from '@deepclaw/gateway';
+import { DeepclawConfig } from '@deepclaw/config';
 import {
   imEngineOptions,
   agentModeOptions,

@@ -6,7 +6,7 @@ import { AgentDetail } from '@/components/agent/AgentDetail';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { useAppStore } from '@/lib/store';
 import { ChevronLeft, ChevronRight, MessageSquare, ArrowLeft } from 'lucide-react';
-import { AgentEmployee } from '@deepclaw/gateway';
+import { AgentEmployee } from '@deepclaw/loop-gateway';
 
 type MobileView = 'list' | 'detail' | 'chat';
 

@@ -1,9 +1,10 @@
 import { initReactI18next } from 'react-i18next';
 import { mergeResources, init } from '@deepclaw/i18n';
-import { DEFAULT_LANG, loadConfig } from '@deepclaw/config';
 import { en } from './en';
 import { zh } from './zh';
 
 mergeResources({en, zh});
 
-init(loadConfig<string>('ui.lang'), DEFAULT_LANG, initReactI18next);
+export function initI18n(lang: string, defaultLang: string) {
+  init(lang, defaultLang, initReactI18next);
+}

@@ -2,7 +2,7 @@
 
 import { useAppStore } from '@/lib/store';
 import { AgentCard } from './AgentCard';
-import { AgentEmployee } from '@deepclaw/gateway';
+import { AgentEmployee } from '@deepclaw/loop-gateway';
 
 interface AgentListProps {
   agents: AgentEmployee[];

@@ -22,7 +22,7 @@
 	},
 	"dependencies": {
 		"@deepclaw/core": "workspace:*",
-		"@deepclaw/gateway": "workspace:*",
+		"@deepclaw/loop-gateway": "workspace:*",
 		"@deepclaw/config": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
 		"ink": "7.0.1",

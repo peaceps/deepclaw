@@ -1,7 +1,15 @@
 'use server';
 
-import {DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig} from '@deepclaw/gateway';
+import {
+    DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig,
+    type MissingAppConfig, DEFAULT_LANG
+} from '@deepclaw/config';
 import { revalidatePath } from 'next/cache';
+
+export async function getLang(): Promise<string[]> {
+  const lang = loadConfig<string>('ui.lang');
+  return [lang, DEFAULT_LANG];
+}
 
 export async function loadCurrentConfig(): Promise<DeepclawConfig> {
   return loadConfig<DeepclawConfig>();

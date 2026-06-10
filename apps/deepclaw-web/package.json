@@ -15,10 +15,13 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@deepclaw/gateway": "workspace:*",
+		"@deepclaw/loop-gateway": "workspace:*",
+		"@deepclaw/i18n": "workspace:*",
+		"@deepclaw/config": "workspace:*",
 		"next": "16.2.6",
 		"react": "19.2.5",
 		"react-dom": "19.2.5",
+		"react-i18next": "17.0.8",
 		"zustand": "5.0.13",
         "lucide-react": "1.16.0"
 	},

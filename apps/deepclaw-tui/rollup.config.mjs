@@ -17,7 +17,7 @@ export default {
     '@deepclaw/i18n',
     '@deepclaw/core',
     '@deepclaw/config',
-    '@deepclaw/gateway',
+    '@deepclaw/loop-gateway',
     'ink',
     'react',
     'react-i18next',

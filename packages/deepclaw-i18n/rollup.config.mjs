@@ -16,7 +16,6 @@ export default [
       /^node:/,
       // CJS packages: bundling breaks default import interop; leave to Node at runtime.
       'i18next',
-      '@deepclaw/config',
     ],
 
     plugins: [

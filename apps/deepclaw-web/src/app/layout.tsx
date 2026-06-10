@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { RootLayout } from "@/components/layout/RootLayout";
+import { getLang } from "@/server/configs";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,18 +19,21 @@ export const metadata: Metadata = {
   description: "把每个 Agent 视为公司里的真实员工",
 };
 
-export default function Layout({
+const langPromise = getLang();
+
+export default async function Layout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+    children: React.ReactNode;
 }>) {
+  const [lang, defaultLang] = await langPromise;
   return (
     <html
       lang="zh-CN"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-screen flex overflow-hidden">
-        <RootLayout>{children}</RootLayout>
+        <RootLayout lang={lang} defaultLang={defaultLang}>{children}</RootLayout>
       </body>
     </html>
   );

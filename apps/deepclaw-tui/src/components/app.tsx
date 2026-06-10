@@ -3,7 +3,7 @@ import { Box, Static, useApp } from 'ink';
 import { i18nInstance } from '@deepclaw/i18n';
 import { AgentInteractionEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/config';
-import {LoopGateway} from '@deepclaw/gateway';
+import {LoopGateway} from '@deepclaw/loop-gateway';
 import {HistoryLine, type HistoryItem} from './history';
 import {StaticContext, STATIC_CONTEXT_DEFAULT} from '../hooks/static-context';
 import {UserChat} from './user-chat';

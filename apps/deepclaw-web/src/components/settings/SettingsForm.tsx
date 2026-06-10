@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { DeepclawConfig } from '@deepclaw/gateway';
+import { DeepclawConfig } from '@deepclaw/config';
 import { languageOptions } from '@/lib/config';
 import { Save, Plus, Bot, Globe } from 'lucide-react';
 import { AgentSettingsCard } from './AgentSettingsCard';
@@ -9,6 +9,7 @@ import {validateConfig, type ValidationResult} from '@/server/configs';
 import {DeepExpandablePanel} from '@/laf/deep-expandable-panel';
 import {DeepSelect} from '@/laf/deep-select';
 import {SettingsError} from './SettingsError';
+import { useTranslation } from 'react-i18next';
 
 type AgentConfig = NonNullable<DeepclawConfig['agents'][0]>;
 type IMConfig = NonNullable<AgentConfig['im']>;
@@ -19,6 +20,7 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
   initialValidation: ValidationResult;
   onSave: (config: DeepclawConfig) => void;
 }) {
+  const {t} = useTranslation();
   const [config, setConfig] = useState<DeepclawConfig>(initialConfig);
   const [savedMessage, setSavedMessage] = useState<string>('');
   const [validationResult, setValidationResult] = useState<ValidationResult>(initialValidation);
@@ -106,8 +108,8 @@ export function SettingsForm({ initialConfig, initialValidation, onSave }: {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">系统设置</h1>
-        <p className="text-gray-500 mt-1">配置 DeepClaw 的各项参数</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('pages.settings.title')}</h1>
+        <p className="text-gray-500 mt-1">{t('pages.settings.description')}</p>
       </div>
 
       <SettingsError validationResult={validationResult}/>

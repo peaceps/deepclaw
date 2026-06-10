@@ -1,6 +1,6 @@
 'use server';
 
-import { LoopGateway } from '@deepclaw/gateway';
+import { LoopGateway } from '@deepclaw/loop-gateway';
 
 export async function invoke(input: string): Promise<string> {
   try {

@@ -1,14 +1,8 @@
 import i18n, { Module } from 'i18next';
-import {DEFAULT_LANG, loadConfig} from '@deepclaw/config';
 
 const locales = {
     en: {translation: {}},
     zh: {translation: {}}
-}
-
-let lang = loadConfig<string>('ui.lang');
-if (!(lang in locales)) {
-  lang = DEFAULT_LANG;
 }
 
 export function mergeResources(resources: Record<string, any>): void {
@@ -17,12 +11,12 @@ export function mergeResources(resources: Record<string, any>): void {
     });
 }
 
-export function init(middleware?: Module) {
+export function init(lng: string, defaultLng: string, middleware?: Module) {
     const mid = middleware ? i18n.use(middleware) : i18n;
     mid.init({
         debug: false,
-        lng: lang,
-        fallbackLng: DEFAULT_LANG,
+        lng,
+        fallbackLng: defaultLng,
         interpolation: {
             escapeValue: false, // not needed for react as it escapes by default
         },

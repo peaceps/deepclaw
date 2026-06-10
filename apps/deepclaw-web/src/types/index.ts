@@ -1,4 +1,4 @@
-export { type Task, type Project, type AgentEmployee } from '@deepclaw/gateway';
+export { type Task, type Project, type AgentEmployee } from '@deepclaw/loop-gateway';
 
 export interface Message {
   id: string;

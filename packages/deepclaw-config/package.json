@@ -19,6 +19,7 @@
 	},
 	"dependencies": {
 		"@deepclaw/core": "workspace:*",
+		"@deepclaw/i18n": "workspace:*",
 		"@deepclaw/utils": "workspace:*"
 	},
 	"devDependencies": {

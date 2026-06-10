@@ -8,7 +8,7 @@
         { "path": "./packages/deepclaw-agentmock" },
         { "path": "./packages/deepclaw-utils" },
         { "path": "./packages/deepclaw-i18n" },
-        { "path": "./packages/deepclaw-gateway" },
+        { "path": "./packages/deepclaw-loop-gateway" },
         { "path": "./apps/deepclaw-tui" },
         { "path": "./apps/deepclaw-headless" },
         { "path": "./apps/deepclaw-web" },

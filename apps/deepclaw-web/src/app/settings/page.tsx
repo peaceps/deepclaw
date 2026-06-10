@@ -1,4 +1,4 @@
-import { DeepclawConfig } from '@deepclaw/gateway';
+import { DeepclawConfig } from '@deepclaw/config';
 import SettingsPage from '@/components/settings/SettingsPage';
 import { loadCurrentConfig, saveConfig, validateConfig } from '@/server/configs';
 

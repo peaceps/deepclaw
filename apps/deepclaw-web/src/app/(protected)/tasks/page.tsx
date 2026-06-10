@@ -1,5 +1,5 @@
 import { TaskBoard } from '@/components/tasks/TaskBoard';
-import { LoopGateway } from '@deepclaw/gateway';
+import { LoopGateway } from '@deepclaw/loop-gateway';
 
 export default function BoardPage() {
     const projects = LoopGateway.getProjects();
