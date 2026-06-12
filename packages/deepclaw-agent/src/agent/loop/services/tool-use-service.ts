@@ -2,6 +2,7 @@ import { FileUtils } from '@deepclaw/utils';
 import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions";
 import { type SealedAgentHandler } from '@deepclaw/core';
 import { OneLoopContext } from '../../definitions/definitions';
+import { SESSION_DIR, AGENTS_DIR, TOOL_RESULT_DIR } from '../../paths';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
@@ -16,9 +17,8 @@ export type ToolUseDef = {
     input: unknown;
 }
 
-const TOOL_RESULT_PERSIST_DIR = 'tool_results';
-
 export class ToolUseService {
+    private name: string;
     private parentSessionId: string;
     private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
@@ -28,10 +28,12 @@ export class ToolUseService {
 
     constructor(
         tools: ToolDesc[],
+        name: string,
         parentSessionId: string,
         sessionId: string,
         agentHandler: SealedAgentHandler
     ) {
+        this.name = name;
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
         for (const tool of tools) {
@@ -84,7 +86,8 @@ export class ToolUseService {
             return output;
         }
         const fileName = FileUtils.wrapTimestamp(`${toolUseId}.txt`);
-        const fullPath = FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, TOOL_RESULT_PERSIST_DIR, fileName, output);
+        const fullPath = `${AGENTS_DIR}/${this.name}/${SESSION_DIR}/${this.parentSessionId}/${this.sessionId}/${TOOL_RESULT_DIR}/${fileName}`;
+        FileUtils.writeFile(fullPath, output);
         output = output.slice(0, this.previewChars);
         return `<persisted-output>
         Full output saved to: ${fullPath}

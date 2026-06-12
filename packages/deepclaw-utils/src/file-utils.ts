@@ -1,8 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 
-const SESSION_DIR = '.session';
-
 export class FileUtils {
 
     public static wrapTimestamp(file: string): string {
@@ -42,14 +40,6 @@ export class FileUtils {
         fs.writeFileSync(absolutePath, content, 'utf8');
     }
 
-    public static writeFileToSession(parentSessionId: string, sessionId: string, dirName: string, fileName: string, content: string): string {
-        const fullPath = path.join(SESSION_DIR, parentSessionId, sessionId, dirName, this.sanitizeFileName(fileName));
-        const absolutePath = this.getAbsolutePath(fullPath);
-        this.ensureFolderExist(absolutePath);
-        fs.writeFileSync(absolutePath, content, 'utf8');
-        return fullPath;
-    }
-
     public static isPathInWorkspace(filePath: string): boolean {
         let workspacePath = this.getAbsolutePath(process.cwd());
         let targetPath = this.getAbsolutePath(filePath);
@@ -76,6 +66,13 @@ export class FileUtils {
 
     private static getAbsolutePath(relativePath: string): string {
         return this.formatSlash(path.isAbsolute(relativePath) ? relativePath : path.resolve(relativePath));
+    }
+
+    public static ensureFileExist(filePath: string): void {
+        const absolutePath = this.getAbsolutePath(filePath);
+        if (!fs.existsSync(absolutePath)) {
+            this.writeFile(absolutePath, '');
+        }
     }
 
     private static ensureFolderExist(pathStr: string): void {

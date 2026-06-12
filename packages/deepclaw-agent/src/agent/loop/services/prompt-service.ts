@@ -4,8 +4,7 @@ import { DeepclawConfig, loadConfig } from '@deepclaw/config';
 import { FileUtils } from '@deepclaw/utils';
 import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
-
-const IDENTITY_FILE = 'DEEPCLAW.md';
+import { DEEPCLAW_MD } from '../../paths';
 
 const LANG_MAP: {[k: string]: string} = {
     en: 'English',
@@ -19,7 +18,7 @@ export class PromptService {
     private static thoughtsPrompt: string = this.thoughts();
     private static mainIdentityPrompt: {loop: string, subloop: string} = this.mainIdentity();
 
-    public static provideSystemPrompt(isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): string {
+    public static provideSystemPrompt(name:string, isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): string {
         return `
 # Platform
 ${this.platformPrompt}
@@ -40,7 +39,7 @@ ${this.agentMode(agentMode)}
 ${this.project(agentMode)}
 
 # Memory
-${this.memory()}
+${this.memory(name)}
 
 # Skills
 ${this.availableSkills()}`;
@@ -59,7 +58,7 @@ and completing tasks via tools. Always try your best to help the user and comple
 If you are not sure about what the user wants, ask questions to clarify. 
 Always think step by step and be specific when you answer.`;
         try {
-            commonIdentity = FileUtils.readFile(IDENTITY_FILE);
+            commonIdentity = FileUtils.readFile(DEEPCLAW_MD);
         } catch {
             // TODO handle error
         }
@@ -124,8 +123,8 @@ But you can call tools to write files owned by the agent program itself, such as
         return agentMode === 'chat' ? '' : ProjectManager.prompts(agentMode);
     }
 
-    private static memory(): string {
-        return MemoryManager.getMemoryPrompt();
+    private static memory(name: string): string {
+        return MemoryManager.getMemoryPrompt(name);
     }
 
     private static availableSkills(): string {

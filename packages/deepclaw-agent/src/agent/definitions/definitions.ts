@@ -15,6 +15,7 @@ export type LoopState<I> = {
 }
 
 export type OneLoopContext = {
+    loopName: string;
     turnCount: number;
     transitionReason?: TransitionReason;
     system: string;

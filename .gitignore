@@ -17,6 +17,7 @@ out/
 build/
 
 .projects/
+agents/
 
 apps/*/DEEPCLAW.md
 packages/*/DEEPCLAW.md

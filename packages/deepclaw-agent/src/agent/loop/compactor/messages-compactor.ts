@@ -1,17 +1,18 @@
 import { FileUtils, type Logger } from '@deepclaw/utils';
 import { LLMModel } from '../../llm/llmgw';
 import { FootPrint } from '../../definitions/definitions';
+import { AGENTS_DIR, HISTORY_DIR, SESSION_DIR } from '../../paths';
+import { HISTORY_COMPACT_FILE } from '../../paths';
 
 type HistoryCompactContext = {
     footPrints: FootPrint[];
     count: number;
 }
 
-const HISTORY_DIR = 'history';
-
 export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unknown, unknown>> {
     protected parentSessionId: string;
     protected sessionId: string;
+    protected name: string;
     private llm: LLM;
 
     private maxRecent: number = 20;
@@ -21,8 +22,9 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     private historyThreshold: number = 200000;
     private historyCompactContext: HistoryCompactContext;
 
-    constructor(llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
+    constructor(name: string, llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
         this.llm = llm;
+        this.name = name;
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
         this.historyCompactContext = {
@@ -53,8 +55,9 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     }
 
     private saveHistory(jsonl: string) {
-        const fileName = FileUtils.wrapTimestamp('history_compact.jsonl');
-        FileUtils.writeFileToSession(this.parentSessionId, this.sessionId, HISTORY_DIR, fileName, jsonl);
+        const fileName = FileUtils.wrapTimestamp(HISTORY_COMPACT_FILE);
+        const filePath = `${AGENTS_DIR}/${this.name}/${SESSION_DIR}/${this.parentSessionId}/${this.sessionId}/${HISTORY_DIR}/${fileName}`;
+        FileUtils.writeFile(filePath, jsonl);
     }
 
     private async summarizeHistory(system: string, jsonl: string, logger: Logger): Promise<I> {

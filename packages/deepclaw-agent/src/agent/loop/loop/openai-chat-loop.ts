@@ -14,8 +14,8 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
         return OpenAIChatLLM;
     }
 
-    protected override createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIChatLLM> {
-        return new OpenAIChatMessagesCompactor(this.llm, parentSessionId, sessionId, footPrints);
+    protected override createMessagesCompactor(name: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIChatLLM> {
+        return new OpenAIChatMessagesCompactor(name, this.llm, parentSessionId, sessionId, footPrints);
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {

@@ -40,6 +40,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);
         this.toolUseService = new ToolUseService(
             tools,
+            this.name,
             this.parentSessionId,
             this.sessionId,
             this.agentHandler
@@ -48,7 +49,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             this.agentConfig.llm,
             tools.map(tool => tool.tool)
         ) as LLM;
-        this.messagesCompactor = this.createMessagesCompactor(this.parentSessionId, this.sessionId, this.footPrints);
+        this.messagesCompactor = this.createMessagesCompactor(
+            this.name, this.parentSessionId, this.sessionId, this.footPrints
+        );
     }
 
     protected isSubLoop(): boolean {
@@ -57,13 +60,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
-    protected abstract createMessagesCompactor(parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<I, O, unknown, LLM>;
+    protected abstract createMessagesCompactor(name: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<I, O, unknown, LLM>;
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
+                loopName: this.name,
                 turnCount: 0,
                 system: '',
                 logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
@@ -97,11 +101,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
-                const finalText = i18nInstance.t('agent.maxTurnReached', {finalText: this.extractFinalText(state)});
+                const finalText = i18nInstance.t('agent.maxTurnReached', {
+                    finalText: this.extractFinalText(state)
+                });
                 this.agentHandler.onStreamText(finalText);
                 return finalText;
             }
-            state.oneLoopContext.system = PromptService.provideSystemPrompt(this.isSubLoop(), this.agentConfig.mode);
+            state.oneLoopContext.system = PromptService.provideSystemPrompt(
+                this.name, this.isSubLoop(), this.agentConfig.mode
+            );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 const finalText = this.extractFinalText(state);

@@ -1,6 +1,7 @@
 import { FileUtils } from '@deepclaw/utils';
 import { DeepclawConfig } from '@deepclaw/config';
 import { TaskStepsManager } from './task-steps-manager';
+import { PROJECT_DIR } from '../../paths';
 
 export type Project<T extends Task> = {
     id: string;
@@ -44,8 +45,6 @@ export type Task = {
 export type StandaloneTask = Task & {
     createdAt: string; // for standalone tasks
 }
-
-const PROJECT_DIR = './.projects';
 
 export class ProjectManager {
 

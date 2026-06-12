@@ -1,3 +1,4 @@
+import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { MemoryManager, MemoryType } from "../services/memory-manager";
 
@@ -32,8 +33,8 @@ You can update old memory content via its type and name if you are sure the old 
     agentMode: ['agent', 'plan', 'chat'],
     exclusiveInSubLoop: true,
     parallelSafe: false,
-    invoke: async (input: SaveMemoryInput): Promise<string> => {
-        MemoryManager.addMemory(input);
+    invoke: async (input: SaveMemoryInput, context: OneLoopContext): Promise<string> => {
+        MemoryManager.addMemory(context.loopName, input);
         return 'Memory saved successfully.';
     },
 }

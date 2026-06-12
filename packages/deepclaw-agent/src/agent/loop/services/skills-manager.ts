@@ -1,5 +1,6 @@
 import matter from 'gray-matter';
 import { FileUtils } from '@deepclaw/utils';
+import { SKILL_DIR } from '../../paths';
 
 type SkillManifest = {
     name: string;
@@ -10,8 +11,6 @@ type SkillDocument = {
     manifest: SkillManifest;
     body: string;
 }
-
-const SKILL_DIR = 'skills';
 
 export class SkillsManager {
     private static skills: Map<string, SkillDocument>;

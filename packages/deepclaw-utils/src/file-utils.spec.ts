@@ -35,12 +35,6 @@ describe('FileUtils', () => {
         expect(() => FileUtils.readFile('missing/file.txt')).toThrow('not found');
     });
 
-    test('writeFileToSession writes file under session dir and returns relative path', () => {
-        const relativePath = FileUtils.writeFileToSession('parent', 'session', 'tool_results', 'result.txt', 'ok');
-        expect(relativePath.replace(/\\/g, '/')).toBe('.session/parent/session/tool_results/result.txt');
-        expect(FileUtils.readFile(relativePath)).toBe('ok');
-    });
-
     test('isPathInWorkspace returns true for local path', () => {
         const localPath = path.join(process.cwd(), 'tmp', 'nested', 'note.md');
         expect(FileUtils.isPathInWorkspace(localPath)).toBe(true);

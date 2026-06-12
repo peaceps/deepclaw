@@ -1,4 +1,5 @@
 import {runCommandAsync, FileUtils} from '@deepclaw/utils'
+import { BACKGROUND_COMMANDS_DIR, PROJECT_DIR } from '../../paths';
 
 type BackGroundCommandInfo = {
     id: string;
@@ -18,15 +19,13 @@ export type BackgroundCommand = BackGroundCommandInfo & {
     creator: string;
 };
 
-const OUTPUT_DIR = '.projects/background_commands';
-
 export class BackgroundCommandManager {
     private static completedCommands: string[] = [];
     private static commands: Map<string, BackgroundCommand> = new Map();
     
     public static runCommand(command: BackgroundCommand): void { 
         const id = command.id;
-        command.outputPath = `${OUTPUT_DIR}/${command.projectId}/${command.taskTitle}/${id}.log`;
+        command.outputPath = `${PROJECT_DIR}/${command.projectId}/${command.taskTitle}/${BACKGROUND_COMMANDS_DIR}${id}.log`;
         this.commands.set(id, command);
         runCommandAsync(command.command).then(({ output, preview }) => {
             command.output = output;

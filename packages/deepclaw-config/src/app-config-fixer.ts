@@ -1,7 +1,6 @@
 import {AgentInteractionEvent} from "@deepclaw/core";
 import {DeepclawConfig, MissingAppConfig, validateCurrentAppConfig, writeAppConfig} from "./app-config";
 import {APP_CONFIG_EVENTS} from './app-config-events';
-import { FileUtils } from "@deepclaw/utils";
 
 export async function validateAndFixCurrentConfig(
     handleAgentEvent: (event: AgentInteractionEvent) => Promise<string|boolean|number>,
@@ -23,7 +22,6 @@ export async function validateAndFixCurrentConfig(
         }
         await ensureAppConfig(headless, appConfig, handleAgentEvent);
     }
-    ensureBasicFiles();
 }
 
 async function ensureAppConfig(
@@ -80,9 +78,4 @@ function setConfigValue(target: any, path: string, value: any) {
             current = current[keys[i]!];
         }
     }
-}
-
-function ensureBasicFiles() {
-    FileUtils.copyResource(import.meta.dirname, 'DEEPCLAW.md');
-    FileUtils.copyResource(import.meta.dirname, 'skills');
 }
