@@ -32,8 +32,6 @@ export type DeepclawConfig = {
 
 export type MissingAppConfig = (string|{[key in keyof Partial<DeepclawConfig>]: {[key: number]: string[]}})[];
 
-export const DEFAULT_LANG = 'en';
-
 let currentDeepclawConfig: DeepclawConfig = loadAppConfig();
 
 function loadAppConfig(): DeepclawConfig {

@@ -44,8 +44,12 @@ export const en = {
                         feishu: 'Feishu',
                     },
                 },
-                appId: 'Please enter the App ID:',
-                secret: 'Please enter the Secret:',
+                appId: {
+                    prompt: 'Please enter the App ID:',
+                },
+                secret: {
+                    prompt: 'Please enter the Secret:'
+                },
             },
             llm: {
                 provider: {
@@ -55,9 +59,15 @@ export const en = {
                         anthropic: 'Anthropic',
                     },
                 },
-                baseUrl: 'Please enter the Base URL:',
-                apiKey: 'Please enter the API key:',
-                model: 'Please enter the LLM model name:',
+                baseUrl: {
+                    prompt: 'Please enter the Base URL:'
+                },
+                apiKey: {
+                    prompt: 'Please enter the API key:'
+                },
+                model: {
+                    prompt: 'Please enter the LLM model name:',
+                }
             }
         },
     },

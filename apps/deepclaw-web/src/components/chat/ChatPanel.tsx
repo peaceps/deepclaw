@@ -8,16 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { formatDate } from '../component-utils';
 
 type ChatPanelProps = {
   agent: AgentEmployee;
@@ -28,7 +19,7 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const { messages, addMessage } = useAppStore();
   const agentMessages = messages.filter((m) => m.agentId === agent.id);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -78,7 +69,7 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
                 )}
                 <p className="text-sm">{message.content}</p>
                 <p className={`text-xs mt-1 ${messageTimeStyles[message.type]}`}>
-                  {formatDate(message.timestamp)}
+                  {formatDate(i18n.language, message.timestamp)}
                 </p>
               </div>
             </div>

@@ -1,7 +1,8 @@
 import readline from 'readline/promises';
 import { stdin, stdout } from 'process';
 import { cleanupOnShutdown } from '@deepclaw/utils';
-import { validateAndFixCurrentConfig, DEFAULT_LANG } from '@deepclaw/config';
+import { validateAndFixCurrentConfig } from '@deepclaw/config';
+import { DEFAULT_LANG } from '@deepclaw/i18n';
 import { connectIM, stringifiedInteractionEvent, parseStringifiedAnswer } from '@deepclaw/im';
 import { AgentInteractionEvent } from '@deepclaw/core';
 import {i18nInstance} from '@deepclaw/i18n';

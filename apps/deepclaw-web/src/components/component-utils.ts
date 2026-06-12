@@ -1,4 +1,5 @@
-import { Project, Task } from "@deepclaw/loop-gateway";
+import type { Project, Task } from "@deepclaw/loop-gateway";
+import { LANG_LOCALE_MAP } from "@deepclaw/i18n";
 
 export function getProjectProgress(project?: Project<Task> | null): number | null {
     let progress = null;
@@ -8,4 +9,18 @@ export function getProjectProgress(project?: Project<Task> | null): number | nul
         progress = total > 0 ? (done / total * 100) : 0;
     }
     return progress;
+}
+
+export function formatDate(lang: string, dateStr: string): string {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(getLocale(lang), {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+}
+
+function getLocale(lang: string): string {
+    return LANG_LOCALE_MAP[lang];
 }

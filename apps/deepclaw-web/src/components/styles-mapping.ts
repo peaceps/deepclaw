@@ -41,8 +41,8 @@ export const messageFlexStyles: Record<Message['type'], string> = {
 
 export const messageTextStyles: Record<Message['type'], string> = {
     user: 'bg-blue-500 text-white',
-    agent: 'bg-purple-50 text-purple-700 border border-purple-200',
-    thought: 'jbg-gray-100 text-gray-800'
+    agent: 'bg-gray-100 text-gray-800',
+    thought: 'bg-purple-50 text-purple-700 border border-purple-200'
 };
 
 export const messageTimeStyles: Record<Message['type'], string> = {

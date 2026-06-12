@@ -1,4 +1,5 @@
 import i18n, { Module } from 'i18next';
+import { DEFAULT_LANG } from './locales';
 
 const locales = {
     en: {translation: {}},
@@ -11,12 +12,12 @@ export function mergeResources(resources: Record<string, any>): void {
     });
 }
 
-export function init(lng: string, defaultLng: string, middleware?: Module) {
+export function init(lng: string, middleware?: Module) {
     const mid = middleware ? i18n.use(middleware) : i18n;
     mid.init({
         debug: false,
         lng,
-        fallbackLng: defaultLng,
+        fallbackLng: DEFAULT_LANG,
         interpolation: {
             escapeValue: false, // not needed for react as it escapes by default
         },

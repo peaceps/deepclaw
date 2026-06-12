@@ -1,7 +1,7 @@
 import './i18n';
 
 export {
-    DEFAULT_LANG, type DeepclawConfig, loadConfig, loadAgentConfig,
+    type DeepclawConfig, loadConfig, loadAgentConfig,
     writeAppConfig, validateCurrentAppConfig, validateAppConfig,
     type MissingAppConfig
 } from './app-config';

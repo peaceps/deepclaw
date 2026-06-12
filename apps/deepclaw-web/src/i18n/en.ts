@@ -165,7 +165,7 @@ export const en = {
             mode: {
                 prompt: 'Running mode',
                 options: {
-                    agent: 'Agent (OS operanable)',
+                    agent: 'Agent (OS operable)',
                     plan: 'Plan (Plan for projects rather than doing)',
                     chat: 'Chat (Chat only, no OS operation)',
                 },

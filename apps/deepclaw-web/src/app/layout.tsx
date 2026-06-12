@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { RootLayout } from "@/components/layout/RootLayout";
 import { getLang } from "@/server/configs";
+import { LANG_LOCALE_MAP } from "@deepclaw/i18n";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,16 +27,15 @@ export default async function Layout({
 }: Readonly<{
     children: React.ReactNode;
 }>) {
-  const [lang, defaultLang] = await langPromise;
+  const {lang} = await langPromise;
   return (
     <html
-      lang="zh-CN"
+      lang={LANG_LOCALE_MAP[lang]}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-screen flex overflow-hidden">
         <RootLayout
             lang={lang}
-            defaultLang={defaultLang}
         >{children}</RootLayout>
       </body>
     </html>

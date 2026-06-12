@@ -44,8 +44,12 @@ export const zh = {
                         feishu: '飞书',
                     },
                 },
-                appId: '请输入App ID:',
-                secret: '请输入Secret:',
+                appId: {
+                    prompt: '请输入App ID:',
+                },
+                secret: {
+                    prompt: '请输入Secret:',
+                }
             },
             llm: {
                 provider: {
@@ -55,9 +59,15 @@ export const zh = {
                         anthropic: 'Anthropic',
                     },
                 },
-                baseUrl: '请输入Base URL：',
-                apiKey: '请输入API key：',
-                model: '请输入模型名称：',
+                baseUrl: {
+                    prompt: '请输入Base URL：',
+                },
+                apiKey: {
+                    prompt: '请输入API key：',
+                },
+                model: {
+                    prompt: '请输入模型名称：',
+                },
             }
         },
     },

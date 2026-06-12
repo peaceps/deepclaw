@@ -6,15 +6,14 @@ import { Sidebar } from './Sidebar';
 
 interface RootLayoutProps {
   lang: string;
-  defaultLang: string;
   children: React.ReactNode;
 }
 
-export function RootLayout({ lang, defaultLang, children }: RootLayoutProps) {
+export function RootLayout({ lang, children }: RootLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const i18nInitRef = useRef<boolean | null>(null);
   if (i18nInitRef.current === null) {
-      initI18n(lang, defaultLang);
+      initI18n(lang);
       i18nInitRef.current = true;
   }
 
