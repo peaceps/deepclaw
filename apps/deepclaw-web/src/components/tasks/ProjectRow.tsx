@@ -1,14 +1,8 @@
 import { Project, Task, AgentEmployee } from '@/types';
 import { ChevronDown, ChevronRight, Folder, User, CheckCircle2, Clock } from 'lucide-react';
-import { TaskCard } from './TaskCard';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';
-
-const columns = [
-  { id: 'todo', icon: '📋', title: 'pages.projects.status.todo', color: 'bg-blue-50' },
-  { id: 'ongoing', icon: '🔄', title: 'pages.projects.status.ongoing', color: 'bg-yellow-50' },
-  { id: 'done', icon: '✅', title: 'pages.projects.status.done', color: 'bg-green-50' },
-];
+import { ProjectTasks } from './ProjectTasks';
 
 type ProjectRowProps = {
     project: Project<Task>; agents: AgentEmployee[]; isExpanded: boolean; onToggle: () => void;
@@ -49,34 +43,9 @@ export function ProjectRow({ project, agents, isExpanded, onToggle }: ProjectRow
         </div>
       </div>
       {isExpanded && (
-        <div className="flex flex-col lg:flex-row" style={{ minHeight: '400px' }}>
-          <div className="flex-1 p-4 bg-gray-50/50 overflow-x-auto">
-            {Object.keys(project.tasks).length === 0 ? (
-              <div className="py-8 text-center text-gray-400"><p>{t('pages.projects.project.noTasks')}</p></div>
-            ) : (
-              <div className="flex flex-col lg:flex-row gap-3">
-                {columns.map(column => {
-                  const columnTasks = Object.values(project.tasks).filter(task => task.status === column.id);
-                  return (
-                    <div key={column.id} className={`w-full lg:w-64 ${column.color} rounded-lg p-3 flex-shrink-0`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-gray-800 text-sm">{column.icon} {t(column.title)}</h4>
-                        <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">{columnTasks.length}</span>
-                      </div>
-                      <div className="space-y-2">
-                        {columnTasks.map(task => <TaskCard 
-                            key={task.title} task={task} 
-                            assignee={agents.find(agent => agent.id === task.assignee)}
-                        />)}
-                      </div>
-                      {columnTasks.length === 0 && <div className="text-center py-6 text-gray-400 text-xs">{t('pages.projects.project.noTasksAtStatus')}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div className="border-t lg:border-t-0 lg:border-l border-gray-200">
+        <div className="flex flex-col lg:flex-row border-t border-gray-200" style={{ minHeight: '400px' }}>
+          <ProjectTasks project={project} agents={agents}/>
+          <div className="flex-1 border-t lg:border-t-0 lg:border-l border-gray-200 min-h-140">
             <ChatSidebar
                 from={'project'}
                 agent={agent}

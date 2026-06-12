@@ -5,11 +5,10 @@ import { OpenAIResponseLoop } from './loop/loop/openai-response-loop';
 import { AnthropicLoop } from './loop/loop/anthropic-loop';
 import './loop/hooks/hooks';
 import { FileUtils } from '@deepclaw/utils';
-import { AGENTS_DIR, AGENT_MD, AGENT_SOUL_JSON, DEEPCLAW_MD, SKILL_DIR } from './paths';
-
-ensureBasicFiles();
+import { AGENTS_DIR, AGENT_MD, AGENT_SOUL_JSON } from './paths';
 
 export class LoopInitializer {
+
     public static getLoop(name: string, handler: AgentHandler): FlushAgent {
         this.ensureAgentFiles(name);
         let loopClass: FlushAgentConstructor = this.getLoopClass(name);
@@ -31,9 +30,4 @@ export class LoopInitializer {
         FileUtils.ensureFileExist(`${AGENTS_DIR}/${name}/${AGENT_MD}`);
         FileUtils.ensureFileExist(`${AGENTS_DIR}/${name}/${AGENT_SOUL_JSON}`);
     }
-}
-
-function ensureBasicFiles() {
-    FileUtils.copyResource(import.meta.dirname, DEEPCLAW_MD);
-    FileUtils.copyResource(import.meta.dirname, SKILL_DIR);
 }

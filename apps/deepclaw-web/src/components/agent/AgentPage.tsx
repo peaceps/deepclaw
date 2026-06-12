@@ -5,7 +5,7 @@ import { AgentList } from '@/components/agent/AgentList';
 import { AgentDetail } from '@/components/agent/details/AgentDetail';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { useAppStore } from '@/lib/store';
-import { MessageSquare, ArrowLeft } from 'lucide-react';
+import { MessageSquare, ArrowLeft, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { AgentEmployee, Project, Task } from '@deepclaw/loop-gateway';
 import { useTranslation } from 'react-i18next';
 import { ChatSidebar } from '../chat/ChatSidebar';
@@ -15,6 +15,7 @@ type MobileView = 'list' | 'detail' | 'chat';
 export function AgentPage({agents, projects}: {agents: AgentEmployee[], projects: Project<Task>[]}) {
   const { selectedAgentId, setSelectedAgent } = useAppStore();
   const [mobileView, setMobileView] = useState<MobileView>('list');
+  const [detailCollapsed, setDetailCollapsed] = useState(false);
   const {t} = useTranslation();
 
   useEffect(() => {
@@ -35,8 +36,25 @@ export function AgentPage({agents, projects}: {agents: AgentEmployee[], projects
         </div>
 
         {/* Middle: Agent Detail */}
-        <div className="flex-1 border-r border-gray-200 overflow-hidden">
-          <AgentDetail agent={agent} projects={projects} />
+        <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 transition-all duration-300 h-full ${detailCollapsed ? '' : 'flex-1'}`}>
+          <div className={`flex items-center border-b border-gray-200 bg-gray-50 ${detailCollapsed ? 'flex-col w-12' : 'w-80 lg:w-180 justify-end'} py-3`}>
+            <button
+              onClick={() => setDetailCollapsed(!detailCollapsed)}
+              className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors ${detailCollapsed ? '' : 'mr-2'}`}
+              title={detailCollapsed ? t('common.toggle.expand') : t('common.toggle.collapse')}
+            >
+              {detailCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
+          </div>
+            {detailCollapsed ? (
+              <div className="bg-gray-50 text-gray-400 py-3">
+                <User size={20} />
+              </div>
+            ) : (
+              <div className="flex-1 overflow-hidden">
+                <AgentDetail agent={agent} projects={projects} />
+              </div>
+            )}
         </div>
 
         {/* Right: Chat */}

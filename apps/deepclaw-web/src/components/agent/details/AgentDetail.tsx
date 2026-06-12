@@ -29,7 +29,7 @@ export function AgentDetail({agent, projects}: {agent?: AgentEmployee, projects:
 
   return (
     <div className="h-full overflow-y-auto bg-gray-50">
-      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="p-4 space-y-4 sm:space-y-6">
         {/* Header */}
         <AgentHeader agent={agent} />
 
