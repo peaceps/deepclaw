@@ -12,7 +12,7 @@ type HistoryCompactContext = {
 export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unknown, unknown>> {
     protected parentSessionId: string;
     protected sessionId: string;
-    protected name: string;
+    protected agentId: string;
     private llm: LLM;
 
     private maxRecent: number = 20;
@@ -22,9 +22,9 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     private historyThreshold: number = 200000;
     private historyCompactContext: HistoryCompactContext;
 
-    constructor(name: string, llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
+    constructor(agentId: string, llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
         this.llm = llm;
-        this.name = name;
+        this.agentId = agentId;
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
         this.historyCompactContext = {
@@ -56,7 +56,7 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
 
     private saveHistory(jsonl: string) {
         const fileName = FileUtils.wrapTimestamp(HISTORY_COMPACT_FILE);
-        const filePath = `${AGENTS_DIR}/${this.name}/${SESSION_DIR}/${this.parentSessionId}/${this.sessionId}/${HISTORY_DIR}/${fileName}`;
+        const filePath = `${AGENTS_DIR}/${this.agentId}/${SESSION_DIR}/${this.parentSessionId}/${this.sessionId}/${HISTORY_DIR}/${fileName}`;
         FileUtils.writeFile(filePath, jsonl);
     }
 

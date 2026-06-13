@@ -18,7 +18,7 @@ export type ToolUseDef = {
 }
 
 export class ToolUseService {
-    private name: string;
+    private agentId: string;
     private parentSessionId: string;
     private sessionId: string;
     private toolMap: Map<string, ToolDesc> = new Map();
@@ -28,12 +28,12 @@ export class ToolUseService {
 
     constructor(
         tools: ToolDesc[],
-        name: string,
+        agentId: string,
         parentSessionId: string,
         sessionId: string,
         agentHandler: SealedAgentHandler
     ) {
-        this.name = name;
+        this.agentId = agentId;
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
         for (const tool of tools) {
@@ -86,7 +86,7 @@ export class ToolUseService {
             return output;
         }
         const fileName = FileUtils.wrapTimestamp(`${toolUseId}.txt`);
-        const fullPath = `${AGENTS_DIR}/${this.name}/${SESSION_DIR}/${this.parentSessionId}/${this.sessionId}/${TOOL_RESULT_DIR}/${fileName}`;
+        const fullPath = `${AGENTS_DIR}/${this.agentId}/${SESSION_DIR}/${this.parentSessionId}/${this.sessionId}/${TOOL_RESULT_DIR}/${fileName}`;
         FileUtils.writeFile(fullPath, output);
         output = output.slice(0, this.previewChars);
         return `<persisted-output>

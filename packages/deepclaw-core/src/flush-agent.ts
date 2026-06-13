@@ -1,7 +1,7 @@
 import { AgentInfoEvent, AgentInteractionEvent } from './agent-event';
 
 export type FlushAgentConstructor = new (
-    name: string,
+    agentId: AgentIdentity,
     handler: AgentHandler
 ) => FlushAgent;
 
@@ -21,6 +21,7 @@ export type AgentIdentity = {
   name: string;
   avatar: string;
   role: string;
+  description: string;
   personalities: string[];
   emotion: boolean;
   skills: string[];
@@ -28,8 +29,7 @@ export type AgentIdentity = {
 
 export type AgentStatus = {
   status: 'busy' | 'idle' | 'offline';
-  ownedProjects: string[];
-  mood: 'happy' | 'focused' | 'tired' | 'confused';
+  mood: 'happy' | 'focused' | 'tired' | 'confused' | 'none';
   stats: {
     tasksCompleted: number;
   };

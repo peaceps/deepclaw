@@ -15,7 +15,7 @@ export const en = {
         notReady: 'Coming soon...'
     },
     sidebar: {
-        subtitle: 'Agent Company',
+        subtitle: 'One person many agents Company',
         links: {
             agents: 'Agents',
             tasks: 'Task Board',
@@ -72,7 +72,6 @@ export const en = {
             mobile: {
                 returnToList: 'Return to list',
                 returnToDetail: 'Return to detail',
-                selectAgent: 'Please select an Agent',
             }
         },
         projects: {
@@ -105,9 +104,9 @@ export const en = {
             },
             thinking: 'Thinking...',
             send: 'Send message to {{name}}...',
-            welcome: {
-                title: 'Welcome',
-                description: 'Select one Agent to start a chat',
+            noAgent: {
+                title: '😔 Sorry',
+                description: 'This Agent seems to be lost...',
             }
         },
         settings: {
@@ -150,10 +149,10 @@ export const en = {
         },
         manager: {
             name: {
-                prompt: '管理员昵称'
+                prompt: 'Manager nickname'
             },
             title: {
-                prompt: '管理员职位'
+                prompt: 'Manager title'
             }
         },
         ui: {

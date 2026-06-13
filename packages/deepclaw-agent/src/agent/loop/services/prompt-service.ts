@@ -18,7 +18,7 @@ export class PromptService {
     private static thoughtsPrompt: string = this.thoughts();
     private static mainIdentityPrompt: {loop: string, subloop: string} = this.mainIdentity();
 
-    public static provideSystemPrompt(name:string, isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): string {
+    public static provideSystemPrompt(agentId: string, isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): string {
         return `
 # Platform
 ${this.platformPrompt}
@@ -39,7 +39,7 @@ ${this.agentMode(agentMode)}
 ${this.project(agentMode)}
 
 # Memory
-${this.memory(name)}
+${this.memory(agentId)}
 
 # Skills
 ${this.availableSkills()}`;
@@ -89,7 +89,7 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
     private static thoughts(): string {
 //         return `You can add your own thoughts and comments about the task as well as your emotions and feelings.
 // It's not something talked to the user, but can help you think and make you more real.
-// For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
+// For example, "the task is boring", "I'm feeling tired", "the agent {agentId} can do better", etc.
 // You can wrap them in <thought> tag.`;
         return '';
     }
@@ -123,8 +123,8 @@ But you can call tools to write files owned by the agent program itself, such as
         return agentMode === 'chat' ? '' : ProjectManager.prompts(agentMode);
     }
 
-    private static memory(name: string): string {
-        return MemoryManager.getMemoryPrompt(name);
+    private static memory(agentId: string): string {
+        return MemoryManager.getMemoryPrompt(agentId);
     }
 
     private static availableSkills(): string {

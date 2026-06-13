@@ -14,7 +14,7 @@ import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
-    private name: string;
+    private agentIdentity: AgentIdentity;
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
     protected parentSessionId: string;
@@ -26,21 +26,21 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private agentConfig: DeepclawConfig['agents'][0];
 
     constructor(
-        name: string,
+        agentIdentity: AgentIdentity,
         handler: AgentHandler,
         history: I[] = [],
         parentSessionId: string = '',
     ) {
         super(handler);
-        this.name = name;
-        this.agentConfig = loadAgentConfig(name);
+        this.agentIdentity = agentIdentity;
+        this.agentConfig = loadAgentConfig(agentIdentity.id);
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
         const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);
         this.toolUseService = new ToolUseService(
             tools,
-            this.name,
+            this.agentIdentity.id,
             this.parentSessionId,
             this.sessionId,
             this.agentHandler
@@ -50,7 +50,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             tools.map(tool => tool.tool)
         ) as LLM;
         this.messagesCompactor = this.createMessagesCompactor(
-            this.name, this.parentSessionId, this.sessionId, this.footPrints
+            this.agentIdentity.id, this.parentSessionId, this.sessionId, this.footPrints
         );
     }
 
@@ -60,14 +60,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
-    protected abstract createMessagesCompactor(name: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<I, O, unknown, LLM>;
+    protected abstract createMessagesCompactor(agentId: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<I, O, unknown, LLM>;
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
-                loopName: this.name,
+                agentId: this.agentIdentity.id,
                 turnCount: 0,
                 system: '',
                 logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
@@ -108,7 +108,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 return finalText;
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
-                this.name, this.isSubLoop(), this.agentConfig.mode
+                this.agentIdentity.id, this.isSubLoop(), this.agentConfig.mode
             );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
@@ -203,24 +203,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
 
-    // TODO test will remove
     public getIdentity(): AgentIdentity {
-        return {
-            id: 'main',
-            avatar: '🐳',
-            name: 'main',
-            role: '全栈攻城狮',
-            personalities: ['严谨', '高效', '追求完美'],
-            emotion: true,
-            skills: ['React', 'Node.js', 'Python', '数据库设计'],
-        };
+        return this.agentIdentity;
     }
 
     public createSubLoop(fork?: boolean): LoopAgent<I, O, LLM> {
         if (this.isSubLoop()) {
             throw new Error('Sub-loop cannot create a sub-loop');
         }
-        return this.newSubLoop(this.name, {
+        return this.newSubLoop(this.agentIdentity, {
             onStreamText: () => {},
             onToolText: (content: string) => this.agentHandler.onToolText(content),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
@@ -229,7 +220,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     }
 
     protected abstract newSubLoop(
-        name: string,
+        agentId: AgentIdentity,
         subLoopAgentHandler: AgentHandler,
         history: I[],
         parentSessionId: string,

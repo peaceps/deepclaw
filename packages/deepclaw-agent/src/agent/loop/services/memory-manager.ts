@@ -39,14 +39,14 @@ export class MemoryManager {
     private static loadMemories(): Map<string, Map<string, Map<string, Memory>>> {
         const memoriesMap = new Map<string, Map<string, Map<string, Memory>>>();
         for (const agent of loadConfig<DeepclawConfig['agents']>('agents')) {
-            memoriesMap.set(agent.name, this.loadMemoriesForAgent(agent.name));
+            memoriesMap.set(agent.id, this.loadMemoriesForAgent(agent.id));
         }
         return memoriesMap;
     }
 
-    private static loadMemoriesForAgent(name: string): Map<string, Map<string, Memory>> {
+    private static loadMemoriesForAgent(agentId: string): Map<string, Map<string, Memory>> {
         const memories: Map<string, Map<string, Memory>> = new Map();
-        const files = FileUtils.readDir(`${this.getMemoryDir(name)}`, (file: string) => file === MEMORY_INDEX_FILE ? '' : file);
+        const files = FileUtils.readDir(`${this.getMemoryDir(agentId)}`, (file: string) => file === MEMORY_INDEX_FILE ? '' : file);
         for (const fileContent of Object.values(files)) {
             try {
                 const {data, content} = matter(fileContent.replace(/\r\n/g, '\n'));
@@ -75,20 +75,20 @@ export class MemoryManager {
 
     private static generateMemoryPrompt(): Record<string, string> {
         const memoryPrompt: Record<string, string> = {};
-        for (const name of this.allMemories.keys()) {
-            memoryPrompt[name] = this.generateMemoryPromptForAgent(name);
+        for (const agentId of this.allMemories.keys()) {
+            memoryPrompt[agentId] = this.generateMemoryPromptForAgent(agentId);
         }
         return memoryPrompt;
     }
 
-    private static generateMemoryPromptForAgent(name: string): string {
+    private static generateMemoryPromptForAgent(agentId: string): string {
         let prompt = `${MEMORY_PROMPT}\n\n`;
         prompt += '# Memories (persistent across sessions)\n\n';
-        if (!this.allMemories.get(name)?.size) {
+        if (!this.allMemories.get(agentId)?.size) {
             prompt += '(none on disk yet)\n';
             return prompt;
         }
-        const agentMemories = this.allMemories.get(name)!;
+        const agentMemories = this.allMemories.get(agentId)!;
         for (const type of Array.from(agentMemories.keys())) {
             prompt += `## ${type}\n\n`;
             const memories = Array.from(agentMemories.get(type)!.values());
@@ -100,12 +100,12 @@ export class MemoryManager {
         return prompt;
     }
 
-    public static getMemoryPrompt(name: string): string {
-        return this.memoryPrompt[name] || '';
+    public static getMemoryPrompt(agentId: string): string {
+        return this.memoryPrompt[agentId] || '';
     }
 
-    public static addMemory(name: string, memory: Omit<Memory, 'datetime'>): void {
-        const agentMemories = this.allMemories.get(name);
+    public static addMemory(agentId: string, memory: Omit<Memory, 'datetime'>): void {
+        const agentMemories = this.allMemories.get(agentId);
         if (!agentMemories) return;
         const datetime = new Date().toISOString();
         if (!agentMemories.has(memory.type)) {
@@ -124,13 +124,13 @@ export class MemoryManager {
             description: memory.description,
             datetime,
         });
-        FileUtils.writeFile(`${this.getMemoryDir(name)}/${memory.name}.md`, md);
-        this.rewriteIndex(name);
-        this.memoryPrompt[name] = this.generateMemoryPromptForAgent(name);
+        FileUtils.writeFile(`${this.getMemoryDir(agentId)}/${memory.name}.md`, md);
+        this.rewriteIndex(agentId);
+        this.memoryPrompt[agentId] = this.generateMemoryPromptForAgent(agentId);
     }
 
-    private static rewriteIndex(name: string): void {
-        const agentMemories = this.allMemories.get(name);
+    private static rewriteIndex(agentId: string): void {
+        const agentMemories = this.allMemories.get(agentId);
         if (!agentMemories) return;
         let index = '';
         for (const type of Array.from(agentMemories.keys())) {
@@ -140,10 +140,10 @@ export class MemoryManager {
                 m => `Type: ${type} -> Name: ${m.name} -> Description: ${m.description?.slice(0, MEMORY_INDEX_LINE_LENGTH) || ''}`
             ).join('\n');
         }
-        FileUtils.writeFile(`${this.getMemoryDir(name)}/${MEMORY_INDEX_FILE}`, index);
+        FileUtils.writeFile(`${this.getMemoryDir(agentId)}/${MEMORY_INDEX_FILE}`, index);
     }
 
-    private static getMemoryDir(name: string): string {
-        return `${AGENTS_DIR}/${name}/${MEMORY_DIR}`;
+    private static getMemoryDir(agentId: string): string {
+        return `${AGENTS_DIR}/${agentId}/${MEMORY_DIR}`;
     }
 }

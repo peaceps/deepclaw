@@ -15,7 +15,7 @@ export const zh = {
         notReady: '功能开发中...'
     },
     sidebar: {
-        subtitle: 'Agent公司',
+        subtitle: '一人多Agent公司',
         links: {
             agents: '员工',
             tasks: '任务看板',
@@ -72,7 +72,6 @@ export const zh = {
             mobile: {
                 returnToList: '返回列表',
                 returnToDetail: '返回详情',
-                selectAgent: '请先选择Agent',
             }
         },
         projects: {
@@ -105,9 +104,9 @@ export const zh = {
             },
             thinking: '思考中',
             send: '给 {{name}} 发消息...',
-            welcome: {
-                title: '欢迎使用',
-                description: '从左侧选择Agent开始对话',
+            noAgent: {
+                title: '😔 非常遗憾',
+                description: '这个Agent好像已经不在了...',
             }
         },
         settings: {
@@ -147,6 +146,14 @@ export const zh = {
         error: {
             input: '{{name}}不能为空',
             select: '请选择{{name}}'
+        },
+        manager: {
+            name: {
+                prompt: '管理员昵称'
+            },
+            title: {
+                prompt: '管理员头衔'
+            }
         },
         ui: {
             lang: {
