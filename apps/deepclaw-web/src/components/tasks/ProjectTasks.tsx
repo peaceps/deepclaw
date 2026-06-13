@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Notebook } from 'lucide-react';
-import { AgentEmployee, Project, Task } from '@deepclaw/loop-gateway';
+import { Project, Task } from '@deepclaw/loop-gateway';
+import { AgentEmployee } from "@deepclaw/core";
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
 

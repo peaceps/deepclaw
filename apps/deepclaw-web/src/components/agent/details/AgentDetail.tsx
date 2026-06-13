@@ -1,13 +1,14 @@
 'use client';
 
-import { AgentEmployee, Project, Task } from '@/types';
+import type { Project, Task } from '@deepclaw/loop-gateway';
+import type { AgentEmployee } from '@deepclaw/core';
 import {
   Users,
 } from 'lucide-react';
 import { AgentHeader } from './AgentDetailHeader';
 import { AgentDetailPersonality } from './AgentDetailPersonality';
 import { AgentDetailSkills } from './AgentDetailSkills';
-import { AgentDetailWorkStyle } from './AgentDetailWorkStyle';
+import { AgentDetailWorkStatus } from './AgentDetailWorkStatus';
 import { useTranslation } from 'react-i18next';
 
 export function AgentDetail({agent, projects}: {agent?: AgentEmployee, projects: Project<Task>[]}) {
@@ -40,7 +41,7 @@ export function AgentDetail({agent, projects}: {agent?: AgentEmployee, projects:
         </div>
 
         {/* Work Style */}
-        <AgentDetailWorkStyle projects={projects} agent={agent} />
+        <AgentDetailWorkStatus projects={projects} agent={agent} />
       </div>
     </div>
   );

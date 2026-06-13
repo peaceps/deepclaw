@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentEmployee } from '@/types';
+import { AgentEmployee } from "@deepclaw/core";
 import { statusColors } from '../styles-mapping';
 
 type ChatHeaderProps = {

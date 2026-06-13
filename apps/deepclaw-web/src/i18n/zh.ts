@@ -28,7 +28,7 @@ export const zh = {
         agents: {
             noSelection: {
                 title: '请选择一个Agent查看详情',
-                description: '从左侧列表中选择一个Agent员工，查看其角色设定、性格特点和工作方式',
+                description: '从左侧列表中选择一个Agent员工，查看其角色设定、性格特点和工作状态',
             },
             mood: {
                 happy: '心情不错',
@@ -61,8 +61,8 @@ export const zh = {
                     skills: '技能',
                     area: '专业领域',
                 },
-                workStyle: {
-                    title: '工作方式',
+                workStatus: {
+                    title: '工作状态',
                     currentProject: '当前项目',
                     noProject: '暂无进行中的项目',
                     workCharacteristics: '工作特点',

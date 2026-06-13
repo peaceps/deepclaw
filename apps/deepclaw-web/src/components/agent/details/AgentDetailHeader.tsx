@@ -1,6 +1,6 @@
-import { AgentEmployee } from "@deepclaw/loop-gateway";
+import { AgentEmployee } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
-import { Briefcase, Building2, CheckCircle2 } from "lucide-react";
+import { Briefcase, CheckCircle2 } from "lucide-react";
 import { moodEmojis, statusColors, statusTexts } from "../../styles-mapping";
 
 export function AgentHeader({ agent }: { agent: AgentEmployee }) {
@@ -32,10 +32,6 @@ export function AgentHeader({ agent }: { agent: AgentEmployee }) {
               <span className="flex items-center gap-1.5">
                 <Briefcase size={14} className="sm:w-4 sm:h-4" />
                 {agent.role}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Building2 size={14} className="sm:w-4 sm:h-4" />
-                {agent.department}
               </span>
             </div>
   

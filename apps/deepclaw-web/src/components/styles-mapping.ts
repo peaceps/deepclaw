@@ -1,4 +1,6 @@
-import { AgentEmployee, Message, Project, Task } from "@/types";
+import { Message } from "./chat/message-type";
+import { AgentEmployee } from "@deepclaw/core";
+import type { Project, Task } from "@deepclaw/loop-gateway";
 
 export const moodEmojis: Record<AgentEmployee['mood'], string> = {
     happy: '😊',

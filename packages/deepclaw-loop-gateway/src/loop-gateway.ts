@@ -1,7 +1,6 @@
 import crypto from "crypto";
-import { type FlushAgent, type AgentHandler, type AgentIdentity } from "@deepclaw/core";
+import { type FlushAgent, type AgentHandler, type AgentIdentity, type AgentEmployee } from "@deepclaw/core";
 import { LoopInitializer, type Project, ProjectManager, StandaloneTask, type Task } from "@deepclaw/agent";
-import { AgentEmployee } from "./loop-identity";
 
 export class LoopGateway {
     private static instance: LoopGateway;
@@ -74,13 +73,12 @@ export class LoopGateway {
             id: agent.id,
             name: agent.name,
             role: agent.role,
-            personality: agent.personality,
+            personalities: agent.personalities,
+            emotion: true,
             skills: agent.skills,
-            expertise: agent.expertise,
             
-            avatar: '🦐',
-            department: '技术部',
-            status: 'busy',
+            avatar: agent.avatar,
+            status: 'idle',
             ownedProjects: [],
             mood: 'focused',
             stats: {

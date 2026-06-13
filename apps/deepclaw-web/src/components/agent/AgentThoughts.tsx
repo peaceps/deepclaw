@@ -1,4 +1,4 @@
-import { AgentEmployee } from "@deepclaw/loop-gateway";
+import { AgentEmployee } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
 
 // TODO test only

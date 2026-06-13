@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import { Task, Message, Project, AgentEmployee } from '@/types';
+import { Task, Project } from '@deepclaw/loop-gateway';
+import { AgentEmployee } from "@deepclaw/core";
+import { Message } from '@/components/chat/message-type';
 
 interface AppState {
   agents: AgentEmployee[];

@@ -28,7 +28,7 @@ export const en = {
         agents: {
             noSelection: {
                 title: 'Please select an Agent to view details',
-                description: 'Select an Agent from the left list to view its role setting, personality traits and work style',
+                description: 'Select an Agent from the left list to view its role setting, personality traits and work status',
             },
             mood: {
                 happy: 'Happy',
@@ -61,8 +61,8 @@ export const en = {
                     skills: 'Skills',
                     area: 'Professional Area',
                 },
-                workStyle: {
-                    title: 'Work Style',
+                workStatus: {
+                    title: 'Work Status',
                     currentProject: 'Current Project',
                     noProject: 'No project ongoing',
                     workCharacteristics: 'Work Characteristics',

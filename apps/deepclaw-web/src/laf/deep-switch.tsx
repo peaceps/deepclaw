@@ -2,15 +2,19 @@
 import {ChangeEvent} from 'react';
 import { useTranslation } from 'react-i18next';
 
+const DEFAULT_FONT = 'font-semibold text-gray-900';
+
 type DeepSwitchProps = {
     label: string;
+    labelFont?: string;
     value: boolean;
     onSwitch: (e: ChangeEvent<HTMLInputElement, HTMLInputElement>) => void;
-    Icon: React.ComponentType<{ size?: number; className?: string }>;
+    Icon?: React.ComponentType<{ size?: number; className?: string }>;
 }
 
 export function DeepSwitch({
     label,
+    labelFont,
     value,
     onSwitch,
     Icon
@@ -19,8 +23,8 @@ export function DeepSwitch({
 
     return (
         <div className="flex items-center justify-between">
-            <h5 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                <Icon size={16} className="text-gray-400" />
+            <h5 className={`text-sm ${labelFont ? labelFont : DEFAULT_FONT} flex items-center gap-2`}>
+                {Icon && <Icon size={16} className="text-gray-400" /> }
                 {t(label)}
             </h5>
             <label className="relative inline-flex items-center cursor-pointer">

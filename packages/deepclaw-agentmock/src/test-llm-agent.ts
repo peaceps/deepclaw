@@ -5,13 +5,10 @@ export class TestLlmAgent extends FlushAgent {
         return {
             id: 'test',
             name: 'test',
-            personality: {
-                traits: [],
-                communicationStyle: "formal",
-                emotionExpression: false
-            },
+            role: '',
+            personalities: [],
+            emotion: false,
             skills: [],
-            expertise: []
         };
     }
 

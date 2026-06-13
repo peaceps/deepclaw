@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentEmployee } from '@deepclaw/loop-gateway';
+import { AgentEmployee } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { invoke } from '@/server/loop';
 import { useState } from 'react';

@@ -2,7 +2,8 @@
 
 import { CheckCircle2, Clock} from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { AgentEmployee, Project, Task } from '@/types';
+import type { Project, Task } from '@deepclaw/loop-gateway';
+import type { AgentEmployee } from '@deepclaw/core';
 import {ProjectRow} from './ProjectRow';
 import { useTranslation } from 'react-i18next';
 

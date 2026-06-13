@@ -19,15 +19,23 @@ export type SealedAgentHandler = AgentHandler & {
 export type AgentIdentity = {
   id: string;
   name: string;
-  role?: string;
-  personality: {
-    traits: string[];
-    communicationStyle: 'formal' | 'casual' | 'friendly';
-    emotionExpression: boolean;
-  };
-  skills?: string[];
-  expertise?: string[];
+  avatar: string;
+  role: string;
+  personalities: string[];
+  emotion: boolean;
+  skills: string[];
 }
+
+export type AgentStatus = {
+  status: 'busy' | 'idle' | 'offline';
+  ownedProjects: string[];
+  mood: 'happy' | 'focused' | 'tired' | 'confused';
+  stats: {
+    tasksCompleted: number;
+  };
+}
+
+export type AgentEmployee = AgentIdentity & AgentStatus;
 
 export abstract class FlushAgent {
     protected agentHandler: AgentHandler;

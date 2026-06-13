@@ -68,10 +68,10 @@ export class FileUtils {
         return this.formatSlash(path.isAbsolute(relativePath) ? relativePath : path.resolve(relativePath));
     }
 
-    public static ensureFileExist(filePath: string): void {
+    public static ensureFileExist(filePath: string, content: string = ''): void {
         const absolutePath = this.getAbsolutePath(filePath);
         if (!fs.existsSync(absolutePath)) {
-            this.writeFile(absolutePath, '');
+            this.writeFile(absolutePath, content);
         }
     }
 

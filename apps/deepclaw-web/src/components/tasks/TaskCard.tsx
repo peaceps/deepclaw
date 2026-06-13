@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Task, AgentEmployee } from '@/types';
+import type { Task } from '@deepclaw/loop-gateway';
+import type { AgentEmployee } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
 import {priorityTexts, priorityStyles} from '../styles-mapping';

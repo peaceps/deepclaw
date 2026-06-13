@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AgentEmployee } from "@deepclaw/loop-gateway";
+import { AgentEmployee } from "@deepclaw/core";
 import {AgentThoughts} from './AgentThoughts';
 
 type TooltipProps = {

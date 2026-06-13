@@ -1,4 +1,4 @@
-import { AgentEmployee } from "@/types";
+import { AgentEmployee } from "@deepclaw/core";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {moodEmojis} from '../styles-mapping';
@@ -62,7 +62,6 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
               <p className="text-sm text-gray-500">{agent.role}</p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-sm">{moodEmojis[agent.mood]}</span>
-                <span className="text-xs text-gray-400">{agent.department}</span>
               </div>
             </div>
           </div>
@@ -93,12 +92,12 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
           <div className="mb-3">
             <p className="text-xs text-gray-500 mb-1">{t('pages.agents.details.personality.title')}</p>
             <div className="flex flex-wrap gap-1">
-              {agent.personality.traits.map((trait) => (
+              {agent.personalities.map((personality) => (
                 <span
-                  key={trait}
+                  key={personality}
                   className="text-xs px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full"
                 >
-                  {trait}
+                  {personality}
                 </span>
               ))}
             </div>
@@ -109,7 +108,7 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
             <div className="flex items-start gap-2">
               <span className="text-lg">💬</span>
               <p className="text-sm text-gray-700 italic">
-                &quot;{t('common.iam', {name: agent.name, skills: agent.expertise?.join('/') || t('common.all')})}&quot;
+                &quot;{t('common.iam', {name: agent.name, skills: agent.skills.join('/') || t('common.all')})}&quot;
               </p>
             </div>
           </div>

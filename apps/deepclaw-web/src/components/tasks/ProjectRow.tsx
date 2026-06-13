@@ -1,4 +1,5 @@
-import { Project, Task, AgentEmployee } from '@/types';
+import type { Project, Task } from '@deepclaw/loop-gateway';
+import type { AgentEmployee } from '@deepclaw/core';
 import { ChevronDown, ChevronRight, Folder, User, CheckCircle2, Clock } from 'lucide-react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';

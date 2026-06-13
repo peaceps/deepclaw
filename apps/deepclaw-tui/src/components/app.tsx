@@ -43,7 +43,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
                 handleLlmDone(`${t('common.error')} ${err.message?.trim() || t('common.unexpected')}`);
             }, 0);
         });
-    }, [handleLlmDone]);
+    }, [t, handleLlmDone]);
 
     const handleAgentEvent = useCallback((event: AgentInteractionEvent): Promise<string> => {
         setAgentEvent(event);
@@ -56,7 +56,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
                 resolve(choice);
             });
         });
-    }, []);
+    }, [i18n]);
 
     const envConfigReady = useConfig(handleAgentEvent);
 

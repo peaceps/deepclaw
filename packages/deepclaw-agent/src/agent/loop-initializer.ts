@@ -28,6 +28,6 @@ export class LoopInitializer {
 
     private static ensureAgentFiles(name: string) {
         FileUtils.ensureFileExist(`${AGENTS_DIR}/${name}/${AGENT_MD}`);
-        FileUtils.ensureFileExist(`${AGENTS_DIR}/${name}/${AGENT_SOUL_JSON}`);
+        FileUtils.ensureFileExist(`${AGENTS_DIR}/${name}/${AGENT_SOUL_JSON}`, '{}');
     }
 }

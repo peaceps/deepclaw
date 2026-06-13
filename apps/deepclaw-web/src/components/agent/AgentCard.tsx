@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { AgentEmployee, Project, Task } from '@/types';
+import type { Project, Task } from '@deepclaw/loop-gateway';
+import type { AgentEmployee } from '@deepclaw/core';
+
 import { statusColors, statusTexts, moodEmojis } from '../styles-mapping';
 import { useTranslation } from 'react-i18next';
 import { AgentTooltip } from './AgentTooltip';
@@ -49,7 +51,6 @@ export function AgentCard({ project, agent, isSelected, onClick }: AgentCardProp
               <span className="text-sm">{moodEmojis[agent.mood]}</span>
             </div>
             <p className="text-sm text-gray-500">{agent.role}</p>
-            <p className="text-xs text-gray-400 mt-1">{agent.department}</p>
           </div>
         </div>
 

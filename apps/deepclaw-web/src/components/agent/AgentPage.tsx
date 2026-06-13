@@ -6,7 +6,8 @@ import { AgentDetail } from '@/components/agent/details/AgentDetail';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { useAppStore } from '@/lib/store';
 import { MessageSquare, ArrowLeft, ChevronLeft, ChevronRight, User } from 'lucide-react';
-import { AgentEmployee, Project, Task } from '@deepclaw/loop-gateway';
+import { Project, Task } from '@deepclaw/loop-gateway';
+import type { AgentEmployee } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { ChatSidebar } from '../chat/ChatSidebar';
 

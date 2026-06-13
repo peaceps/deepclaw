@@ -17,7 +17,7 @@ export function UserChat({
     const {t, i18n} = useTranslation();
     const soupLength = useMemo(() => i18n.getResourceBundle(
         i18n.resolvedLanguage || DEFAULT_LANG, 'translation'
-    )?.soup?.length || 0, []);
+    )?.soup?.length || 0, [i18n]);
 
     const crypted = !seed ? Math.floor(initSeed * soupLength) : seed;
     const soup = t(`soup.${crypted % soupLength}`);

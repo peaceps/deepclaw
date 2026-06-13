@@ -207,15 +207,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     public getIdentity(): AgentIdentity {
         return {
             id: 'main',
+            avatar: '🐳',
             name: 'main',
             role: '全栈攻城狮',
-            personality: {
-                traits: ['严谨', '高效', '追求完美'],
-                communicationStyle: 'friendly',
-                emotionExpression: true
-            },
+            personalities: ['严谨', '高效', '追求完美'],
+            emotion: true,
             skills: ['React', 'Node.js', 'Python', '数据库设计'],
-            expertise: ['Web开发', '系统架构'],
         };
     }
 

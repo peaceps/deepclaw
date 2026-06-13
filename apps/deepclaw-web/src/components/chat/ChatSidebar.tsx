@@ -2,7 +2,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { MessageSquare } from "lucide-react";
-import { AgentEmployee } from '@deepclaw/loop-gateway';
+import { AgentEmployee } from "@deepclaw/core";
 import { ChatPanel } from './ChatPanel';
 
 type ChatSidebarProps = {

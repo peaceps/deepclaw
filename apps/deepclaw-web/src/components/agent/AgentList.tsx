@@ -2,7 +2,8 @@
 
 import { useAppStore } from '@/lib/store';
 import { AgentCard } from './AgentCard';
-import { AgentEmployee, Project, Task } from '@deepclaw/loop-gateway';
+import type { Project, Task } from '@deepclaw/loop-gateway';
+import type { AgentEmployee } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 
 interface AgentListProps {
