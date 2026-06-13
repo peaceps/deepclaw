@@ -9,16 +9,17 @@ import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
+import { type LoopStore } from "@deepclaw/loop-gateway";
 
 type ChatPanelProps = {
   agent: AgentEmployee;
-  from: 'agent' | 'project';
+  from: keyof LoopStore;
 };
 
 export function ChatPanel({ agent, from }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const { messages, addMessage } = useAppStore();
-  const agentMessages = messages.filter((m) => m.agentId === agent.id);
+  const agentMessages = messages.filter((m) => m.agentId === agent?.id);
   const { t, i18n } = useTranslation();
 
   const handleSend = async () => {
@@ -27,23 +28,31 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
     setInput('');
     addMessage({
         id: Date.now().toString(),
-        agentId: agent.id,
+        agentId: agent!.id,
         content: trimmed,
         type: 'user',
         timestamp: new Date().toISOString(),
     });
-    const response = await invoke(trimmed);
+    const response = await invoke(from, agent!.id, trimmed);
     addMessage({
         id: (Date.now() + 1).toString(),
-        agentId: agent.id,
+        agentId: agent!.id,
         content: response,
         type: 'agent',
         timestamp: new Date().toISOString(),
     });
   };
 
+  // TODO if agent is not activated
+  // if (!agent) {
+  //   <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
+  //       <h2 className="text-lg font-semibold text-gray-700 mb-2">{t('pages.chat.noAgent.title')}</h2>
+  //       <p className="text-sm text-center">{t('pages.chat.noAgent.description')}</p>
+  //   </div>
+  // }
+
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white min-h-140">
       {<ChatHeader agent={agent} />}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {agentMessages.length === 0 ? (

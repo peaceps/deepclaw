@@ -13,7 +13,6 @@ export function AgentDetailSkills({ agent }: { agent: AgentEmployee }) {
       <div className="space-y-4">
         {/* 技能 */}
         <div>
-          <label className="text-sm text-gray-500 mb-2 block">{t('pages.agents.details.skills.skills')}</label>
           <div className="flex flex-wrap gap-2">
             {agent.skills?.map((skill) => (
               <TraitBadge key={skill} text={skill} color="blue" />

@@ -1,6 +1,5 @@
 'use client';
 
-import { useAppStore } from '@/lib/store';
 import { AgentCard } from './AgentCard';
 import type { Project, Task } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from '@deepclaw/core';
@@ -13,13 +12,7 @@ interface AgentListProps {
 }
 
 export function AgentList({ projects, agents, onSelect }: AgentListProps) {
-  const { selectedAgentId, setSelectedAgent } = useAppStore();
   const {t} = useTranslation();
-
-  const handleSelect = (agentId: string) => {
-    setSelectedAgent(agentId);
-    onSelect?.();
-  };
 
   return (
     <div className="space-y-3">
@@ -30,8 +23,7 @@ export function AgentList({ projects, agents, onSelect }: AgentListProps) {
             project={projects.find(p => p.creator === agent.id)}
             key={agent.id}
             agent={agent}
-            isSelected={selectedAgentId === agent.id}
-            onClick={() => handleSelect(agent.id)}
+            onSelect={onSelect}
           />
         ))}
       </div>

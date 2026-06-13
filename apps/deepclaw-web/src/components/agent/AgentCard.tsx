@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import type { Project, Task } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from '@deepclaw/core';
+import { useAppStore } from '@/lib/store';
 
 import { statusColors, statusTexts, moodEmojis } from '../styles-mapping';
 import { useTranslation } from 'react-i18next';
@@ -12,19 +13,21 @@ import { AgentCurrentProject } from './AgentCurrentTask';
 type AgentCardProps = {
   project?: Project<Task>;
   agent: AgentEmployee;
-  isSelected?: boolean;
-  onClick?: () => void;
+  onSelect?: () => void;
 }
 
-export function AgentCard({ project, agent, isSelected, onClick }: AgentCardProps) {
+export function AgentCard({ project, agent, onSelect }: AgentCardProps) {
+  const { selectedAgentId, setSelectedAgent } = useAppStore();
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const {t} = useTranslation();
+  const isSelected = selectedAgentId === agent.id
   
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setTooltipVisible(true);
-    onClick?.();
+    // setTooltipVisible(true);
+    setSelectedAgent(agent.id);
+    onSelect?.();
   };
 
   return (

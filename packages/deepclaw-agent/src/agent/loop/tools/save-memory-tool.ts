@@ -34,7 +34,7 @@ You can update old memory content via its type and name if you are sure the old 
     exclusiveInSubLoop: true,
     parallelSafe: false,
     invoke: async (input: SaveMemoryInput, context: OneLoopContext): Promise<string> => {
-        MemoryManager.addMemory(context.loopName, input);
+        MemoryManager.addMemory(context.agentId, input);
         return 'Memory saved successfully.';
     },
 }

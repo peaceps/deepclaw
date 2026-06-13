@@ -3,13 +3,14 @@
 import type { Project, Task } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from '@deepclaw/core';
 import {
-  Users,
+  Users
 } from 'lucide-react';
 import { AgentHeader } from './AgentDetailHeader';
 import { AgentDetailPersonality } from './AgentDetailPersonality';
 import { AgentDetailSkills } from './AgentDetailSkills';
 import { AgentDetailWorkStatus } from './AgentDetailWorkStatus';
 import { useTranslation } from 'react-i18next';
+import { AgentDetailDescription } from './AgentDetailDescription';
 
 export function AgentDetail({agent, projects}: {agent?: AgentEmployee, projects: Project<Task>[]}) {
   const {t} = useTranslation();
@@ -39,6 +40,8 @@ export function AgentDetail({agent, projects}: {agent?: AgentEmployee, projects:
           <AgentDetailPersonality agent={agent} />
           <AgentDetailSkills agent={agent} />
         </div>
+
+        <AgentDetailDescription description={agent.description}/>
 
         {/* Work Style */}
         <AgentDetailWorkStatus projects={projects} agent={agent} />

@@ -14,7 +14,7 @@ export function ProjectRow({ project, agents, isExpanded, onToggle }: ProjectRow
   const inProgressTasks = project.ongoingTasks!.length;
   const completedTasks = project.completedTasks!.length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const agent = agents.find(a => project.creator === a.id);
+  const selectedAgent = agents.find(a => project.creator === a.id);
   const {t} = useTranslation();
 
   return (
@@ -46,11 +46,11 @@ export function ProjectRow({ project, agents, isExpanded, onToggle }: ProjectRow
       {isExpanded && (
         <div className="flex flex-col lg:flex-row border-t border-gray-200" style={{ minHeight: '400px' }}>
           <ProjectTasks project={project} agents={agents}/>
-          <div className="flex-1 border-t lg:border-t-0 lg:border-l border-gray-200 min-h-140">
-            <ChatSidebar
+          <div className="flex-1 border-t lg:border-t-0 lg:border-l border-gray-200">
+            {selectedAgent && <ChatSidebar
                 from={'project'}
-                agent={agent}
-            />
+                agent={selectedAgent}
+            />}
           </div>
         </div>
       )}

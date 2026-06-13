@@ -6,7 +6,7 @@ import { AgentEmployee } from "@deepclaw/core";
 import { ChatPanel } from './ChatPanel';
 
 type ChatSidebarProps = {
-  agent?: AgentEmployee;
+  agent: AgentEmployee;
   from: 'agent' | 'project';
 };
 
@@ -26,17 +26,9 @@ export function ChatSidebar({
             <span className="font-medium text-gray-700">{t(`pages.chat.type.${from}.title`)}</span>
           </div>
       </div>
-      <div className="flex-1 flex flex-col overflow-hidden">{
-          agent ? (
-              <ChatPanel agent={agent} from={from}/>
-          ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
-                  <div className="text-5xl mb-4">👋</div>
-                  <h2 className="text-lg font-semibold text-gray-700 mb-2">{t('pages.chat.welcome.title')}</h2>
-                  <p className="text-sm text-center">{t('pages.chat.welcome.description')}</p>
-              </div>
-          )
-      }</div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+          <ChatPanel agent={agent} from={from}/>
+      </div>
     </div>
   );
 }

@@ -4,8 +4,10 @@ export class TestLlmAgent extends FlushAgent {
     public override getIdentity(): AgentIdentity {
         return {
             id: 'test',
+            avatar: '',
             name: 'test',
             role: '',
+            description: '',
             personalities: [],
             emotion: false,
             skills: [],

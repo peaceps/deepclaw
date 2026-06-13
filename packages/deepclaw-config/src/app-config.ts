@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { FileUtils } from '@deepclaw/utils';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
@@ -12,6 +13,7 @@ export type DeepclawConfig = {
         title: string;
     },
     agents: {
+        id: string;
         name: string;
         im?: {
             engine: 'dingtalk' | 'feishu';
@@ -59,11 +61,16 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
     if (!appConfig.manager) {
         appConfig.manager = {} as DeepclawConfig['manager'];
     }
-    if (typeof appConfig.manager.name !== 'string' || !appConfig.manager.name) {
+    if (!appConfig.manager.name || typeof appConfig.manager.name !== 'string') {
         appConfig.manager.name = 'Deepclaw';
     }
-    if (typeof appConfig.manager.title !== 'string' || !appConfig.manager.title) {
+    if (!appConfig.manager.title || typeof appConfig.manager.title !== 'string' ) {
         appConfig.manager.title = 'CEO';
+    }
+    for (const agent of appConfig.agents ?? []) {
+        if (!agent.id || typeof agent.id !== 'string') {
+            agent.id = crypto.randomUUID();
+        }
     }
 }
 
@@ -181,9 +188,9 @@ export function loadConfig<T>(key?: string, defaultValue?: T): T {
     return (value ?? defaultValue) as T;
 }
 
-export function loadAgentConfig(name: string): DeepclawConfig['agents'][0] {
+export function loadAgentConfig(agentId: string): DeepclawConfig['agents'][0] {
     const agents = loadConfig<DeepclawConfig['agents']>('agents');
-    const agent = agents.find(a => a.name === name);
+    const agent = agents.find(a => a.id === agentId);
     if (!agent) {
         throw new Error('Agent doesn\'t exit!');
     }

@@ -1,5 +1,5 @@
-import { FlushAgent, type AgentHandler, type FlushAgentConstructor } from '@deepclaw/core';
-import { loadAgentConfig } from '@deepclaw/config';
+import { AgentIdentity, FlushAgent, type AgentHandler, type FlushAgentConstructor } from '@deepclaw/core';
+import { DeepclawConfig, loadAgentConfig, loadConfig} from '@deepclaw/config';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop';
 import { OpenAIResponseLoop } from './loop/loop/openai-response-loop';
 import { AnthropicLoop } from './loop/loop/anthropic-loop';
@@ -8,15 +8,28 @@ import { FileUtils } from '@deepclaw/utils';
 import { AGENTS_DIR, AGENT_MD, AGENT_SOUL_JSON } from './paths';
 
 export class LoopInitializer {
+    private static agentMap: Map<string, AgentIdentity> = new Map();
 
-    public static getLoop(name: string, handler: AgentHandler): FlushAgent {
-        this.ensureAgentFiles(name);
-        let loopClass: FlushAgentConstructor = this.getLoopClass(name);
-        return new loopClass(name, handler);
+    static {
+        for (const agent of loadConfig<DeepclawConfig['agents']>('agents')) {
+            this.ensureAgentFiles(agent.id);
+            this.agentMap.set(agent.id, this.loadIdentity(agent.id));
+        }
     }
 
-    private static getLoopClass(name: string): FlushAgentConstructor {
-        const llmConfig = loadAgentConfig(name).llm;
+    public static getAgents(): AgentIdentity[] {
+        return [...this.agentMap.values()];
+    }
+
+    public static getLoop(agentId: string, handler: AgentHandler): FlushAgent {
+        this.ensureAgentFiles(agentId);
+        const identity = this.loadIdentity(agentId);
+        let loopClass: FlushAgentConstructor = this.getLoopClass(agentId);
+        return new loopClass(identity, handler);
+    }
+
+    private static getLoopClass(agentId: string): FlushAgentConstructor {
+        const llmConfig = loadAgentConfig(agentId).llm;
         if (llmConfig.provider === 'openai') {
             return llmConfig.responseApi ? OpenAIResponseLoop : OpenAIChatLoop;
         } else if (llmConfig.provider === 'anthropic') {
@@ -26,8 +39,26 @@ export class LoopInitializer {
         }
     }
 
-    private static ensureAgentFiles(name: string) {
-        FileUtils.ensureFileExist(`${AGENTS_DIR}/${name}/${AGENT_MD}`);
-        FileUtils.ensureFileExist(`${AGENTS_DIR}/${name}/${AGENT_SOUL_JSON}`, '{}');
+    private static ensureAgentFiles(agentId: string) {
+        FileUtils.ensureFileExist(`${AGENTS_DIR}/${agentId}/${AGENT_MD}`);
+        FileUtils.ensureFileExist(`${AGENTS_DIR}/${agentId}/${AGENT_SOUL_JSON}`, '{}');
     }
+
+    private static loadIdentity(agentId: string): AgentIdentity {
+        const identity = {} as AgentIdentity;
+        try {
+            identity.name = loadAgentConfig(agentId).name;
+            const soulContent = FileUtils.readFile(`${AGENTS_DIR}/${agentId}/${AGENT_SOUL_JSON}`);
+            const soul = JSON.parse(soulContent);
+            Object.assign(identity, soul);
+            identity.description = FileUtils.readFile(`${AGENTS_DIR}/${agentId}/${AGENT_MD}`);
+        } catch {
+            // TOOD ignore
+        }
+        return identity;
+    }
+}
+
+export function initAgentsData() {
+    
 }

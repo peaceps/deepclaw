@@ -1,17 +1,29 @@
 import crypto from "crypto";
-import { type FlushAgent, type AgentHandler, type AgentIdentity, type AgentEmployee } from "@deepclaw/core";
+import { type FlushAgent, type AgentHandler, type AgentEmployee } from "@deepclaw/core";
 import { LoopInitializer, type Project, ProjectManager, StandaloneTask, type Task } from "@deepclaw/agent";
 
-export class LoopGateway {
-    private static instance: LoopGateway;
-    private loop: FlushAgent;
-    private subscribers: (() => void)[] = [];
+export type LoopStore = {agent: {[key: string]: FlushAgent}, project: {[key: string]: FlushAgent}};
 
-    public static init(agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): LoopGateway {
-        if (!this.instance) {
-            this.instance = new LoopGateway(agentHandler);
-        }
-        return this.instance;
+export class LoopGateway {
+    
+    private static loops: LoopStore = {
+        agent: {}, project: {}
+    };
+    private static subscribers: (() => void)[] = [];
+    private static defaultHandler: AgentHandler = {
+        onStreamText: () => {},
+        onToolText: () => {},
+        onInteractionEvent: () => Promise.resolve(''),
+        onInfoEvent: () => LoopGateway.subscribers.forEach(cb => cb())
+    };
+
+    public static init(type: keyof LoopStore, agentId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
+        this.loops[type][agentId] = LoopInitializer.getLoop(agentId, {
+            onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
+            onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
+            onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
+            onInfoEvent: this.defaultHandler.onInfoEvent
+        });
     }
 
     public static getProjects(): Project<Task>[] {
@@ -30,7 +42,7 @@ export class LoopGateway {
                 title: t.title,
                 description: '',
                 tasks: {[t.title]: task},
-                creator: 'main',
+                creator: task.creator,
                 priority: task.priority || 'low',
                 canStartTasks: [],
                 ongoingTasks: [],
@@ -50,7 +62,7 @@ export class LoopGateway {
                 title: t.title,
                 description: '',
                 tasks: {[t.title]: task},
-                creator: 'main',
+                creator: task.creator,
                 priority: task.priority || 'low',
                 createdAt: task.createdAt,
                 closedAt: task.closedAt,
@@ -65,62 +77,31 @@ export class LoopGateway {
     }
 
     public static getAgents(): AgentEmployee[] {
-        if (!this.instance) {
-            this.init({});
-        }
-        const agent: AgentIdentity = this.instance.loop.getIdentity();
-        const e: AgentEmployee = {
-            id: agent.id,
-            name: agent.name,
-            role: agent.role,
-            personalities: agent.personalities,
-            emotion: true,
-            skills: agent.skills,
-            
-            avatar: agent.avatar,
-            status: 'idle',
-            ownedProjects: [],
-            mood: 'focused',
+        return LoopInitializer.getAgents().map(agent => ({
+            ...agent,
+            status: 'offline',
+            mood: 'none',
             stats: {
-                tasksCompleted: 128,
-            },
-        };
-        return [e];
+                tasksCompleted: 2
+            }
+        }));
     }
 
     public static subscribe(cb: () => void): () => void {
-        if (!this.instance) {
-            LoopGateway.init({});
-        }
-        this.instance.subscribers.push(cb);
+        this.subscribers.push(cb);
         return () => {
-            const index = this.instance.subscribers.indexOf(cb);
+            const index = this.subscribers.indexOf(cb);
             if (index !== -1) {
-                this.instance.subscribers.splice(index, 1);
+                this.subscribers.splice(index, 1);
             }
         };
     }
 
-    private constructor(agentHandler: Partial<AgentHandler>) {
-        const defaultHandler: AgentHandler = {
-            onStreamText: () => {},
-            onToolText: () => {},
-            onInteractionEvent: () => Promise.resolve(''),
-            onInfoEvent: () => LoopGateway.instance.subscribers.forEach(cb => cb())
-        };
-        this.loop = LoopInitializer.getLoop('main', {
-            onStreamText: agentHandler.onStreamText || defaultHandler.onStreamText,
-            onToolText: agentHandler.onToolText || defaultHandler.onToolText,
-            onInteractionEvent: agentHandler.onInteractionEvent || defaultHandler.onInteractionEvent,
-            onInfoEvent: agentHandler.onInfoEvent || defaultHandler.onInfoEvent
-        });
-    }
-
-    public static invoke(input: string): Promise<string> {
-        if (!this.instance) {
-            LoopGateway.init({});
+    public static invoke(type: keyof LoopStore, agentId: string, input: string): Promise<string> {
+        if (!this.loops[type][agentId]) {
+            this.init(type, agentId, {});
         }
-        return this.instance.loop.invoke(input);
+        return this.loops[type][agentId]!.invoke(input);
     }
 
 }
