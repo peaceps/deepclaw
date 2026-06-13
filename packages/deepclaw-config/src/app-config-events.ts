@@ -7,6 +7,14 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
         type: 'readonly',
         content: 'config.hint'
     },
+    ['manager.name']: {
+        type: 'readonly',
+        content: 'config.manager.name.prompt'
+    },
+    ['manager.title']: {
+        type: 'readonly',
+        content: 'config.manager.title.prompt'
+    },
     ['ui.lang']: {
         key: 'lang',
         type: 'select',

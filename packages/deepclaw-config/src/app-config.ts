@@ -7,6 +7,10 @@ type AgentConfigValue = AgentConfigSingleValue | AgentConfigSingleValue[] | unde
 type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject | ConfigObject[]};
 
 export type DeepclawConfig = {
+    manager: {
+        name: string;
+        title: string;
+    },
     agents: {
         name: string;
         im?: {
@@ -41,13 +45,26 @@ function loadAppConfig(): DeepclawConfig {
     } catch {
         // ignore malformed or missing config file
     }
+    autoMigrate(appConfig);
+    return Object.freeze(appConfig) as DeepclawConfig;
+}
+
+function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
     if (!appConfig.agents) {
         appConfig.agents = [];
     }
     if (!appConfig.ui) {
         appConfig.ui = {} as DeepclawConfig['ui'];
     }
-    return Object.freeze(appConfig) as DeepclawConfig;
+    if (!appConfig.manager) {
+        appConfig.manager = {} as DeepclawConfig['manager'];
+    }
+    if (typeof appConfig.manager.name !== 'string' || !appConfig.manager.name) {
+        appConfig.manager.name = 'Deepclaw';
+    }
+    if (typeof appConfig.manager.title !== 'string' || !appConfig.manager.title) {
+        appConfig.manager.title = 'CEO';
+    }
 }
 
 function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject {
@@ -149,6 +166,7 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
 }
 
 export function writeAppConfig(config: DeepclawConfig) {
+    autoMigrate(config);
     FileUtils.writeFile(APP_CONFIG_FILE, JSON.stringify(config, null, 2));
     currentDeepclawConfig = loadAppConfig();
 }

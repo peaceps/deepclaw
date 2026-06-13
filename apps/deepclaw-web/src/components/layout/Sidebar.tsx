@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { DeepclawConfig } from '@deepclaw/config';
 
 const navItems = [
   { href: '/agents', label: 'sidebar.links.agents', icon: Users },
@@ -15,12 +16,12 @@ const navItems = [
 ];
 
 interface SidebarProps {
-  collapsed: boolean;
-  onToggle: () => void;
+  manager: DeepclawConfig['manager'];
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({manager }: SidebarProps) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const {t} = useTranslation();
 
@@ -91,8 +92,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               👤
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-900">灵长目院士</p>
-              <p className="text-xs text-gray-500">管理员</p>
+              <p className="text-sm font-medium text-gray-900">{manager.name}</p>
+              <p className="text-xs text-gray-500">{manager.title}</p>
             </div>
           </div>
         </div>
@@ -125,7 +126,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}
         {!collapsed && (
           <button
-            onClick={onToggle}
+            onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
             title={t('common.toggle.collapse')}
           >
@@ -138,7 +139,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {collapsed && (
         <div className="p-2 border-b border-gray-100 flex justify-center">
           <button
-            onClick={onToggle}
+            onClick={() => setCollapsed(!collapsed)}
             className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
             title={t('common.toggle.expand')}
           >
@@ -185,8 +186,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               👤
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-900">灵长目院士</p>
-              <p className="text-xs text-gray-500">管理员</p>
+              <p className="text-sm font-medium text-gray-900">{manager.name}</p>
+              <p className="text-xs text-gray-500">{manager.title}</p>
             </div>
           </div>
         ) : (

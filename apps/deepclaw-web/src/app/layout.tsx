@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { RootLayout } from "@/components/layout/RootLayout";
-import { getLang } from "@/server/configs";
-import { LANG_LOCALE_MAP } from "@deepclaw/i18n";
+import { loadCurrentConfig } from "@/server/configs";
+import { LANG_LOCALE_MAP, DEFAULT_LANG } from "@deepclaw/i18n";
+import { DeepclawConfig } from "@deepclaw/config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,14 +21,13 @@ export const metadata: Metadata = {
   description: "把每个 Agent 视为公司里的真实员工",
 };
 
-const langPromise = getLang();
-
 export default async function Layout({
   children,
 }: Readonly<{
     children: React.ReactNode;
 }>) {
-  const {lang} = await langPromise;
+  const lang = await loadCurrentConfig<string>('ui.lang', DEFAULT_LANG);
+  const manager = await loadCurrentConfig<DeepclawConfig['manager']>('manager');
   return (
     <html
       lang={LANG_LOCALE_MAP[lang]}
@@ -36,6 +36,7 @@ export default async function Layout({
       <body className="h-screen flex overflow-hidden">
         <RootLayout
             lang={lang}
+            manager={manager}
         >{children}</RootLayout>
       </body>
     </html>

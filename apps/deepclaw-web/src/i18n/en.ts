@@ -15,7 +15,7 @@ export const en = {
         notReady: 'Coming soon...'
     },
     sidebar: {
-        subtitle: 'DeepClaw AI Agent Management System',
+        subtitle: 'Agent Company',
         links: {
             agents: 'Agents',
             tasks: 'Task Board',
@@ -147,6 +147,14 @@ export const en = {
         error: {
             input: 'Field {{name}} cannot be empty',
             select: 'Please choose value for {{name}}'
+        },
+        manager: {
+            name: {
+                prompt: '管理员昵称'
+            },
+            title: {
+                prompt: '管理员职位'
+            }
         },
         ui: {
             lang: {

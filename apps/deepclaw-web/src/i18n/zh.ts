@@ -15,7 +15,7 @@ export const zh = {
         notReady: '功能开发中...'
     },
     sidebar: {
-        subtitle: 'DeepClaw AI Agent管理系统',
+        subtitle: 'Agent公司',
         links: {
             agents: '员工',
             tasks: '任务看板',

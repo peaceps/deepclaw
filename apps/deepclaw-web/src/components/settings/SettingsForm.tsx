@@ -8,6 +8,7 @@ import { AgentSettingsCard } from './AgentSettingsCard';
 import {validateConfig, type ValidationResult} from '@/server/configs';
 import {DeepExpandablePanel} from '@/laf/deep-expandable-panel';
 import {DeepSelect} from '@/laf/deep-select';
+import {DeepInput} from '@/laf/deep-input';
 import {SettingsError} from './SettingsError';
 import { useTranslation } from 'react-i18next';
 
@@ -36,6 +37,10 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
 
   const updateUIConfig = useCallback((updates: Partial<DeepclawConfig['ui']>) => {
     setConfig((prev) => ({ ...prev, ui: { ...prev.ui, ...updates } }));
+  }, []);
+
+  const updateManagerConfig = useCallback((updates: Partial<DeepclawConfig['manager']>) => {
+    setConfig((prev) => ({ ...prev, manager: { ...prev.manager, ...updates } }));
   }, []);
 
   const addAgent = useCallback(() => {
@@ -132,6 +137,22 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
           description="pages.settings.panels.ui.description"
           Icon={Globe}
         >
+          <div className="p-6 border-t border-gray-200">
+            <DeepInput
+              uiInfo={configEvents['manager.name'] as Extract<AgentInteractionEvent, {type: 'input'}>}
+              value={config.manager.name}
+              placeholder='Deepclaw'
+              onInput={(e) => updateManagerConfig({ name: e.target.value })}
+            />
+          </div>
+          <div className="p-6 border-t border-gray-200">
+            <DeepInput
+              uiInfo={configEvents['manager.title'] as Extract<AgentInteractionEvent, {type: 'input'}>}
+              value={config.manager.title}
+              placeholder='CEO'
+              onInput={(e) => updateManagerConfig({ title: e.target.value })}
+            />
+          </div>
           <div className="p-6 border-t border-gray-200">
             <DeepSelect
               uiInfo={configEvents['ui.lang'] as Extract<AgentInteractionEvent, {type: 'select'}>}
