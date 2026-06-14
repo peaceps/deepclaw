@@ -2,8 +2,10 @@ import {render} from 'ink';
 import '../src/i18n/index';
 import {App, type AppConfig } from '../src/components/app';
 import {i18nInstance} from '@deepclaw/i18n';
+import {TestLlmAgent} from '@deepclaw/agentmock';
 
 const appWrapper: AppConfig = {
+    getAgentClass: () => TestLlmAgent
 };
 
 const {waitUntilExit} = render(<App app={appWrapper}/>);

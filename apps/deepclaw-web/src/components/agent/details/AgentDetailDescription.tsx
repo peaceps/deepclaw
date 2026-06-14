@@ -13,7 +13,7 @@ export function AgentDetailDescription({description}: {description: string}) {
         {/* 技能 */}
         <div>
             <div className="flex flex-wrap gap-2">
-            {description}
+            {description || ''}
             </div>
         </div>
         </div>

@@ -19,7 +19,7 @@ type ChatPanelProps = {
 export function ChatPanel({ agent, from }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const { messages, addMessage } = useAppStore();
-  const agentMessages = messages.filter((m) => m.agentId === agent?.id);
+  const agentMessages = messages.filter((m) => m.agentId === agent.id);
   const { t, i18n } = useTranslation();
 
   const handleSend = async () => {
@@ -28,15 +28,15 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
     setInput('');
     addMessage({
         id: Date.now().toString(),
-        agentId: agent!.id,
+        agentId: agent.id,
         content: trimmed,
         type: 'user',
         timestamp: new Date().toISOString(),
     });
-    const response = await invoke(from, agent!.id, trimmed);
+    const response = await invoke(from, agent.id, trimmed);
     addMessage({
         id: (Date.now() + 1).toString(),
-        agentId: agent!.id,
+        agentId: agent.id,
         content: response,
         type: 'agent',
         timestamp: new Date().toISOString(),
@@ -44,8 +44,8 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
   };
 
   // TODO if agent is not activated
-  // if (!agent) {
-  //   <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
+  // if (agent.fired) {
+  //   return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
   //       <h2 className="text-lg font-semibold text-gray-700 mb-2">{t('pages.chat.noAgent.title')}</h2>
   //       <p className="text-sm text-center">{t('pages.chat.noAgent.description')}</p>
   //   </div>

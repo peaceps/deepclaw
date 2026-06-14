@@ -211,7 +211,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         if (this.isSubLoop()) {
             throw new Error('Sub-loop cannot create a sub-loop');
         }
-        return this.newSubLoop(this.agentIdentity, {
+        return this.newSubLoop(this.createSubLoopIdentity(), {
             onStreamText: () => {},
             onToolText: (content: string) => this.agentHandler.onToolText(content),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
@@ -219,8 +219,21 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         }, fork ? this.history : [], this.sessionId);
     }
 
+    private createSubLoopIdentity(): AgentIdentity {
+        return {
+            id: this.agentIdentity.id,
+            name: `${this.agentIdentity.name}-subloop`,
+            avatar: '',
+            role: 'temp loop',
+            description: 'You are a subloop',
+            personalities: [],
+            emotion: false,
+            skills: []
+        };
+    }
+
     protected abstract newSubLoop(
-        agentId: AgentIdentity,
+        agentIdentity: AgentIdentity,
         subLoopAgentHandler: AgentHandler,
         history: I[],
         parentSessionId: string,

@@ -6,11 +6,13 @@ import { AnthropicLoop } from './loop/loop/anthropic-loop';
 import './loop/hooks/hooks';
 import { FileUtils } from '@deepclaw/utils';
 import { AGENTS_DIR, AGENT_MD, AGENT_SOUL_JSON } from './paths';
+import { ensureBaseFiles } from '../base-file-initializer';
 
 export class LoopInitializer {
     private static agentMap: Map<string, AgentIdentity> = new Map();
 
     static {
+        ensureBaseFiles();
         for (const agent of loadConfig<DeepclawConfig['agents']>('agents')) {
             this.ensureAgentFiles(agent.id);
             this.agentMap.set(agent.id, this.loadIdentity(agent.id));
@@ -52,13 +54,12 @@ export class LoopInitializer {
             const soul = JSON.parse(soulContent);
             Object.assign(identity, soul);
             identity.description = FileUtils.readFile(`${AGENTS_DIR}/${agentId}/${AGENT_MD}`);
-        } catch {
-            // TOOD ignore
+        } catch (err) {
+            throw new Error(
+            `Failed to load identity for agent "${agentId}": ${(err as Error).message}`,
+            { cause: err }
+            );
         }
         return identity;
     }
-}
-
-export function initAgentsData() {
-    
 }

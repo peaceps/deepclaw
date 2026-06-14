@@ -1,7 +1,7 @@
 import { AgentInfoEvent, AgentInteractionEvent } from './agent-event';
 
 export type FlushAgentConstructor = new (
-    agentId: AgentIdentity,
+    agentIdentity: AgentIdentity,
     handler: AgentHandler
 ) => FlushAgent;
 
