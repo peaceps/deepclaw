@@ -89,14 +89,9 @@ export function AgentThoughts({ agent }: { agent: AgentEmployee }) {
           <div className="flex-1">
             <p className="text-sm text-gray-700 font-medium">{text}</p>
             <p className="text-xs text-gray-400 mt-1">
-              {agent.mood === 'happy' && t('pages.agents.mood.happy')}
-              {agent.mood === 'focused' && t('pages.agents.mood.focused')}
-              {agent.mood === 'tired' && t('pages.agents.mood.tired')}
-              {agent.mood === 'confused' && t('pages.agents.mood.confused')}
+              {t(`pages.agents.mood.${agent.mood}`)}
               {' · '}
-              {agent.status === 'busy' && t('pages.agents.status.busy')}
-              {agent.status === 'idle' && t('pages.agents.status.idle')}
-              {agent.status === 'offline' && t('pages.agents.status.offline')}
+              {t(`pages.agents.status.${agent.status}`)}
             </p>
           </div>
         </div>

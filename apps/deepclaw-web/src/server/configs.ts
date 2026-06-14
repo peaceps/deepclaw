@@ -1,8 +1,7 @@
 'use server';
 
 import {
-    DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig,
-    type MissingAppConfig,
+    type DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig,
 } from '@deepclaw/config';
 import { revalidatePath } from 'next/cache';
 

@@ -82,7 +82,10 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
   }, []);
 
   const removeAgent = useCallback((index: number) => {
-    setConfig((prev) => ({ ...prev, agents: prev.agents.filter((_, i) => i !== index) }));
+    setConfig((prev) => ({
+      ...prev,
+      agents: prev.agents.map((agent, i) => i === index ? {...agent, fired: true} : agent)
+    }));
     setPanelToggleStatus(pre => {
       delete pre[`agents.${index}`];
       return {...pre};
@@ -175,7 +178,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
           <div className="p-6 border-t border-gray-200">
             <div className="space-y-4">
               {config.agents.map((agent, index) => (
-                <AgentSettingsCard
+                !agent.fired && <AgentSettingsCard
                   name={`agents.${index}`}
                   expanded={!!panelToggleStatus[`agents.${index}`]}
                   onToggle={togglePanel}

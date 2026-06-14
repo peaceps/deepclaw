@@ -43,13 +43,12 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
     });
   };
 
-  // TODO if agent is not activated
-  // if (agent.fired) {
-  //   return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
-  //       <h2 className="text-lg font-semibold text-gray-700 mb-2">{t('pages.chat.noAgent.title')}</h2>
-  //       <p className="text-sm text-center">{t('pages.chat.noAgent.description')}</p>
-  //   </div>
-  // }
+  if (agent.fired) {
+    return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
+        <h2 className="text-lg font-semibold text-gray-700 mb-2">{t('pages.chat.noAgent.title')}</h2>
+        <p className="text-sm text-center">{t('pages.chat.noAgent.description')}</p>
+    </div>
+  }
 
   return (
     <div className="flex flex-col h-full bg-white min-h-140">

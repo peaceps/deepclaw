@@ -35,6 +35,7 @@ export const en = {
                 focused: 'Focused',
                 tired: 'Tired',
                 confused: 'Confused',
+                none: 'Secret',
             },
             list: {
                 title: 'Agent list'
@@ -45,7 +46,7 @@ export const en = {
             status: {
                 busy: 'Busy',
                 idle: 'Idle',
-                offline: 'Offline',
+                fired: 'Graduated',
             },
             details: {
                 personality: {

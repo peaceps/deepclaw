@@ -5,7 +5,7 @@ import type { Task } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
-import {priorityTexts, priorityStyles} from '../styles-mapping';
+import {priorityStyles} from '../styles-mapping';
 
 type TaskCardProps = {
   task: Task;
@@ -32,7 +32,7 @@ export function TaskCard({ task, assignee }: TaskCardProps) {
         <div className="flex items-start justify-between gap-2">
           <h4 className="font-medium text-gray-900 line-clamp-2 flex-1">{task.title}</h4>
           <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${priorityStyles[task.priority]}`}>
-            {t(priorityTexts[task.priority])}
+            {t(`common.priority.${task.priority}`)}
           </span>
         </div>
 

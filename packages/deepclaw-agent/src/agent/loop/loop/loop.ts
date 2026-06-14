@@ -225,6 +225,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             name: `${this.agentIdentity.name}-subloop`,
             avatar: '',
             role: 'temp loop',
+            fired: false,
             description: 'You are a subloop',
             personalities: [],
             emotion: false,

@@ -1,7 +1,7 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
 import { Briefcase, CheckCircle2 } from "lucide-react";
-import { moodEmojis, statusColors, statusTexts } from "../../styles-mapping";
+import { moodEmojis, statusColors } from "../../styles-mapping";
 
 export function AgentHeader({ agent }: { agent: AgentEmployee }) {
   
@@ -24,7 +24,7 @@ export function AgentHeader({ agent }: { agent: AgentEmployee }) {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{agent.name}</h1>
               <span className="text-xl sm:text-2xl">{moodEmojis[agent.mood]}</span>
               <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium text-white ${statusColors[agent.status]}`}>
-                {t(statusTexts[agent.status])}
+                {t(`pages.agents.status.${agent.status}`)}
               </span>
             </div>
   

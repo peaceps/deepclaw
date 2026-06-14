@@ -49,9 +49,9 @@ export class LoopGateway {
                 completedTasks: [],
             }
             if (task.status === 'todo') {
-                project.canStartTasks!.push(task.title);
+                project.canStartTasks.push(task.title);
             } else if (task.status === 'ongoing') {
-                project.ongoingTasks!.push(task.title);
+                project.ongoingTasks.push(task.title);
             }
             res.push(project);
         });
@@ -70,19 +70,20 @@ export class LoopGateway {
                 ongoingTasks: [],
                 completedTasks: [],
             }
-            project.completedTasks!.push(task.title);
+            project.completedTasks.push(task.title);
             res.push(project);
         });
         return res;
     }
 
     public static getAgents(): AgentEmployee[] {
+        const projects = this.getProjects();
         return LoopInitializer.getAgents().map(agent => ({
             ...agent,
-            status: 'offline',
+            status: agent.fired ? 'fired' : projects.some(p  => p.creator === agent.id && !p.closedAt) ? 'busy' : 'idle',
             mood: 'none',
             stats: {
-                tasksCompleted: 2
+                tasksCompleted: projects.filter(p => p.creator === agent.id && !!p.closedAt).length
             }
         }));
     }

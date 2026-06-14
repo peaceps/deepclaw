@@ -36,7 +36,7 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [visible, onClose]);
   
-    if (!visible) return null;
+    if (!visible || agent.fired) return null;
   
     return (
       <div

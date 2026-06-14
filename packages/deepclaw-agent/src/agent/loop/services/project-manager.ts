@@ -3,6 +3,8 @@ import { DeepclawConfig } from '@deepclaw/config';
 import { TaskStepsManager } from './task-steps-manager';
 import { PROJECT_DIR } from '../../paths';
 
+export type ProjectStatus = 'todo' | 'ongoing' | 'done';
+
 export type Project<T extends Task> = {
     id: string;
     title: string;
@@ -12,9 +14,9 @@ export type Project<T extends Task> = {
     creator: string;
     priority: 'low' | 'medium' | 'high' | 'urgent';
     tasks: Record<string, T>;
-    completedTasks?: string[];
-    ongoingTasks?: string[];
-    canStartTasks?: string[];
+    completedTasks: string[];
+    ongoingTasks: string[];
+    canStartTasks: string[];
 };
 
 export type ProjectListInfo = {
@@ -31,7 +33,7 @@ export type ProjectListInfo = {
 export type Task = {
     title: string;
     description: string;
-    status: 'todo' | 'ongoing' | 'done';
+    status: ProjectStatus;
     priority: 'low' | 'medium' | 'high' | 'urgent';
     blockedBy: string[];
     blocks: string[];
@@ -76,6 +78,7 @@ export class ProjectManager {
                     if (project.id === 'standalone') {
                         this.projects.standalone.persistent = project.tasks;
                     } else {
+                        Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
                         this.projects.projects[project.id] = project;
                     }
                 }
@@ -98,11 +101,31 @@ export class ProjectManager {
             creator: 'main',
             tasks: this.projects.standalone.persistent,
             priority: 'low',
+            ongoingTasks: [],
+            canStartTasks: [],
+            completedTasks: []
         };
         this.saveProjects(standaloneProject);
     }
 
-    public static createProject(project: Project<Task>): Project<Task> {
+    public static createProject({id, title, description, priority, creator, tasks}: {
+        id: string;
+        title: string;
+        description: string;
+        priority: Project<Task>['priority'];
+        creator: string;
+        tasks: Record<string, Task>;
+    }): Project<Task> {
+        const project: Project<Task> = {
+            id,
+            title,
+            description,
+            priority,
+            createdAt: new Date().toISOString(),
+            creator,
+            tasks,
+            ...ProjectManager.calculateProjectTaskInfo(tasks)
+        };
         this.projects.projects[project.id] = project;
         this.saveProjects(project);
         return project;
@@ -146,6 +169,7 @@ export class ProjectManager {
             if (!project.closedAt && Object.values(project.tasks).every(task => task.status === 'done')) {
                 project.closedAt = new Date().toISOString();
             }
+            Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
             this.saveProjects(project);
         } else if (this.projects.standalone.persistent[taskInfo.title]) {
             this.saveStandaloneProject();
@@ -199,12 +223,19 @@ export class ProjectManager {
         if (!project) {
             throw new Error('Project not found.');
         }
+        return project;
+    }
+
+    private static calculateProjectTaskInfo(tasks: Record<string, Task>): {
+        completedTasks: string[];
+        ongoingTasks: string[];
+        canStartTasks: string[];
+    } {
         return {
-            ...project,
-            completedTasks: Object.values(project.tasks).filter(task => task.status === 'done').map(task => task.title),
-            ongoingTasks: Object.values(project.tasks).filter(task => task.status === 'ongoing').map(task => task.title),
-            canStartTasks: Object.values(project.tasks).filter(task => task.status === 'todo' &&
-                task.blockedBy.every(blockedBy => project.tasks[blockedBy]?.status === 'done')).map(task => task.title),
+            completedTasks: Object.values(tasks).filter(task => task.status === 'done').map(task => task.title),
+            ongoingTasks: Object.values(tasks).filter(task => task.status === 'ongoing').map(task => task.title),
+            canStartTasks: Object.values(tasks).filter(task => task.status === 'todo' &&
+                task.blockedBy.every(blockedBy => tasks[blockedBy]?.status === 'done')).map(task => task.title),
         };
     }
 

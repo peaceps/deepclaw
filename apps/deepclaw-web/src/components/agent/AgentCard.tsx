@@ -5,7 +5,7 @@ import type { Project, Task } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from '@deepclaw/core';
 import { useAppStore } from '@/lib/store';
 
-import { statusColors, statusTexts, moodEmojis } from '../styles-mapping';
+import { statusColors, moodEmojis } from '../styles-mapping';
 import { useTranslation } from 'react-i18next';
 import { AgentTooltip } from './AgentTooltip';
 import { AgentCurrentProject } from './AgentCurrentTask';
@@ -59,7 +59,7 @@ export function AgentCard({ project, agent, onSelect }: AgentCardProps) {
 
         <div className="mt-3 flex items-center justify-between text-xs">
           <span className={`px-2 py-1 rounded-full ${statusColors[agent.status].replace('bg-', 'bg-opacity-20 bg-')} text-gray-600`}>
-            {t(statusTexts[agent.status])}
+            {t(`pages.agents.status.${agent.status}`)}
           </span>
           <span className="text-gray-400">
             {t('pages.agents.card.finishedTasks', {count: agent.stats.tasksCompleted})}

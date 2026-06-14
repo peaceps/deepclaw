@@ -35,6 +35,7 @@ export const zh = {
                 focused: '专注工作中',
                 tired: '有点疲惫',
                 confused: '有点迷茫',
+                none: '神秘',
             },
             list: {
                 title: 'Agent列表'
@@ -45,7 +46,7 @@ export const zh = {
             status: {
                 busy: '忙碌',
                 idle: '空闲',
-                offline: '离线',
+                fired: '毕业',
             },
             details: {
                 personality: {

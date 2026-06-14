@@ -4,6 +4,7 @@ import { AgentCard } from './AgentCard';
 import type { Project, Task } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
+import { getProjectStatus } from '../component-utils';
 
 interface AgentListProps {
   agents: AgentEmployee[];
@@ -20,7 +21,7 @@ export function AgentList({ projects, agents, onSelect }: AgentListProps) {
       <div className="space-y-2">
         {agents.map((agent) => (
           <AgentCard
-            project={projects.find(p => p.creator === agent.id)}
+            project={projects.find(p => p.creator === agent.id && getProjectStatus(p) !== 'done')}
             key={agent.id}
             agent={agent}
             onSelect={onSelect}

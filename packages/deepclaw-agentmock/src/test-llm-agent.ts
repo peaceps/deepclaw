@@ -6,6 +6,7 @@ export class TestLlmAgent extends FlushAgent {
             id: 'test',
             avatar: '',
             name: 'test',
+            fired: false,
             role: '',
             description: '',
             personalities: [],

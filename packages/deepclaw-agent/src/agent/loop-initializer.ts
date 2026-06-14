@@ -49,7 +49,9 @@ export class LoopInitializer {
     private static loadIdentity(agentId: string): AgentIdentity {
         const identity = {} as AgentIdentity;
         try {
-            identity.name = loadAgentConfig(agentId).name;
+            const agentConfig = loadAgentConfig(agentId);
+            identity.name = agentConfig.name;
+            identity.fired = !!agentConfig.fired;
             const soulContent = FileUtils.readFile(`${AGENTS_DIR}/${agentId}/${AGENT_SOUL_JSON}`);
             const soul = JSON.parse(soulContent);
             Object.assign(identity, soul);

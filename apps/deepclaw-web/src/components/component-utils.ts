@@ -1,5 +1,12 @@
-import type { Project, Task } from "@deepclaw/loop-gateway";
+import type { Project, Task, ProjectStatus } from "@deepclaw/loop-gateway";
 import { LANG_LOCALE_MAP } from "@deepclaw/i18n";
+
+export function getProjectStatus(project: Project<Task>): ProjectStatus {
+    if (!project.closedAt) {
+        return !project.ongoingTasks.length ? 'todo' : 'ongoing';
+    }
+    return 'done';
+}
 
 export function getProjectProgress(project?: Project<Task> | null): number | null {
     let progress = null;

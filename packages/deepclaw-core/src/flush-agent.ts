@@ -19,6 +19,7 @@ export type SealedAgentHandler = AgentHandler & {
 export type AgentIdentity = {
   id: string;
   name: string;
+  fired: boolean;
   avatar: string;
   role: string;
   description: string;
@@ -28,7 +29,7 @@ export type AgentIdentity = {
 }
 
 export type AgentStatus = {
-  status: 'busy' | 'idle' | 'offline';
+  status: 'busy' | 'idle' | 'fired';
   mood: 'happy' | 'focused' | 'tired' | 'confused' | 'none';
   stats: {
     tasksCompleted: number;

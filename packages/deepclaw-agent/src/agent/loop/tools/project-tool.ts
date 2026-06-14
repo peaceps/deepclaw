@@ -91,7 +91,7 @@ All steps should be done when task is going to be marked as done.`
     parallelSafe: false,
     outputToUser: false,
     exclusiveInSubLoop: true,
-    invoke: async function(input: CreateProjectInput): Promise<string> {
+    invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
         const projectId = crypto.randomUUID();
         const tasks: Record<string, Task> = input.tasks.reduce((p, n) => {
             if (p[n.title]) {
@@ -102,8 +102,8 @@ All steps should be done when task is going to be marked as done.`
                 description: n.description,
                 priority: n.priority,
                 status: 'todo',
-                creator: 'main',
-                assignee: 'main',
+                creator: context.agentId,
+                assignee: context.agentId,
                 blockedBy: n.blockedBy || [],
                 blocks: [],
             };
@@ -124,8 +124,7 @@ All steps should be done when task is going to be marked as done.`
             title: input.title,
             description: input.description,
             priority: input.priority,
-            createdAt: new Date().toISOString(),
-            creator: 'main',
+            creator: context.agentId,
             tasks,
         });
         return `Project created successfully.
@@ -189,8 +188,8 @@ All steps should be done when task is going to be marked as done.`
             priority: input.priority,
             status: 'todo',
             createdAt: new Date().toISOString(),
-            creator: 'main',
-            assignee: 'main',
+            creator: context.agentId,
+            assignee: context.agentId,
             blockedBy: [],
             blocks: [],
         };
@@ -361,7 +360,7 @@ type GetStandaloneTaskDetailInput = {
     title: string;
 };
 
-export const getStandaloneTaskInfoTool: ToolDesc<GetStandaloneTaskDetailInput> = {
+export const getStandaloneTaskDetailTool: ToolDesc<GetStandaloneTaskDetailInput> = {
     tool: {
         name: 'get_standalone_task_detail',
         description: 'Get the detailed information of a standalone task with its title.',

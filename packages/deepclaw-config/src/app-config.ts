@@ -15,6 +15,7 @@ export type DeepclawConfig = {
     agents: {
         id: string;
         name: string;
+        fired?: boolean;
         im?: {
             engine: 'dingtalk' | 'feishu';
             appId: string;
@@ -111,6 +112,9 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
     } else {
         const agentsLacks: {[key: number]: string[]} = {};
         cloned.agents.forEach((agent, index) => {
+            if (agent.fired) {
+                return;
+            }
             const agentLacks: string[] = [];
             if (!agent.name) {
                 agentLacks.push(`name`);

@@ -1,32 +1,30 @@
 import { Message } from "./chat/message-type";
 import { AgentEmployee } from "@deepclaw/core";
-import type { Project, Task } from "@deepclaw/loop-gateway";
+import type { Project, Task, ProjectStatus} from "@deepclaw/loop-gateway";
+import { getProjectStatus } from "./component-utils";
+
+export function getProjectStatusStyles(project: Project<Task>): string {
+    return projectStatusStyles[getProjectStatus(project)];
+}
+
+export const projectStatusStyles: Record<ProjectStatus, string> = {
+    todo: 'bg-gray-100 text-gray-700',
+    ongoing: 'bg-green-100 text-green-700',
+    done: 'bg-blue-100 text-blue-700'
+};
 
 export const moodEmojis: Record<AgentEmployee['mood'], string> = {
     happy: '😊',
     focused: '🎯',
     tired: '😴',
     confused: '🤔',
-    none: '☁️',
+    none: '🫥',
 };
 
 export const statusColors: Record<AgentEmployee['status'], string> = {
     busy: 'bg-red-500',
     idle: 'bg-green-500',
-    offline: 'bg-gray-400',
-};
-
-export const statusTexts: Record<AgentEmployee['status'], string> = {
-    busy: 'pages.agents.status.busy',
-    idle: 'pages.agents.status.idle',
-    offline: 'pages.agents.status.offline',
-};
-
-export const priorityTexts: Record<Project<Task>['priority'], string> = {
-    urgent: 'common.priority.urgent',
-    high: 'common.priority.high',
-    medium: 'common.priority.medium',
-    low: 'common.priority.low',
+    fired: 'bg-gray-400',
 };
 
 export const priorityStyles: Record<Project<Task>['priority'], string> = {

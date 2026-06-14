@@ -3,12 +3,12 @@ import { Project, Task } from "@deepclaw/loop-gateway";
 import { AgentEmployee } from "@deepclaw/core";
 import { Target } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {priorityTexts, priorityStyles} from '../../styles-mapping';
-import { getProjectProgress } from "@/components/component-utils";
+import { priorityStyles} from '../../styles-mapping';
+import { getProjectProgress, getProjectStatus } from "@/components/component-utils";
 
 export function AgentDetailWorkStatus({ projects, agent }: { projects: Project<Task>[], agent: AgentEmployee }) {
   const {t} = useTranslation();
-  const currentProject = agent.id ? projects.find(p => p.creator === agent.id) : null;
+  const currentProject = agent.id ? projects.find(p => p.creator === agent.id && getProjectStatus(p) !== 'done') : null;
   const progress = getProjectProgress(currentProject);
 
   return (
@@ -24,7 +24,7 @@ export function AgentDetailWorkStatus({ projects, agent }: { projects: Project<T
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   priorityStyles[currentProject.priority]
                 }`}>
-                  {t(priorityTexts[currentProject.priority])}
+                  {t(`common.priority.${currentProject.priority}`)}
                 </span>
               </div>
               <p className="text-sm text-gray-600 line-clamp-2">{currentProject.description}</p>
