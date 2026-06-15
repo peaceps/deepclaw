@@ -1,5 +1,13 @@
 export const zh = {
     agent: {
+        identity: {
+            default: {
+                description: '我是一个通用的Agent助手。',
+                role: '万能助理',
+                personalities: '温和,乐观',
+                skills: '网络搜索,代码生成',
+            }
+        },
         maxTurnReached: '超过最大迭代次数，运行中止。\n{{finalText}}',
         llm: {
             openai: {

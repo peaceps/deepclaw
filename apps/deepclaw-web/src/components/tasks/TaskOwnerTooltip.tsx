@@ -66,6 +66,21 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
             </div>
           </div>
   
+        {/* 个性特征 */}
+        <div className="mb-3">
+            <p className="text-xs text-gray-500 mb-1">{t('pages.agents.details.personality.title')}</p>
+            <div className="flex flex-wrap gap-1">
+            {agent.personalities.map((personality) => (
+                <span
+                key={personality}
+                className="text-xs px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full"
+                >
+                {personality}
+                </span>
+            ))}
+            </div>
+        </div>
+  
           {/* 技能标签 */}
           <div className="mb-3">
             <p className="text-xs text-gray-500 mb-1">{t('pages.agents.details.skills.title')}</p>
@@ -76,28 +91,6 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
                   className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full"
                 >
                   {skill}
-                </span>
-              ))}
-            </div>
-          </div>
-  
-          {/* 统计数据 */}
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className="text-center p-2 bg-gray-50 rounded-lg">
-              <div className="text-xs text-gray-500">{t('pages.agents.card.finishedTasks', {count: agent.stats.tasksCompleted})}</div>
-            </div>
-          </div>
-  
-          {/* 个性特征 */}
-          <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">{t('pages.agents.details.personality.title')}</p>
-            <div className="flex flex-wrap gap-1">
-              {agent.personalities.map((personality) => (
-                <span
-                  key={personality}
-                  className="text-xs px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full"
-                >
-                  {personality}
                 </span>
               ))}
             </div>

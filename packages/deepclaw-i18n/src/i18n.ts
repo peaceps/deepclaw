@@ -25,4 +25,9 @@ export function init(lng: string, middleware?: Module) {
     });
 }
 
+export function parseArrayI18n(key: string): string[] {
+    const val = i18n.t(key);
+    return typeof val === 'string' ? val.split(',') : [];
+}
+
 export const i18nInstance = i18n;

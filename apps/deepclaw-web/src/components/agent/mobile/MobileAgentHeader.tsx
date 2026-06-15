@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { MobileView } from "./mobile-view";
 
 export function MobileAgentHeader({mobileView, setMobileView}: {
-  mobileView: string;
+  mobileView: MobileView;
   setMobileView: Dispatch<SetStateAction<MobileView>>;
 }) {
   const {t} = useTranslation();

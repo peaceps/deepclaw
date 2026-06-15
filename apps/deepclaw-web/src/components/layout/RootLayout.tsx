@@ -5,7 +5,7 @@ import {initI18n} from '@/i18n';
 import { Sidebar } from './Sidebar';
 import type { DeepclawConfig } from '@deepclaw/config';
 
-interface RootLayoutProps {
+type RootLayoutProps = {
   lang: string;
   manager: DeepclawConfig['manager'];
   children: React.ReactNode;

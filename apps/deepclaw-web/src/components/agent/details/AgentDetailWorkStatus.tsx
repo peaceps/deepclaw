@@ -1,4 +1,4 @@
-import { InfoCard } from "./InfoCard";
+import { InfoCard } from "@/laf/info-card";
 import { Project, Task } from "@deepclaw/loop-gateway";
 import { AgentEmployee } from "@deepclaw/core";
 import { Target } from "lucide-react";
@@ -12,7 +12,7 @@ export function AgentDetailWorkStatus({ projects, agent }: { projects: Project<T
   const progress = getProjectProgress(currentProject);
 
   return (
-    <InfoCard title={t('pages.agents.details.workStatus.title')} icon={<Target size={20} />}>
+    <InfoCard title="pages.agents.details.workStatus.title" icon={<Target size={20} />}>
       <div className="space-y-4">
         {/* 当前项目 */}
         <div>

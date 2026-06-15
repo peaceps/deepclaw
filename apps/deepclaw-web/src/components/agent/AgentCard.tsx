@@ -25,7 +25,7 @@ export function AgentCard({ project, agent, onSelect }: AgentCardProps) {
   
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // setTooltipVisible(true);
+    setTooltipVisible(true);
     setSelectedAgent(agent.id);
     onSelect?.();
   };

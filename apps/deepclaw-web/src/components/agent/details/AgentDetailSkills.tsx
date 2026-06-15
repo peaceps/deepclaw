@@ -1,15 +1,13 @@
 'use client';
 
-import { InfoCard } from "./InfoCard";
+import { InfoCard } from "@/laf/info-card";
 import { AgentEmployee } from "@deepclaw/core";
 import { Zap } from "lucide-react";
-import { TraitBadge } from "./TraitBadge";
-import { useTranslation } from "react-i18next";
+import { TraitBadge } from "@/laf/trait-badge";
 
 export function AgentDetailSkills({ agent }: { agent: AgentEmployee }) {
-  const {t} = useTranslation();
   return (
-    <InfoCard title={t('pages.agents.details.skills.title')} icon={<Zap size={20} />}>
+    <InfoCard title="pages.agents.details.skills.title" icon={<Zap size={20} />}>
       <div className="space-y-4">
         {/* 技能 */}
         <div>

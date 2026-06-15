@@ -20,7 +20,7 @@ type IMConfig = NonNullable<AgentConfig['im']>;
 type LLMConfig = AgentConfig['llm'];
 
 function AgentSettingsSection({title, children}: {title: string; children: React.ReactNode}) {
-  const {t} = useTranslation()
+  const {t} = useTranslation();
   return (
     <div className="space-y-4">
       <h5 className="text-sm font-semibold text-gray-900 flex items-center gap-2">

@@ -1,5 +1,6 @@
 import { AgentIdentity, FlushAgent, type AgentHandler, type FlushAgentConstructor } from '@deepclaw/core';
 import { DeepclawConfig, loadAgentConfig, loadConfig} from '@deepclaw/config';
+import { i18nInstance, parseArrayI18n } from '@deepclaw/i18n';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop';
 import { OpenAIResponseLoop } from './loop/loop/openai-response-loop';
 import { AnthropicLoop } from './loop/loop/anthropic-loop';
@@ -13,19 +14,23 @@ export class LoopInitializer {
 
     static {
         ensureBaseFiles();
-        for (const agent of loadConfig<DeepclawConfig['agents']>('agents')) {
-            this.ensureAgentFiles(agent.id);
-            this.agentMap.set(agent.id, this.loadIdentity(agent.id));
-        }
     }
 
     public static getAgents(): AgentIdentity[] {
+        if (this.agentMap.size === 0) {
+            for (const agent of loadConfig<DeepclawConfig['agents']>('agents')) {
+                this.ensureAgentFiles(agent.id);
+                this.agentMap.set(agent.id, this.loadIdentity(agent.id));
+            }
+        }
         return [...this.agentMap.values()];
     }
 
     public static getLoop(agentId: string, handler: AgentHandler): FlushAgent {
-        this.ensureAgentFiles(agentId);
-        const identity = this.loadIdentity(agentId);
+        const identity = this.agentMap.get(agentId);
+        if (!identity) {
+            throw new Error(`Agent "${agentId}" not found`);
+        }
         let loopClass: FlushAgentConstructor = this.getLoopClass(agentId);
         return new loopClass(identity, handler);
     }
@@ -42,19 +47,42 @@ export class LoopInitializer {
     }
 
     private static ensureAgentFiles(agentId: string) {
-        FileUtils.ensureFileExist(`${AGENTS_DIR}/${agentId}/${AGENT_MD}`);
-        FileUtils.ensureFileExist(`${AGENTS_DIR}/${agentId}/${AGENT_SOUL_JSON}`, '{}');
+        FileUtils.ensureFileExist(
+            `${AGENTS_DIR}/${agentId}/${AGENT_MD}`,
+            i18nInstance.t('agent.identity.default.description')
+        );
+        FileUtils.ensureFileExist(`${AGENTS_DIR}/${agentId}/${AGENT_SOUL_JSON}`, 
+            JSON.stringify({
+                id: agentId,
+                avatar: '🐋',
+                role: i18nInstance.t('agent.identity.default.role'),
+                personalities: parseArrayI18n('agent.identity.default.personalities'),
+                emotion: true,
+                skills: parseArrayI18n('agent.identity.default.skills')
+            }, null, 2)
+        );
     }
 
     private static loadIdentity(agentId: string): AgentIdentity {
-        const identity = {} as AgentIdentity;
+        const agentConfig = loadAgentConfig(agentId);
+        const identity: AgentIdentity = {
+            id: '',
+            name: '',
+            fired: false,
+            avatar: '',
+            role: '',
+            description: '',
+            personalities: [],
+            emotion: false,
+            skills: []
+        };
         try {
-            const agentConfig = loadAgentConfig(agentId);
-            identity.name = agentConfig.name;
-            identity.fired = !!agentConfig.fired;
             const soulContent = FileUtils.readFile(`${AGENTS_DIR}/${agentId}/${AGENT_SOUL_JSON}`);
             const soul = JSON.parse(soulContent);
             Object.assign(identity, soul);
+            identity.id = agentId;
+            identity.name = agentConfig.name;
+            identity.fired = !!agentConfig.fired;
             identity.description = FileUtils.readFile(`${AGENTS_DIR}/${agentId}/${AGENT_MD}`);
         } catch (err) {
             throw new Error(

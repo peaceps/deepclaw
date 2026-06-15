@@ -89,7 +89,7 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
     private static thoughts(): string {
 //         return `You can add your own thoughts and comments about the task as well as your emotions and feelings.
 // It's not something talked to the user, but can help you think and make you more real.
-// For example, "the task is boring", "I'm feeling tired", "the agent {agentId} can do better", etc.
+// For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
 // You can wrap them in <thought> tag.`;
         return '';
     }

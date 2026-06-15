@@ -51,7 +51,7 @@ export function AgentTooltip({ agent, visible, anchorRef, onClose }: TooltipProp
     return (
       <div
         ref={tooltipRef}
-        className="fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-72"
+        className="fixed z-50 bg-white rounded-xl shadow-xl border-2 border-green-200 p-4 w-56"
         style={{
           top: position.top,
           left: position.left,
@@ -60,28 +60,13 @@ export function AgentTooltip({ agent, visible, anchorRef, onClose }: TooltipProp
       >
         {/* 箭头 - 根据位置调整方向 */}
         <div 
-          className={`absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-gray-200 rotate-45 ${
+          className={`absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-green-200 rotate-45 ${
             isTopPlacement 
-              ? '-bottom-2 border-b border-r' 
-              : '-top-2 border-l border-t'
+              ? '-bottom-2 border-b-2 border-r-2' 
+              : '-top-2 border-l-2 border-t-2'
           }`} 
         />
-  
-        <div className="relative">
-          {/* 头部 - 只显示基本信息 */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xl">
-              {agent.avatar}
-            </div>
-            <div className="flex-1">
-              <h4 className="font-bold text-gray-900">{agent.name}</h4>
-              <p className="text-xs text-gray-500">{agent.role}</p>
-            </div>
-          </div>
-  
-          {/* 心情和想法 - 只保留这个 */}
           <AgentThoughts agent={agent} />
-        </div>
       </div>
     );
 }

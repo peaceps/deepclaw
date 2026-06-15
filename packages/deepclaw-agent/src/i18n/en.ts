@@ -1,5 +1,13 @@
 export const en = {
     agent: {
+        identity: {
+            default: {
+                description: 'I am a common agent assistant.',
+                role: 'Assistant',
+                personalities: "Kind,Optimistic",
+                skills: "Web search,Code generation",
+            }
+        },
         maxTurnReached: 'Reached maximum turn count. Ending session.\n{{finalText}}',
         llm: {
             openai: {

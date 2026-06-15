@@ -3,8 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { RootLayout } from "@/components/layout/RootLayout";
 import { loadCurrentConfig } from "@/server/configs";
-import { LANG_LOCALE_MAP, DEFAULT_LANG } from "@deepclaw/i18n";
-import { DeepclawConfig } from "@deepclaw/config";
+import { LANG_LOCALE_MAP, DEFAULT_LANG, i18nInstance } from "@deepclaw/i18n";
+import { type DeepclawConfig } from "@deepclaw/config";
+import '@/i18n-server';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DeepClaw - AI Agent 管理系统",
-  description: "把每个 Agent 视为公司里的真实员工",
+  title: i18nInstance.t('meta.title'),
+  description: i18nInstance.t('meta.description'),
 };
 
 export default async function Layout({
