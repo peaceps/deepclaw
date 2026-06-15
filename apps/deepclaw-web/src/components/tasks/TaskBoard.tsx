@@ -1,26 +1,28 @@
 'use client';
 
 import { CheckCircle2, Clock} from 'lucide-react';
-import { useState, useEffect } from 'react';
-import type { Project, Task } from '@deepclaw/loop-gateway';
-import type { AgentEmployee } from '@deepclaw/core';
+import { useState } from 'react';
+import { useAppStore } from '@/lib/store';
 import {ProjectRow} from './ProjectRow';
 import { useTranslation } from 'react-i18next';
 import { getProjectStatus } from '../component-utils';
 
-export function TaskBoard({projects, agents}: {projects: Project<Task>[], agents: AgentEmployee[]}) {
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set([projects[0]?.id]));
+export function TaskBoard() {
+  const { projects } = useAppStore();
+  const [expandedProjects, setExpandedProjects] =
+    useState<Set<string>>(() => new Set(projects[0] ? [projects[0].id] : []));
   const {t} = useTranslation();
 
-  useEffect(() => {
-    setTimeout(() => 
-      setExpandedProjects(prev => {
-        const validExpanded = new Set(Array.from(prev).filter(id => projects.some(p => p.id === id)));
-        if (validExpanded.size === 0 && projects.length > 0) validExpanded.add(projects[0].id);
-        return validExpanded;
-      })
-    );
-  }, [projects]);
+  const projectIdsKey = projects.map(p => p.id).join(',');
+  const [prevProjectIdsKey, setPrevProjectIdsKey] = useState(projectIdsKey);
+  if (projectIdsKey !== prevProjectIdsKey) {
+    setPrevProjectIdsKey(projectIdsKey);
+    setExpandedProjects(prev => {
+      const validExpanded = new Set(Array.from(prev).filter(id => projects.some(p => p.id === id)));
+      if (validExpanded.size === 0 && projects.length > 0) validExpanded.add(projects[0].id);
+      return validExpanded;
+    });
+  }
 
   const toggleProject = (projectId: string) => {
     setExpandedProjects(prev => {
@@ -51,7 +53,7 @@ export function TaskBoard({projects, agents}: {projects: Project<Task>[], agents
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {projects.map(project => (
-          <ProjectRow key={project.id} project={project} agents={agents}
+          <ProjectRow key={project.id} project={project}
             isExpanded={expandedProjects.has(project.id)} onToggle={() => toggleProject(project.id)}
           />
         ))}

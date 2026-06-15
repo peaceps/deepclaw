@@ -49,6 +49,9 @@ export const zh = {
                 fired: '毕业',
             },
             details: {
+                header: {
+                    projectsCompleted: '已完成项目数',
+                },
                 personality: {
                     title: '性格设定',
                     traits: '个性特征',

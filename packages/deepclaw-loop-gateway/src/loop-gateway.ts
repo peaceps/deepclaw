@@ -3,6 +3,7 @@ import { type FlushAgent, type AgentHandler, type AgentEmployee } from "@deepcla
 import { LoopInitializer, type Project, ProjectManager, StandaloneTask, type Task } from "@deepclaw/agent";
 
 export type LoopStore = {agent: {[key: string]: FlushAgent}, project: {[key: string]: FlushAgent}};
+export type LoopInfo = {agents: AgentEmployee[], projects: Project<Task>[]};
 
 export class LoopGateway {
     
@@ -26,7 +27,32 @@ export class LoopGateway {
         });
     }
 
-    public static getProjects(): Project<Task>[] {
+    public static invoke(type: keyof LoopStore, agentId: string, input: string): Promise<string> {
+        if (!this.loops[type][agentId]) {
+            this.init(type, agentId, {});
+        }
+        return this.loops[type][agentId]!.invoke(input);
+    }
+
+    public static subscribe(cb: () => void): () => void {
+        this.subscribers.push(cb);
+        return () => {
+            const index = this.subscribers.indexOf(cb);
+            if (index !== -1) {
+                this.subscribers.splice(index, 1);
+            }
+        };
+    }
+
+    public static getLoopInfo(): LoopInfo {
+        const projects = this.getProjects();
+        return {
+            agents: this.getAgents(projects),
+            projects,
+        };
+    }
+
+    private static getProjects(): Project<Task>[] {
         const res: Project<Task>[] = [];
         const projects = ProjectManager.getProjectList(true);
         projects.projects.open.forEach(p => {
@@ -76,8 +102,7 @@ export class LoopGateway {
         return res;
     }
 
-    public static getAgents(): AgentEmployee[] {
-        const projects = this.getProjects();
+    private static getAgents(projects: Project<Task>[]): AgentEmployee[] {
         return LoopInitializer.getAgents().map(agent => ({
             ...agent,
             status: agent.fired ? 'fired' : projects.some(p  => p.creator === agent.id && !p.closedAt) ? 'busy' : 'idle',
@@ -86,23 +111,6 @@ export class LoopGateway {
                 tasksCompleted: projects.filter(p => p.creator === agent.id && !!p.closedAt).length
             }
         }));
-    }
-
-    public static subscribe(cb: () => void): () => void {
-        this.subscribers.push(cb);
-        return () => {
-            const index = this.subscribers.indexOf(cb);
-            if (index !== -1) {
-                this.subscribers.splice(index, 1);
-            }
-        };
-    }
-
-    public static invoke(type: keyof LoopStore, agentId: string, input: string): Promise<string> {
-        if (!this.loops[type][agentId]) {
-            this.init(type, agentId, {});
-        }
-        return this.loops[type][agentId]!.invoke(input);
     }
 
 }

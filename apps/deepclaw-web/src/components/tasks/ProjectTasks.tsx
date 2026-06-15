@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Notebook } from 'lucide-react';
 import { Project, Task } from '@deepclaw/loop-gateway';
-import { AgentEmployee } from "@deepclaw/core";
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
+import { useAppStore } from '@/lib/store';
 
 const columns = [
   { id: 'todo', icon: '📋', title: 'pages.projects.status.todo', color: 'bg-blue-50' },
@@ -14,12 +14,13 @@ const columns = [
 ];
 
 type ProjectTasksProps = {
-    project: Project<Task>; agents: AgentEmployee[];
+    project: Project<Task>;
 }
 
-export function ProjectTasks({project, agents}: ProjectTasksProps) {
+export function ProjectTasks({project}: ProjectTasksProps) {
   const [collapsed, setCollapsed] = useState(false);
   const {t} = useTranslation();
+  const { getTaskAssignee } = useAppStore();
 
     return (
         <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 transition-all duration-300 ${collapsed ? 'w-12' : 'w-[60%]'}`}>
@@ -37,15 +38,15 @@ export function ProjectTasks({project, agents}: ProjectTasksProps) {
                     <Notebook size={20} />
                 </div>
             ) : (
-                <div className="flex-1 p-4 bg-gray-50/50">
+                <div className="flex-1 p-4 bg-gray-50/50 w-full">
                     {Object.keys(project.tasks).length === 0 ? (
                     <div className="py-8 text-center text-gray-400"><p>{t('pages.projects.project.noTasks')}</p></div>
                     ) : (
-                    <div className="flex flex-col lg:flex-row gap-3">
+                    <div className="flex flex-col lg:flex-row gap-4">
                         {columns.map(column => {
                         const columnTasks = Object.values(project.tasks).filter(task => task.status === column.id);
                         return (
-                            <div key={column.id} className={`w-full lg:w-64 ${column.color} rounded-lg p-3 flex-shrink-0`}>
+                            <div key={column.id} className={`w-full lg:w-64 ${column.color} rounded-lg p-3 flex-shrink-0 flex-1`}>
                             <div className="flex items-center justify-between mb-3">
                                 <h4 className="font-semibold text-gray-800 text-sm">{column.icon} {t(column.title)}</h4>
                                 <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">{columnTasks.length}</span>
@@ -53,7 +54,7 @@ export function ProjectTasks({project, agents}: ProjectTasksProps) {
                             <div className="space-y-2">
                                 {columnTasks.map(task => <TaskCard 
                                     key={task.title} task={task} 
-                                    assignee={agents.find(agent => agent.id === task.assignee)}
+                                    assignee={getTaskAssignee(task)}
                                 />)}
                             </div>
                             {columnTasks.length === 0 && <div className="text-center py-6 text-gray-400 text-xs">{t('pages.projects.project.noTasksAtStatus')}</div>}

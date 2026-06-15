@@ -1,27 +1,24 @@
 'use client';
 
 import { AgentCard } from './AgentCard';
-import type { Project, Task } from '@deepclaw/loop-gateway';
-import type { AgentEmployee } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
-import { getProjectStatus } from '../component-utils';
+import { useAppStore } from '@/lib/store';
 
 interface AgentListProps {
-  agents: AgentEmployee[];
-  projects: Project<Task>[];
   onSelect?: () => void;
 }
 
-export function AgentList({ projects, agents, onSelect }: AgentListProps) {
+export function AgentList({ onSelect }: AgentListProps) {
   const {t} = useTranslation();
+  const { activeAgents, getOneOngoingProject } = useAppStore();
 
   return (
     <div className="space-y-3">
       <h2 className="text-lg font-semibold text-gray-900 px-1">{t('pages.agents.list.title')}</h2>
       <div className="space-y-2">
-        {agents.map((agent) => (
+        {activeAgents.map((agent) => (
           <AgentCard
-            project={projects.find(p => p.creator === agent.id && getProjectStatus(p) !== 'done')}
+            project={getOneOngoingProject(agent.id)}
             key={agent.id}
             agent={agent}
             onSelect={onSelect}

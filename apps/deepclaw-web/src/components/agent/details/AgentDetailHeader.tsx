@@ -4,7 +4,6 @@ import { Briefcase, CheckCircle2 } from "lucide-react";
 import { moodEmojis, statusColors } from "../../styles-mapping";
 
 export function AgentHeader({ agent }: { agent: AgentEmployee }) {
-  
     const {t} = useTranslation();
   
     return (
@@ -38,7 +37,10 @@ export function AgentHeader({ agent }: { agent: AgentEmployee }) {
             {/* Stats */}
             <div className="flex gap-4 sm:gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-green-50 flex items-center justify-center">
+                <div
+                  title={t('pages.agents.details.header.projectsCompleted')}
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-green-50 flex items-center justify-center"
+                >
                   <CheckCircle2 size={16} className="sm:w-5 sm:h-5 text-green-600" />
                 </div>
                 <div>

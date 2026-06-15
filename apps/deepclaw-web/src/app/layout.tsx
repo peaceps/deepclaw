@@ -6,6 +6,7 @@ import { loadCurrentConfig } from "@/server/configs";
 import { LANG_LOCALE_MAP, DEFAULT_LANG, i18nInstance } from "@deepclaw/i18n";
 import { type DeepclawConfig } from "@deepclaw/config";
 import '@/i18n-server';
+import { LoopGateway } from "@deepclaw/loop-gateway";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,6 +30,7 @@ export default async function Layout({
 }>) {
   const lang = await loadCurrentConfig<string>('ui.lang', DEFAULT_LANG);
   const manager = await loadCurrentConfig<DeepclawConfig['manager']>('manager');
+  const loopInfo = LoopGateway.getLoopInfo();
   return (
     <html
       lang={LANG_LOCALE_MAP[lang]}
@@ -38,6 +40,7 @@ export default async function Layout({
         <RootLayout
             lang={lang}
             manager={manager}
+            loopInfo={loopInfo}
         >{children}</RootLayout>
       </body>
     </html>

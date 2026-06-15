@@ -1,22 +1,23 @@
 import type { Project, Task } from '@deepclaw/loop-gateway';
-import type { AgentEmployee } from '@deepclaw/core';
 import { ChevronDown, ChevronRight, Folder, User, CheckCircle2, Clock } from 'lucide-react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';
 import { ProjectTasks } from './ProjectTasks';
 import { getProjectStatusStyles } from '../styles-mapping';
 import { getProjectStatus } from '../component-utils';
+import { useAppStore } from '@/lib/store';
 
 type ProjectRowProps = {
-    project: Project<Task>; agents: AgentEmployee[]; isExpanded: boolean; onToggle: () => void;
+    project: Project<Task>; isExpanded: boolean; onToggle: () => void;
 }
 
-export function ProjectRow({ project, agents, isExpanded, onToggle }: ProjectRowProps) {
+export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
+  const { getProjectOwner } = useAppStore();
   const totalTasks = Object.keys(project.tasks).length;
   const inProgressTasks = project.ongoingTasks.length;
   const completedTasks = project.completedTasks.length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const selectedAgent = agents.find(a => project.creator === a.id);
+  const selectedAgent = getProjectOwner(project.id);
   const {t} = useTranslation();
 
   return (
@@ -74,7 +75,7 @@ export function ProjectRow({ project, agents, isExpanded, onToggle }: ProjectRow
       </div>
       {isExpanded && (
         <div className="flex flex-col lg:flex-row border-t border-gray-200" style={{ minHeight: '400px' }}>
-          <ProjectTasks project={project} agents={agents}/>
+          <ProjectTasks project={project}/>
           <div className="flex-1 border-t lg:border-t-0 lg:border-l border-gray-200">
             {selectedAgent && <ChatSidebar
                 from={'project'}

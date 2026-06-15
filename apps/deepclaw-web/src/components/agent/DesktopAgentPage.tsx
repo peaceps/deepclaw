@@ -6,12 +6,9 @@ import { AgentList } from "./AgentList";
 import { ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { AgentDetail } from "./details/AgentDetail";
 import { useTranslation } from "react-i18next";
-import type { Project, Task } from "@deepclaw/loop-gateway";
 import { ChatSidebar } from "../chat/ChatSidebar";
 
-export function DesktopAgentPage({projects, agents, selectedAgent}: {
-    projects: Project<Task>[];
-    agents: AgentEmployee[];
+export function DesktopAgentPage({selectedAgent}: {
     selectedAgent?: AgentEmployee;
 }) {
 
@@ -22,7 +19,7 @@ export function DesktopAgentPage({projects, agents, selectedAgent}: {
       <div className="flex h-full w-full">
         {/* Left: Agent List */}
         <div className="w-80 border-r border-gray-200 bg-gray-50 p-4 overflow-y-auto">
-          <AgentList projects={projects} agents={agents} />
+          <AgentList />
         </div>
 
         {/* Middle: Agent Detail */}
@@ -42,7 +39,7 @@ export function DesktopAgentPage({projects, agents, selectedAgent}: {
             </div>
           ) : (
             <div className="flex-1 overflow-hidden w-full">
-                <AgentDetail agent={selectedAgent} projects={projects} />
+                <AgentDetail agent={selectedAgent} />
             </div>
           )}
         </div>

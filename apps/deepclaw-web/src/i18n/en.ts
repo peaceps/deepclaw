@@ -49,6 +49,9 @@ export const en = {
                 fired: 'Graduated',
             },
             details: {
+                header: {
+                    projectsCompleted: 'Projects Completed',
+                },
                 personality: {
                     title: 'Personality',
                     traits: 'Traits',

@@ -1,14 +1,15 @@
 import { InfoCard } from "@/laf/info-card";
-import { Project, Task } from "@deepclaw/loop-gateway";
 import { AgentEmployee } from "@deepclaw/core";
 import { Target } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { priorityStyles} from '../../styles-mapping';
-import { getProjectProgress, getProjectStatus } from "@/components/component-utils";
+import { getProjectProgress } from "@/components/component-utils";
+import { useAppStore } from "@/lib/store";
 
-export function AgentDetailWorkStatus({ projects, agent }: { projects: Project<Task>[], agent: AgentEmployee }) {
+export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
   const {t} = useTranslation();
-  const currentProject = agent.id ? projects.find(p => p.creator === agent.id && getProjectStatus(p) !== 'done') : null;
+  const { getOneOngoingProject } = useAppStore();
+  const currentProject = agent.id ? getOneOngoingProject(agent.id) : null;
   const progress = getProjectProgress(currentProject);
 
   return (
@@ -16,7 +17,9 @@ export function AgentDetailWorkStatus({ projects, agent }: { projects: Project<T
       <div className="space-y-4">
         {/* 当前项目 */}
         <div>
-          <label className="text-sm text-gray-500 mb-2 block">{t('pages.agents.details.workStatus.currentProject')}</label>
+          <label className="text-sm text-gray-500 mb-2 block">
+            {t('pages.agents.details.workStatus.currentProject')}
+          </label>
           {currentProject ? (
             <div className="bg-gray-50 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">

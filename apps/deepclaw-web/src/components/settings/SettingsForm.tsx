@@ -141,6 +141,14 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
           Icon={Globe}
         >
           <div className="p-6 border-t border-gray-200">
+            <DeepSelect
+                uiInfo={configEvents['ui.lang'] as Extract<AgentInteractionEvent, {type: 'select'}>}
+                value={config.ui.lang}
+                onSelect={e => updateUIConfig({ lang: e.target.value })}
+                error={validationResult.errors.some(e => e === 'ui.lang')}
+            />
+          </div>
+          <div className="p-6 border-t border-gray-200">
             <DeepInput
               uiInfo={configEvents['manager.name'] as Extract<AgentInteractionEvent, {type: 'input'}>}
               value={config.manager.name}
@@ -154,14 +162,6 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
               value={config.manager.title}
               placeholder='CEO'
               onInput={(e) => updateManagerConfig({ title: e.target.value })}
-            />
-          </div>
-          <div className="p-6 border-t border-gray-200">
-            <DeepSelect
-              uiInfo={configEvents['ui.lang'] as Extract<AgentInteractionEvent, {type: 'select'}>}
-              value={config.ui.lang}
-              onSelect={e => updateUIConfig({ lang: e.target.value })}
-              error={validationResult.errors.some(e => e === 'ui.lang')}
             />
           </div>
         </DeepExpandablePanel>

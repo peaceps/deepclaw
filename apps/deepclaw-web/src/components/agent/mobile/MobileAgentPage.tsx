@@ -7,14 +7,11 @@ import { MobileView } from "./mobile-view";
 import { AgentList } from "../AgentList";
 import { AgentDetail } from "../details/AgentDetail";
 import { ChatPanel } from "@/components/chat/ChatPanel";
-import type { Project, Task } from "@deepclaw/loop-gateway";
 
-export function MobileAgentPage({projects, agents, selectedAgent}: {
-    projects: Project<Task>[];
-    agents: AgentEmployee[];
+export function MobileAgentPage({selectedAgent}: {
     selectedAgent?: AgentEmployee;
 }) {
-  const [mobileView, setMobileView] = useState<MobileView>('list');
+    const [mobileView, setMobileView] = useState<MobileView>('list');
 
     return (
     <>
@@ -24,14 +21,14 @@ export function MobileAgentPage({projects, agents, selectedAgent}: {
           {/* Agent List View */}
           {mobileView === 'list' && (
             <div className="h-full bg-gray-50 p-4 overflow-y-auto">
-              <AgentList projects={projects} agents={agents} onSelect={() => setMobileView('detail')} />
+              <AgentList onSelect={() => setMobileView('detail')} />
             </div>
           )}
 
           {/* Agent Detail View */}
           {mobileView === 'detail' && selectedAgent && (
             <div className="h-full overflow-hidden">
-              <AgentDetail agent={selectedAgent} projects={projects} />
+              <AgentDetail agent={selectedAgent} />
             </div>
           )}
 
