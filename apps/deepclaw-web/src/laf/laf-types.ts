@@ -1,0 +1,136 @@
+export type DeepColors = 'blue' | 'purple' | 'green' | 'orange'
+  | 'gray' | 'cyan' | 'red' | 'yellow' | 'lime';
+
+interface ColorClassSet {
+  text: string;
+  textMuted: string;
+  bg: string;
+  bgHover: string;
+  border: string;
+  borderFocus: string;
+  ringFocus: string;
+  hoverText: string;
+  hoverBg: string;
+  peerFocusRing300: string;
+  peerCheckedBg600: string;
+}
+
+export const colorClassMap: Record<DeepColors, ColorClassSet> = {
+  blue: {
+    text: 'text-blue-500',
+    textMuted: 'text-blue-700',
+    bg: 'bg-blue-50',
+    bgHover: 'hover:bg-blue-100',
+    border: 'border-blue-200',
+    borderFocus: 'focus:border-blue-300',
+    ringFocus: 'focus:ring-blue-300',
+    hoverText: 'hover:text-blue-500',
+    hoverBg: 'hover:bg-blue-50',
+    peerFocusRing300: 'peer-focus:ring-blue-300',
+    peerCheckedBg600: 'peer-checked:bg-blue-600',
+  },
+  purple: {
+    text: 'text-purple-500',
+    textMuted: 'text-purple-700',
+    bg: 'bg-purple-50',
+    bgHover: 'hover:bg-purple-100',
+    border: 'border-purple-200',
+    borderFocus: 'focus:border-purple-300',
+    ringFocus: 'focus:ring-purple-300',
+    hoverText: 'hover:text-purple-500',
+    hoverBg: 'hover:bg-purple-50',
+    peerFocusRing300: 'peer-focus:ring-purple-300',
+    peerCheckedBg600: 'peer-checked:bg-purple-600',
+  },
+  green: {
+    text: 'text-green-500',
+    textMuted: 'text-green-700',
+    bg: 'bg-green-50',
+    bgHover: 'hover:bg-green-100',
+    border: 'border-green-200',
+    borderFocus: 'focus:border-green-300',
+    ringFocus: 'focus:ring-green-300',
+    hoverText: 'hover:text-green-500',
+    hoverBg: 'hover:bg-green-50',
+    peerFocusRing300: 'peer-focus:ring-green-300',
+    peerCheckedBg600: 'peer-checked:bg-green-600',
+  },
+  orange: {
+    text: 'text-orange-500',
+    textMuted: 'text-orange-700',
+    bg: 'bg-orange-50',
+    bgHover: 'hover:bg-orange-100',
+    border: 'border-orange-200',
+    borderFocus: 'focus:border-orange-300',
+    ringFocus: 'focus:ring-orange-300',
+    hoverText: 'hover:text-orange-500',
+    hoverBg: 'hover:bg-orange-50',
+    peerFocusRing300: 'peer-focus:ring-orange-300',
+    peerCheckedBg600: 'peer-checked:bg-orange-600',
+  },
+  gray: {
+    text: 'text-gray-500',
+    textMuted: 'text-gray-700',
+    bg: 'bg-gray-50',
+    bgHover: 'hover:bg-gray-100',
+    border: 'border-gray-200',
+    borderFocus: 'focus:border-gray-300',
+    ringFocus: 'focus:ring-gray-300',
+    hoverText: 'hover:text-gray-500',
+    hoverBg: 'hover:bg-gray-50',
+    peerFocusRing300: 'peer-focus:ring-gray-300',
+    peerCheckedBg600: 'peer-checked:bg-gray-600',
+  },
+  cyan: {
+    text: 'text-cyan-500',
+    textMuted: 'text-cyan-700',
+    bg: 'bg-cyan-50',
+    bgHover: 'hover:bg-cyan-100',
+    border: 'border-cyan-200',
+    borderFocus: 'focus:border-cyan-300',
+    ringFocus: 'focus:ring-cyan-300',
+    hoverText: 'hover:text-cyan-500',
+    hoverBg: 'hover:bg-cyan-50',
+    peerFocusRing300: 'peer-focus:ring-cyan-300',
+    peerCheckedBg600: 'peer-checked:bg-cyan-600',
+  },
+  red: {
+    text: 'text-red-500',
+    textMuted: 'text-red-700',
+    bg: 'bg-red-50',
+    bgHover: 'hover:bg-red-100',
+    border: 'border-red-200',
+    borderFocus: 'focus:border-red-300',
+    ringFocus: 'focus:ring-red-300',
+    hoverText: 'hover:text-red-500',
+    hoverBg: 'hover:bg-red-50',
+    peerFocusRing300: 'peer-focus:ring-red-300',
+    peerCheckedBg600: 'peer-checked:bg-red-600',
+  },
+  yellow: {
+    text: 'text-yellow-500',
+    textMuted: 'text-yellow-700',
+    bg: 'bg-yellow-50',
+    bgHover: 'hover:bg-yellow-100',
+    border: 'border-yellow-200',
+    borderFocus: 'focus:border-yellow-300',
+    ringFocus: 'focus:ring-yellow-300',
+    hoverText: 'hover:text-yellow-500',
+    hoverBg: 'hover:bg-yellow-50',
+    peerFocusRing300: 'peer-focus:ring-yellow-300',
+    peerCheckedBg600: 'peer-checked:bg-yellow-600',
+  },
+  lime: {
+    text: 'text-lime-500',
+    textMuted: 'text-lime-700',
+    bg: 'bg-lime-50',
+    bgHover: 'hover:bg-lime-100',
+    border: 'border-lime-200',
+    borderFocus: 'focus:border-lime-300',
+    ringFocus: 'focus:ring-lime-300',
+    hoverText: 'hover:text-lime-500',
+    hoverBg: 'hover:bg-lime-50',
+    peerFocusRing300: 'peer-focus:ring-lime-300',
+    peerCheckedBg600: 'peer-checked:bg-lime-600',
+  },
+};

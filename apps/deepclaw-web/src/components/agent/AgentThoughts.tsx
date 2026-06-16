@@ -1,6 +1,6 @@
 import { AgentEmployee } from "@deepclaw/core";
 
-// TODO test only
+// TODO test file only, will remove later
 const colors: Record<AgentEmployee['mood'], string> = {
     happy: 'from-yellow-50 to-orange-50 border-yellow-200',
     focused: 'from-blue-50 to-indigo-50 border-blue-200',
@@ -70,7 +70,7 @@ function getAgentThoughts(agent: AgentEmployee): { emoji: string; text: string; 
     const thoughtPool = [...moodThoughts[agent.mood], ...statusThoughts[agent.status]];
   
     // 根据 agent id 和当前时间选择一个想法（保持一致性）
-    const seed = [...agent.id].reduce((p, r) => p + r.charCodeAt(0), 0) + new Date().getHours();
+    const seed = [...agent.id].reduce((p, r) => p + r.charCodeAt(0), 0) + new Date().getMinutes();
     const thought = thoughtPool[seed % thoughtPool.length];
   
     return {

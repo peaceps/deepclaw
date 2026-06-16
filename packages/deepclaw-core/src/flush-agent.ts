@@ -16,16 +16,19 @@ export type SealedAgentHandler = AgentHandler & {
     onStreamText(content: string): void;
 }
 
-export type AgentIdentity = {
+export type AgentSoulIdentity = {
   id: string;
-  name: string;
-  fired: boolean;
   avatar: string;
   role: string;
-  description: string;
   personalities: string[];
   emotion: boolean;
   skills: string[];
+}
+
+export type AgentIdentity = AgentSoulIdentity & {
+  name: string;
+  fired: boolean;
+  description: string;
 }
 
 export type AgentStatus = {

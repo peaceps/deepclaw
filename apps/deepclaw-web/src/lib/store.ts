@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Task, Project } from '@deepclaw/loop-gateway';
-import { AgentEmployee } from "@deepclaw/core";
+import { AgentEmployee, AgentIdentity } from "@deepclaw/core";
 import { Message } from '@/components/chat/message-type';
 import { getProjectStatus } from '@/components/component-utils';
 
@@ -13,6 +13,7 @@ type AppState = {
 
   // Actions
   setAgents: (agents: AgentEmployee[]) => void;
+  setAgentIdentity: (id: string, identity: Partial<AgentIdentity>) => void;
   setProjects: (projects: Project<Task>[]) => void;
   setMessages: (messages: Message[]) => void;
   setSelectedAgent: (id: string | null) => void;
@@ -33,6 +34,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAgents: (agents) => {
     set({ agents, activeAgents: agents.filter(a => !a.fired) });
     selectFirstActiveAgent(get, set);
+  },
+  setAgentIdentity: (id: string, identity: Partial<AgentIdentity>) => {
+    set((state) => {
+        const agents = state.agents.map(a => a.id === id ? { ...a, ...identity } : a);
+        const activeAgents = agents.filter(a => !a.fired);
+        return { agents, activeAgents };
+    });
   },
   setProjects: (projects) => set({ projects }),
   setMessages: (messages) => set({ messages }),

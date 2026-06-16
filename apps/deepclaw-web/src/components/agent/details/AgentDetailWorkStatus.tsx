@@ -13,7 +13,7 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
   const progress = getProjectProgress(currentProject);
 
   return (
-    <InfoCard title="pages.agents.details.workStatus.title" icon={<Target size={20} />}>
+    <InfoCard title="pages.agents.details.workStatus.title" icon={<Target size={20} />} color="lime">
       <div className="space-y-4">
         {/* 当前项目 */}
         <div>
@@ -44,7 +44,9 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
               </>}
             </div>
           ) : (
-            <div className="text-sm text-gray-400 italic">{t('pages.agents.details.workStatus.noProject')}</div>
+            <div className="text-sm text-gray-400 italic">
+              {t('pages.agents.details.workStatus.noProject')}
+            </div>
           )}
         </div>
 

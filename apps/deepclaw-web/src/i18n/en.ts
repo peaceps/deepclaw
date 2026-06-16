@@ -12,7 +12,9 @@ export const en = {
             medium: 'Medium',
             low: 'Low',
         },
-        notReady: 'Coming soon...'
+        notReady: 'Coming soon...',
+        edit: 'Edit',
+        add: 'Add',
     },
     sidebar: {
         subtitle: 'One person many agents Company',
@@ -52,6 +54,9 @@ export const en = {
                 header: {
                     projectsCompleted: 'Projects Completed',
                 },
+                labels: {
+                    save: 'Press Enter to save',
+                },
                 personality: {
                     title: 'Personality',
                     traits: 'Traits',
@@ -67,13 +72,12 @@ export const en = {
                 },
                 description: {
                     title: 'Description',
+                    noContent: 'Who am I?',
                 },
                 workStatus: {
-                    title: 'Work Status',
+                    title: 'Working Status',
                     currentProject: 'Current Project',
                     noProject: 'No project ongoing',
-                    workCharacteristics: 'Work Characteristics',
-                    goodAt: 'Good at areas of {{skills}}',
                 },
             },
             mobile: {

@@ -89,7 +89,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
     setPanelToggleStatus(pre => {
       delete pre[`agents.${index}`];
       return {...pre};
-    })
+    });
   }, []);
 
   const validate = useCallback(async (cfg: DeepclawConfig) => {

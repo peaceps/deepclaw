@@ -1,6 +1,6 @@
 import crypto from "crypto";
-import { type FlushAgent, type AgentHandler, type AgentEmployee } from "@deepclaw/core";
-import { LoopInitializer, type Project, ProjectManager, StandaloneTask, type Task } from "@deepclaw/agent";
+import { type FlushAgent, type AgentHandler, type AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
+import { LoopInitializer, type Project, ProjectManager, StandaloneTask, AgentIdentityManager, type Task } from "@deepclaw/agent";
 
 export type LoopStore = {agent: {[key: string]: FlushAgent}, project: {[key: string]: FlushAgent}};
 export type LoopInfo = {agents: AgentEmployee[], projects: Project<Task>[]};
@@ -42,6 +42,26 @@ export class LoopGateway {
                 this.subscribers.splice(index, 1);
             }
         };
+    }
+
+    public static newAgentIdentity(id: string): AgentEmployee {
+        const identity = AgentIdentityManager.newAgentIdentity(id);
+        return {
+            ...identity,
+            status: 'idle',
+            mood: 'none',
+            stats: {
+                tasksCompleted: 0
+            }
+        };
+    }
+
+    public static updateAgentIdentity(id: string, identity: Partial<AgentSoulIdentity>): void {
+        AgentIdentityManager.updateAgentIdentity(id, identity);
+    }
+
+    public static updateAgentDescription(id: string, description: string): void {
+        AgentIdentityManager.updateAgentDescription(id, description);
     }
 
     public static getLoopInfo(): LoopInfo {
@@ -103,7 +123,7 @@ export class LoopGateway {
     }
 
     private static getAgents(projects: Project<Task>[]): AgentEmployee[] {
-        return LoopInitializer.getAgents().map(agent => ({
+        return AgentIdentityManager.getAgents().map(agent => ({
             ...agent,
             status: agent.fired ? 'fired' : projects.some(p  => p.creator === agent.id && !p.closedAt) ? 'busy' : 'idle',
             mood: 'none',

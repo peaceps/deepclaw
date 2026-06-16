@@ -1,6 +1,6 @@
 'use client';
 
-import type { AgentEmployee } from '@deepclaw/core';
+import type { AgentEmployee, AgentSoulIdentity } from '@deepclaw/core';
 import {
   Users
 } from 'lucide-react';
@@ -10,9 +10,22 @@ import { AgentDetailSkills } from './AgentDetailSkills';
 import { AgentDetailWorkStatus } from './AgentDetailWorkStatus';
 import { useTranslation } from 'react-i18next';
 import { AgentDetailDescription } from './AgentDetailDescription';
+import { useCallback } from 'react';
+import { updateAgentIdentity } from "@/server/loop";
+import { useAppStore } from '@/lib/store';
 
-export function AgentDetail({agent}: {agent?: AgentEmployee}) {
+export function AgentDetail({agent}: {
+    agent?: AgentEmployee;
+}) {
   const {t} = useTranslation();
+  const {setAgentIdentity} = useAppStore();
+
+  const onAgentUpdate = useCallback((agentId: string, patch: Partial<AgentSoulIdentity> | string) => {
+    setAgentIdentity(agentId, typeof patch === 'string' ? { description: patch } : patch);
+    updateAgentIdentity(agentId, patch).catch(() => {
+        // TODO handle fallback
+    });
+  }, [setAgentIdentity]);
 
   if (!agent) {
     return (
@@ -29,18 +42,21 @@ export function AgentDetail({agent}: {agent?: AgentEmployee}) {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50">
-      <div className="p-4 space-y-4 sm:space-y-6">
+    <div className="h-full overflow-y-auto bg-gray-50 min-w-0">
+      <div key={agent.id} className="p-4 space-y-4 sm:space-y-6">
         {/* Header */}
         <AgentHeader agent={agent} />
 
         {/* Info Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-          <AgentDetailPersonality agent={agent} />
-          <AgentDetailSkills agent={agent} />
+          <AgentDetailPersonality agent={agent} onUpdate={onAgentUpdate} />
+          <AgentDetailSkills agent={agent} onUpdate={onAgentUpdate} />
         </div>
 
-        <AgentDetailDescription description={agent.description}/>
+        <AgentDetailDescription
+          agent={agent}
+          onUpdate={onAgentUpdate}
+        />
 
         {/* Work Style */}
         <AgentDetailWorkStatus agent={agent} />

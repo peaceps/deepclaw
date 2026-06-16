@@ -12,7 +12,9 @@ export const zh = {
             medium: '中',
             low: '低',
         },
-        notReady: '功能开发中...'
+        notReady: '功能开发中...',
+        edit: '编辑',
+        add: '添加',
     },
     sidebar: {
         subtitle: '一人多Agent公司',
@@ -52,6 +54,9 @@ export const zh = {
                 header: {
                     projectsCompleted: '已完成项目数',
                 },
+                labels: {
+                    save: '按回车保存',
+                },
                 personality: {
                     title: '性格设定',
                     traits: '个性特征',
@@ -67,13 +72,12 @@ export const zh = {
                 },
                 description: {
                     title: '简介',
+                    noContent: '我是谁？',
                 },
                 workStatus: {
                     title: '工作状态',
                     currentProject: '当前项目',
                     noProject: '暂无进行中的项目',
-                    workCharacteristics: '工作特点',
-                    goodAt: '擅长{{skills}}领域的工作',
                 },
             },
             mobile: {

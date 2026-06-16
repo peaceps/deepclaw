@@ -23,11 +23,18 @@ export function DesktopAgentPage({selectedAgent}: {
         </div>
 
         {/* Middle: Agent Detail */}
-        <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 transition-all duration-300 h-full ${detailCollapsed ? 'w-12' : 'w-[50%]'}`}>
-          <div className={`flex items-center border-b border-gray-200 bg-gray-50 w-full ${detailCollapsed ? 'flex-col' : 'justify-end'} py-3`}>
+        <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 h-full
+            overflow-hidden transition-[width] duration-300 ease-in-out
+            ${detailCollapsed ? 'w-12' : 'w-[50%]'}`
+          }>
+          <div className={`flex items-center border-b border-gray-200 bg-gray-50 w-full shrink-0
+            ${detailCollapsed ? 'flex-col' : 'justify-end'} py-3`
+          }>
             <button
               onClick={() => setDetailCollapsed(!detailCollapsed)}
-              className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors ${detailCollapsed ? '' : 'mr-2'}`}
+              className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600
+                transition-colors cursor-pointer ${detailCollapsed ? '' : 'mr-2'}`
+              }
               title={detailCollapsed ? t('common.toggle.expand') : t('common.toggle.collapse')}
             >
               {detailCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -38,9 +45,9 @@ export function DesktopAgentPage({selectedAgent}: {
                 <User size={20} />
             </div>
           ) : (
-            <div className="flex-1 overflow-hidden w-full">
-                <AgentDetail agent={selectedAgent} />
-            </div>
+          <div className="flex-1 overflow-hidden w-full">
+            <AgentDetail agent={selectedAgent}/>
+          </div>
           )}
         </div>
 

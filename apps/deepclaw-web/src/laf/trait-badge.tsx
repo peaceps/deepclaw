@@ -1,22 +1,35 @@
 'use client';
 
+import { X } from 'lucide-react';
+import { colorClassMap, DeepColors } from './laf-types';
+
 interface TraitBadgeProps {
     text: string;
-    color?: 'blue' | 'purple' | 'green' | 'orange' | 'gray';
-  }
+    color: DeepColors;
+    onRemove?: () => void;
+}
 
-export function TraitBadge({ text, color = 'blue' }: TraitBadgeProps) {
-    const colorClasses = {
-      blue: 'bg-blue-50 text-blue-700 border-blue-200',
-      purple: 'bg-purple-50 text-purple-700 border-purple-200',
-      green: 'bg-green-50 text-green-700 border-green-200',
-      orange: 'bg-orange-50 text-orange-700 border-orange-200',
-      gray: 'bg-gray-100 text-gray-700 border-gray-200',
-    };
-  
+export function TraitBadge({ text, color, onRemove }: TraitBadgeProps) {
+    const classes = colorClassMap[color];
     return (
-      <span className={`px-3 py-1.5 rounded-full text-sm font-medium border ${colorClasses[color]}`}>
+      <span
+        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm
+            font-medium border transition-colors
+            ${classes.bg} ${classes.textMuted} ${classes.border} ${classes.bgHover}
+            ${onRemove ? 'pr-2' : ''}`
+        }
+      >
         {text}
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 transition-colors cursor-pointer"
+            aria-label={`Remove ${text}`}
+          >
+            <X size={14} />
+          </button>
+        )}
       </span>
     );
 }

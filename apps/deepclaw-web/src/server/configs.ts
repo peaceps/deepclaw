@@ -3,15 +3,21 @@
 import {
     type DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig,
 } from '@deepclaw/config';
+import { AgentEmployee } from '@deepclaw/core';
+import { LoopGateway } from '@deepclaw/loop-gateway';
 import { revalidatePath } from 'next/cache';
 
 export async function loadCurrentConfig<T>(key?: string, defaultValue?: T): Promise<T> {
   return loadConfig<T>(key, defaultValue);
 }
 
-export async function saveConfig(config: DeepclawConfig): Promise<void> {
+export async function saveConfig(config: DeepclawConfig): Promise<AgentEmployee[]> {
+  const currentAgents = loadConfig<DeepclawConfig['agents']>('agents');
   writeAppConfig(config);
   revalidatePath('/', 'layout');
+  const newAgents = config.agents.filter(agent => !currentAgents.find(a => a.id === agent.id))
+    .map(agent => LoopGateway.newAgentIdentity(agent.id));
+  return newAgents;
 }
 
 export type ValidationResult = {
