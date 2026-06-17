@@ -14,6 +14,7 @@ export async function loadCurrentConfig<T>(key?: string, defaultValue?: T): Prom
 export async function saveConfig(config: DeepclawConfig): Promise<AgentEmployee[]> {
   const currentAgents = loadConfig<DeepclawConfig['agents']>('agents');
   writeAppConfig(config);
+  LoopGateway.updateLoopConfig(config);
   revalidatePath('/', 'layout');
   const newAgents = config.agents.filter(agent => !currentAgents.find(a => a.id === agent.id))
     .map(agent => LoopGateway.newAgentIdentity(agent.id));

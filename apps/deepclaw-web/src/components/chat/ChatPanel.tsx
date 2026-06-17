@@ -9,11 +9,10 @@ import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
-import { type LoopStore } from "@deepclaw/loop-gateway";
 
 type ChatPanelProps = {
   agent: AgentEmployee;
-  from: keyof LoopStore;
+  from: 'agent' | 'project';
 };
 
 export function ChatPanel({ agent, from }: ChatPanelProps) {
@@ -33,7 +32,7 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
         type: 'user',
         timestamp: new Date().toISOString(),
     });
-    const response = await invoke(from, agent.id, trimmed);
+    const response = await invoke(agent.id, trimmed);
     addMessage({
         id: (Date.now() + 1).toString(),
         agentId: agent.id,

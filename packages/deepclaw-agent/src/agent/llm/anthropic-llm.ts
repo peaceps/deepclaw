@@ -35,11 +35,11 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
         }));
     }
 
-    protected override createLLMClient(): Anthropic {
+    protected override createLLMClient(baseURL: string, apiKey: string, timeout: number): Anthropic {
         return new Anthropic({
-            baseURL: this.gw.baseUrl,
-            apiKey: this.gw.apiKey,
-            timeout: this.gw.timeoutMs
+            baseURL,
+            apiKey,
+            timeout
         });
     }
 

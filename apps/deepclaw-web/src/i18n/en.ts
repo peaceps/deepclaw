@@ -138,8 +138,8 @@ export const en = {
                 agents: {
                     title: 'Agent Settings',
                     description: 'Configure agents',
-                    addButton: 'Add agent',
-                    removeButton: 'Delete agent',
+                    addButton: 'Hire new agent',
+                    removeButton: 'Fire this agent',
                     header: {
                         unnamed: 'Unnamed',
                         errors: 'error(s)'
@@ -147,7 +147,8 @@ export const en = {
                     sections: {
                         basic: 'Basic info',
                         im: 'IM configs',
-                        llm: 'LLM configs'
+                        llm: 'LLM configs',
+                        llmSDKNotif: 'SDK change will only take effect after service restart',
                     }
                 }
             }

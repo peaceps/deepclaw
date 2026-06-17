@@ -1,7 +1,8 @@
 import {DeepclawConfig} from '@deepclaw/config';
-import {type Logger} from '@deepclaw/utils';
+import {type Logger, type CommonKeys} from '@deepclaw/utils';
 import { LLMTool } from '../definitions/tool-definitions';
 import { TransitionReason } from '../definitions/definitions';
+import { LLMGWConfig } from '@deepclaw/core';
 
 const llmRetry = 3;
 
@@ -10,28 +11,26 @@ export type LLMConstructor<I, O, T, LLM> = new (llmConfig: DeepclawConfig['agent
 export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
     protected tools?: T[];
-    protected gw;
+    protected gw: LLMGWConfig;
 
     constructor(llmConfig: DeepclawConfig['agents'][0]['llm'], tools: LLMTool[] = []) {
         this.gw = {
-            baseUrl: llmConfig.baseUrl,
-            apiKey: llmConfig.apiKey,
             model: llmConfig.model,
-            headers: !llmConfig.workspace ? undefined : {
-                'api-key': llmConfig.apiKey,
-                'workspacename': llmConfig.workspace,
-            },
             timeoutMs: 300 * 1000, // JSON: seconds → client: ms
             temperature: 0.1,
             maxTokens: 8000
         }
         this.tools = this.convertTools(tools);
-        this.client = this.createLLMClient();
+        this.client = this.createLLMClient(llmConfig.baseUrl, llmConfig.apiKey, this.gw.timeoutMs);
     }
-    
+
+    public updateGWConfig(config: Partial<CommonKeys<DeepclawConfig['agents'][0]['llm'], LLMGWConfig>>) {
+        Object.assign(this.gw, config);
+    }
+
     protected abstract convertTools(tools: LLMTool[]): T[];
 
-    protected abstract createLLMClient(): LLM;
+    protected abstract createLLMClient(baseURL: string, apiKey: string, timeout: number): LLM;
 
     public async invoke(system: string, messages: I[], streamer: (text: string) => void, logger: Logger): Promise<O> {
         let response: O | null = null;

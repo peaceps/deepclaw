@@ -5,6 +5,13 @@ export type FlushAgentConstructor = new (
     handler: AgentHandler
 ) => FlushAgent;
 
+export type LLMGWConfig = {
+    model: string,
+    timeoutMs: number, // JSON: seconds → client: ms
+    temperature: number,
+    maxTokens: number
+}
+
 export type AgentHandler = {
     onStreamText(content: string, done?: boolean): void;
     onToolText(content: string): void;

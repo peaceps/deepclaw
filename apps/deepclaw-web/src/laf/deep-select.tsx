@@ -8,19 +8,27 @@ type DeepSelectProps = {
     value?: string;
     onSelect: (e: ChangeEvent<HTMLSelectElement, HTMLSelectElement>) => void;
     error?: boolean;
+    Icon?: React.ComponentType<{ size?: number; className?: string, children?: React.ReactNode }>;
+    iconTitle?: string;
 }
 
 export function DeepSelect({
     uiInfo,
     value,
     onSelect,
-    error
+    error,
+    Icon,
+    iconTitle
 }: DeepSelectProps) {
     const {t} = useTranslation();
 
     return (
         <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t(uiInfo.content)}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                {Icon && iconTitle && <Icon size={16} className="mr-2 mb-1 text-yellow-500 inline">
+                    <title>{t(iconTitle)}</title>
+                </Icon>}{t(uiInfo.content)}
+            </label>
             <select
                 value={value || ''}
                 onChange={onSelect}

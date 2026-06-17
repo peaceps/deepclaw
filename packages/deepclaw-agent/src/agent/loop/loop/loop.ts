@@ -1,6 +1,13 @@
 import crypto from 'node:crypto';
 import { i18nInstance } from '@deepclaw/i18n';
-import { AgentInfoEvent, AgentInteractionEvent, FlushAgent, type AgentHandler, type AgentIdentity } from '@deepclaw/core';
+import { 
+    type AgentInfoEvent,
+    type AgentInteractionEvent,
+    FlushAgent,
+    type AgentHandler,
+    type AgentIdentity,
+    LLMGWConfig,
+} from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
 import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
@@ -8,7 +15,7 @@ import { PromptService } from '../services/prompt-service';
 import { ToolsManager } from '../services/tools-manager';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
 import { MessagesCompactor } from '../compactor/messages-compactor';
-import { getLogger } from '@deepclaw/utils';
+import { getLogger, Logger, getLoopLogger } from '@deepclaw/utils';
 import { HookManager } from '../services/hook-manager';
 import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
 
@@ -24,6 +31,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private messagesCompactor: MessagesCompactor<I, O, unknown, LLM>;
     private footPrints: FootPrint[] = [];
     private agentConfig: DeepclawConfig['agents'][0];
+    private loopLogger: Logger;
 
     constructor(
         agentIdentity: AgentIdentity,
@@ -37,6 +45,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
+        this.loopLogger = getLogger(`loop.${this.agentIdentity.id}`);
         const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);
         this.toolUseService = new ToolUseService(
             tools,
@@ -54,13 +63,44 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         );
     }
 
+    public updateConfig(config: DeepclawConfig['agents'][0]): void {
+        // Todo handle mode change caused tools change and standaloneTask change
+        const oldConfig = this.agentConfig;
+        this.agentConfig = config;
+
+        if (this.agentConfig.llm.provider !== oldConfig.llm.provider) {
+            // TODO loop type change
+            this.loopLogger.info(`LLM provider changed from ${oldConfig.llm.provider} to ${this.agentConfig.llm.provider}`);
+            return;
+        }
+
+        if (this.agentConfig.mode !== oldConfig.mode
+            || this.agentConfig.llm.baseUrl !== oldConfig.llm.baseUrl
+            || this.agentConfig.llm.apiKey !== oldConfig.llm.apiKey
+        ) {
+            const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);
+            if (this.agentConfig.mode !== oldConfig.mode) {
+                this.toolUseService.updateTools(tools);
+            }
+            this.llm = new (this.getLLMConstructor())(
+                this.agentConfig.llm,
+                tools.map(tool => tool.tool)
+            ) as LLM;
+            this.messagesCompactor.updateLLM(this.llm);
+        } else {
+            this.llm.updateGWConfig({model: this.agentConfig.llm.model});
+        }
+    }
+
     protected isSubLoop(): boolean {
         return this.parentSessionId !== '';
     }
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
-    protected abstract createMessagesCompactor(agentId: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<I, O, unknown, LLM>;
+    protected abstract createMessagesCompactor(
+        agentId: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]
+    ): MessagesCompactor<I, O, unknown, LLM>;
 
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
@@ -70,7 +110,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 agentId: this.agentIdentity.id,
                 turnCount: 0,
                 system: '',
-                logger: getLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
+                logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
                 recoveryState: {
                     maxTokenRetries: 0,
                     refusalState: '',

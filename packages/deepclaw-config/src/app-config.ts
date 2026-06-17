@@ -29,7 +29,6 @@ export type DeepclawConfig = {
             apiKey: string;
             model: string;
             responseApi: boolean;
-            workspace?: string;
         }
     }[],
     ui: {

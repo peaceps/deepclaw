@@ -42,6 +42,13 @@ export class ToolUseService {
         this.agentHandler = agentHandler;
     }
 
+    public updateTools(tools: ToolDesc[]) {
+        this.toolMap.clear();
+        for (const tool of tools) {
+            this.toolMap.set(tool.tool.name, tool);
+        }
+    }
+
     public async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
         const tool = this.toolMap.get(toolUseDef.name);
         if (!tool) {

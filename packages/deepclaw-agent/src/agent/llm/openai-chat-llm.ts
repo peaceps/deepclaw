@@ -35,12 +35,11 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         ));
     }
 
-    protected override createLLMClient(): OpenAI {
+    protected override createLLMClient(baseURL: string, apiKey: string, timeout: number): OpenAI {
         return new OpenAI({
-            baseURL: this.gw.baseUrl,
-            apiKey: this.gw.apiKey,
-            timeout: this.gw.timeoutMs,
-            defaultHeaders: this.gw.headers
+            baseURL,
+            apiKey,
+            timeout,
         });
     }
 

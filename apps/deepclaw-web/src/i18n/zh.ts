@@ -138,8 +138,8 @@ export const zh = {
                 agents: {
                     title: 'Agent设置',
                     description: '配置Agent参数',
-                    addButton: '添加Agent',
-                    removeButton: '删除Agent',
+                    addButton: '雇佣新Agent',
+                    removeButton: '解雇Agent',
                     header: {
                         unnamed: '未命名',
                         errors: '个错误'
@@ -147,7 +147,8 @@ export const zh = {
                     sections: {
                         basic: '基本信息',
                         im: 'IM配置',
-                        llm: 'LLM配置'
+                        llm: 'LLM配置',
+                        llmSDKNotif: 'SDK变更只有在应用重启后才生效',
                     }
                 }
             }

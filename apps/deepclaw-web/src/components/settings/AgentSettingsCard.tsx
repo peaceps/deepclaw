@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  Settings,
+    CircleAlert,
   MessageSquare,
 } from 'lucide-react';
 import type { CONFIGS_EVENTS, DeepclawConfig } from '@deepclaw/config';
@@ -12,25 +12,12 @@ import {DeepInput} from '@/laf/deep-input';
 import {DeepSwitch} from '@/laf/deep-switch';
 import {DeepCustomHeaderExpandablePanel} from '@/laf/deep-expandable-panel';
 import { useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import {AgentSettingsHeader} from './AgentSettingsHeader';
+import { AgentSettingsSection } from './AgentSettingsSection';
 
 type AgentConfig = NonNullable<DeepclawConfig['agents'][0]>;
 type IMConfig = NonNullable<AgentConfig['im']>;
 type LLMConfig = AgentConfig['llm'];
-
-function AgentSettingsSection({title, children}: {title: string; children: React.ReactNode}) {
-  const {t} = useTranslation();
-  return (
-    <div className="space-y-4">
-      <h5 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-        <Settings size={16} className="text-gray-400" />
-        {t(title)}
-      </h5>
-      {children}
-    </div>
-  )
-}
 
 export function AgentSettingsCard({
   name,
@@ -152,6 +139,8 @@ export function AgentSettingsCard({
               value={agent.llm.provider}
               onSelect={(e) => onUpdateLLM(index, { provider: e.target.value })}
               error={hasFieldError('llm.provider')}
+              Icon={CircleAlert}
+              iconTitle='pages.settings.panels.agents.sections.llmSDKNotif'
             />
             <DeepInput
               uiInfo={configEvents['agents.llm.model'] as Extract<AgentInteractionEvent, {type: 'input'}>}

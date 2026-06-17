@@ -15,7 +15,13 @@ const logger = pino({
     }
 });
 
-export function getLogger(parentSessionId: string, sessionId: string, loopId: string) {
+export function getLogger(name: string) {
+    return logger.child({
+        name
+    });
+}
+
+export function getLoopLogger(parentSessionId: string, sessionId: string, loopId: string) {
     return logger.child({
         parentSessionId,
         sessionId,

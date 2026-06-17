@@ -39,7 +39,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const invokeLlm = useCallback((userInput: string) => {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
-        LoopGateway.invoke('agent', agentIdRef.current!, userInput).catch(err => {
+        LoopGateway.invoke(agentIdRef.current!, userInput).catch(err => {
             setTimeout(() => {
                 handleLlmDone(`${t('common.error')} ${err.message?.trim() || t('common.unexpected')}`);
             }, 0);
@@ -75,7 +75,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         }
         if (envConfigReady) {
             agentIdRef.current = LoopGateway.getLoopInfo().agents[0]!.id;
-            LoopGateway.init('agent', agentIdRef.current, {
+            LoopGateway.init(agentIdRef.current, {
                 onStreamText: handleLlmStreamText, 
                 onToolText: (text: string) => handleLlmStreamText(text, false),
                 onInteractionEvent: handleAgentEvent

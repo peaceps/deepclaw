@@ -1,15 +1,16 @@
 import crypto from "crypto";
-import { type FlushAgent, type AgentHandler, type AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
-import { LoopInitializer, type Project, ProjectManager, StandaloneTask, AgentIdentityManager, type Task } from "@deepclaw/agent";
+import { type AgentHandler, type AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
+import {
+    LoopInitializer, type Project, ProjectManager, StandaloneTask, AgentIdentityManager, type Task, LoopAgent
+} from "@deepclaw/agent";
+import type { DeepclawConfig } from "@deepclaw/config";
 
-export type LoopStore = {agent: {[key: string]: FlushAgent}, project: {[key: string]: FlushAgent}};
+export type LoopStore = Record<string, LoopAgent<unknown, any, any>>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project<Task>[]};
 
 export class LoopGateway {
     
-    private static loops: LoopStore = {
-        agent: {}, project: {}
-    };
+    private static loops: LoopStore = {};
     private static subscribers: (() => void)[] = [];
     private static defaultHandler: AgentHandler = {
         onStreamText: () => {},
@@ -18,8 +19,8 @@ export class LoopGateway {
         onInfoEvent: () => LoopGateway.subscribers.forEach(cb => cb())
     };
 
-    public static init(type: keyof LoopStore, agentId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
-        this.loops[type][agentId] = LoopInitializer.getLoop(agentId, {
+    public static init(agentId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
+        this.loops[agentId] = LoopInitializer.getLoop(agentId, {
             onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
             onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
             onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
@@ -27,11 +28,20 @@ export class LoopGateway {
         });
     }
 
-    public static invoke(type: keyof LoopStore, agentId: string, input: string): Promise<string> {
-        if (!this.loops[type][agentId]) {
-            this.init(type, agentId, {});
+    public static invoke(agentId: string, input: string): Promise<string> {
+        if (!this.loops[agentId]) {
+            this.init(agentId, {});
         }
-        return this.loops[type][agentId]!.invoke(input);
+        return this.loops[agentId]!.invoke(input);
+    }
+
+    public static updateLoopConfig(config: DeepclawConfig) {
+        for (const agentConfig of config.agents) {
+            if (!this.loops[agentConfig.id]) {
+                continue;
+            }
+            this.loops[agentConfig.id]!.updateConfig(agentConfig);
+        }
     }
 
     public static subscribe(cb: () => void): () => void {

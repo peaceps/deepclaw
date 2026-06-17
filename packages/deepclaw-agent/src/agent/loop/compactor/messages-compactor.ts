@@ -33,6 +33,10 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         };
     }
 
+    public updateLLM(llm: LLM) {
+        this.llm = llm;
+    }
+
     public compactOldResults(messages: I[]): void {
         const toolResultMessages = this.getToolResults(messages);
         if (toolResultMessages.length > this.maxRecent) {
