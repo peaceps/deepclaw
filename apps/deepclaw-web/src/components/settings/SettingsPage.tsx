@@ -13,7 +13,7 @@ export default function SettingsPage({
       & {onSave: (config: DeepclawConfig) => Promise<AgentEmployee[]>};
 }) {
   const {i18n} = useTranslation();
-  const {agents, setAgents, setAgentIdentity} = useAppStore();
+  const {agents, setAgents, updateAgentEmployee} = useAppStore();
 
   const handleSave = (newConfig: DeepclawConfig) => {
     const oldLang = i18n.language;
@@ -24,7 +24,7 @@ export default function SettingsPage({
         }
         setAgents([...agents, ...newAgents]);
         newConfig.agents.filter(agent => !newAgents.find(a => a.id === agent.id)).forEach(agent => {
-            setAgentIdentity(agent.id, { name: agent.name, fired: !!agent.fired });
+            updateAgentEmployee(agent.id, { name: agent.name, fired: !!agent.fired });
         });
     }).catch(() => {
         // TODO handle fallback

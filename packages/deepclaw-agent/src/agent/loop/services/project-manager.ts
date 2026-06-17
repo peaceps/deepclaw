@@ -2,22 +2,7 @@ import { FileUtils } from '@deepclaw/utils';
 import { DeepclawConfig } from '@deepclaw/config';
 import { TaskStepsManager } from './task-steps-manager';
 import { PROJECT_DIR } from '../../paths';
-
-export type ProjectStatus = 'todo' | 'ongoing' | 'done';
-
-export type Project<T extends Task> = {
-    id: string;
-    title: string;
-    description: string;
-    createdAt?: string;
-    closedAt?: string;
-    creator: string;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
-    tasks: Record<string, T>;
-    completedTasks: string[];
-    ongoingTasks: string[];
-    canStartTasks: string[];
-};
+import type { Project, Task, StandaloneTask } from '@deepclaw/core';
 
 export type ProjectListInfo = {
     projects: {
@@ -28,24 +13,6 @@ export type ProjectListInfo = {
         open: {title: string; description: string}[];
         closed: {title: string; description: string}[]
     }
-}
-
-export type Task = {
-    title: string;
-    description: string;
-    status: ProjectStatus;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
-    blockedBy: string[];
-    blocks: string[];
-    assignee?: string;
-    closedAt?: string;
-    creator: string; // standalone
-    progress?: number;
-    tags?: string[];
-};
-
-export type StandaloneTask = Task & {
-    createdAt: string; // for standalone tasks
 }
 
 export class ProjectManager {
@@ -141,7 +108,7 @@ export class ProjectManager {
         }
     }
 
-    public static updateTask(projectId: string, taskInfo: {title: string; assignee?: string; status: Task['status']}): void {
+    public static updateTask(projectId: string, taskInfo: {title: string; assignee?: string; status: Task['status']}): Task {
         let task;
         if (projectId === 'standalone') {
             task = this.projects.standalone.persistent[taskInfo.title] || this.projects.standalone.transient[taskInfo.title];
@@ -174,6 +141,7 @@ export class ProjectManager {
         } else if (this.projects.standalone.persistent[taskInfo.title]) {
             this.saveStandaloneProject();
         }
+        return task;
     }
 
     public static getProjectList(includingClosed: boolean): ProjectListInfo {
@@ -245,6 +213,30 @@ export class ProjectManager {
             throw new Error('Standalone task not found.');
         }
         return task;
+    }
+
+    public static wrapStandaloneTask(task: StandaloneTask): Project<StandaloneTask> {
+        const project: Project<StandaloneTask> = {
+            id: `standalone-${task.title}`,
+            title: task.title,
+            description: '',
+            tasks: {[task.title]: task},
+            creator: task.creator,
+            priority: task.priority || 'low',
+            createdAt: task.createdAt,
+            closedAt: task.closedAt,
+            canStartTasks: [],
+            ongoingTasks: [],
+            completedTasks: [],
+        };
+        if (task.status === 'todo') {
+            project.canStartTasks.push(task.title);
+        } else if (task.status === 'ongoing') {
+            project.ongoingTasks.push(task.title);
+        } else {
+            project.completedTasks.push(task.title);
+        }
+        return project;
     }
 
     public static prompts(agentMode: DeepclawConfig['agents'][0]['mode']): string {

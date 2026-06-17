@@ -18,14 +18,14 @@ export function AgentDetail({agent}: {
     agent?: AgentEmployee;
 }) {
   const {t} = useTranslation();
-  const {setAgentIdentity} = useAppStore();
+  const {updateAgentEmployee} = useAppStore();
 
   const onAgentUpdate = useCallback((agentId: string, patch: Partial<AgentSoulIdentity> | string) => {
-    setAgentIdentity(agentId, typeof patch === 'string' ? { description: patch } : patch);
+    updateAgentEmployee(agentId, typeof patch === 'string' ? { description: patch } : patch);
     updateAgentIdentity(agentId, patch).catch(() => {
         // TODO handle fallback
     });
-  }, [setAgentIdentity]);
+  }, [updateAgentEmployee]);
 
   if (!agent) {
     return (

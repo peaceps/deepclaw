@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { ToolDesc } from "../../definitions/tool-definitions";
-import { Project, ProjectManager, StandaloneTask, Task } from "../services/project-manager";
+import { ProjectManager } from "../services/project-manager";
+import { Project, StandaloneTask, Task } from "@deepclaw/core";
 import {i18nInstance} from '@deepclaw/i18n';
 import { OneLoopContext } from '../../definitions/definitions';
 import { TaskStepsManager } from '../services/task-steps-manager';
@@ -253,18 +254,24 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
     parallelSafe: false,
     outputToUser: false,
     exclusiveInSubLoop: false,
-    invoke: async function(input: UpdateTaskInput): Promise<string> {
+    invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
         ProjectManager.updateTask(input.projectId, {
             title: input.taskTitle,
             assignee: input.assignee,
             status: input.status,
         });
-        
+
+        const content = input.projectId === 'standalone' ? ProjectManager.getStandaloneTaskDetail(input.taskTitle) :
+            ProjectManager.getProjectDetail(input.projectId);
+
+        context.actions.agentHandler.onInfoEvent({
+            type: 'updateProject',
+            content: 'id' in content ? content : ProjectManager.wrapStandaloneTask(content)
+        });
+
         return `Task updated successfully.
 Here's the related info:
-${JSON.stringify(input.projectId === 'standalone' ?
-    ProjectManager.getStandaloneTaskDetail(input.taskTitle) :
-    ProjectManager.getProjectDetail(input.projectId))}`;
+${JSON.stringify(content)}`;
     },
 };
 

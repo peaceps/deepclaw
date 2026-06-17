@@ -19,6 +19,7 @@
 		"@deepclaw/i18n": "workspace:*",
 		"@deepclaw/config": "workspace:*",
 		"@deepclaw/core": "workspace:*",
+		"@deepclaw/utils": "workspace:*",
 		"next": "16.2.6",
 		"react": "19.2.5",
 		"react-dom": "19.2.5",

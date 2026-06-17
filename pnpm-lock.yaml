@@ -153,6 +153,9 @@ importers:
       '@deepclaw/loop-gateway':
         specifier: workspace:*
         version: link:../../packages/deepclaw-loop-gateway
+      '@deepclaw/utils':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-utils
       lucide-react:
         specifier: 1.16.0
         version: 1.16.0(react@19.2.5)

@@ -1,13 +1,13 @@
 import { Message } from "./chat/message-type";
 import { AgentEmployee } from "@deepclaw/core";
-import type { Project, Task, ProjectStatus} from "@deepclaw/loop-gateway";
+import type { Project, Task, MissionStatus} from "@deepclaw/loop-gateway";
 import { getProjectStatus } from "./component-utils";
 
 export function getProjectStatusStyles(project: Project<Task>): string {
     return projectStatusStyles[getProjectStatus(project)];
 }
 
-export const projectStatusStyles: Record<ProjectStatus, string> = {
+export const projectStatusStyles: Record<MissionStatus, string> = {
     todo: 'bg-gray-100 text-gray-700',
     ongoing: 'bg-green-100 text-green-700',
     done: 'bg-blue-100 text-blue-700'

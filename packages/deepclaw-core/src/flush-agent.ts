@@ -1,4 +1,5 @@
-import { AgentInfoEvent, AgentInteractionEvent } from './agent-event';
+import { AgentInfoEvent, AgentInteractionEvent } from './flush-agent-event';
+import { AgentIdentity } from './agent-definitions';
 
 export type FlushAgentConstructor = new (
     agentIdentity: AgentIdentity,
@@ -22,31 +23,6 @@ export type AgentHandler = {
 export type SealedAgentHandler = AgentHandler & {
     onStreamText(content: string): void;
 }
-
-export type AgentSoulIdentity = {
-  id: string;
-  avatar: string;
-  role: string;
-  personalities: string[];
-  emotion: boolean;
-  expertises: string[];
-}
-
-export type AgentIdentity = AgentSoulIdentity & {
-  name: string;
-  fired: boolean;
-  description: string;
-}
-
-export type AgentStatus = {
-  status: 'busy' | 'idle' | 'fired';
-  mood: 'happy' | 'focused' | 'tired' | 'confused' | 'none';
-  stats: {
-    tasksCompleted: number;
-  };
-}
-
-export type AgentEmployee = AgentIdentity & AgentStatus;
 
 export abstract class FlushAgent {
     protected agentHandler: AgentHandler;

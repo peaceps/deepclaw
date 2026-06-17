@@ -1,7 +1,7 @@
-import type { Project, Task, ProjectStatus } from "@deepclaw/loop-gateway";
+import type { Project, Task, MissionStatus } from "@deepclaw/loop-gateway";
 import { LANG_LOCALE_MAP } from "@deepclaw/i18n";
 
-export function getProjectStatus(project: Project<Task>): ProjectStatus {
+export function getProjectStatus(project: Project<Task>): MissionStatus {
     if (!project.closedAt) {
         return !project.ongoingTasks.length ? 'todo' : 'ongoing';
     }

@@ -1,3 +1,6 @@
+import { AgentEmployee } from "./agent-definitions";
+import { Project, Task } from "./project-definitions";
+
 export type AgentInteractionEventOption = string | {label: string; value: string | boolean | number};
 
 export type AgentInteractionEvent = {
@@ -15,5 +18,9 @@ export type AgentInteractionEvent = {
 
 // TODO: Implement this
 export type AgentInfoEvent = {
-
+    type: 'updateProject',
+    content: Project<Task>
+} | {
+    type: 'updateAgent',
+    content: Partial<AgentEmployee> & {id: string}
 };

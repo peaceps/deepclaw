@@ -1,22 +1,22 @@
-import crypto from "crypto";
-import { type AgentHandler, type AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
+import type { AgentHandler, AgentEmployee, AgentSoulIdentity, Project, Task, StandaloneTask, AgentInfoEvent } from "@deepclaw/core";
 import {
-    LoopInitializer, type Project, ProjectManager, StandaloneTask, AgentIdentityManager, type Task, LoopAgent
+    LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
 } from "@deepclaw/agent";
 import type { DeepclawConfig } from "@deepclaw/config";
 
 export type LoopStore = Record<string, LoopAgent<unknown, any, any>>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project<Task>[]};
 
-export class LoopGateway {
-    
+type LoopGatewayConstructor = typeof LoopGatewayImpl;
+
+class LoopGatewayImpl {
     private static loops: LoopStore = {};
-    private static subscribers: (() => void)[] = [];
+    private static subscribers: ((e: AgentInfoEvent) => void)[] = [];
     private static defaultHandler: AgentHandler = {
         onStreamText: () => {},
         onToolText: () => {},
         onInteractionEvent: () => Promise.resolve(''),
-        onInfoEvent: () => LoopGateway.subscribers.forEach(cb => cb())
+        onInfoEvent: (e) => LoopGatewayImpl.subscribers.forEach(cb => cb(e))
     };
 
     public static init(agentId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
@@ -44,7 +44,7 @@ export class LoopGateway {
         }
     }
 
-    public static subscribe(cb: () => void): () => void {
+    public static subscribe(cb: (e: AgentInfoEvent) => void): () => void {
         this.subscribers.push(cb);
         return () => {
             const index = this.subscribers.indexOf(cb);
@@ -85,48 +85,12 @@ export class LoopGateway {
     private static getProjects(): Project<Task>[] {
         const res: Project<Task>[] = [];
         const projects = ProjectManager.getProjectList(true);
-        projects.projects.open.forEach(p => {
+        projects.projects.open.concat(projects.projects.closed).forEach(p => {
             res.push(ProjectManager.getProjectDetail(p.id));
         });
-        projects.projects.closed.forEach(p => {
-            res.push(ProjectManager.getProjectDetail(p.id));
-        });
-        projects.standaloneTasks.open.forEach((t, i) => {
+        projects.standaloneTasks.open.concat(projects.standaloneTasks.closed).forEach((t) => {
             const task = ProjectManager.getStandaloneTaskDetail(t.title);
-            const project: Project<StandaloneTask> = {
-                id: `standalone-${i}`,
-                title: t.title,
-                description: '',
-                tasks: {[t.title]: task},
-                creator: task.creator,
-                priority: task.priority || 'low',
-                canStartTasks: [],
-                ongoingTasks: [],
-                completedTasks: [],
-            }
-            if (task.status === 'todo') {
-                project.canStartTasks.push(task.title);
-            } else if (task.status === 'ongoing') {
-                project.ongoingTasks.push(task.title);
-            }
-            res.push(project);
-        });
-        projects.standaloneTasks.closed.forEach(t => {
-            const task = ProjectManager.getStandaloneTaskDetail(t.title);
-            const project: Project<StandaloneTask> = {
-                id: crypto.randomUUID(),
-                title: t.title,
-                description: '',
-                tasks: {[t.title]: task},
-                creator: task.creator,
-                priority: task.priority || 'low',
-                createdAt: task.createdAt,
-                closedAt: task.closedAt,
-                canStartTasks: [],
-                ongoingTasks: [],
-                completedTasks: [],
-            }
-            project.completedTasks.push(task.title);
+            const project: Project<StandaloneTask> = ProjectManager.wrapStandaloneTask(task);
             res.push(project);
         });
         return res;
@@ -142,5 +106,10 @@ export class LoopGateway {
             }
         }));
     }
-
 }
+
+const globalForLoopGateway = globalThis as typeof globalThis & {
+    __deepclawLoopGateway?: LoopGatewayConstructor;
+};
+
+export const LoopGateway = globalForLoopGateway.__deepclawLoopGateway ??= LoopGatewayImpl;
