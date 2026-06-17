@@ -17,7 +17,7 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
   const inProgressTasks = project.ongoingTasks.length;
   const completedTasks = project.completedTasks.length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const selectedAgent = getProjectOwner(project.id);
+  const ownerAgent = getProjectOwner(project.id);
   const {t} = useTranslation();
 
   return (
@@ -42,7 +42,7 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
             <div className="flex items-center gap-1.5 text-sm bg-purple-50 px-2 py-1 rounded-lg">
               <User size={16} className="text-purple-500" />
               <span className="text-gray-500">{t('pages.projects.project.owner')}:</span>
-              <span className="font-medium text-purple-700">{project.creator}</span>
+              <span className="font-medium text-purple-700">{ownerAgent?.name ?? project.creator}</span>
             </div>
             <div className="hidden sm:block w-32">
               <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
@@ -77,9 +77,9 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
         <div className="flex flex-col lg:flex-row border-t border-gray-200" style={{ minHeight: '400px' }}>
           <ProjectTasks project={project}/>
           <div className="flex-1 border-t lg:border-t-0 lg:border-l border-gray-200">
-            {selectedAgent && <ChatSidebar
+            {ownerAgent && <ChatSidebar
                 from={'project'}
-                agent={selectedAgent}
+                agent={ownerAgent}
             />}
           </div>
         </div>

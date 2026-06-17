@@ -11,7 +11,7 @@ export class TestLlmAgent extends FlushAgent {
             description: '',
             personalities: [],
             emotion: false,
-            skills: [],
+            expertises: [],
         };
     }
 

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { AgentHeader } from './AgentDetailHeader';
 import { AgentDetailPersonality } from './AgentDetailPersonality';
-import { AgentDetailSkills } from './AgentDetailSkills';
+import { AgentDetailExpertise } from './AgentDetailExpertise';
 import { AgentDetailWorkStatus } from './AgentDetailWorkStatus';
 import { useTranslation } from 'react-i18next';
 import { AgentDetailDescription } from './AgentDetailDescription';
@@ -50,7 +50,7 @@ export function AgentDetail({agent}: {
         {/* Info Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <AgentDetailPersonality agent={agent} onUpdate={onAgentUpdate} />
-          <AgentDetailSkills agent={agent} onUpdate={onAgentUpdate} />
+          <AgentDetailExpertise agent={agent} onUpdate={onAgentUpdate} />
         </div>
 
         <AgentDetailDescription

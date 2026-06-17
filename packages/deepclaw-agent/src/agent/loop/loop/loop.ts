@@ -6,7 +6,6 @@ import {
     FlushAgent,
     type AgentHandler,
     type AgentIdentity,
-    LLMGWConfig,
 } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
 import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions';
@@ -68,14 +67,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         const oldConfig = this.agentConfig;
         this.agentConfig = config;
 
-        if (this.agentConfig.llm.provider !== oldConfig.llm.provider) {
+        if (this.agentConfig.llm.sdk !== oldConfig.llm.sdk) {
             // TODO loop type change
-            this.loopLogger.info(`LLM provider changed from ${oldConfig.llm.provider} to ${this.agentConfig.llm.provider}`);
+            this.loopLogger.info(`LLM sdk changed from ${oldConfig.llm.sdk} to ${this.agentConfig.llm.sdk}`);
             return;
         }
 
         if (this.agentConfig.mode !== oldConfig.mode
-            || this.agentConfig.llm.baseUrl !== oldConfig.llm.baseUrl
+            || this.agentConfig.llm.baseURL !== oldConfig.llm.baseURL
             || this.agentConfig.llm.apiKey !== oldConfig.llm.apiKey
         ) {
             const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);
@@ -269,7 +268,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             description: 'You are a subloop',
             personalities: [],
             emotion: false,
-            skills: []
+            expertises: []
         };
     }
 

@@ -6,21 +6,20 @@ import { Zap } from "lucide-react";
 import { useCallback } from "react";
 import { EditableLabels } from "@/laf/editable-labels";
 
-export function AgentDetailSkills({ agent, onUpdate }: {
+export function AgentDetailExpertise({ agent, onUpdate }: {
     agent: AgentEmployee; onUpdate: (id: string, patch: Partial<AgentSoulIdentity>) => void 
 }) {
-  const onSkillsChange = useCallback((list: string[]) => {
-    onUpdate(agent.id, { skills: list });
+  const onExpertisesChange = useCallback((list: string[]) => {
+    onUpdate(agent.id, { expertises: list });
   }, [onUpdate, agent.id]);
 
   return (
-    <InfoCard title="pages.agents.details.skills.title" icon={<Zap size={20} />} color="blue">
+    <InfoCard title="pages.agents.details.expertises.title" icon={<Zap size={20} />} color="blue">
       <div className="space-y-4">
-        {/* 技能 */}
         <div>
           <EditableLabels
-            labels={agent.skills}
-            onChange={onSkillsChange}
+            labels={agent.expertises}
+            onChange={onExpertisesChange}
             color="blue"
           />
         </div>

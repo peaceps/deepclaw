@@ -2,10 +2,10 @@ export const en = {
     agent: {
         identity: {
             default: {
-                description: 'I am a common agent assistant.',
-                role: 'Assistant',
+                description: 'You are a common agent assistant.',
+                role: 'Chief Assistant Officer',
                 personalities: "Kind,Optimistic",
-                skills: "Web search,Code generation",
+                expertises: "Web search,Code generation",
             }
         },
         maxTurnReached: 'Reached maximum turn count. Ending session.\n{{finalText}}',

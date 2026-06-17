@@ -52,14 +52,14 @@ export const en = {
                 },
             },
             llm: {
-                provider: {
-                    prompt: 'Which LLM provider will be used?',
+                sdk: {
+                    prompt: 'Which LLM SDK will be used?',
                     options: {
                         openai: 'OpenAI',
                         anthropic: 'Anthropic',
                     },
                 },
-                baseUrl: {
+                baseURL: {
                     prompt: 'Please enter the Base URL:'
                 },
                 apiKey: {

@@ -1,6 +1,6 @@
 export const en = {
     common: {
-        iam: 'I\'m {{name}}, good at {{skills}} areas, ready to serve you!',
+        iam: 'I\'m {{name}}, good at {{expertises}} areas, ready to serve you!',
         all: 'All',
         toggle: {
             expand: 'Expand',
@@ -59,16 +59,10 @@ export const en = {
                 },
                 personality: {
                     title: 'Personality',
-                    traits: 'Traits',
-                    communicationStyle: 'Communication Style',
                     emotionExpression: 'Emotion Expression',
-                    emotional: 'Emotional',
-                    rational: 'Rational',
                 },
-                skills: {
-                    title: 'Skills',
-                    skills: 'Skills',
-                    area: 'Professional Area',
+                expertises: {
+                    title: 'Expertises',
                 },
                 description: {
                     title: 'Description',
@@ -213,14 +207,14 @@ export const en = {
                 }
             },
             llm: {
-                provider: {
+                sdk: {
                     prompt: 'LLM SDK',
                     options: {
                         openai: 'OpenAI',
                         anthropic: 'Anthropic',
                     },
                 },
-                baseUrl: {
+                baseURL: {
                     prompt: 'Base URL',
                 },
                 apiKey: {

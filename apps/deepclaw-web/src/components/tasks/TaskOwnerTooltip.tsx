@@ -81,16 +81,15 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
             </div>
         </div>
   
-          {/* 技能标签 */}
           <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">{t('pages.agents.details.skills.title')}</p>
+            <p className="text-xs text-gray-500 mb-1">{t('pages.agents.details.expertises.title')}</p>
             <div className="flex flex-wrap gap-1">
-              {agent.skills?.slice(0, 4).map((skill) => (
+              {agent.expertises?.slice(0, 4).map((expertise) => (
                 <span
-                  key={skill}
+                  key={expertise}
                   className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full"
                 >
-                  {skill}
+                  {expertise}
                 </span>
               ))}
             </div>
@@ -101,7 +100,7 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
             <div className="flex items-start gap-2">
               <span className="text-lg">💬</span>
               <p className="text-sm text-gray-700 italic">
-                &quot;{t('common.iam', {name: agent.name, skills: agent.skills.join('/') || t('common.all')})}&quot;
+                &quot;{t('common.iam', {name: agent.name, expertises: agent.expertises.join('/') || t('common.all')})}&quot;
               </p>
             </div>
           </div>

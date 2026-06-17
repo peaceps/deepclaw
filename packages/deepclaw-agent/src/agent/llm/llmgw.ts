@@ -21,7 +21,7 @@ export abstract class LLMModel<I, O, T, LLM> {
             maxTokens: 8000
         }
         this.tools = this.convertTools(tools);
-        this.client = this.createLLMClient(llmConfig.baseUrl, llmConfig.apiKey, this.gw.timeoutMs);
+        this.client = this.createLLMClient(llmConfig.baseURL, llmConfig.apiKey, this.gw.timeoutMs);
     }
 
     public updateGWConfig(config: Partial<CommonKeys<DeepclawConfig['agents'][0]['llm'], LLMGWConfig>>) {

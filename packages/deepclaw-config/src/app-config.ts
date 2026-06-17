@@ -24,8 +24,8 @@ export type DeepclawConfig = {
         mode: 'agent' | 'plan' | 'chat';
         standaloneTask: 'transient' | 'persistent' | 'ask';
         llm: {
-            provider: string;
-            baseUrl: string;
+            sdk: string;
+            baseURL: string;
             apiKey: string;
             model: string;
             responseApi: boolean;
@@ -149,13 +149,13 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
 
             if (!agent.llm) {
                 agent.llm = {responseApi: true} as DeepclawConfig['agents'][0]['llm'];
-                agentLacks.push('llm.provider', 'llm.baseUrl', 'llm.apiKey', 'llm.model');
+                agentLacks.push('llm.sdk', 'llm.baseURL', 'llm.apiKey', 'llm.model');
             } else {
-                if (!['openai', 'anthropic'].includes(agent.llm.provider || '')) {
-                    agentLacks.push('llm.provider');
+                if (!['openai', 'anthropic'].includes(agent.llm.sdk || '')) {
+                    agentLacks.push('llm.sdk');
                 }
-                if (!agent.llm.baseUrl) {
-                    agentLacks.push('llm.baseUrl');
+                if (!agent.llm.baseURL) {
+                    agentLacks.push('llm.baseURL');
                 }
                 if (!agent.llm.apiKey) {
                     agentLacks.push('llm.apiKey');

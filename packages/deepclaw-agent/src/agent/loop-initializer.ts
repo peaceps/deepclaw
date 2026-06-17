@@ -29,9 +29,9 @@ export class LoopInitializer {
 
     private static getLoopClass(agentId: string): LoopConstructor {
         const llmConfig = loadAgentConfig(agentId).llm;
-        if (llmConfig.provider === 'openai') {
+        if (llmConfig.sdk === 'openai') {
             return llmConfig.responseApi ? OpenAIResponseLoop : OpenAIChatLoop;
-        } else if (llmConfig.provider === 'anthropic') {
+        } else if (llmConfig.sdk === 'anthropic') {
             return AnthropicLoop;
         } else {
             throw new Error('Invalid LLM model');

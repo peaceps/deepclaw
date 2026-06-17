@@ -1,7 +1,7 @@
 'use client';
 
 import {
-    CircleAlert,
+  CircleAlert,
   MessageSquare,
 } from 'lucide-react';
 import type { CONFIGS_EVENTS, DeepclawConfig } from '@deepclaw/config';
@@ -135,10 +135,10 @@ export function AgentSettingsCard({
         <AgentSettingsSection title="pages.settings.panels.agents.sections.llm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <DeepSelect
-              uiInfo={configEvents['agents.llm.provider'] as Extract<AgentInteractionEvent, {type: 'select'}>}
-              value={agent.llm.provider}
-              onSelect={(e) => onUpdateLLM(index, { provider: e.target.value })}
-              error={hasFieldError('llm.provider')}
+              uiInfo={configEvents['agents.llm.sdk'] as Extract<AgentInteractionEvent, {type: 'select'}>}
+              value={agent.llm.sdk}
+              onSelect={(e) => onUpdateLLM(index, { sdk: e.target.value })}
+              error={hasFieldError('llm.sdk')}
               Icon={CircleAlert}
               iconTitle='pages.settings.panels.agents.sections.llmSDKNotif'
             />
@@ -151,11 +151,11 @@ export function AgentSettingsCard({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <DeepInput
-              uiInfo={configEvents['agents.llm.baseUrl'] as Extract<AgentInteractionEvent, {type: 'input'}>}
-              value={agent.llm.baseUrl}
-              onInput={(e) => onUpdateLLM(index, { baseUrl: e.target.value })}
+              uiInfo={configEvents['agents.llm.baseURL'] as Extract<AgentInteractionEvent, {type: 'input'}>}
+              value={agent.llm.baseURL}
+              onInput={(e) => onUpdateLLM(index, { baseURL: e.target.value })}
               placeholder="https://api.openai.com/v1"
-              error={hasFieldError('llm.baseUrl')}
+              error={hasFieldError('llm.baseURL')}
             />
             <DeepInput
               uiInfo={configEvents['agents.llm.apiKey'] as Extract<AgentInteractionEvent, {type: 'input'}>}

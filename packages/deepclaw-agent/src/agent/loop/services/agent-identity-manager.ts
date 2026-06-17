@@ -41,7 +41,7 @@ export class AgentIdentityManager {
                 role: i18nInstance.t('agent.identity.default.role'),
                 personalities: parseArrayI18n('agent.identity.default.personalities'),
                 emotion: true,
-                skills: parseArrayI18n('agent.identity.default.skills')
+                expertises: parseArrayI18n('agent.identity.default.expertises')
             } as AgentSoulIdentity, null, 2)
         );
     }
@@ -85,7 +85,7 @@ export class AgentIdentityManager {
             role: current.role,
             personalities: current.personalities,
             emotion: current.emotion,
-            skills: current.skills,
+            expertises: current.expertises,
         };
         FileUtils.writeFile(`${AGENTS_DIR}/${id}/${AGENT_SOUL_JSON}`, JSON.stringify(soul, null, 2));
     }

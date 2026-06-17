@@ -29,7 +29,7 @@ export type AgentSoulIdentity = {
   role: string;
   personalities: string[];
   emotion: boolean;
-  skills: string[];
+  expertises: string[];
 }
 
 export type AgentIdentity = AgentSoulIdentity & {

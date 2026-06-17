@@ -1,6 +1,6 @@
 export const zh = {
     common: {
-        iam: '我是{{name}}，擅长{{skills}}领域的工作，随时准备为您服务！',
+        iam: '我是{{name}}，擅长{{expertises}}领域的工作，随时准备为您服务！',
         all: '所有',
         toggle: {
             expand: '展开',
@@ -58,17 +58,11 @@ export const zh = {
                     save: '按回车保存',
                 },
                 personality: {
-                    title: '性格设定',
-                    traits: '个性特征',
-                    communicationStyle: '沟通风格',
+                    title: '性格',
                     emotionExpression: '情感表达',
-                    emotional: '会表达情感',
-                    rational: '理性克制',
                 },
-                skills: {
-                    title: '技能设定',
-                    skills: '技能',
-                    area: '专业领域',
+                expertises: {
+                    title: '专长',
                 },
                 description: {
                     title: '简介',
@@ -213,14 +207,14 @@ export const zh = {
                 },
             },
             llm: {
-                provider: {
+                sdk: {
                     prompt: '模型SDK',
                     options: {
                         openai: 'OpenAI',
                         anthropic: 'Anthropic',
                     },
                 },
-                baseUrl: {
+                baseURL: {
                     prompt: 'Base URL',
                 },
                 apiKey: {

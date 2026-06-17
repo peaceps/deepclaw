@@ -74,17 +74,17 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
         type: 'input',
         content: 'config.agents.im.secret.prompt'
     },
-    ['agents.llm.provider']: {
+    ['agents.llm.sdk']: {
         type: 'select',
-        content: 'config.agents.llm.provider.prompt',
+        content: 'config.agents.llm.sdk.prompt',
         options: [
-            {label: 'config.agents.llm.provider.options.openai', value: 'openai'},
-            {label: 'config.agents.llm.provider.options.anthropic', value: 'anthropic'},
+            {label: 'config.agents.llm.sdk.options.openai', value: 'openai'},
+            {label: 'config.agents.llm.sdk.options.anthropic', value: 'anthropic'},
         ],
     },
-    ['agents.llm.baseUrl']: {
+    ['agents.llm.baseURL']: {
         type: 'input',
-        content: 'config.agents.llm.baseUrl.prompt'
+        content: 'config.agents.llm.baseURL.prompt'
     },
     ['agents.llm.apiKey']: {
         type: 'input',

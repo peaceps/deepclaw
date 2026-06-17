@@ -12,7 +12,7 @@ export async function validateAndFixCurrentConfig(
         const agentsIndex = appConfig.lacks.indexOf('agents');
         if (agentsIndex !== -1) {
             const agent = {standaloneTask: 'transient', llm: {}} as DeepclawConfig['agents'][0];
-            const missing = ['name', 'mode', 'llm.provider', 'llm.baseUrl', 'llm.apiKey', 'llm.model'];
+            const missing = ['name', 'mode', 'llm.sdk', 'llm.baseURL', 'llm.apiKey', 'llm.model'];
             if (headless) {
                 agent.im = {} as DeepclawConfig['agents'][0]['im'];
                 missing.push('im.engine', 'im.appId', 'im.secret');

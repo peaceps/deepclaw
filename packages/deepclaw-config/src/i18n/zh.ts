@@ -52,14 +52,14 @@ export const zh = {
                 }
             },
             llm: {
-                provider: {
-                    prompt: '请选择您的LLM接口类型：',
+                sdk: {
+                    prompt: '请选择您的LLM SDK：',
                     options: {
                         openai: 'OpenAI',
                         anthropic: 'Anthropic',
                     },
                 },
-                baseUrl: {
+                baseURL: {
                     prompt: '请输入Base URL：',
                 },
                 apiKey: {
