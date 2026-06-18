@@ -1,7 +1,7 @@
 import process from 'node:process';
 import { SkillsManager } from './skills-manager';
 import { DeepclawConfig, loadConfig } from '@deepclaw/config';
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
 import { DEEPCLAW_MD } from '../../paths';

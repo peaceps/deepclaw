@@ -1,5 +1,5 @@
 import { i18nInstance } from '@deepclaw/i18n';
-import { runCommand, childProcessTimeout} from '@deepclaw/utils';
+import { runCommand, childProcessTimeout} from '@deepclaw/node-utils';
 
 import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions';
 import { DeepclawConfig } from '@deepclaw/config';

@@ -1,5 +1,5 @@
 import matter from 'gray-matter';
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 import { SKILL_DIR } from '../../paths';
 
 type SkillManifest = {

@@ -15,9 +15,6 @@ export default [
     external: [
       /^node:/,
       // CJS packages: bundling breaks default import interop; leave to Node at runtime.
-      'pino',
-      'chardet',
-      'iconv-lite',
     ],
 
     plugins: [

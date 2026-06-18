@@ -1,5 +1,5 @@
 {
-	"name": "@deepclaw/config",
+	"name": "@deepclaw/node-utils",
 	"version": "0.0.1",
     "packageManager": "pnpm@10.33.0",
 	"license": "MIT",
@@ -18,11 +18,9 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@deepclaw/core": "workspace:*",
-		"@deepclaw/i18n": "workspace:*",
-		"@deepclaw/node-utils": "workspace:*"
-	},
-	"devDependencies": {
-		"rollup-plugin-copy": "3.5.0"
+        "@deepclaw/utils": "workspace:*",
+        "pino": "10.3.1",
+        "chardet": "2.1.1",
+        "iconv-lite": "0.7.2"
 	}
 }

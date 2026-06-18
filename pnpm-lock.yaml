@@ -92,9 +92,9 @@ importers:
       '@deepclaw/im':
         specifier: workspace:*
         version: link:../../packages/deepclaw-im
-      '@deepclaw/utils':
+      '@deepclaw/node-utils':
         specifier: workspace:*
-        version: link:../../packages/deepclaw-utils
+        version: link:../../packages/deepclaw-node-utils
 
   apps/deepclaw-tui:
     dependencies:
@@ -153,6 +153,9 @@ importers:
       '@deepclaw/loop-gateway':
         specifier: workspace:*
         version: link:../../packages/deepclaw-loop-gateway
+      '@deepclaw/node-utils':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-node-utils
       '@deepclaw/utils':
         specifier: workspace:*
         version: link:../../packages/deepclaw-utils
@@ -162,6 +165,9 @@ importers:
       next:
         specifier: 16.2.6
         version: 16.2.6(@babel/core@7.29.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      pino:
+        specifier: 10.3.1
+        version: 10.3.1
       react:
         specifier: 19.2.5
         version: 19.2.5
@@ -202,9 +208,9 @@ importers:
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../deepclaw-i18n
-      '@deepclaw/utils':
+      '@deepclaw/node-utils':
         specifier: workspace:*
-        version: link:../deepclaw-utils
+        version: link:../deepclaw-node-utils
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3
@@ -226,9 +232,9 @@ importers:
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../deepclaw-i18n
-      '@deepclaw/utils':
+      '@deepclaw/node-utils':
         specifier: workspace:*
-        version: link:../deepclaw-utils
+        version: link:../deepclaw-node-utils
     devDependencies:
       rollup-plugin-copy:
         specifier: 3.5.0
@@ -274,9 +280,15 @@ importers:
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../deepclaw-i18n
+      '@deepclaw/utils':
+        specifier: workspace:*
+        version: link:../deepclaw-utils
 
-  packages/deepclaw-utils:
+  packages/deepclaw-node-utils:
     dependencies:
+      '@deepclaw/utils':
+        specifier: workspace:*
+        version: link:../deepclaw-utils
       chardet:
         specifier: 2.1.1
         version: 2.1.1
@@ -286,6 +298,8 @@ importers:
       pino:
         specifier: 10.3.1
         version: 10.3.1
+
+  packages/deepclaw-utils: {}
 
 packages:
 

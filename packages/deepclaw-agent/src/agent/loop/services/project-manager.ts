@@ -1,4 +1,4 @@
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 import { DeepclawConfig } from '@deepclaw/config';
 import { TaskStepsManager } from './task-steps-manager';
 import { PROJECT_DIR } from '../../paths';

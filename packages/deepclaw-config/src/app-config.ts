@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 

@@ -1,6 +1,6 @@
 import readline from 'readline/promises';
 import { stdin, stdout } from 'process';
-import { cleanupOnShutdown } from '@deepclaw/utils';
+import { cleanupOnShutdown } from '@deepclaw/node-utils';
 import { validateAndFixCurrentConfig } from '@deepclaw/config';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import { connectIM, stringifiedInteractionEvent, parseStringifiedAnswer } from '@deepclaw/im';

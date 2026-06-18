@@ -13,7 +13,7 @@ export default {
     /^node:/,
     '@deepclaw/agent',
     '@deepclaw/im',
-    '@deepclaw/utils',
+    '@deepclaw/node-utils',
 		"@deepclaw/core",
 		"@deepclaw/config",
     '@deepclaw/i18n',

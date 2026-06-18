@@ -14,7 +14,7 @@ import { PromptService } from '../services/prompt-service';
 import { ToolsManager } from '../services/tools-manager';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
 import { MessagesCompactor } from '../compactor/messages-compactor';
-import { getLogger, Logger, getLoopLogger } from '@deepclaw/utils';
+import { getLogger, Logger, getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
 import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
 

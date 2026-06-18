@@ -22,7 +22,7 @@
 		"@deepclaw/core": "workspace:*",
 		"@deepclaw/config": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
-		"@deepclaw/utils": "workspace:*",
+		"@deepclaw/node-utils": "workspace:*",
 		"gray-matter": "4.0.3",
 		"openai": "6.36.0"
 	}

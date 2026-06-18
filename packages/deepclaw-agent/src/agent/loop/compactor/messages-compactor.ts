@@ -1,4 +1,4 @@
-import { FileUtils, type Logger } from '@deepclaw/utils';
+import { FileUtils, type Logger } from '@deepclaw/node-utils';
 import { LLMModel } from '../../llm/llmgw';
 import { FootPrint } from '../../definitions/definitions';
 import { AGENTS_DIR, HISTORY_DIR, SESSION_DIR } from '../../paths';

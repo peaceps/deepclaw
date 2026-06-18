@@ -6,6 +6,7 @@
         { "path": "./packages/deepclaw-im" },
         { "path": "./packages/deepclaw-agent" },
         { "path": "./packages/deepclaw-agentmock" },
+        { "path": "./packages/deepclaw-node-utils" },
         { "path": "./packages/deepclaw-utils" },
         { "path": "./packages/deepclaw-i18n" },
         { "path": "./packages/deepclaw-loop-gateway" },

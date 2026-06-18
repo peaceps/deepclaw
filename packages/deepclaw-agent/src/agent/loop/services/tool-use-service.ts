@@ -1,4 +1,4 @@
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions";
 import { type SealedAgentHandler } from '@deepclaw/core';
 import { OneLoopContext } from '../../definitions/definitions';

@@ -1,4 +1,7 @@
-import type { AgentHandler, AgentEmployee, AgentSoulIdentity, Project, Task, StandaloneTask, AgentInfoEvent } from "@deepclaw/core";
+import type {
+    AgentHandler, AgentEmployee, AgentSoulIdentity, Project, Task, StandaloneTask, AgentInfoEvent
+} from "@deepclaw/core";
+import { globalize } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
 } from "@deepclaw/agent";
@@ -6,8 +9,6 @@ import type { DeepclawConfig } from "@deepclaw/config";
 
 export type LoopStore = Record<string, LoopAgent<unknown, any, any>>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project<Task>[]};
-
-type LoopGatewayConstructor = typeof LoopGatewayImpl;
 
 class LoopGatewayImpl {
     private static loops: LoopStore = {};
@@ -108,8 +109,4 @@ class LoopGatewayImpl {
     }
 }
 
-const globalForLoopGateway = globalThis as typeof globalThis & {
-    __deepclawLoopGateway?: LoopGatewayConstructor;
-};
-
-export const LoopGateway = globalForLoopGateway.__deepclawLoopGateway ??= LoopGatewayImpl;
+export const LoopGateway = globalize('LoopGateway', LoopGatewayImpl);

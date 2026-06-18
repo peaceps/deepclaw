@@ -1,4 +1,4 @@
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 import { DEEPCLAW_MD, SKILL_DIR } from './agent/paths';
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'

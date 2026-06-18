@@ -18,6 +18,7 @@ export default [
       '@deepclaw/config',
       '@deepclaw/i18n',
       '@deepclaw/agent',
+      '@deepclaw/utils',
     ],
 
     plugins: [

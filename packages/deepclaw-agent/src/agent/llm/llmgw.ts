@@ -1,5 +1,5 @@
 import {DeepclawConfig} from '@deepclaw/config';
-import {type Logger, type CommonKeys} from '@deepclaw/utils';
+import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
 import { TransitionReason } from '../definitions/definitions';
 import { LLMGWConfig } from '@deepclaw/core';

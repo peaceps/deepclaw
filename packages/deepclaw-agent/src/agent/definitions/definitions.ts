@@ -1,4 +1,4 @@
-import type { Logger } from '@deepclaw/utils';
+import type { Logger } from '@deepclaw/node-utils';
 import { SealedAgentHandler, type FlushAgent } from '@deepclaw/core';
 import { DeepclawConfig } from '@deepclaw/config';
 

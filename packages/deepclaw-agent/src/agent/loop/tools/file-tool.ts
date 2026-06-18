@@ -1,6 +1,6 @@
 import { askPermissionGuard, ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
 import { i18nInstance } from '@deepclaw/i18n';
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 
 type FileOperationInput = {
     filePath: string;

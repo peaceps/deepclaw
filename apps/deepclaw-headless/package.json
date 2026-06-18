@@ -24,6 +24,6 @@
 		"@deepclaw/config": "workspace:*",
 		"@deepclaw/im": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
-		"@deepclaw/utils": "workspace:*"
+		"@deepclaw/node-utils": "workspace:*"
 	}
 }

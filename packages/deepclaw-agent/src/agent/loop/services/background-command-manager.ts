@@ -1,4 +1,4 @@
-import {runCommandAsync, FileUtils} from '@deepclaw/utils'
+import {runCommandAsync, FileUtils} from '@deepclaw/node-utils'
 import { BACKGROUND_COMMANDS_DIR, PROJECT_DIR } from '../../paths';
 
 type BackGroundCommandInfo = {

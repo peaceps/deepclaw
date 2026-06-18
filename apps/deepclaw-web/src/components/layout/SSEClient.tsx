@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { Task, Project, AgentEmployee } from '@deepclaw/core';
+import { getLogger } from '@/lib/logger';
 
 export function SSEClient() {
   const {updateProjectTask, updateAgentEmployee} = useAppStore();
@@ -12,8 +13,7 @@ export function SSEClient() {
 
     eventSource.addEventListener('connected', (event) => {
       const {clientId} = JSON.parse(event.data) as {clientId: string};
-      // Todo
-      console.info(`Connected for ${clientId}.`);
+      getLogger('SSEClient').info(`Connected for ${clientId}.`);
     });
 
     eventSource.addEventListener('updateProject', (event) => {

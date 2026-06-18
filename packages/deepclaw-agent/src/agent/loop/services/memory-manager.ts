@@ -1,5 +1,5 @@
 import matter from 'gray-matter';
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 import { AGENTS_DIR, MEMORY_DIR, MEMORY_INDEX_FILE } from '../../paths';
 import { loadConfig, DeepclawConfig } from '@deepclaw/config';
 

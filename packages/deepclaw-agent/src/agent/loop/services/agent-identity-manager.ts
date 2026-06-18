@@ -1,7 +1,7 @@
 import { AgentSoulIdentity, AgentIdentity } from '@deepclaw/core';
 import { DeepclawConfig, loadAgentConfig, loadConfig} from '@deepclaw/config';
 import { i18nInstance, parseArrayI18n } from '@deepclaw/i18n';
-import { FileUtils } from '@deepclaw/utils';
+import { FileUtils } from '@deepclaw/node-utils';
 import { AGENTS_DIR, AGENT_MD, AGENT_SOUL_JSON } from '../../paths';
 
 export class AgentIdentityManager {
