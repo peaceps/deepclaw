@@ -52,7 +52,7 @@ export function DesktopAgentPage({selectedAgent}: {
         </div>
 
         {selectedAgent && <ChatSidebar
-          from={'agent'}
+          projectId=""
           agent={selectedAgent}
         />}
       </div>

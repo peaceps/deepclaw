@@ -101,11 +101,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         agentId: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]
     ): MessagesCompactor<I, O, unknown, LLM>;
 
-    protected async _invoke(input: string): Promise<string> {
+    protected async _invoke(chatKey: string, input: string): Promise<string> {
         this.addStringMessage(input);
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
+                chatKey,
                 agentId: this.agentIdentity.id,
                 turnCount: 0,
                 system: '',
@@ -143,7 +144,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 const finalText = i18nInstance.t('agent.maxTurnReached', {
                     finalText: this.extractFinalText(state)
                 });
-                this.agentHandler.onStreamText(finalText);
+                this.agentHandler.onStreamText({chatKey: state.oneLoopContext.chatKey, text: finalText});
                 return finalText;
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
@@ -153,7 +154,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             if (!goAround) {
                 const finalText = this.extractFinalText(state);
                 if (finalText && state.oneLoopContext.transitionReason === 'error') {
-                    this.agentHandler.onStreamText(finalText);
+                    this.agentHandler.onStreamText({chatKey: state.oneLoopContext.chatKey, text: finalText});
                 }
                 return finalText;
             }
@@ -170,7 +171,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         const response = await this.llm.invoke(
             state.oneLoopContext.system,
             state.messages,
-            (text: string) => this.agentHandler.onStreamText(text),
+            (text: string) => this.agentHandler.onStreamText({
+                chatKey: state.oneLoopContext.chatKey,
+                text
+            }),
             state.oneLoopContext.logger
         );
 

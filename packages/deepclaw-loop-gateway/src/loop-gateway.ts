@@ -1,5 +1,6 @@
 import type {
-    AgentHandler, AgentEmployee, AgentSoulIdentity, Project, Task, StandaloneTask, AgentInfoEvent
+    AgentHandler, AgentEmployee, AgentSoulIdentity, Project, Task, StandaloneTask, AgentInfoEvent,
+    AgentStreamEvent
 } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
 import {
@@ -14,7 +15,7 @@ export type SSEType = 'info' | 'loop';
 class LoopGatewayImpl {
     private static loops: LoopStore = {};
     private static sseSubscribers: {[key in SSEType]: Set<
-        (e: AgentInfoEvent | string) => void
+        (e: AgentInfoEvent | AgentStreamEvent) => void
     >} = {
         info: new Set(),
         loop: new Set()
@@ -37,11 +38,11 @@ class LoopGatewayImpl {
         }
     }
 
-    public static invoke(agentId: string, input: string): Promise<string> {
+    public static invoke(agentId: string, projectId: string, input: string): Promise<string> {
         if (!this.loops[agentId]) {
             this.init(agentId, {});
         }
-        return this.loops[agentId]!.invoke(input);
+        return this.loops[agentId]!.invoke(`${agentId}.${projectId}`, input);
     }
 
     public static updateLoopConfig(config: DeepclawConfig) {
@@ -53,7 +54,7 @@ class LoopGatewayImpl {
         }
     }
 
-    public static subscribe(type: SSEType, cb: (e: AgentInfoEvent | string) => void): () => void {
+    public static subscribe(type: SSEType, cb: (e: AgentInfoEvent | AgentStreamEvent) => void): () => void {
         this.sseSubscribers[type].add(cb);
         return () => {
             this.sseSubscribers[type].delete(cb);

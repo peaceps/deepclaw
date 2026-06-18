@@ -2,9 +2,9 @@ import crypto from 'crypto';
 import { SSEServer } from "./sse-server";
 import type { SSEType } from "@deepclaw/loop-gateway";
 
-export function newSSEEndpoint(type: SSEType): Response {
+export function newSSEEndpoint(type: SSEType, id?: string): Response {
     const encoder = new TextEncoder();
-    const clientId = crypto.randomUUID();
+    const clientId = id ?? crypto.randomUUID();
 
     const stream = new ReadableStream({
         start(controller) {

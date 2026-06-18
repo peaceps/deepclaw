@@ -10,45 +10,55 @@ import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { getLogger } from "@/lib/logger";
-import { SSELoopStreamEvent } from '@/app/api/sse-server';
+import { SSEConnectedEvent, SSELoopStreamEvent } from '@/app/api/sse-server';
 
 type ChatPanelProps = {
   agent: AgentEmployee;
-  from: 'agent' | 'project';
+  projectId: string;
 };
 
 const logger = getLogger('ChatPanel');
 
-export function ChatPanel({ agent, from }: ChatPanelProps) {
+export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const [input, setInput] = useState('');
-  const { messages, addMessage, updateMessageStream } = useAppStore();
-  const agentMessages = messages.filter((m) => m.agentId === agent.id);
+  const { addMessage, updateMessageStream, getChatMessages } = useAppStore();
+  const agentMessages = getChatMessages(agent.id, projectId);
   const { t, i18n } = useTranslation();
 
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
     setInput('');
-    addMessage('user', agent.id, trimmed);
-    const response = await invoke(agent.id, trimmed);
-    // addMessage('agent', agent.id, response);
+    addMessage('user', agent.id, projectId, trimmed);
+    addMessage('agent', agent.id, projectId, '');
+    await invoke(agent.id, projectId, trimmed);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') {
+      if (e.nativeEvent.isComposing) {
+        e.preventDefault();
+        e.stopPropagation();
+      } else {
+        handleSend();
+      }
+    }
   };
 
   useEffect(() => {
-    const eventSource = new EventSource('/api/loop?secret=loop');
+    const eventSource = new EventSource(`/api/loop?agentId=${agent.id}&projectId=${projectId}`);
 
     eventSource.addEventListener('connected', (event) => {
-      const {clientId} = JSON.parse(event.data) as {clientId: string};
+      const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'conected'}>;
       logger.info(`Connected for ${clientId}.`);
     });
-
     eventSource.addEventListener('streamText', (event) => {
-      const {content} = JSON.parse(event.data) as Extract<SSELoopStreamEvent, {sseType: 'streamText'}>;
-      updateMessageStream(agent.id, content);
+      const {chatKey, content} = JSON.parse(event.data) as Extract<SSELoopStreamEvent, {sseType: 'streamText'}>;
+      updateMessageStream(chatKey, content);
     });
 
     return () => eventSource.close();
-  }, [updateMessageStream, agent.id]);
+  }, [updateMessageStream, agent.id, projectId]);
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
@@ -61,12 +71,12 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
     <div className="flex flex-col h-full bg-white min-h-140">
       {<ChatHeader agent={agent} />}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {agentMessages.length === 0 ? (
+        {!agentMessages?.length ? (
           <div className="text-center py-12 text-gray-400">
-            <p className="text-sm mt-1">{t(`pages.chat.type.${from}.emptyPrompt`, {name: agent.name})}</p>
+            <p className="text-sm mt-1">{t(`pages.chat.type.${!projectId ? 'agent' : 'project'}.emptyPrompt`, {name: agent.name})}</p>
           </div>
         ) : (
-          agentMessages.map((message) => (
+          agentMessages.map((message) => message.content && (
             <div
               key={message.id}
               className={`flex ${messageFlexStyles[message.type]}`}
@@ -97,7 +107,7 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            onKeyDown={handleKeyDown}
             placeholder={t('pages.chat.send', { name: agent.name })}
             className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />

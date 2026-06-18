@@ -1,6 +1,12 @@
 import { AgentEmployee } from "./agent-definitions";
 import { Project, Task } from "./project-definitions";
 
+export type AgentStreamEvent = {
+    chatKey: string;
+    text: string;
+    done?: boolean;
+};
+
 export type AgentInteractionEventOption = string | {label: string; value: string | boolean | number};
 
 export type AgentInteractionEvent = {

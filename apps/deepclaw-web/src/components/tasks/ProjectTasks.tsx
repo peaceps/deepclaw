@@ -23,8 +23,9 @@ export function ProjectTasks({project}: ProjectTasksProps) {
   const { getTaskAssignee } = useAppStore();
 
     return (
-        <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 transition-all duration-300 ${collapsed ? 'w-12' : 'w-[60%]'}`}>
-          <div className={`flex items-center border-b border-gray-200 bg-gray-50 w-full ${collapsed ? 'flex-col' : 'justify-end'} py-3`}>
+        <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 transition-all duration-300
+          lg:max-h-[600px] lg:overflow-y-auto ${collapsed ? 'w-12' : 'lg:w-[60%]'}`}>
+          <div className={`hidden lg:flex items-center border-b border-gray-200 bg-gray-50 w-full ${collapsed ? 'flex-col' : 'justify-end'} py-3`}>
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors ${collapsed ? '' : 'mr-2'}`}
@@ -42,7 +43,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                     {Object.keys(project.tasks).length === 0 ? (
                     <div className="py-8 text-center text-gray-400"><p>{t('pages.projects.project.noTasks')}</p></div>
                     ) : (
-                    <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex flex-col lg:flex-row gap-4 max-sm:max-h-[600px] max-sm:overflow-y-auto">
                         {columns.map(column => {
                         const columnTasks = Object.values(project.tasks).filter(task => task.status === column.id);
                         return (

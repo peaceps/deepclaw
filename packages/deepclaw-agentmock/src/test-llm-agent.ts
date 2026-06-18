@@ -41,7 +41,7 @@ export class TestLlmAgent extends FlushAgent {
         let i = 0;
         return new Promise((resolve) => {
             const interval = setInterval(() => {
-                this.agentHandler.onStreamText(lines[i++]!);
+                this.agentHandler.onStreamText({chatKey: 'test', text: lines[i++]!});
                 if (i >= lines.length) {
                     clearInterval(interval);
                     resolve('its done.');

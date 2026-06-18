@@ -1,6 +1,6 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent, useRef} from 'react';
 import { Box, Static, useApp } from 'ink';
-import { AgentInteractionEvent } from '@deepclaw/core';
+import { AgentInteractionEvent, AgentStreamEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import {LoopGateway} from '@deepclaw/loop-gateway';
 import {HistoryLine, type HistoryItem} from './history';
@@ -39,7 +39,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const invokeLlm = useCallback((userInput: string) => {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
-        LoopGateway.invoke(agentIdRef.current!, userInput).catch(err => {
+        LoopGateway.invoke(agentIdRef.current!, '', userInput).catch(err => {
             setTimeout(() => {
                 handleLlmDone(`${t('common.error')} ${err.message?.trim() || t('common.unexpected')}`);
             }, 0);
@@ -66,7 +66,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     });
 
 	useEffect(() => {
-        function handleLlmStreamText(text: string, done: boolean) {
+        function handleLlmStreamText({text, done}: AgentStreamEvent) {
             if (done) {
                 handleWithLLMoutput();
             } else {
@@ -77,7 +77,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
             agentIdRef.current = LoopGateway.getLoopInfo().agents[0]!.id;
             LoopGateway.init(agentIdRef.current, {
                 onStreamText: handleLlmStreamText, 
-                onToolText: (text: string) => handleLlmStreamText(text, false),
+                onToolText: (text: string) => handleLlmStreamText({text, done: false, chatKey: ''}),
                 onInteractionEvent: handleAgentEvent
             });
         }

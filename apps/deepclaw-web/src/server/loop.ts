@@ -4,9 +4,9 @@ import { LoopGateway } from '@deepclaw/loop-gateway';
 import { AgentSoulIdentity } from '@deepclaw/core';
 import { revalidatePath } from 'next/cache';
 
-export async function invoke(agentId: string, input: string): Promise<string> {
+export async function invoke(agentId: string, projectId: string, input: string): Promise<string> {
   try {
-    const result = await LoopGateway.invoke(agentId, input);
+    const result = await LoopGateway.invoke(agentId, projectId, input);
     return result;
   } catch (error) {
     console.error('Error invoking function:', error);

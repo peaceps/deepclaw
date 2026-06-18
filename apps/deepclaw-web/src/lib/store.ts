@@ -8,7 +8,7 @@ type AppState = {
   agents: AgentEmployee[];
   activeAgents: AgentEmployee[];
   projects: Project<Task>[];
-  messages: Message[];
+  messages: {[key: string]: Message[]},
   selectedAgentId: string | null;
 
   // Actions
@@ -16,8 +16,9 @@ type AppState = {
   updateAgentEmployee: (id: string, employee: Partial<AgentEmployee>) => void;
   setProjects: (projects: Project<Task>[]) => void;
   updateProject: (project: Project<Task>) => void;
-  addMessage: (type: 'user' | 'agent', agentId: string, text: string) => void;
-  updateMessageStream: (agentId: string, text: string) => void;
+  addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => void;
+  updateMessageStream: (chatKey: string, text: string) => void;
+  getChatMessages: (agentId: string, projectId: string) => Message[] | undefined;
   setSelectedAgent: (id: string | null) => void;
   getSelectedAgent: () => AgentEmployee | undefined;
   getOneOngoingProject: (agentId: string) => Project<Task> | undefined;
@@ -29,8 +30,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   agents: [],
   activeAgents: [],
   projects: [],
-  messages: [],
-  selectedAgentId: null, // 默认选中第一个员工
+  messages: {},
+  selectedAgentId: null,
 
   setAgents: (agents) => {
     set({ agents, activeAgents: agents.filter(a => !a.fired) });
@@ -44,7 +45,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   setProjects: (projects) => set({ projects }),
-  updateProject(project: Project<Task>): void {
+  updateProject: (project: Project<Task>): void => {
     set((state) => {
       const exists = state.projects.some(p => p.id === project.id);
       return {
@@ -55,21 +56,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  addMessage: (type: 'user' | 'agent', agentId: string, text: string) => set((state) => ({
-    messages: [...state.messages, newMessage(type, agentId, text)],
-  })),
-  updateMessageStream: (agentId: string, text: string) => set((state) => {
-    const message = state.messages.findLast(m => m.agentId === agentId && m.type === 'agent');
+  addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => set((state) => {
+    const chatKey = getChatKey(agentId, projectId);
+    const oldMessages = state.messages[getChatKey(agentId, projectId)] || [];
+    return {
+      messages: {...state.messages, ...{[chatKey]: [...oldMessages, newMessage(
+        type, agentId, content
+      )]}}
+    };
+  }),
+  updateMessageStream: (chatKey: string, text: string) => set((state) => {
+    const message = state.messages[chatKey]?.findLast(m => m.type === 'agent');
     if (!message) {
-        return {
-            messages: [...state.messages, newMessage('agent', agentId, text)],
-        };
+        // PASS
+        return {};
     } else {
         return {
-            messages: state.messages.map(m => m.id === message.id ? { ...m, content: m.content + text } : m)
+            messages: {
+              ...state.messages,
+              ...{[chatKey]: state.messages[chatKey].map(m => m.id === message.id ? { ...m, content: m.content + text } : m)}
+            }
         };
     }
   }),
+  getChatMessages: (agentId: string, projectId: string): Message[] | undefined =>  {
+    return get().messages[getChatKey(agentId, projectId)];
+  },
 
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
   getSelectedAgent(): AgentEmployee | undefined {
@@ -105,4 +117,8 @@ function selectFirstActiveAgent(get: () => AppState, set: (state: Partial<AppSta
     } else if (selectedLost) {
         set({ selectedAgentId: null });
     }
+}
+
+function getChatKey(agentId: string, projectId: string): string {
+  return `${agentId}.${projectId}`;
 }

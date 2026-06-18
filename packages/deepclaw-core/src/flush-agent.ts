@@ -1,4 +1,4 @@
-import { AgentInfoEvent, AgentInteractionEvent } from './flush-agent-event';
+import { AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent } from './flush-agent-event';
 import { AgentIdentity } from './agent-definitions';
 
 export type FlushAgentConstructor = new (
@@ -14,47 +14,51 @@ export type LLMGWConfig = {
 }
 
 export type AgentHandler = {
-    onStreamText(content: string, done?: boolean): void;
+    onStreamText(e: AgentStreamEvent): void;
     onToolText(content: string): void;
     onInteractionEvent(event: AgentInteractionEvent): Promise<string|boolean|number>;
     onInfoEvent(event: AgentInfoEvent): void;
 }
 
 export type SealedAgentHandler = AgentHandler & {
-    onStreamText(content: string): void;
+    onStreamText(e: Omit<AgentStreamEvent, 'done'>): void;
 }
 
 export abstract class FlushAgent {
     protected agentHandler: AgentHandler;
-    private flusher: (content: string, done: boolean) => void;
+    private flusher: (e: AgentStreamEvent & {done: boolean}) => void;
 
     constructor(
         handler: AgentHandler
     ) {
-        this.flusher = (text: string, done: boolean) => handler.onStreamText(this.formatLLMText(text, done), done);
+        this.flusher = (e: AgentStreamEvent & {done: boolean}) => handler.onStreamText({
+            chatKey: e.chatKey,
+            text: this.formatLLMText(e.text, e.done),
+            done: e.done
+        });
         this.agentHandler = {
-            onStreamText: (text: string) => this.flusher(text, false),
+            onStreamText: (e: Omit<AgentStreamEvent, 'done'>) => this.flusher({chatKey: e.chatKey, text: e.text, done: false}),
             onToolText: (text: string) => handler.onToolText(text),
             onInteractionEvent: handler.onInteractionEvent,
             onInfoEvent: handler.onInfoEvent
         };
     }
 
-    protected abstract _invoke(input: string): Promise<string>;
+    protected abstract _invoke(chatKey: string, input: string): Promise<string>;
 
-    async invoke(input: string): Promise<string> {
+    async invoke(chatKey: string, input: string): Promise<string> {
         try {
-            const res = await this._invoke(input);
-            return this.finishInvoke(res);
+            const res = await this._invoke(chatKey, input);
+            return this.finishInvoke(chatKey, res);
         } catch (e: any) {
-            return this.finishInvoke(e?.message || '');
+            return this.finishInvoke(chatKey, e?.message || '');
         }
     }
 
-    private finishInvoke(content: string): Promise<string> {
+    private finishInvoke(chatKey: string, content: string): Promise<string> {
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.flusher(content, true);
+                this.flusher({chatKey, text: content, done: true});
                 resolve(content);
             }, 100);
         });

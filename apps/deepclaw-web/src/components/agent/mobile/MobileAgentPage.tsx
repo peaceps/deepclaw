@@ -36,7 +36,7 @@ export function MobileAgentPage({selectedAgent}: {
           {mobileView === 'chat' && selectedAgent && (
             <div className="h-full bg-white overflow-hidden">
                 <ChatPanel
-                  from={'agent'}
+                  projectId=""
                   agent={selectedAgent}
                 />
             </div>

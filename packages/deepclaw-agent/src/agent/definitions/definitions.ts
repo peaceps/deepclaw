@@ -15,6 +15,7 @@ export type LoopState<I> = {
 }
 
 export type OneLoopContext = {
+    chatKey: string;
     agentId: string;
     turnCount: number;
     transitionReason?: TransitionReason;
