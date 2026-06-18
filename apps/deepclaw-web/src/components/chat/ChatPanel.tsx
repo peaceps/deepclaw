@@ -3,21 +3,25 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { invoke } from '@/server/loop';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
+import { getLogger } from "@/lib/logger";
+import { SSELoopStreamEvent } from '@/app/api/sse-server';
 
 type ChatPanelProps = {
   agent: AgentEmployee;
   from: 'agent' | 'project';
 };
 
+const logger = getLogger('ChatPanel');
+
 export function ChatPanel({ agent, from }: ChatPanelProps) {
   const [input, setInput] = useState('');
-  const { messages, addMessage } = useAppStore();
+  const { messages, addMessage, updateMessageStream } = useAppStore();
   const agentMessages = messages.filter((m) => m.agentId === agent.id);
   const { t, i18n } = useTranslation();
 
@@ -25,22 +29,26 @@ export function ChatPanel({ agent, from }: ChatPanelProps) {
     const trimmed = input.trim();
     if (!trimmed) return;
     setInput('');
-    addMessage({
-        id: Date.now().toString(),
-        agentId: agent.id,
-        content: trimmed,
-        type: 'user',
-        timestamp: new Date().toISOString(),
-    });
+    addMessage('user', agent.id, trimmed);
     const response = await invoke(agent.id, trimmed);
-    addMessage({
-        id: (Date.now() + 1).toString(),
-        agentId: agent.id,
-        content: response,
-        type: 'agent',
-        timestamp: new Date().toISOString(),
-    });
+    // addMessage('agent', agent.id, response);
   };
+
+  useEffect(() => {
+    const eventSource = new EventSource('/api/loop?secret=loop');
+
+    eventSource.addEventListener('connected', (event) => {
+      const {clientId} = JSON.parse(event.data) as {clientId: string};
+      logger.info(`Connected for ${clientId}.`);
+    });
+
+    eventSource.addEventListener('streamText', (event) => {
+      const {content} = JSON.parse(event.data) as Extract<SSELoopStreamEvent, {sseType: 'streamText'}>;
+      updateMessageStream(agent.id, content);
+    });
+
+    return () => eventSource.close();
+  }, [updateMessageStream, agent.id]);
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">

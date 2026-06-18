@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AgentEmployee } from "@deepclaw/core";
 import { MobileAgentHeader } from "./MobileAgentHeader";
-import { MobileView } from "./mobile-view";
+import { MobileView } from "@/component-types";
 import { AgentList } from "../AgentList";
 import { AgentDetail } from "../details/AgentDetail";
 import { ChatPanel } from "@/components/chat/ChatPanel";

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Task, Project } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from "@deepclaw/core";
-import { Message } from '@/components/chat/message-type';
+import type { Message } from '@/component-types';
 import { getProjectStatus } from '@/components/component-utils';
 
 type AppState = {
@@ -15,10 +15,10 @@ type AppState = {
   setAgents: (agents: AgentEmployee[]) => void;
   updateAgentEmployee: (id: string, employee: Partial<AgentEmployee>) => void;
   setProjects: (projects: Project<Task>[]) => void;
-  updateProjectTask: (project: Project<Task>) => void;
-  setMessages: (messages: Message[]) => void;
+  updateProject: (project: Project<Task>) => void;
+  addMessage: (type: 'user' | 'agent', agentId: string, text: string) => void;
+  updateMessageStream: (agentId: string, text: string) => void;
   setSelectedAgent: (id: string | null) => void;
-  addMessage: (message: Message) => void;
   getSelectedAgent: () => AgentEmployee | undefined;
   getOneOngoingProject: (agentId: string) => Project<Task> | undefined;
   getProjectOwner: (projectId: string) => AgentEmployee | undefined;
@@ -44,7 +44,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   setProjects: (projects) => set({ projects }),
-  updateProjectTask(project: Project<Task>): void {
+  updateProject(project: Project<Task>): void {
     set((state) => {
       const exists = state.projects.some(p => p.id === project.id);
       return {
@@ -54,12 +54,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     });
   },
-  setMessages: (messages) => set({ messages }),
-  setSelectedAgent: (id) => set({ selectedAgentId: id }),
-  addMessage: (message) => set((state) => ({
-    messages: [...state.messages, message],
-  })),
 
+  addMessage: (type: 'user' | 'agent', agentId: string, text: string) => set((state) => ({
+    messages: [...state.messages, newMessage(type, agentId, text)],
+  })),
+  updateMessageStream: (agentId: string, text: string) => set((state) => {
+    const message = state.messages.findLast(m => m.agentId === agentId && m.type === 'agent');
+    if (!message) {
+        return {
+            messages: [...state.messages, newMessage('agent', agentId, text)],
+        };
+    } else {
+        return {
+            messages: state.messages.map(m => m.id === message.id ? { ...m, content: m.content + text } : m)
+        };
+    }
+  }),
+
+  setSelectedAgent: (id) => set({ selectedAgentId: id }),
   getSelectedAgent(): AgentEmployee | undefined {
     return get().agents.find(a => a.id === get().selectedAgentId);
   },
@@ -74,6 +86,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     return task?.assignee ? get().agents.find(a => a.id === task.assignee) : undefined;
   }
 }));
+
+function newMessage(type: 'user' | 'agent', agentId: string, content: string): Message {
+    return {
+        id: crypto.randomUUID(),
+        agentId,
+        content,
+        type,
+        timestamp: new Date().toISOString(),
+    };
+}
 
 function selectFirstActiveAgent(get: () => AppState, set: (state: Partial<AppState>) => void): void {
     const { selectedAgentId, activeAgents } = get();

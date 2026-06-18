@@ -9,24 +9,32 @@ import type { DeepclawConfig } from "@deepclaw/config";
 
 export type LoopStore = Record<string, LoopAgent<unknown, any, any>>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project<Task>[]};
+export type SSEType = 'info' | 'loop';
 
 class LoopGatewayImpl {
     private static loops: LoopStore = {};
-    private static subscribers: ((e: AgentInfoEvent) => void)[] = [];
+    private static sseSubscribers: {[key in SSEType]: Set<
+        (e: AgentInfoEvent | string) => void
+    >} = {
+        info: new Set(),
+        loop: new Set()
+    };
     private static defaultHandler: AgentHandler = {
-        onStreamText: () => {},
+        onStreamText: (e) => LoopGatewayImpl.sseSubscribers.loop.forEach(cb => cb(e)),
         onToolText: () => {},
         onInteractionEvent: () => Promise.resolve(''),
-        onInfoEvent: (e) => LoopGatewayImpl.subscribers.forEach(cb => cb(e))
+        onInfoEvent: (e) => LoopGatewayImpl.sseSubscribers.info.forEach(cb => cb(e))
     };
 
     public static init(agentId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
-        this.loops[agentId] = LoopInitializer.getLoop(agentId, {
-            onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
-            onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
-            onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
-            onInfoEvent: this.defaultHandler.onInfoEvent
-        });
+        if (!this.loops[agentId]) {
+            this.loops[agentId] = LoopInitializer.getLoop(agentId, {
+                onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
+                onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
+                onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
+                onInfoEvent: this.defaultHandler.onInfoEvent
+            });
+        }
     }
 
     public static invoke(agentId: string, input: string): Promise<string> {
@@ -45,13 +53,10 @@ class LoopGatewayImpl {
         }
     }
 
-    public static subscribe(cb: (e: AgentInfoEvent) => void): () => void {
-        this.subscribers.push(cb);
+    public static subscribe(type: SSEType, cb: (e: AgentInfoEvent | string) => void): () => void {
+        this.sseSubscribers[type].add(cb);
         return () => {
-            const index = this.subscribers.indexOf(cb);
-            if (index !== -1) {
-                this.subscribers.splice(index, 1);
-            }
+            this.sseSubscribers[type].delete(cb);
         };
     }
 

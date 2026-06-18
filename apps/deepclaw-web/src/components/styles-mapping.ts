@@ -1,4 +1,4 @@
-import { Message } from "./chat/message-type";
+import type { Message } from "@/component-types";
 import { AgentEmployee } from "@deepclaw/core";
 import type { Project, Task, MissionStatus} from "@deepclaw/loop-gateway";
 import { getProjectStatus } from "./component-utils";

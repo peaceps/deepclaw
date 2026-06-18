@@ -3,7 +3,7 @@
 import { Dispatch, SetStateAction } from "react";
 import { ArrowLeft, MessageSquare} from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { MobileView } from "./mobile-view";
+import { MobileView } from "@/component-types";
 
 export function MobileAgentHeader({mobileView, setMobileView}: {
   mobileView: MobileView;

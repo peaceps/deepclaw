@@ -16,7 +16,6 @@ export type AgentInteractionEvent = {
     options: AgentInteractionEventOption[];
 });
 
-// TODO: Implement this
 export type AgentInfoEvent = {
     type: 'updateProject',
     content: Project<Task>
