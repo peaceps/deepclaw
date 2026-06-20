@@ -42,7 +42,6 @@ and the agent can check the result of the background command later.`,
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    outputToUser: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: RunBackgroundCommandInput): Promise<string> {
         const { title, projectId, taskTitle, command } = input;
@@ -84,7 +83,6 @@ export const checkBackgroundCommandStatusTool: ToolDesc<CheckBackgroundCommandSt
     },
     agentMode: ['agent', 'plan'],
     parallelSafe: true,
-    outputToUser: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: CheckBackgroundCommandStatusInput): Promise<string> {
         const { commandId } = input;
@@ -108,7 +106,6 @@ export const checkAllBackgroundCommandStatusTool: ToolDesc<void> = {
     },
     agentMode: ['agent', 'plan'],
     parallelSafe: true,
-    outputToUser: false,
     exclusiveInSubLoop: false,
     invoke: async function(): Promise<string> {
         const commands = BackgroundCommandManager.getAllCommandsStatus();

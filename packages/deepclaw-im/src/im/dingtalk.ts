@@ -66,7 +66,7 @@ const onBotMessage = (client: DWClient) => {
             
             sendMessage(endPoint, i18nInstance.t('im.wait'));
             sequentialInteraction = sequentialInteraction.then(
-                () => agent.invoke(content).then(res => {
+                () => agent.invoke(agent.getIdentity().id + '.', content).then(res => {
                     sendMessage(endPoint, res);
                 }).catch(() => {
                     sendMessage(endPoint, i18nInstance.t('im.error'));

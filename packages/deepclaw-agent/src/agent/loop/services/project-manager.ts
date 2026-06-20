@@ -1,8 +1,7 @@
 import { FileUtils } from '@deepclaw/node-utils';
 import { DeepclawConfig } from '@deepclaw/config';
-import { TaskStepsManager } from './task-steps-manager';
 import { PROJECT_DIR } from '../../paths';
-import type { Project, Task, StandaloneTask } from '@deepclaw/core';
+import type { Project, Task, StandaloneTask, TaskStepsContext } from '@deepclaw/core';
 
 export type ProjectListInfo = {
     projects: {
@@ -56,12 +55,8 @@ export class ProjectManager {
         }
     }
 
-    private static saveProjects(project: Project<Task>): void {
-        FileUtils.writeFile(`${PROJECT_DIR}/${project.id}.json`, JSON.stringify(project));
-    }
-
-    private static saveStandaloneProject(): void {
-        const standaloneProject: Project<StandaloneTask> = {
+    private static saveProject(projectId: string): void {
+        const project = projectId === 'standalone' ? {
             id: 'standalone',
             title: 'Standalone tasks',
             description: 'A virtual project to hold standalone tasks that are not associated with any project.',
@@ -71,8 +66,11 @@ export class ProjectManager {
             ongoingTasks: [],
             canStartTasks: [],
             completedTasks: []
-        };
-        this.saveProjects(standaloneProject);
+        } : this.projects.projects[projectId];
+        if (!project) {
+            throw new Error(`Project ${projectId} not found!`);
+        }
+        FileUtils.writeFile(`${PROJECT_DIR}/${project.id}.json`, JSON.stringify(project, null, 2));
     }
 
     public static createProject({id, title, description, priority, creator, tasks}: {
@@ -94,7 +92,7 @@ export class ProjectManager {
             ...ProjectManager.calculateProjectTaskInfo(tasks)
         };
         this.projects.projects[project.id] = project;
-        this.saveProjects(project);
+        this.saveProject(project.id);
         return project;
     }
 
@@ -102,18 +100,18 @@ export class ProjectManager {
         const standaloneProject = this.projects.standalone;
         if (persistent) {
             standaloneProject.persistent[task.title] = task;
-            this.saveStandaloneProject();
+            this.saveProject('standalone');
         } else {
             standaloneProject.transient[task.title] = task;
         }
     }
 
-    public static updateTask(projectId: string, taskInfo: {title: string; assignee?: string; status: Task['status']}): Task {
-        let task;
+    public static updateTask(projectId: string, taskInfo: {title: string; assignee?: string; status: Task['status'], steps?: string[]}): Task {
+        let task: Task | undefined;
         if (projectId === 'standalone') {
             task = this.projects.standalone.persistent[taskInfo.title] || this.projects.standalone.transient[taskInfo.title];
         } else {
-             task = this.projects.projects[projectId]?.tasks?.[taskInfo.title];
+            task = this.projects.projects[projectId]?.tasks?.[taskInfo.title];
         }
         if (!task) {
             throw new Error('Task not found.');
@@ -123,8 +121,20 @@ export class ProjectManager {
             task.status === 'done' && taskInfo.status !== 'done') {
             throw new Error('You can only update the status from todo to ongoing or from ongoing to done.');
         }
-        if (taskInfo.status === 'done' && !TaskStepsManager.isStepsCompleted(projectId, taskInfo.title)) {
+        if (taskInfo.status === 'done' && taskInfo.steps) {
+            throw new Error('Cannot add steps and mark task done at the same time.');
+        }
+        if (taskInfo.status === 'done' && !this.isStepsCompleted(task)) {
             throw new Error('All steps should be completed before marking the task as done.');
+        }
+        if (taskInfo.steps?.length) {
+            if (task.status === 'ongoing' && !!task.stepsStatus?.steps || task.status === 'done') {
+                throw new Error('Cannot update steps.')
+            }
+            task.stepsStatus = {
+                steps: taskInfo.steps,
+                currentStepIndex: -1
+            };
         }
         task.status = taskInfo.status;
         task.assignee = taskInfo.assignee || task.assignee;
@@ -137,11 +147,39 @@ export class ProjectManager {
                 project.closedAt = new Date().toISOString();
             }
             Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
-            this.saveProjects(project);
+            this.saveProject(project.id);
         } else if (this.projects.standalone.persistent[taskInfo.title]) {
-            this.saveStandaloneProject();
+            this.saveProject('standalone');
         }
         return task;
+    }
+
+    public static updateCurrentStep(projectId: string, taskTitle: string, stepIndex: number): TaskStepsContext {
+        const task = this.getTask(projectId, taskTitle);
+        const context = task?.stepsStatus;
+        if (!context) {
+            throw new Error('No steps found for the specified task.');
+        }
+        if (task.status !== 'ongoing') {
+            throw new Error('Can only update current step for ongoing tasks.');
+        }
+        if (stepIndex < 0 || stepIndex > context.steps.length) {
+            throw new Error('Invalid step index.');
+        }
+        if (context.steps.length === 0) {
+            throw new Error('agent.tools.project.taskSteps.empty');
+        }
+        context.currentStepIndex = stepIndex;
+        this.saveProject(projectId);
+        return context;
+    }
+
+    private static isStepsCompleted(task: Task): boolean {
+        const context = task.stepsStatus;
+        if (!context || context.steps.length === 0) {
+            return true;
+        }
+        return context.currentStepIndex === context.steps.length;
     }
 
     public static getProjectList(includingClosed: boolean): ProjectListInfo {
@@ -239,6 +277,13 @@ export class ProjectManager {
         return project;
     }
 
+    private static getTask(projectId: string, taskTitle: string): Task | undefined {
+        if (projectId === 'standalone') {
+            return this.projects.standalone.persistent[taskTitle] || this.projects.standalone.transient[taskTitle];
+        }
+        return this.projects.projects[projectId]?.tasks[taskTitle];
+    }
+
     public static prompts(agentMode: DeepclawConfig['agents'][0]['mode']): string {
         return `
 ## Project Management tools
@@ -257,7 +302,7 @@ If you consider a job should be a project, use create_project tool to create it.
 If one job is not big enough to be a project, you can directly create a standalone task with create_standalone_task without putting it into a project.
 Always create a project/standalone task if asked to do something, even if the user didn\'t explicitly ask you to create one.
 You can create detailed steps for each task if needed,
-steps info are transient and will not be persisted after app restart, so make sure to update them in a timely manner.
+steps info are important for user to get current task execution status, so make sure to update them in a timely manner.
 
 ## Update task status
 ${agentMode !== 'agent' ? 'You are in plan mode so you can only plan and chat. You don\'t have update tools and cannot update the task status.' :

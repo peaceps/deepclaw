@@ -6,6 +6,7 @@ import {
     FlushAgent,
     type AgentHandler,
     type AgentIdentity,
+    AgentToolResultEvent,
 } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
 import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions';
@@ -223,9 +224,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 });
             } else {
                 const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
-                if (toolResult.effect.outputToUser) {
-                    this.agentHandler.onToolText(toolResult.result.content);
-                }
                 results.push(toolResult.result);
                 await HookManager.emitVisitor('postEachToolUse', context);
             }
@@ -256,7 +254,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         }
         return this.newSubLoop(this.createSubLoopIdentity(), {
             onStreamText: () => {},
-            onToolText: (content: string) => this.agentHandler.onToolText(content),
+            onToolText: (e: AgentToolResultEvent) => this.agentHandler.onToolText(e),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
         }, fork ? this.history : [], this.sessionId);

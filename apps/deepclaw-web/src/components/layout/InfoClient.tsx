@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getLogger } from '@/lib/logger';
-import { SSEConnectedEvent, SSEInfoEvent } from '@/app/api/sse-server';
+import type { SSEConnectedEvent, SSEInfoEvent } from '@/app/api/sse-server';
 
 const logger = getLogger('InfoClient');
 
@@ -14,7 +14,7 @@ export function InfoClient() {
     const eventSource = new EventSource('/api/info?secret=info');
 
     eventSource.addEventListener('connected', (event) => {
-      const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'conected'}>;
+      const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'connected'}>;
       logger.info(`Connected for ${clientId}.`);
     });
 

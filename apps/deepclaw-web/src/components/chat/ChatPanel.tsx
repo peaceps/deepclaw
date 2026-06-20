@@ -10,7 +10,7 @@ import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { getLogger } from "@/lib/logger";
-import { SSEConnectedEvent, SSELoopStreamEvent } from '@/app/api/sse-server';
+import type { SSEConnectedEvent, SSELoopStreamEvent } from '@/app/api/sse-server';
 
 type ChatPanelProps = {
   agent: AgentEmployee;
@@ -31,7 +31,11 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
     setInput('');
     addMessage('user', agent.id, projectId, trimmed);
     addMessage('agent', agent.id, projectId, '');
-    await invoke(agent.id, projectId, trimmed);
+    try {
+      await invoke(agent.id, projectId, trimmed);
+    } catch (e: any) {
+      updateMessageStream(`${agent.id}.${projectId}`, `\n${e?.message?.toString() || t('pages.chat.invoke.error')}`);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -49,7 +53,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
     const eventSource = new EventSource(`/api/loop?agentId=${agent.id}&projectId=${projectId}`);
 
     eventSource.addEventListener('connected', (event) => {
-      const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'conected'}>;
+      const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'connected'}>;
       logger.info(`Connected for ${clientId}.`);
     });
     eventSource.addEventListener('streamText', (event) => {

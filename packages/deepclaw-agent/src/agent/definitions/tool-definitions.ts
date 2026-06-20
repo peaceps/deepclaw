@@ -37,7 +37,6 @@ export type ToolDesc<T = unknown> = {
     agentMode: DeepclawConfig['agents'][0]['mode'][];
     exclusiveInSubLoop?: boolean; // if true, the tool will not be available in sub-loop
     invoke: ToolCallback<T>;
-    outputToUser?: boolean;
     guard?: (input: T, agentMode: DeepclawConfig['agents'][0]['mode']) => ToolGuardResult;
 }
 

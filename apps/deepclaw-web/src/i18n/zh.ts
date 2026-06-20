@@ -107,6 +107,9 @@ export const zh = {
                     emptyPrompt: '和{{name}}聊聊吧',
                 },
             },
+            invoke: {
+                error: '大模型发生了意外错误.'
+            },
             thinking: '思考中',
             send: '给 {{name}} 发消息...',
             noAgent: {

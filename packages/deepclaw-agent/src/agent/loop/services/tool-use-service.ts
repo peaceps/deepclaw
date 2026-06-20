@@ -6,9 +6,6 @@ import { SESSION_DIR, AGENTS_DIR, TOOL_RESULT_DIR } from '../../paths';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
-    effect: {
-        outputToUser: boolean;
-    }
 }
 
 export type ToolUseDef = {
@@ -75,16 +72,15 @@ export class ToolUseService {
         }
         try {
             const output = await tool.invoke(input, context);
-            return this.toolResult(toolUseDef.id, this.truncateLargeOutput(toolUseDef.id, output), !!tool.outputToUser);
+            return this.toolResult(toolUseDef.id, this.truncateLargeOutput(toolUseDef.id, output));
         } catch (error) {
             return this.toolResult(toolUseDef.id, `Error: ${error}`);
         }
     }
 
-    private toolResult(toolUseId: string, content: string, outputToUser: boolean = false): ToolUseServiceResult {
+    private toolResult(toolUseId: string, content: string): ToolUseServiceResult {
         return ({
             result: {id: toolUseId, content},
-            effect: {outputToUser},
         });
     }
 

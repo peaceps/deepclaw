@@ -7,6 +7,12 @@ export type AgentStreamEvent = {
     done?: boolean;
 };
 
+export type AgentToolResultEvent = {
+    chatKey: string;
+    toolName: string;
+    data: any;
+};
+
 export type AgentInteractionEventOption = string | {label: string; value: string | boolean | number};
 
 export type AgentInteractionEvent = {

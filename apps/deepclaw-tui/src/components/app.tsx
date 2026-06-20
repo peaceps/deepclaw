@@ -1,6 +1,6 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent, useRef} from 'react';
 import { Box, Static, useApp } from 'ink';
-import { AgentInteractionEvent, AgentStreamEvent } from '@deepclaw/core';
+import { AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import {LoopGateway} from '@deepclaw/loop-gateway';
 import {HistoryLine, type HistoryItem} from './history';
@@ -10,6 +10,7 @@ import {LlmOutput} from './llm-output';
 import { UserInteraction } from './user-interaction';
 import { useConfig } from '../hooks/use-config';
 import { useTranslation } from 'react-i18next';
+import { formatToolResult } from './tui-formater';
 
 export type AppConfig = {
 }
@@ -61,23 +62,27 @@ export function App({app}: {app: AppConfig}): ReactElement {
 
     const envConfigReady = useConfig(handleAgentEvent);
 
-    const handleWithLLMoutput = useEffectEvent(() => {
-        handleLlmDone(llmOutput)
+    const handleStream = useEffectEvent((e: AgentStreamEvent) => {
+        if (e.done) {
+            handleLlmDone(llmOutput);
+        } else {
+            setLlmOutput(prev => prev + e.text);
+        }
+    });
+
+    const handleToolResult = useEffectEvent((e: AgentToolResultEvent) => {
+        const formatedResult = formatToolResult(e, t);
+        if (formatedResult) {
+            handleStream({text: formatedResult, done: false, chatKey: ''});
+        } 
     });
 
 	useEffect(() => {
-        function handleLlmStreamText({text, done}: AgentStreamEvent) {
-            if (done) {
-                handleWithLLMoutput();
-            } else {
-                setLlmOutput(prev => prev + text);
-            }
-        }
         if (envConfigReady) {
             agentIdRef.current = LoopGateway.getLoopInfo().agents[0]!.id;
             LoopGateway.init(agentIdRef.current, {
-                onStreamText: handleLlmStreamText, 
-                onToolText: (text: string) => handleLlmStreamText({text, done: false, chatKey: ''}),
+                onStreamText: handleStream, 
+                onToolText: handleToolResult,
                 onInteractionEvent: handleAgentEvent
             });
         }

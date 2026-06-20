@@ -14,6 +14,11 @@ export type Project<T extends Task> = {
     canStartTasks: string[];
 };
 
+export type TaskStepsContext = {
+    steps: string[];
+    currentStepIndex: number;
+}
+
 export type Task = {
     title: string;
     description: string;
@@ -24,7 +29,7 @@ export type Task = {
     assignee?: string;
     closedAt?: string;
     creator: string; // standalone
-    progress?: number;
+    stepsStatus?: TaskStepsContext
     tags?: string[];
 };
 

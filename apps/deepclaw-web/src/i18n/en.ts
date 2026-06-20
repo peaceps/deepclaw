@@ -107,6 +107,9 @@ export const en = {
                     emptyPrompt: 'Chat with {{name}}',
                 },
             },
+            invoke: {
+                error: 'LLM has an unexpected error.'
+            },
             thinking: 'Thinking...',
             send: 'Send message to {{name}}...',
             noAgent: {

@@ -1,4 +1,4 @@
-import { AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent } from './flush-agent-event';
+import { AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent } from './flush-agent-event';
 import { AgentIdentity } from './agent-definitions';
 
 export type FlushAgentConstructor = new (
@@ -15,7 +15,7 @@ export type LLMGWConfig = {
 
 export type AgentHandler = {
     onStreamText(e: AgentStreamEvent): void;
-    onToolText(content: string): void;
+    onToolText(e: AgentToolResultEvent): void;
     onInteractionEvent(event: AgentInteractionEvent): Promise<string|boolean|number>;
     onInfoEvent(event: AgentInfoEvent): void;
 }
@@ -38,7 +38,7 @@ export abstract class FlushAgent {
         });
         this.agentHandler = {
             onStreamText: (e: Omit<AgentStreamEvent, 'done'>) => this.flusher({chatKey: e.chatKey, text: e.text, done: false}),
-            onToolText: (text: string) => handler.onToolText(text),
+            onToolText: (e: AgentToolResultEvent) => handler.onToolText(e),
             onInteractionEvent: handler.onInteractionEvent,
             onInfoEvent: handler.onInfoEvent
         };

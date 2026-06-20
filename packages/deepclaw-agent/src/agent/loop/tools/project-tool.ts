@@ -4,7 +4,6 @@ import { ProjectManager } from "../services/project-manager";
 import { Project, StandaloneTask, Task } from "@deepclaw/core";
 import {i18nInstance} from '@deepclaw/i18n';
 import { OneLoopContext } from '../../definitions/definitions';
-import { TaskStepsManager } from '../services/task-steps-manager';
 
 type CreateProjectInput = {
     title: string;
@@ -70,7 +69,7 @@ export const createProjectTool: ToolDesc<CreateProjectInput> = {
                             steps: {
                                 type: 'array',
                                 items: {type: 'string'},
-                                description: `The detailed steps to complete the task. Max step count is 12.
+                                description: `The detailed steps to complete the task. Max step count is 8.
 You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
 All steps should be done when task is going to be marked as done.`
                             },
@@ -90,7 +89,6 @@ All steps should be done when task is going to be marked as done.`
     },
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
-    outputToUser: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
         const projectId = crypto.randomUUID();
@@ -107,9 +105,13 @@ All steps should be done when task is going to be marked as done.`
                 assignee: context.agentId,
                 blockedBy: n.blockedBy || [],
                 blocks: [],
+                stepsStatus: !n.steps?.length ? undefined : {
+                    steps: n.steps,
+                    currentStepIndex: -1
+                }
             };
-            if (n.steps?.length) {
-                TaskStepsManager.init(projectId, n.title, n.steps);
+            if (n.steps?.length && n.steps?.length > 8) {
+                throw new Error('Too much steps for a task. Max is 8.')
             }
             return p;
         }, {} as Record<string, Task>);
@@ -170,7 +172,7 @@ export const createStandaloneTaskTool: ToolDesc<CreateStandaloneTaskInput> = {
                 steps: {
                     type: 'array',
                     items: {type: 'string'},
-                    description: `The detailed steps to complete the task. Max step count is 12.
+                    description: `The detailed steps to complete the task. Max step count is 8.
 You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
 All steps should be done when task is going to be marked as done.`
                 },
@@ -180,7 +182,6 @@ All steps should be done when task is going to be marked as done.`
     },
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
-    outputToUser: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateStandaloneTaskInput, context: OneLoopContext): Promise<string> {
         const task: StandaloneTask = {
@@ -193,7 +194,14 @@ All steps should be done when task is going to be marked as done.`
             assignee: context.agentId,
             blockedBy: [],
             blocks: [],
+            stepsStatus: !input.steps?.length ? undefined : {
+                steps: input.steps,
+                currentStepIndex: -1
+            }
         };
+        if (input.steps?.length && input.steps?.length > 8) {
+            throw new Error('Too much steps for a task. Max is 8.')
+        }
         let standaloneStrategy = context.loopConfig.standaloneTask;
         if (standaloneStrategy === 'ask') {
             standaloneStrategy = await context.actions.agentHandler.onInteractionEvent({
@@ -206,9 +214,6 @@ All steps should be done when task is going to be marked as done.`
             }) as 'persistent' | 'transient';
         }
         ProjectManager.createStandaloneTask(task, standaloneStrategy === 'persistent');
-        if (input.steps?.length) {
-            TaskStepsManager.init('standalone', task.title, input.steps);
-        }
         return `Standalone task created successfully.
 Here's the task info:
 ${JSON.stringify({
@@ -226,6 +231,7 @@ type UpdateTaskInput = {
     projectId: string;
     taskTitle: string;
     status: Task['status'];
+    steps?: string[];
     assignee?: string;
 };
 
@@ -245,6 +251,15 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
 'todo' is the initial status, 'ongoing' is the status when the task is being worked on,
 'done' is the status when the task is completed. You can only update the status to the next status.`,
                 },
+                steps: {
+                    type: 'array',
+                    items: {
+                        type: 'string',
+                        additionalProperties: false,
+                        description: `The steps to update, it can be set when a task is in todo status, or when there is no steps in an ongoing task.
+They shoudl be short descriptions of each step, should not be too long for user to read.`
+                    }
+                },
                 assignee: {type: 'string', description: 'The agent name of the task being assigned to.'},
             },
             required: ['projectId', 'taskTitle', 'status'],
@@ -252,22 +267,22 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: false,
-    outputToUser: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
+        if (input.steps?.length && input.steps?.length > 8) {
+            throw new Error('Too much steps for a task. Max is 8.')
+        }
         ProjectManager.updateTask(input.projectId, {
             title: input.taskTitle,
             assignee: input.assignee,
+            steps: input.steps,
             status: input.status,
         });
 
         const content = input.projectId === 'standalone' ? ProjectManager.getStandaloneTaskDetail(input.taskTitle) :
             ProjectManager.getProjectDetail(input.projectId);
 
-        context.actions.agentHandler.onInfoEvent({
-            type: 'updateProject',
-            content: 'id' in content ? content : ProjectManager.wrapStandaloneTask(content)
-        });
+        fireProjectInfoEvent(input.projectId, input.taskTitle, context);
 
         return `Task updated successfully.
 Here's the related info:
@@ -303,10 +318,17 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    outputToUser: true,
     exclusiveInSubLoop: false,
-    invoke: async function(input: UpdateTaskCurrentStepInput): Promise<string> {
-        return TaskStepsManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
+    invoke: async function(input: UpdateTaskCurrentStepInput, context: OneLoopContext): Promise<string> {
+        const updated = ProjectManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
+        context.actions.agentHandler.onToolText({
+            chatKey: context.chatKey,
+            toolName: 'update_task_current_step',
+            data: updated
+        });
+
+        fireProjectInfoEvent(input.projectId, input.taskTitle, context);
+        return JSON.stringify(updated);
     },
 };
 
@@ -330,7 +352,6 @@ closed projects and done standalone tasks will also be included.`,
     },
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
-    outputToUser: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: GetProjectListInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectList(input.includingClosed));
@@ -357,7 +378,6 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
     exclusiveInSubLoop: false,
-    outputToUser: false,
     invoke: async function(input: GetProjectDetailInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectDetail(input.projectId));
     },
@@ -383,8 +403,16 @@ export const getStandaloneTaskDetailTool: ToolDesc<GetStandaloneTaskDetailInput>
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
     exclusiveInSubLoop: false,
-    outputToUser: false,
     invoke: async function(input: GetStandaloneTaskDetailInput): Promise<string> {
         return JSON.stringify(ProjectManager.getStandaloneTaskDetail(input.title));
     },
+}
+
+function fireProjectInfoEvent(projectId: string, taskTitle: string, context: OneLoopContext) {
+    const content = projectId === 'standalone' ? ProjectManager.getStandaloneTaskDetail(taskTitle) :
+        ProjectManager.getProjectDetail(projectId);
+    context.actions.agentHandler.onInfoEvent({
+        type: 'updateProject',
+        content: 'id' in content ? content : ProjectManager.wrapStandaloneTask(content)
+    });
 }

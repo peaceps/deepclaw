@@ -6,6 +6,7 @@ import type { AgentEmployee } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
 import {priorityStyles} from '../styles-mapping';
+import { getTaskProgress } from '../component-utils';
 
 type TaskCardProps = {
   task: Task;
@@ -16,6 +17,7 @@ export function TaskCard({ task, assignee }: TaskCardProps) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
   const {t} = useTranslation();
+  const progress = getTaskProgress(task);
 
   const handleAssigneeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -60,16 +62,21 @@ export function TaskCard({ task, assignee }: TaskCardProps) {
           </div>
         </div>
 
-        {task.status === 'ongoing' && (
+        {task.stepsStatus?.steps.length && task.stepsStatus.steps.map((step, i) => {
+          const index = task.stepsStatus!.currentStepIndex;
+          return (<div key={step} className={`text-[10px]/[14px] ${i < index ? "text-green-400" : i === index ? "text-orange-400" : "text-gray-400"}`}>{step}</div>)
+        })}
+
+        {progress !== null && (
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-gray-500">{t('pages.projects.project.progress')}</span>
-              <span className="font-medium text-gray-700">{task.progress}%</span>
+              <span className="font-medium text-gray-700">{progress}%</span>
             </div>
             <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 rounded-full transition-all"
-                style={{ width: `${task.progress}%` }}
+                style={{ width: `${progress}%` }}
               />
             </div>
           </div>
