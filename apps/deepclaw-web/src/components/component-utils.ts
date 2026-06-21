@@ -1,14 +1,14 @@
 import type { Project, Task, MissionStatus } from "@deepclaw/loop-gateway";
 import { LANG_LOCALE_MAP } from "@deepclaw/i18n";
 
-export function getProjectStatus(project: Project<Task>): MissionStatus {
+export function getProjectStatus(project: Project): MissionStatus {
     if (!project.closedAt) {
         return !project.ongoingTasks.length ? 'todo' : 'ongoing';
     }
     return 'done';
 }
 
-export function getProjectProgress(project?: Project<Task> | null): string | null {
+export function getProjectProgress(project?: Project | null): string | null {
     let progress = null;
     if (project) {
         const total = Object.values(project.tasks).length;

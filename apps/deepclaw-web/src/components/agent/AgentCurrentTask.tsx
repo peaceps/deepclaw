@@ -1,9 +1,9 @@
 'use client';
-import type { Project, Task } from "@deepclaw/loop-gateway";
+import type { Project } from "@deepclaw/loop-gateway";
 import { useTranslation } from "react-i18next";
 import { getProjectProgress } from "../component-utils";
 
-export function AgentCurrentProject({ project }: { project: Project<Task> }) {
+export function AgentCurrentProject({ project }: { project: Project }) {
     const {t} = useTranslation();
     if (!project) return null;
     

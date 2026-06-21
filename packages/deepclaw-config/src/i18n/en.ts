@@ -25,14 +25,6 @@ export const en = {
                     chat: 'Chat (A chat tool, won\'t do any operation)',
                 },
             },
-            standaloneTask: {
-                prompt: 'Choose the working mode for standalone tasks:',
-                options: {
-                    transient: 'Transient (Will not save on file system)',
-                    persistent: 'Persistent (Will save on file system)',
-                    ask: 'Ask (Alway ask user)',
-                },
-            },
             headlessEnabled: {
                 prompt: 'Will you use the headless mode with an IM service?',
             },

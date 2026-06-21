@@ -1,7 +1,7 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {moodEmojis} from '../styles-mapping';
+import {avatarBG, moodEmojis} from '../styles-mapping';
 
 export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
     agent: AgentEmployee;
@@ -54,15 +54,12 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
         <div className="relative">
           {/* 头部 */}
           <div className="flex items-start gap-3 mb-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-2xl">
+            <div className={`w-12 h-12 rounded-full ${avatarBG} flex items-center justify-center text-2xl`}>
               {agent.avatar}
             </div>
             <div className="flex-1">
-              <h4 className="font-bold text-gray-900">{agent.name}</h4>
+              <h4 className="font-bold text-gray-900">{agent.name}<span className="text-sm ml-1">{moodEmojis[agent.mood]}</span></h4>
               <p className="text-sm text-gray-500">{agent.role}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm">{moodEmojis[agent.mood]}</span>
-              </div>
             </div>
           </div>
   

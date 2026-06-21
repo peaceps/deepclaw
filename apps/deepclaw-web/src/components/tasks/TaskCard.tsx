@@ -5,7 +5,7 @@ import type { Task } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
-import {priorityStyles} from '../styles-mapping';
+import {avatarBG, priorityStyles} from '../styles-mapping';
 import { getTaskProgress } from '../component-utils';
 
 type TaskCardProps = {
@@ -44,15 +44,15 @@ export function TaskCard({ task, assignee }: TaskCardProps) {
         <div
           ref={assigneeRef}
           onClick={handleAssigneeClick}
-          className="mt-3 flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg p-1 -ml-1 transition-colors"
+          className="mt-1 flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg p-1 -ml-1 transition-colors"
         >
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xs">
+          <div className={`w-6 h-6 rounded-full ${avatarBG} flex items-center justify-center text-xs`}>
             {assignee.avatar}
           </div>
           <span className="text-xs text-gray-600">{assignee.name}</span>
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+        {task.tags && <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
           <div className="flex gap-1">
             {task.tags?.slice(0, 2).map((tag) => (
               <span key={tag} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
@@ -60,15 +60,22 @@ export function TaskCard({ task, assignee }: TaskCardProps) {
               </span>
             ))}
           </div>
-        </div>
+        </div>}
 
-        {task.stepsStatus?.steps.length && task.stepsStatus.steps.map((step, i) => {
-          const index = task.stepsStatus!.currentStepIndex;
-          return (<div key={step} className={`text-[10px]/[14px] ${i < index ? "text-green-400" : i === index ? "text-orange-400" : "text-gray-400"}`}>{step}</div>)
-        })}
+        {task.stepsStatus?.steps.length && <div className='mt-1'>
+           {task.stepsStatus.steps.map((step, i) => {
+             const index = task.stepsStatus!.currentStepIndex;
+             return (
+              <div key={`${i}-${step}`}
+                   className={`text-[10px]/[14px] ${i < index ? "text-lime-600" : i === index ? "text-cyan-600" : "text-gray-500"}`}>
+                {step}
+              </div>
+             )
+           })}
+        </div>}
 
         {progress !== null && (
-          <div className="mt-3">
+          <div className="mt-2">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-gray-500">{t('pages.projects.project.progress')}</span>
               <span className="font-medium text-gray-700">{progress}%</span>

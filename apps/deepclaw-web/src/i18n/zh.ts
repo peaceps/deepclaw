@@ -136,7 +136,8 @@ export const zh = {
                     title: 'Agent设置',
                     description: '配置Agent参数',
                     addButton: '雇佣新Agent',
-                    removeButton: '解雇Agent',
+                    removeButtonTitle: '解雇Agent',
+                    removeButton: '裁掉',
                     header: {
                         unnamed: '未命名',
                         errors: '个错误'
@@ -184,14 +185,6 @@ export const zh = {
                     agent: '代理 (完整操作权限)',
                     plan: '计划',
                     chat: '聊天',
-                },
-            },
-            standaloneTask: {
-                prompt: '临时任务保存模式',
-                options: {
-                    transient: '总是不保存在磁盘上',
-                    persistent: '总是保存在磁盘上',
-                    ask: '每次询问',
                 },
             },
             im: {

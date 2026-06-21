@@ -1,5 +1,5 @@
 import type {
-    AgentHandler, AgentEmployee, AgentSoulIdentity, Project, Task, StandaloneTask, AgentInfoEvent,
+    AgentHandler, AgentEmployee, AgentSoulIdentity, Project, AgentInfoEvent,
     AgentStreamEvent
 } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
@@ -9,7 +9,7 @@ import {
 import type { DeepclawConfig } from "@deepclaw/config";
 
 export type LoopStore = Record<string, LoopAgent<unknown, any, any>>;
-export type LoopInfo = {agents: AgentEmployee[], projects: Project<Task>[]};
+export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
 export type SSEType = 'info' | 'loop';
 
 class LoopGatewayImpl {
@@ -89,21 +89,16 @@ class LoopGatewayImpl {
         };
     }
 
-    private static getProjects(): Project<Task>[] {
-        const res: Project<Task>[] = [];
+    private static getProjects(): Project[] {
+        const res: Project[] = [];
         const projects = ProjectManager.getProjectList(true);
         projects.projects.open.concat(projects.projects.closed).forEach(p => {
             res.push(ProjectManager.getProjectDetail(p.id));
         });
-        projects.standaloneTasks.open.concat(projects.standaloneTasks.closed).forEach((t) => {
-            const task = ProjectManager.getStandaloneTaskDetail(t.title);
-            const project: Project<StandaloneTask> = ProjectManager.wrapStandaloneTask(task);
-            res.push(project);
-        });
         return res;
     }
 
-    private static getAgents(projects: Project<Task>[]): AgentEmployee[] {
+    private static getAgents(projects: Project[]): AgentEmployee[] {
         return AgentIdentityManager.getAgents().map(agent => ({
             ...agent,
             status: agent.fired ? 'fired' : projects.some(p  => p.creator === agent.id && !p.closedAt) ? 'busy' : 'idle',

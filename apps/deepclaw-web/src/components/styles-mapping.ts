@@ -1,9 +1,11 @@
 import type { Message } from "@/component-types";
 import { AgentEmployee } from "@deepclaw/core";
-import type { Project, Task, MissionStatus} from "@deepclaw/loop-gateway";
+import type { Project, MissionStatus} from "@deepclaw/loop-gateway";
 import { getProjectStatus } from "./component-utils";
 
-export function getProjectStatusStyles(project: Project<Task>): string {
+export const avatarBG = 'bg-gradient-to-br from-amber-400 to-cyan-500';
+
+export function getProjectStatusStyles(project: Project): string {
     return projectStatusStyles[getProjectStatus(project)];
 }
 
@@ -18,7 +20,7 @@ export const moodEmojis: Record<AgentEmployee['mood'], string> = {
     focused: '🎯',
     tired: '😴',
     confused: '🤔',
-    none: '🫥',
+    none: '🙃',
 };
 
 export const statusColors: Record<AgentEmployee['status'], string> = {
@@ -27,7 +29,7 @@ export const statusColors: Record<AgentEmployee['status'], string> = {
     fired: 'bg-gray-400',
 };
 
-export const priorityStyles: Record<Project<Task>['priority'], string> = {
+export const priorityStyles: Record<Project['priority'], string> = {
     urgent: 'bg-red-100 text-red-700',
     high: 'bg-orange-100 text-orange-700',
     medium: 'bg-blue-100 text-blue-700',

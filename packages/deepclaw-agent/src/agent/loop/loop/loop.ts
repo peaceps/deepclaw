@@ -64,12 +64,11 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     }
 
     public updateConfig(config: DeepclawConfig['agents'][0]): void {
-        // Todo handle mode change caused tools change and standaloneTask change
         const oldConfig = this.agentConfig;
         this.agentConfig = config;
 
         if (this.agentConfig.llm.sdk !== oldConfig.llm.sdk) {
-            // TODO loop type change
+            // TODO loop sdk change
             this.loopLogger.info(`LLM sdk changed from ${oldConfig.llm.sdk} to ${this.agentConfig.llm.sdk}`);
             return;
         }

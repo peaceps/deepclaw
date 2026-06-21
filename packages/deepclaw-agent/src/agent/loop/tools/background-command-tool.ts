@@ -26,7 +26,7 @@ and the agent can check the result of the background command later.`,
                 },
                 projectId: {
                     type: 'string',
-                    description: 'The ID of the project this command is running for. set to "standalone" if not related to any project.',
+                    description: 'The ID of the project this command is running for.',
                 },
                 taskTitle: {
                     type: 'string',

@@ -81,14 +81,6 @@ export function AgentSettingsCard({
               error={hasFieldError('mode')}
             />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <DeepSelect
-              uiInfo={configEvents['agents.standaloneTask'] as Extract<AgentInteractionEvent, {type: 'select'}>}
-              value={agent.standaloneTask}
-              onSelect={(e) => onUpdate(index, { standaloneTask: e.target.value as AgentConfig['standaloneTask'] })}
-              error={hasFieldError('standaloneTask')}
-            />
-          </div>
         </AgentSettingsSection>
 
         {/* IM 配置 */}
@@ -107,12 +99,14 @@ export function AgentSettingsCard({
           />
           {agent.im && (
             <div className="space-y-4">
-              <DeepSelect
-                uiInfo={configEvents['agents.im.engine'] as Extract<AgentInteractionEvent, {type: 'select'}>}
-                value={agent.im!.engine}
-                onSelect={(e) => onUpdateIM(index, { engine: e.target.value as IMConfig['engine'] })}
-                error={hasFieldError('im.engine')}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DeepSelect
+                  uiInfo={configEvents['agents.im.engine'] as Extract<AgentInteractionEvent, {type: 'select'}>}
+                  value={agent.im!.engine}
+                  onSelect={(e) => onUpdateIM(index, { engine: e.target.value as IMConfig['engine'] })}
+                  error={hasFieldError('im.engine')}
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <DeepInput
                   uiInfo={configEvents['agents.im.appId'] as Extract<AgentInteractionEvent, {type: 'input'}>}

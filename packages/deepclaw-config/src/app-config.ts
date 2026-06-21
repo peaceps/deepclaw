@@ -22,7 +22,6 @@ export type DeepclawConfig = {
             secret: string;
         },
         mode: 'agent' | 'plan' | 'chat';
-        standaloneTask: 'transient' | 'persistent' | 'ask';
         llm: {
             sdk: string;
             baseURL: string;
@@ -123,12 +122,6 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
             }
             if (!agent.mode) {
                 agentLacks.push(`mode`);
-            }
-            if (agent.standaloneTask && !['transient', 'persistent', 'ask'].includes(agent.standaloneTask)) {
-                agent.standaloneTask = undefined as any;
-            }
-            if (!agent.standaloneTask) {
-                agentLacks.push(`standaloneTask`);
             }
             if (!agent.im) {
                 if (headless) {

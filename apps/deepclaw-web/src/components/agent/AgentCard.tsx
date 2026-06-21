@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import type { Project, Task } from '@deepclaw/loop-gateway';
+import type { Project } from '@deepclaw/loop-gateway';
 import type { AgentEmployee } from '@deepclaw/core';
 import { useAppStore } from '@/lib/store';
 
-import { statusColors, moodEmojis } from '../styles-mapping';
+import { statusColors, moodEmojis, avatarBG } from '../styles-mapping';
 import { useTranslation } from 'react-i18next';
 import { AgentTooltip } from './AgentTooltip';
 import { AgentCurrentProject } from './AgentCurrentTask';
 
 type AgentCardProps = {
-  project?: Project<Task>;
+  project?: Project;
   agent: AgentEmployee;
   onSelect?: () => void;
 }
@@ -42,7 +42,7 @@ export function AgentCard({ project, agent, onSelect }: AgentCardProps) {
       >
         <div className="flex items-start gap-3">
           <div className="relative">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-2xl">
+            <div className={`w-12 h-12 rounded-full ${avatarBG} flex items-center justify-center text-2xl`}>
               {agent.avatar}
             </div>
             <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${statusColors[agent.status]}`} />
@@ -58,7 +58,7 @@ export function AgentCard({ project, agent, onSelect }: AgentCardProps) {
         </div>
 
         <div className="mt-3 flex items-center justify-between text-xs">
-          <span className={`px-2 py-1 rounded-full ${statusColors[agent.status].replace('bg-', 'bg-opacity-20 bg-')} text-gray-600`}>
+          <span className={`px-2 py-1 rounded-full ${statusColors[agent.status].replace('bg-', 'bg-opacity-20 bg-')} text-white`}>
             {t(`pages.agents.status.${agent.status}`)}
           </span>
           <span className="text-gray-400">

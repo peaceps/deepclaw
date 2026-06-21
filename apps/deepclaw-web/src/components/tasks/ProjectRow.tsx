@@ -1,4 +1,4 @@
-import type { Project, Task } from '@deepclaw/loop-gateway';
+import type { Project } from '@deepclaw/loop-gateway';
 import { ChevronDown, ChevronRight, Folder, User, CheckCircle2, Clock } from 'lucide-react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +8,7 @@ import { getProjectStatus } from '../component-utils';
 import { useAppStore } from '@/lib/store';
 
 type ProjectRowProps = {
-    project: Project<Task>; isExpanded: boolean; onToggle: () => void;
+    project: Project; isExpanded: boolean; onToggle: () => void;
 }
 
 export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
@@ -29,7 +29,7 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
             <div className="text-gray-400 flex-shrink-0">
               {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
             </div>
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-500 to-emerald-600
               flex items-center justify-center text-white flex-shrink-0">
                 <Folder size={20} />
             </div>

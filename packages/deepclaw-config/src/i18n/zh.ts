@@ -25,14 +25,6 @@ export const zh = {
                     chat: 'Chat (只聊天)',
                 },
             },
-            standaloneTask: {
-                prompt: '请选择独立任务的工作模式：',
-                options: {
-                    transient: '临时 （不保存在磁盘上）',
-                    persistent: '永久 （保存在磁盘上）',
-                    ask: '每次询问',
-                },
-            },
             headlessEnabled: {
                 prompt: '是否使用headless模式并接入即时通讯软件？',
             },

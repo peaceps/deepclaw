@@ -41,15 +41,6 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
             {label: 'config.agents.mode.options.chat', value: 'chat'},
         ],
     },
-    ['agents.standaloneTask']: {
-        type: 'select',
-        content: 'config.agents.standaloneTask.prompt',
-        options: [
-            {label: 'config.agents.standaloneTask.options.transient', value: 'transient'},
-            {label: 'config.agents.standaloneTask.options.persistent', value: 'persistent'},
-            {label: 'config.agents.standaloneTask.options.ask', value: 'ask'},
-        ],
-    },
     ['agents.headlessEnabled']: {
         type: 'select',
         content: 'config.agents.headlessEnabled.prompt',

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Notebook } from 'lucide-react';
-import { Project, Task } from '@deepclaw/loop-gateway';
+import { Project } from '@deepclaw/loop-gateway';
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
 import { useAppStore } from '@/lib/store';
@@ -14,7 +14,7 @@ const columns = [
 ];
 
 type ProjectTasksProps = {
-    project: Project<Task>;
+    project: Project;
 }
 
 export function ProjectTasks({project}: ProjectTasksProps) {

@@ -1,14 +1,12 @@
-import crypto from 'crypto';
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
-import { Project, StandaloneTask, Task } from "@deepclaw/core";
-import {i18nInstance} from '@deepclaw/i18n';
+import { Project, Task } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
 
 type CreateProjectInput = {
     title: string;
     description: string;
-    priority: Project<Task>['priority'];
+    priority: Project['priority'];
     tasks: {
         title: string;
         description: string;
@@ -71,7 +69,8 @@ export const createProjectTool: ToolDesc<CreateProjectInput> = {
                                 items: {type: 'string'},
                                 description: `The detailed steps to complete the task. Max step count is 8.
 You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
-All steps should be done when task is going to be marked as done.`
+All steps should be done when task is going to be marked as done.`,
+                                maxItems: 8,
                             },
                             blockedBy: {
                                 type: 'array',
@@ -91,70 +90,43 @@ All steps should be done when task is going to be marked as done.`
     parallelSafe: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
-        const projectId = crypto.randomUUID();
-        const tasks: Record<string, Task> = input.tasks.reduce((p, n) => {
-            if (p[n.title]) {
-                throw new Error(`Task title '${n.title}' is not unique across tasks in this project.`);
-            }
-            p[n.title] = {
-                title: n.title,
-                description: n.description,
-                priority: n.priority,
-                status: 'todo',
-                creator: context.agentId,
-                assignee: context.agentId,
-                blockedBy: n.blockedBy || [],
-                blocks: [],
-                stepsStatus: !n.steps?.length ? undefined : {
-                    steps: n.steps,
-                    currentStepIndex: -1
-                }
-            };
-            if (n.steps?.length && n.steps?.length > 8) {
-                throw new Error('Too much steps for a task. Max is 8.')
-            }
-            return p;
-        }, {} as Record<string, Task>);
 
-        Object.values(tasks).forEach(task => {
-            task.blockedBy?.forEach(blockedBy => {
-                tasks[blockedBy]?.blocks?.push(task.title);
-            });
-        });
-        
-        ProjectManager.createProject({
-            id: projectId,
+        const tasks = input.tasks.map(task => ProjectManager.createTask({
+            ...task,
+            agentId: context.agentId,
+        }))
+        const project = ProjectManager.createProject({
+            agentId: context.agentId,
             title: input.title,
             description: input.description,
-            priority: input.priority,
-            creator: context.agentId,
-            tasks,
-        });
+            priority: input.priority
+        }, tasks);
+        
+        fireProjectInfoEvent(project.id, context);
         return `Project created successfully.
 Here's the project info:
-${JSON.stringify(ProjectManager.getProjectDetail(projectId))}`;
+${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
     },
 }
 
-type CreateStandaloneTaskInput = {
+type CreateSimpleTaskInput = {
     title: string;
     description: string;
     priority: Task['priority'];
     steps?: string[];
 };
 
-export const createStandaloneTaskTool: ToolDesc<CreateStandaloneTaskInput> = {
+export const createSimpleTaskTool: ToolDesc<CreateSimpleTaskInput> = {
     tool: {
-        name: 'create_standalone_task',
-        description: `Create a standalone task that is not associated with any project. It will not have any dependency.`,
+        name: 'create_simple_task',
+        description: `Create a single task without dependencies. It will be wrapped into a project that contains only this task.`,
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
                 title: {
                     type: 'string',
-                    description: `The title of the task, will display to the user. Should be unique across standalone tasks. 
-                    Date and datetime can be added to the title if needed to ensure the uniqueness.`,
+                    description: `The title of the task, will display to the user.`,
                     minLength: 1,
                     maxLength: 50,
                 },
@@ -174,7 +146,8 @@ export const createStandaloneTaskTool: ToolDesc<CreateStandaloneTaskInput> = {
                     items: {type: 'string'},
                     description: `The detailed steps to complete the task. Max step count is 8.
 You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
-All steps should be done when task is going to be marked as done.`
+All steps should be done when task is going to be marked as done.`,
+                    maxItems: 8,
                 },
             },
             required: ['title', 'description', 'priority'],
@@ -183,49 +156,22 @@ All steps should be done when task is going to be marked as done.`
     agentMode: ['agent', 'plan'],
     parallelSafe: false,
     exclusiveInSubLoop: true,
-    invoke: async function(input: CreateStandaloneTaskInput, context: OneLoopContext): Promise<string> {
-        const task: StandaloneTask = {
-            title: input.title,
-            description: input.description,
-            priority: input.priority,
-            status: 'todo',
-            createdAt: new Date().toISOString(),
-            creator: context.agentId,
-            assignee: context.agentId,
-            blockedBy: [],
-            blocks: [],
-            stepsStatus: !input.steps?.length ? undefined : {
-                steps: input.steps,
-                currentStepIndex: -1
-            }
-        };
-        if (input.steps?.length && input.steps?.length > 8) {
-            throw new Error('Too much steps for a task. Max is 8.')
-        }
-        let standaloneStrategy = context.loopConfig.standaloneTask;
-        if (standaloneStrategy === 'ask') {
-            standaloneStrategy = await context.actions.agentHandler.onInteractionEvent({
-                type: 'select',
-                content: i18nInstance.t('agent.tools.project.standaloneTask.prompt'),
-                options: [
-                    {label: i18nInstance.t('agent.tools.project.standaloneTask.options.persistent'), value: 'persistent'},
-                    {label: i18nInstance.t('agent.tools.project.standaloneTask.options.transient'), value: 'transient'}
-                ]
-            }) as 'persistent' | 'transient';
-        }
-        ProjectManager.createStandaloneTask(task, standaloneStrategy === 'persistent');
-        return `Standalone task created successfully.
-Here's the task info:
-${JSON.stringify({
-    title: task.title,
-    description: task.description,
-    status: task.status,
-    priority: task.priority,
-    assignee: task.assignee,
-    createdAt: task.createdAt,
-})}`;
+    invoke: async function(input: CreateSimpleTaskInput, context: OneLoopContext): Promise<string> {
+        const task: Task = ProjectManager.createTask(
+            {...input, agentId: context.agentId}
+        );
+        const project = ProjectManager.createProject({
+            agentId: context.agentId,
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+        }, [task]);
+        fireProjectInfoEvent(project.id, context);
+        return `Task created successfully.
+Here's the wrapper project info:
+${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
     }
-}
+};
 
 type UpdateTaskInput = {
     projectId: string;
@@ -238,12 +184,12 @@ type UpdateTaskInput = {
 export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
     tool: {
         name: 'update_task',
-        description: 'Update the status of a task in a project. If it\'s a standalone task, projectId should be "standalone".',
+        description: 'Update the status of a task in a project.',
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
-                projectId: {type: 'string', description: 'The ID of the project. If it\'s a standalone task, this should be "standalone".'},
+                projectId: {type: 'string', description: 'The ID of the project.'},
                 taskTitle: {type: 'string', description: 'The title of the task.'},
                 status: {
                     type: 'string', enum: ['todo', 'ongoing', 'done'],
@@ -255,10 +201,10 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
                     type: 'array',
                     items: {
                         type: 'string',
-                        additionalProperties: false,
-                        description: `The steps to update, it can be set when a task is in todo status, or when there is no steps in an ongoing task.
-They shoudl be short descriptions of each step, should not be too long for user to read.`
-                    }
+                    },
+                    description: `The steps to update, it can be set when a task is in todo status, or when there is no steps in an ongoing task.
+They shoudl be short descriptions of each step, should not be too long for user to read.`,
+                    maxItems: 8,
                 },
                 assignee: {type: 'string', description: 'The agent name of the task being assigned to.'},
             },
@@ -279,14 +225,12 @@ They shoudl be short descriptions of each step, should not be too long for user 
             status: input.status,
         });
 
-        const content = input.projectId === 'standalone' ? ProjectManager.getStandaloneTaskDetail(input.taskTitle) :
-            ProjectManager.getProjectDetail(input.projectId);
-
-        fireProjectInfoEvent(input.projectId, input.taskTitle, context);
+        const project = ProjectManager.getProjectDetail(input.projectId);
+        fireProjectInfoEvent(input.projectId, context);
 
         return `Task updated successfully.
 Here's the related info:
-${JSON.stringify(content)}`;
+${JSON.stringify(project)}`;
     },
 };
 
@@ -304,7 +248,7 @@ export const updateTaskCurrentStepTool: ToolDesc<UpdateTaskCurrentStepInput> = {
             type: 'object',
             additionalProperties: false,
             properties: {
-                projectId: {type: 'string', description: 'The ID of the project. If it\'s a standalone task, this should be "standalone".'},
+                projectId: {type: 'string', description: 'The ID of the project.'},
                 taskTitle: {type: 'string', description: 'The title of the task.'},
                 stepIndex: {
                     type: 'number',
@@ -327,7 +271,7 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
             data: updated
         });
 
-        fireProjectInfoEvent(input.projectId, input.taskTitle, context);
+        fireProjectInfoEvent(input.projectId, context);
         return JSON.stringify(updated);
     },
 };
@@ -339,13 +283,13 @@ type GetProjectListInput = {
 export const getProjectListTool: ToolDesc<GetProjectListInput> = {
     tool: {
         name: 'get_project_list',
-        description: `Get the list of projects and standalone tasks. If includingClosed is true,
-closed projects and done standalone tasks will also be included.`,
+        description: `Get the list of projects including simple task wrapper projects. If includingClosed is true,
+closed projects will also be included.`,
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
-                includingClosed: {type: 'boolean', description: 'Whether to include closed projects and done standalone tasks.'},
+                includingClosed: {type: 'boolean', description: 'Whether to include closed projects.'},
             },
             required: ['includingClosed'],
         },
@@ -383,36 +327,10 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
     },
 }
 
-type GetStandaloneTaskDetailInput = {
-    title: string;
-};
-
-export const getStandaloneTaskDetailTool: ToolDesc<GetStandaloneTaskDetailInput> = {
-    tool: {
-        name: 'get_standalone_task_detail',
-        description: 'Get the detailed information of a standalone task with its title.',
-        schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-                title: {type: 'string', description: 'The title of the standalone task.'},
-            },
-            required: ['title'],
-        },
-    },
-    agentMode: ['agent', 'plan'],
-    parallelSafe: false,
-    exclusiveInSubLoop: false,
-    invoke: async function(input: GetStandaloneTaskDetailInput): Promise<string> {
-        return JSON.stringify(ProjectManager.getStandaloneTaskDetail(input.title));
-    },
-}
-
-function fireProjectInfoEvent(projectId: string, taskTitle: string, context: OneLoopContext) {
-    const content = projectId === 'standalone' ? ProjectManager.getStandaloneTaskDetail(taskTitle) :
-        ProjectManager.getProjectDetail(projectId);
+function fireProjectInfoEvent(projectId: string, context: OneLoopContext) {
+    const project = ProjectManager.getProjectDetail(projectId);
     context.actions.agentHandler.onInfoEvent({
         type: 'updateProject',
-        content: 'id' in content ? content : ProjectManager.wrapStandaloneTask(content)
+        content: project
     });
 }

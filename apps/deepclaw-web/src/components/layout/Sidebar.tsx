@@ -30,7 +30,7 @@ export function Sidebar({manager }: SidebarProps) {
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between h-[57px]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold">
+          <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-cyan-600 rounded-lg flex items-center justify-center text-white font-bold">
             D
           </div>
           <span className="font-bold text-gray-900">DeepClaw</span>
@@ -110,7 +110,7 @@ export function Sidebar({manager }: SidebarProps) {
       <div className="p-4 border-b border-gray-100 flex items-center justify-between">
         {!collapsed && (
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white text-xl font-bold">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-sky-600 rounded-xl flex items-center justify-center text-white text-xl font-bold">
               D
             </div>
             <div>

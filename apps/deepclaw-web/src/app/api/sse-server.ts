@@ -1,7 +1,7 @@
 import { LoopGateway, type SSEType } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
-import type { AgentEmployee, AgentInfoEvent, AgentStreamEvent, Project, Task } from "@deepclaw/core";
+import type { AgentEmployee, AgentInfoEvent, AgentStreamEvent, Project } from "@deepclaw/core";
 
 export type SSEEvent = {
     sseType: string;
@@ -15,7 +15,7 @@ export type SSEConnectedEvent = SSEEvent & {
 
 export type SSEInfoEvent = SSEEvent & ({
     sseType: 'updateProject'
-    content: Project<Task>
+    content: Project
 } | {
     sseType: 'updateAgent'
     content: Partial<AgentEmployee> & {id: string}

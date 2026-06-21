@@ -7,21 +7,21 @@ import { getProjectStatus } from '@/components/component-utils';
 type AppState = {
   agents: AgentEmployee[];
   activeAgents: AgentEmployee[];
-  projects: Project<Task>[];
+  projects: Project[];
   messages: {[key: string]: Message[]},
   selectedAgentId: string | null;
 
   // Actions
   setAgents: (agents: AgentEmployee[]) => void;
   updateAgentEmployee: (id: string, employee: Partial<AgentEmployee>) => void;
-  setProjects: (projects: Project<Task>[]) => void;
-  updateProject: (project: Project<Task>) => void;
+  setProjects: (projects: Project[]) => void;
+  updateProject: (project: Project) => void;
   addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => void;
   updateMessageStream: (chatKey: string, text: string) => void;
   getChatMessages: (agentId: string, projectId: string) => Message[] | undefined;
   setSelectedAgent: (id: string | null) => void;
   getSelectedAgent: () => AgentEmployee | undefined;
-  getOneOngoingProject: (agentId: string) => Project<Task> | undefined;
+  getOneOngoingProject: (agentId: string) => Project | undefined;
   getProjectOwner: (projectId: string) => AgentEmployee | undefined;
   getTaskAssignee: (task: Task) => AgentEmployee | undefined;
 }
@@ -45,7 +45,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   setProjects: (projects) => set({ projects }),
-  updateProject: (project: Project<Task>): void => {
+  updateProject: (project: Project): void => {
     set((state) => {
       const exists = state.projects.some(p => p.id === project.id);
       return {
@@ -87,7 +87,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   getSelectedAgent(): AgentEmployee | undefined {
     return get().agents.find(a => a.id === get().selectedAgentId);
   },
-  getOneOngoingProject(agentId: string): Project<Task> | undefined {
+  getOneOngoingProject(agentId: string): Project | undefined {
     return get().projects.find(p => p.creator === agentId && getProjectStatus(p) !== 'done');
   },
   getProjectOwner(projectId: string): AgentEmployee | undefined {

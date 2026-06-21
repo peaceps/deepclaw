@@ -40,13 +40,6 @@ export const en = {
                 timeout: 'Error: Timeout ({{timeout}}s).',
             },
             project: {
-                standaloneTask: {
-                    prompt: 'The agent is going to create a standalone task. Do you want to persist it in file system or just save in memory?',
-                    options: {
-                        persistent: 'Persistent, saved in file system',
-                        transient: 'Transient, only exist in memory',
-                    },
-                },
                 taskSteps: {
                     empty: 'No steps.',
                     current: '\nCurrent step:\n{{steps}}\n',

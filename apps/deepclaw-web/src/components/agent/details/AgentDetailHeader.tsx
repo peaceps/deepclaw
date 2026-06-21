@@ -1,7 +1,7 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
 import { Briefcase, CheckCircle2 } from "lucide-react";
-import { moodEmojis, statusColors } from "../../styles-mapping";
+import { avatarBG, moodEmojis, statusColors } from "../../styles-mapping";
 
 export function AgentHeader({ agent }: { agent: AgentEmployee }) {
     const {t} = useTranslation();
@@ -11,7 +11,7 @@ export function AgentHeader({ agent }: { agent: AgentEmployee }) {
         <div className="flex items-start gap-4 sm:gap-6">
           {/* Avatar */}
           <div className="relative flex-shrink-0">
-            <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center text-3xl sm:text-5xl shadow-lg">
+            <div className={`w-16 h-16 sm:w-24 sm:h-24 rounded-2xl ${avatarBG} flex items-center justify-center text-3xl sm:text-5xl shadow-lg`}>
               {agent.avatar}
             </div>
             <div className={`absolute -bottom-1 -right-1 w-4 h-4 sm:w-6 sm:h-6 rounded-full border-2 sm:border-3 border-white ${statusColors[agent.status]} shadow-sm`} />

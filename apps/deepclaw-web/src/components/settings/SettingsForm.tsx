@@ -47,7 +47,6 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
     const newAgent = {
       name: '',
       mode: '',
-      standaloneTask: '',
       llm: { sdk: '', baseURL: '', apiKey: '', model: '', responseApi: true },
     } as unknown as AgentConfig;
     setConfig((prev) => ({ ...prev, agents: [...prev.agents, newAgent] }));
@@ -185,7 +184,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
                   key={index}
                   agent={agent}
                   index={index}
-                  removable={config.agents.length > 1}
+                  removable={config.agents.filter(agent => !agent.fired).length > 1}
                   configEvents={configEvents}
                   validationErrors={validationResult.errors.filter(e => e.startsWith(`agents.${index}.`))}
                   onUpdate={updateAgent}

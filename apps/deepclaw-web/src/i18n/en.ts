@@ -136,7 +136,8 @@ export const en = {
                     title: 'Agent Settings',
                     description: 'Configure agents',
                     addButton: 'Hire new agent',
-                    removeButton: 'Fire this agent',
+                    removeButtonTitle: 'Fire this agent',
+                    removeButton: 'Fire',
                     header: {
                         unnamed: 'Unnamed',
                         errors: 'error(s)'
@@ -184,14 +185,6 @@ export const en = {
                     agent: 'Agent (OS operable)',
                     plan: 'Plan (Plan for projects rather than doing)',
                     chat: 'Chat (Chat only, no OS operation)',
-                },
-            },
-            standaloneTask: {
-                prompt: 'Standalone task persistence',
-                options: {
-                    transient: 'Transient (Will not save on file system)',
-                    persistent: 'Persistent (Will save on file system)',
-                    ask: 'Ask (Alway ask user)',
                 },
             },
             im: {

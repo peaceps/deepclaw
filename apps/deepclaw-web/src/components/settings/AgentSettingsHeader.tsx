@@ -84,9 +84,9 @@ export function AgentSettingsHeader({
               onRemove(index);
             }}
             className="p-2 text-gray-400 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-gray-400 transition-colors"
-            title={t('pages.settings.panels.agents.removeButton')}
+            title={t('pages.settings.panels.agents.removeButtonTitle')}
           >
-            <Trash2 size={18} />
+            <span className="inline-flex items-center gap-1"><Trash2 size={18} /> <span>{t('pages.settings.panels.agents.removeButton')}</span></span>
           </button>
           {expanded ? (
             <ChevronDown size={20} className="text-gray-400" />

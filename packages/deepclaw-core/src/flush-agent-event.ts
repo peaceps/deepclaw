@@ -1,5 +1,5 @@
 import { AgentEmployee } from "./agent-definitions";
-import { Project, Task } from "./project-definitions";
+import { Project } from "./project-definitions";
 
 export type AgentStreamEvent = {
     chatKey: string;
@@ -30,7 +30,7 @@ export type AgentInteractionEvent = {
 
 export type AgentInfoEvent = {
     type: 'updateProject',
-    content: Project<Task>
+    content: Project
 } | {
     type: 'updateAgent',
     content: Partial<AgentEmployee> & {id: string}

@@ -1,6 +1,6 @@
 export type MissionStatus = 'todo' | 'ongoing' | 'done';
 
-export type Project<T extends Task> = {
+export type Project = {
     id: string;
     title: string;
     description: string;
@@ -8,7 +8,7 @@ export type Project<T extends Task> = {
     closedAt?: string;
     creator: string;
     priority: 'low' | 'medium' | 'high' | 'urgent';
-    tasks: Record<string, T>;
+    tasks: Record<string, Task>;
     completedTasks: string[];
     ongoingTasks: string[];
     canStartTasks: string[];
@@ -28,11 +28,6 @@ export type Task = {
     blocks: string[];
     assignee?: string;
     closedAt?: string;
-    creator: string; // standalone
     stepsStatus?: TaskStepsContext
     tags?: string[];
 };
-
-export type StandaloneTask = Task & {
-    createdAt: string; // for standalone tasks
-}

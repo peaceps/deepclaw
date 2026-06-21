@@ -1,7 +1,7 @@
 'use client';
 
 import { AgentEmployee } from "@deepclaw/core";
-import { statusColors } from '../styles-mapping';
+import { avatarBG, statusColors } from '../styles-mapping';
 
 type ChatHeaderProps = {
   agent: AgentEmployee;
@@ -10,7 +10,7 @@ type ChatHeaderProps = {
 export function ChatHeader({ agent }: ChatHeaderProps) {
   return (
     <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
-      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xl">
+      <div className={`w-10 h-10 rounded-full ${avatarBG} flex items-center justify-center text-xl`}>
         {agent.avatar}
       </div>
       <div>
