@@ -1,16 +1,16 @@
 'use client';
 
-import { CheckCircle2, Clock} from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {ProjectRow} from './ProjectRow';
 import { useTranslation } from 'react-i18next';
-import { getProjectStatus } from '../component-utils';
+import { ProjectSearch, DEFAULT_PROJECT_FILTERS, filterProjects } from './ProjectSearch';
 
 export function TaskBoard() {
   const { projects } = useAppStore();
-  const [expandedProjects, setExpandedProjects] =
-    useState<Set<string>>(() => new Set(projects[0] ? [projects[0].id] : []));
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set());
+  const [filters, setFilters] = useState(DEFAULT_PROJECT_FILTERS);
+  const filteredProjects = useMemo(() => filterProjects(projects, filters), [projects, filters]);
   const {t} = useTranslation();
 
   const projectIdsKey = projects.map(p => p.id).join(',');
@@ -18,9 +18,7 @@ export function TaskBoard() {
   if (projectIdsKey !== prevProjectIdsKey) {
     setPrevProjectIdsKey(projectIdsKey);
     setExpandedProjects(prev => {
-      const validExpanded = new Set(Array.from(prev).filter(id => projects.some(p => p.id === id)));
-      if (validExpanded.size === 0 && projects.length > 0) validExpanded.add(projects[0].id);
-      return validExpanded;
+      return new Set(Array.from(prev).filter(id => projects.some(p => p.id === id)));
     });
   }
 
@@ -34,29 +32,24 @@ export function TaskBoard() {
 
   return (
     <div className="h-full flex flex-col bg-gray-100">
-      <div className="px-4 sm:px-6 py-4 bg-white border-b border-gray-200
-        flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-gray-900">{t('pages.projects.projectList')}</h1>
-          <p className="text-sm text-gray-500 mt-1">{projects.length} {t('pages.projects.count')}</p>
+      <div className="px-2 py-1 lg:pb-4 bg-white border-b border-gray-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 lg:gap-3">
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">{t('pages.projects.projectList')}</h1>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
-          <span className="flex items-center gap-1">
-            <CheckCircle2 size={16} className="text-green-500" />
-            {projects.filter(p => getProjectStatus(p) === 'done').length} {t('pages.projects.status.done')}
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock size={16} className="text-yellow-500" />
-            {projects.filter(p => getProjectStatus(p) !== 'done').length} {t('pages.projects.status.ongoing')}
-          </span>
-        </div>
+        <ProjectSearch filters={filters} onChange={setFilters}/>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {projects.map(project => (
+        {filteredProjects.length ? filteredProjects.map(project => (
           <ProjectRow key={project.id} project={project}
             isExpanded={expandedProjects.has(project.id)} onToggle={() => toggleProject(project.id)}
           />
-        ))}
+        )) : (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-white py-12 text-center text-gray-400">
+            <p className="text-sm">{t('pages.projects.search.noResults')}</p>
+          </div>
+        )}
       </div>
     </div>
   );

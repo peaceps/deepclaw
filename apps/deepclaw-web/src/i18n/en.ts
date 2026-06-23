@@ -82,7 +82,12 @@ export const en = {
         projects: {
             title: 'Task Board',
             projectList: 'Project list',
-            count: 'projects',
+            ownerFilter: 'Owner',
+            search: {
+                placeholder: 'Search project title or description...',
+                noResults: 'No matching projects',
+                clear: 'Clear search',
+            },
             status: {
                 todo: 'Not started',
                 ongoing: 'Ongoing',

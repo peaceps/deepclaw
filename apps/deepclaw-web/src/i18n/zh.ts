@@ -82,7 +82,12 @@ export const zh = {
         projects: {
             title: '任务看板',
             projectList: '项目列表',
-            count: '个项目',
+            ownerFilter: '负责人',
+            search: {
+                placeholder: '搜索项目名称或描述...',
+                noResults: '没有匹配的项目',
+                clear: '清除搜索',
+            },
             status: {
                 todo: '未开始',
                 ongoing: '进行中',
