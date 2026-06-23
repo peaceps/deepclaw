@@ -81,7 +81,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         if (envConfigReady) {
             agentIdRef.current = LoopGateway.getLoopInfo().agents[0]!.id;
             LoopGateway.init(agentIdRef.current, {
-                onStreamText: handleStream, 
+                onStreamText: handleStream,
                 onToolText: handleToolResult,
                 onInteractionEvent: handleAgentEvent
             });

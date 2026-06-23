@@ -23,11 +23,9 @@ export type DeepclawConfig = {
         },
         mode: 'agent' | 'plan' | 'chat';
         llm: {
-            sdk: string;
             baseURL: string;
             apiKey: string;
             model: string;
-            responseApi: boolean;
         }
     }[],
     ui: {
@@ -141,12 +139,9 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
             }
 
             if (!agent.llm) {
-                agent.llm = {responseApi: true} as DeepclawConfig['agents'][0]['llm'];
-                agentLacks.push('llm.sdk', 'llm.baseURL', 'llm.apiKey', 'llm.model');
+                agent.llm = {} as DeepclawConfig['agents'][0]['llm'];
+                agentLacks.push('llm.baseURL', 'llm.apiKey', 'llm.model');
             } else {
-                if (!['openai', 'anthropic'].includes(agent.llm.sdk || '')) {
-                    agentLacks.push('llm.sdk');
-                }
                 if (!agent.llm.baseURL) {
                     agentLacks.push('llm.baseURL');
                 }

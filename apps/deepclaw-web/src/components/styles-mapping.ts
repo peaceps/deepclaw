@@ -2,7 +2,7 @@ import type { Message } from "@/component-types";
 import type { Project, MissionStatus, AgentEmployee} from "@deepclaw/core";
 import { getProjectStatus } from "./component-utils";
 
-export const avatarBG = 'bg-gradient-to-br from-amber-400 to-cyan-500';
+export const avatarBG = 'bg-gradient-to-br from-amber-300 to-sky-300';
 
 export function getProjectStatusStyles(project: Project): string {
     return projectStatusStyles[getProjectStatus(project)];

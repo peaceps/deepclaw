@@ -152,7 +152,7 @@ export const en = {
                         basic: 'Basic info',
                         im: 'IM configs',
                         llm: 'LLM configs',
-                        llmSDKNotif: 'SDK change will only take effect after service restart',
+                        llmBaseURLNotif: 'BaseURL change will only take effect after service restart',
                     }
                 }
             }
@@ -209,13 +209,6 @@ export const en = {
                 }
             },
             llm: {
-                sdk: {
-                    prompt: 'LLM SDK',
-                    options: {
-                        openai: 'OpenAI',
-                        anthropic: 'Anthropic',
-                    },
-                },
                 baseURL: {
                     prompt: 'Base URL',
                 },

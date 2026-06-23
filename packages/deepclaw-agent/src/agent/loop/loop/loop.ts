@@ -67,14 +67,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         const oldConfig = this.agentConfig;
         this.agentConfig = config;
 
-        if (this.agentConfig.llm.sdk !== oldConfig.llm.sdk) {
-            // TODO loop sdk change
-            this.loopLogger.info(`LLM sdk changed from ${oldConfig.llm.sdk} to ${this.agentConfig.llm.sdk}`);
+        if (this.agentConfig.llm.baseURL !== oldConfig.llm.baseURL) {
+            // TODO loop baseURL change,但这里有个边缘状态：this.agentConfig 已经被更新为新 baseURL，而 this.llm 仍然是旧 baseURL 的实例。之后如果用户再改 apiKey/model，可能进入后面的重建逻辑，用新 config 创建旧 loop class 的 LLM，状态就更混乱。
+            this.loopLogger.info(`LLM baseURL changed from ${oldConfig.llm.baseURL} to ${this.agentConfig.llm.baseURL}`);
             return;
         }
 
         if (this.agentConfig.mode !== oldConfig.mode
-            || this.agentConfig.llm.baseURL !== oldConfig.llm.baseURL
             || this.agentConfig.llm.apiKey !== oldConfig.llm.apiKey
         ) {
             const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);

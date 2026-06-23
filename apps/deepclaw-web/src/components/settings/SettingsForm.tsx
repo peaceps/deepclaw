@@ -47,7 +47,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
     const newAgent = {
       name: '',
       mode: '',
-      llm: { sdk: '', baseURL: '', apiKey: '', model: '', responseApi: true },
+      llm: { baseURL: '', apiKey: '', model: '' },
     } as unknown as AgentConfig;
     setConfig((prev) => ({ ...prev, agents: [...prev.agents, newAgent] }));
     setPanelToggleStatus(pre => ({...pre, [`agents.${config.agents.length}`]: true}));

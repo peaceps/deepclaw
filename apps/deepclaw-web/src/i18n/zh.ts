@@ -143,7 +143,7 @@ export const zh = {
                     description: '配置Agent参数',
                     addButton: '雇佣新Agent',
                     removeButtonTitle: '解雇Agent',
-                    removeButton: '裁掉',
+                    removeButton: '裁员',
                     header: {
                         unnamed: '未命名',
                         errors: '个错误'
@@ -152,7 +152,7 @@ export const zh = {
                         basic: '基本信息',
                         im: 'IM配置',
                         llm: 'LLM配置',
-                        llmSDKNotif: 'SDK变更只有在应用重启后才生效',
+                        llmBaseURLNotif: 'BaseURL变更只有在应用重启后才生效',
                     }
                 }
             }
@@ -209,13 +209,6 @@ export const zh = {
                 },
             },
             llm: {
-                sdk: {
-                    prompt: '模型SDK',
-                    options: {
-                        openai: 'OpenAI',
-                        anthropic: 'Anthropic',
-                    },
-                },
                 baseURL: {
                     prompt: 'Base URL',
                 },

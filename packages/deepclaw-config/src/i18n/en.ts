@@ -44,13 +44,6 @@ export const en = {
                 },
             },
             llm: {
-                sdk: {
-                    prompt: 'Which LLM SDK will be used?',
-                    options: {
-                        openai: 'OpenAI',
-                        anthropic: 'Anthropic',
-                    },
-                },
                 baseURL: {
                     prompt: 'Please enter the Base URL:'
                 },

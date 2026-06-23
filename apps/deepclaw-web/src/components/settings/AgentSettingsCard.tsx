@@ -128,28 +128,14 @@ export function AgentSettingsCard({
         {/* LLM 配置 */}
         <AgentSettingsSection title="pages.settings.panels.agents.sections.llm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <DeepSelect
-              uiInfo={configEvents['agents.llm.sdk'] as Extract<AgentInteractionEvent, {type: 'select'}>}
-              value={agent.llm.sdk}
-              onSelect={(e) => onUpdateLLM(index, { sdk: e.target.value })}
-              error={hasFieldError('llm.sdk')}
-              Icon={CircleAlert}
-              iconTitle='pages.settings.panels.agents.sections.llmSDKNotif'
-            />
-            <DeepInput
-              uiInfo={configEvents['agents.llm.model'] as Extract<AgentInteractionEvent, {type: 'input'}>}
-              value={agent.llm.model}
-              onInput={(e) => onUpdateLLM(index, { model: e.target.value })}
-              error={hasFieldError('llm.model')}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <DeepInput
               uiInfo={configEvents['agents.llm.baseURL'] as Extract<AgentInteractionEvent, {type: 'input'}>}
               value={agent.llm.baseURL}
               onInput={(e) => onUpdateLLM(index, { baseURL: e.target.value })}
               placeholder="https://api.openai.com/v1"
               error={hasFieldError('llm.baseURL')}
+              Icon={CircleAlert}
+              iconTitle='pages.settings.panels.agents.sections.llmBaseURLNotif'
             />
             <DeepInput
               uiInfo={configEvents['agents.llm.apiKey'] as Extract<AgentInteractionEvent, {type: 'input'}>}
@@ -157,6 +143,14 @@ export function AgentSettingsCard({
               onInput={(e) => onUpdateLLM(index, { apiKey: e.target.value })}
               placeholder="sk-..."
               error={hasFieldError('llm.apiKey')}
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <DeepInput
+              uiInfo={configEvents['agents.llm.model'] as Extract<AgentInteractionEvent, {type: 'input'}>}
+              value={agent.llm.model}
+              onInput={(e) => onUpdateLLM(index, { model: e.target.value })}
+              error={hasFieldError('llm.model')}
             />
           </div>
         </AgentSettingsSection>

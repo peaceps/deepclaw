@@ -44,13 +44,6 @@ export const zh = {
                 }
             },
             llm: {
-                sdk: {
-                    prompt: '请选择您的LLM SDK：',
-                    options: {
-                        openai: 'OpenAI',
-                        anthropic: 'Anthropic',
-                    },
-                },
                 baseURL: {
                     prompt: '请输入Base URL：',
                 },

@@ -138,7 +138,7 @@ export function ProjectSearch({filters, onChange}: {
                 type="button"
                 onClick={() => handleStatusFilterChange(status)}
                 className={`whitespace-nowrap rounded-full px-3 py-1 text-xs
-                    font-medium transition-colors ${
+                    font-medium transition-colors cursor-pointer ${
                   filters.status === status
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

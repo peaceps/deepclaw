@@ -110,7 +110,8 @@ export function Sidebar({manager }: SidebarProps) {
       <div className="p-4 border-b border-gray-100 flex items-center justify-between">
         {!collapsed && (
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-sky-600 rounded-xl flex items-center justify-center text-white text-xl font-bold">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-sky-600 rounded-xl
+              flex items-center justify-center text-white text-xl font-bold">
               D
             </div>
             <div>
@@ -120,7 +121,8 @@ export function Sidebar({manager }: SidebarProps) {
           </Link>
         )}
         {collapsed && (
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white text-xl font-bold mx-auto">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center
+            text-white text-xl font-bold mx-auto">
             D
           </div>
         )}
@@ -182,8 +184,8 @@ export function Sidebar({manager }: SidebarProps) {
       <div className="p-4 border-t border-gray-100">
         {!collapsed ? (
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm">
-              👤
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-cyan-500 flex items-center justify-center text-sm">
+              💤
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">{manager.name}</p>
@@ -192,8 +194,8 @@ export function Sidebar({manager }: SidebarProps) {
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm">
-              👤
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-cyan-500 flex items-center justify-center text-sm">
+              💤
             </div>
           </div>
         )}
