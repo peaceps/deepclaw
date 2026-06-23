@@ -13,13 +13,19 @@ export function DesktopAgentPage({selectedAgent}: {
 }) {
 
   const [detailCollapsed, setDetailCollapsed] = useState(false);
+  const [listCollapsed, setListCollapsed] = useState(false);
   const {t} = useTranslation();
 
     return (
       <div className="flex h-full w-full">
         {/* Left: Agent List */}
-        <div className="w-80 border-r border-gray-200 bg-gray-50 p-4 overflow-y-auto">
-          <AgentList />
+        <div className={`border-r border-gray-200 bg-gray-50 overflow-hidden shrink-0
+            transition-[width] duration-300 ease-in-out ${listCollapsed ? 'w-24' : 'w-80'}`
+          }>
+          <AgentList
+            collapsed={listCollapsed}
+            onToggleCollapse={() => setListCollapsed(!listCollapsed)}
+          />
         </div>
 
         {/* Middle: Agent Detail */}

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import type { Task, Project } from '@deepclaw/loop-gateway';
-import type { AgentEmployee } from "@deepclaw/core";
+import type { Task, Project, AgentEmployee } from '@deepclaw/core';
 import type { Message } from '@/component-types';
 import { getProjectStatus } from '@/components/component-utils';
 

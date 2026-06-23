@@ -1,4 +1,4 @@
-import type { Project, Task, MissionStatus } from "@deepclaw/loop-gateway";
+import type { Project, Task, MissionStatus } from "@deepclaw/core";
 import { LANG_LOCALE_MAP } from "@deepclaw/i18n";
 
 export function getProjectStatus(project: Project): MissionStatus {

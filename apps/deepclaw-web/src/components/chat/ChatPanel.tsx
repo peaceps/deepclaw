@@ -3,7 +3,7 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { invoke } from '@/server/loop';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
@@ -11,6 +11,7 @@ import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styl
 import { formatDate } from '../component-utils';
 import { getLogger } from "@/lib/logger";
 import type { SSEConnectedEvent, SSELoopStreamEvent } from '@/app/api/sse-server';
+import { Markdown } from "./Markdown";
 
 type ChatPanelProps = {
   agent: AgentEmployee;
@@ -21,20 +22,46 @@ const logger = getLogger('ChatPanel');
 
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const [input, setInput] = useState('');
+  const [streaming, setStreaming] = useState(false);
   const { addMessage, updateMessageStream, getChatMessages } = useAppStore();
   const agentMessages = getChatMessages(agent.id, projectId);
   const { t, i18n } = useTranslation();
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+  };
+
+  const lastContent = agentMessages?.[agentMessages.length - 1]?.content ?? '';
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [agentMessages?.length, lastContent]);
+
+  useEffect(() => {
+    stickToBottomRef.current = true;
+    setStreaming(false);
+    setInput('');
+  }, [agent.id]);
 
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
     setInput('');
+    setStreaming(true);
     addMessage('user', agent.id, projectId, trimmed);
     addMessage('agent', agent.id, projectId, '');
     try {
       await invoke(agent.id, projectId, trimmed);
     } catch (e: any) {
       updateMessageStream(`${agent.id}.${projectId}`, `\n${e?.message?.toString() || t('pages.chat.invoke.error')}`);
+      setStreaming(false);
     }
   };
 
@@ -52,16 +79,27 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   useEffect(() => {
     const eventSource = new EventSource(`/api/loop?agentId=${agent.id}&projectId=${projectId}`);
 
-    eventSource.addEventListener('connected', (event) => {
+    const connectedListener = (event: MessageEvent<string>) => {
       const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'connected'}>;
       logger.info(`Connected for ${clientId}.`);
-    });
-    eventSource.addEventListener('streamText', (event) => {
-      const {chatKey, content} = JSON.parse(event.data) as Extract<SSELoopStreamEvent, {sseType: 'streamText'}>;
-      updateMessageStream(chatKey, content);
-    });
+    };
+    const streamTextListener = (event: MessageEvent<string>) => {
+      const {chatKey, content, done} = JSON.parse(event.data) as Extract<SSELoopStreamEvent, {sseType: 'streamText'}>;
+      if (done) {
+          setStreaming(false);
+        } else {
+          updateMessageStream(chatKey, content);
+      }
+    };
 
-    return () => eventSource.close();
+    eventSource.addEventListener('connected', connectedListener);
+    eventSource.addEventListener('streamText', streamTextListener);
+
+    return () => {
+        eventSource.removeEventListener('connected', connectedListener);
+        eventSource.removeEventListener('streamText', streamTextListener);
+        eventSource.close();
+    };
   }, [updateMessageStream, agent.id, projectId]);
 
   if (agent.fired) {
@@ -74,13 +112,13 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   return (
     <div className="flex flex-col h-full bg-white min-h-140">
       {<ChatHeader agent={agent} />}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
         {!agentMessages?.length ? (
           <div className="text-center py-12 text-gray-400">
             <p className="text-sm mt-1">{t(`pages.chat.type.${!projectId ? 'agent' : 'project'}.emptyPrompt`, {name: agent.name})}</p>
           </div>
         ) : (
-          agentMessages.map((message) => message.content && (
+          agentMessages.map((message, i) => (
             <div
               key={message.id}
               className={`flex ${messageFlexStyles[message.type]}`}
@@ -89,14 +127,13 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
                 className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                     messageTextStyles[message.type]
                 }`}
-              >
-                {message.type === 'thought' && (
-                  <div className="flex items-center gap-1 text-xs text-purple-500 mb-1">
-                    <span>💭</span>
-                    <span>{t('pages.chat.thinking')}</span>
-                  </div>
-                )}
-                <p className="text-sm">{message.content}</p>
+                >
+                {(message.type === 'user' || (i === agentMessages.length - 1 && streaming)) && 
+                    <p className="text-sm whitespace-pre-wrap">
+                        {message.content || t('pages.chat.loading')}
+                    </p>}
+                {message.type === 'agent' && !(i === agentMessages.length - 1 && streaming) &&
+                    <Markdown content={message.content || t('pages.chat.emptyLLMOutput')} />}
                 <p className={`text-xs mt-1 ${messageTimeStyles[message.type]}`}>
                   {formatDate(i18n.language, message.timestamp)}
                 </p>
@@ -110,14 +147,19 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           <input
             type="text"
             value={input}
+            disabled={streaming}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('pages.chat.send', { name: agent.name })}
-            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg
+              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <button
             onClick={handleSend}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+            disabled={streaming}
+            className={`px-4 py-2 bg-blue-500 text-white rounded-lg
+              ${streaming ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}
+              transition-colors flex items-center gap-2`}
           >
             <Send size={18} />
           </button>

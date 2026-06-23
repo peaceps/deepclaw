@@ -20,7 +20,7 @@ export function MobileAgentPage({selectedAgent}: {
         <div className="flex-1 overflow-hidden w-full">
           {/* Agent List View */}
           {mobileView === 'list' && (
-            <div className="h-full bg-gray-50 p-4 overflow-y-auto">
+            <div className="h-full bg-gray-50 overflow-hidden">
               <AgentList onSelect={() => setMobileView('detail')} />
             </div>
           )}

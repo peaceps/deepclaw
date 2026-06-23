@@ -115,8 +115,9 @@ export const en = {
             invoke: {
                 error: 'LLM has an unexpected error.'
             },
-            thinking: 'Thinking...',
             send: 'Send message to {{name}}...',
+            loading: 'Thinking...',
+            emptyLLMOutput: 'LLM kept silent...',
             noAgent: {
                 title: '😔 Sorry',
                 description: 'This Agent seems to be lost...',

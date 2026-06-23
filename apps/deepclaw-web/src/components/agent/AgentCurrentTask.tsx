@@ -1,5 +1,5 @@
 'use client';
-import type { Project } from "@deepclaw/loop-gateway";
+import type { Project } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
 import { getProjectProgress } from "../component-utils";
 

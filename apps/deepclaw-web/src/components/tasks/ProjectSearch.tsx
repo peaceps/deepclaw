@@ -1,7 +1,7 @@
 import { Search, X, CheckCircle2, Clock, AlarmClock } from 'lucide-react';
 import { useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
-import type { MissionStatus, Project } from '@deepclaw/loop-gateway';
+import type { MissionStatus, Project } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { getProjectStatus } from '../component-utils';
 
@@ -67,12 +67,20 @@ export function ProjectSearch({filters, onChange}: {
         [searchedProjects, filters.owner]
     );
 
-    const statusCounts = useMemo(() => ({
-        all: ownerScopedProjects.length,
-        todo: ownerScopedProjects.filter(p => getProjectStatus(p) === 'todo').length,
-        ongoing: ownerScopedProjects.filter(p => getProjectStatus(p) === 'ongoing').length,
-        done: ownerScopedProjects.filter(p => getProjectStatus(p) === 'done').length,
-    }), [ownerScopedProjects]);
+    const statusCounts = useMemo(() => {
+        const count = {
+            todo: 0,
+            ongoing: 0,
+            done: 0,
+        };
+        ownerScopedProjects.forEach(project => {
+            count[getProjectStatus(project)]++;
+        });
+        return {
+            ...count,
+            all: ownerScopedProjects.length,
+        }
+    }, [ownerScopedProjects]);
 
     const ownerOptions = useMemo(
         () => Array.from(new Set(searchedProjects.map(project => project.creator)))

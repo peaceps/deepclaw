@@ -115,8 +115,9 @@ export const zh = {
             invoke: {
                 error: '大模型发生了意外错误.'
             },
-            thinking: '思考中',
             send: '给 {{name}} 发消息...',
+            loading: '思考中...',
+            emptyLLMOutput: '大模型沉默了...',
             noAgent: {
                 title: '😔 非常遗憾',
                 description: '这个Agent好像已经不在了...',

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Notebook } from 'lucide-react';
-import { Project } from '@deepclaw/loop-gateway';
+import type { Project } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
 import { useAppStore } from '@/lib/store';

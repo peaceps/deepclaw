@@ -1,6 +1,5 @@
 import type { Message } from "@/component-types";
-import { AgentEmployee } from "@deepclaw/core";
-import type { Project, MissionStatus} from "@deepclaw/loop-gateway";
+import type { Project, MissionStatus, AgentEmployee} from "@deepclaw/core";
 import { getProjectStatus } from "./component-utils";
 
 export const avatarBG = 'bg-gradient-to-br from-amber-400 to-cyan-500';
@@ -39,17 +38,14 @@ export const priorityStyles: Record<Project['priority'], string> = {
 export const messageFlexStyles: Record<Message['type'], string> = {
     user: 'justify-end',
     agent: 'justify-start',
-    thought: 'justify-start'
 };
 
 export const messageTextStyles: Record<Message['type'], string> = {
     user: 'bg-blue-500 text-white',
     agent: 'bg-gray-100 text-gray-800',
-    thought: 'bg-purple-50 text-purple-700 border border-purple-200'
 };
 
 export const messageTimeStyles: Record<Message['type'], string> = {
     user: 'text-blue-200',
     agent: 'text-gray-400',
-    thought: 'text-gray-400'
 };

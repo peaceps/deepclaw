@@ -15,24 +15,27 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@deepclaw/loop-gateway": "workspace:*",
-		"@deepclaw/i18n": "workspace:*",
 		"@deepclaw/config": "workspace:*",
 		"@deepclaw/core": "workspace:*",
-		"@deepclaw/utils": "workspace:*",
+		"@deepclaw/i18n": "workspace:*",
+		"@deepclaw/loop-gateway": "workspace:*",
 		"@deepclaw/node-utils": "workspace:*",
+		"@deepclaw/utils": "workspace:*",
+		"lucide-react": "1.16.0",
 		"next": "16.2.6",
-        "pino": "10.3.1",
+		"pino": "10.3.1",
 		"react": "19.2.5",
 		"react-dom": "19.2.5",
 		"react-i18next": "17.0.8",
-		"zustand": "5.0.13",
-        "lucide-react": "1.16.0"
+		"react-markdown": "10.1.0",
+		"remark-gfm": "4.0.1",
+		"zustand": "5.0.13"
 	},
 	"devDependencies": {
+		"@tailwindcss/postcss": "4.3.0",
+		"@tailwindcss/typography": "0.5.20",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
-        "@tailwindcss/postcss": "4.3.0",
-        "tailwindcss": "4.3.0"
+		"tailwindcss": "4.3.0"
 	}
 }
