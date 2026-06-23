@@ -18,7 +18,7 @@ build/
 next-env.d.ts
 
 .projects/
-agents/
+.agents/
 
 apps/*/DEEPCLAW.md
 packages/*/DEEPCLAW.md

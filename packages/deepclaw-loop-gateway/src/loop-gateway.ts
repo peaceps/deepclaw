@@ -7,7 +7,6 @@ import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
-import { detectAgentSDKFromUrl } from "./loop-sdk-detector";
 
 export type LoopStore = Record<string, LoopAgent<unknown, any, any>>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
@@ -30,8 +29,7 @@ class LoopGatewayImpl {
 
     public static init(agentId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
         if (!this.loops[agentId]) {
-            const sdk = detectAgentSDKFromUrl(agentId);
-            this.loops[agentId] = LoopInitializer.getLoop(agentId, sdk, {
+            this.loops[agentId] = LoopInitializer.getLoop(agentId, {
                 onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
                 onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
                 onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,

@@ -46,6 +46,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
     protected override async _invoke(
         system: string,
         messages: ThinkingMessage[],
+        tools: ChatCompletionTool[],
         streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
         const systemIdx = messages.findIndex(m => m.role === 'system');
@@ -59,7 +60,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             messages,
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature,
-            tools: this.tools,
+            tools,
             tool_choice: 'auto',
             stream: true,
         });

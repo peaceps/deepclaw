@@ -152,7 +152,7 @@ export const en = {
                         basic: 'Basic info',
                         im: 'IM configs',
                         llm: 'LLM configs',
-                        llmBaseURLNotif: 'BaseURL change will only take effect after service restart',
+                        llmBaseURLNotif: 'LLM protocol(OpenAI/Anthropic) switch only takes effect after service restart',
                     }
                 }
             }

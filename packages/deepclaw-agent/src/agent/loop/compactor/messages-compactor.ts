@@ -3,6 +3,7 @@ import { LLMModel } from '../../llm/llmgw';
 import { FootPrint } from '../../definitions/definitions';
 import { AGENTS_DIR, HISTORY_DIR, SESSION_DIR } from '../../paths';
 import { HISTORY_COMPACT_FILE } from '../../paths';
+import { DeepclawConfig } from '@deepclaw/config';
 
 type HistoryCompactContext = {
     footPrints: FootPrint[];
@@ -13,7 +14,6 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     protected parentSessionId: string;
     protected sessionId: string;
     protected agentId: string;
-    private llm: LLM;
 
     private maxRecent: number = 20;
     private toolResultThreshold: number = 1200;
@@ -22,8 +22,7 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
     private historyThreshold: number = 200000;
     private historyCompactContext: HistoryCompactContext;
 
-    constructor(agentId: string, llm: LLM, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
-        this.llm = llm;
+    constructor(agentId: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]) {
         this.agentId = agentId;
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
@@ -31,10 +30,6 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
             footPrints,
             count: 0
         };
-    }
-
-    public updateLLM(llm: LLM) {
-        this.llm = llm;
     }
 
     public compactOldResults(messages: I[]): void {
@@ -49,11 +44,14 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         }
     }
 
-    public async compactFullHistory(system: string, messages: I[], logger: Logger): Promise<void> {
+    public async compactFullHistory(
+        mode: DeepclawConfig['agents'][0]['mode'],
+        llm: LLM, system: string, messages: I[], logger: Logger
+    ): Promise<void> {
         const jsonl = messages.map(message => JSON.stringify(message)).join('\n');
         if (jsonl.length > this.historyThreshold) {
             this.saveHistory(jsonl);
-            const summary = await this.summarizeHistory(system, jsonl, logger);
+            const summary = await this.summarizeHistory(mode, llm, system, jsonl, logger);
             messages.splice(0, messages.length, summary);
         }
     }
@@ -64,10 +62,13 @@ export abstract class MessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unkn
         FileUtils.writeFile(filePath, jsonl);
     }
 
-    private async summarizeHistory(system: string, jsonl: string, logger: Logger): Promise<I> {
-        const summary = await this.llm.compact(system, jsonl, logger);
+    private async summarizeHistory(
+        mode: DeepclawConfig['agents'][0]['mode'],
+        llm: LLM, system: string, jsonl: string, logger: Logger
+    ): Promise<I> {
+        const summary = await llm.compact(mode, system, jsonl, logger);
         this.historyCompactContext.count++;
-        return this.llm.newInputMessage(`
+        return llm.newInputMessage(`
 This session continues from a previous conversation that was compacted.
 This conversation was compacted so the agent can continue working.
 Summary of prior context:

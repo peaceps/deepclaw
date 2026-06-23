@@ -3,40 +3,55 @@ import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
 import { TransitionReason } from '../definitions/definitions';
 import { LLMGWConfig } from '@deepclaw/core';
+import { ToolsManager } from '../loop/services/tools-manager';
 
 const llmRetry = 3;
 
-export type LLMConstructor<I, O, T, LLM> = new (llmConfig: DeepclawConfig['agents'][0]['llm'], tools: LLMTool[]) => LLMModel<I, O, T, LLM>;
+export type LLMConstructor<I, O, T, LLM> = new (isSubLoop: boolean, llmConfig: DeepclawConfig['agents'][0]['llm']) => LLMModel<I, O, T, LLM>;
 
 export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
-    protected tools?: T[];
+    private tools: Record<DeepclawConfig['agents'][0]['mode'], T[]> = {agent: [], plan: [], chat: []};
     protected gw: LLMGWConfig;
 
-    constructor(llmConfig: DeepclawConfig['agents'][0]['llm'], tools: LLMTool[] = []) {
+    constructor(isSubLoop: boolean, llmConfig: DeepclawConfig['agents'][0]['llm']) {
         this.gw = {
             model: llmConfig.model,
             timeoutMs: 300 * 1000, // JSON: seconds → client: ms
             temperature: 0.1,
             maxTokens: 8000
         }
-        this.tools = this.convertTools(tools);
+        const allTools = ToolsManager.getToolsArray(isSubLoop);
+        for (const mode of Object.keys(allTools) as DeepclawConfig['agents'][0]['mode'][]) {
+            this.tools[mode] = this.convertTools(allTools[mode]);
+        };
         this.client = this.createLLMClient(llmConfig.baseURL, llmConfig.apiKey, this.gw.timeoutMs);
     }
 
-    public updateGWConfig(config: Partial<CommonKeys<DeepclawConfig['agents'][0]['llm'], LLMGWConfig>>) {
+    public updateGWConfig(
+        newClient: {baseURL: string, apiKey: string}|null,
+        config: CommonKeys<DeepclawConfig['agents'][0]['llm'], LLMGWConfig>
+    ) {
         Object.assign(this.gw, config);
+        if (newClient) {
+            this.client = this.createLLMClient(newClient.baseURL, newClient.apiKey, this.gw.timeoutMs);
+        }
     }
 
     protected abstract convertTools(tools: LLMTool[]): T[];
 
     protected abstract createLLMClient(baseURL: string, apiKey: string, timeout: number): LLM;
 
-    public async invoke(system: string, messages: I[], streamer: (text: string) => void, logger: Logger): Promise<O> {
+    public async invoke(
+        mode: DeepclawConfig['agents'][0]['mode'],
+        system: string,
+        messages: I[],
+        streamer: (text: string) => void, logger: Logger
+    ): Promise<O> {
         let response: O | null = null;
         for (let i = 0; i < llmRetry; i++) {
             try {
-                response = await this._invoke(system, messages, streamer);
+                response = await this._invoke(system, messages, this.tools[mode], streamer);
                 break;
             } catch (error) {
                 logger.error(error, 'LLM invoke failed');
@@ -59,7 +74,12 @@ export abstract class LLMModel<I, O, T, LLM> {
         return response;
     }
 
-    protected abstract _invoke(system: string, messages: I[], streamer: (text: string) => void): Promise<O>;
+    protected abstract _invoke(
+        system: string,
+        messages: I[],
+        tools: T[],
+        streamer: (text: string) => void
+    ): Promise<O>;
 
     protected abstract isInputExceedLimit(error: any): boolean;
 
@@ -71,7 +91,12 @@ export abstract class LLMModel<I, O, T, LLM> {
         return '';
     }
 
-    public async compact(system: string, content: string, logger: Logger): Promise<string> {
+    public async compact(
+        mode: DeepclawConfig['agents'][0]['mode'],
+        system: string,
+        content: string,
+        logger: Logger
+    ): Promise<string> {
         const prompt =
 `Summarize this agent conversation so work can continue.
 Preserve:
@@ -85,7 +110,13 @@ Preserve:
 Be compact but concrete.
 
 ${content}`;
-        const response = await this.invoke(system, [this.newInputMessage(prompt)], () => {}, logger);
+        const response = await this.invoke(
+            mode,
+            system,
+            [this.newInputMessage(prompt)],
+            () => {},
+            logger
+        );
         return this.getTextFromResponse(response);
     }
     

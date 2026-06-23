@@ -12,12 +12,12 @@ import { ToolUseResult } from '../../definitions/tool-definitions';
 import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
-import { ToolsManager } from '../services/tools-manager';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
 import { MessagesCompactor } from '../compactor/messages-compactor';
-import { getLogger, Logger, getLoopLogger } from '@deepclaw/node-utils';
+import { getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
 import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
+import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -31,7 +31,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private messagesCompactor: MessagesCompactor<I, O, unknown, LLM>;
     private footPrints: FootPrint[] = [];
     private agentConfig: DeepclawConfig['agents'][0];
-    private loopLogger: Logger;
 
     constructor(
         agentIdentity: AgentIdentity,
@@ -45,18 +44,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
-        this.loopLogger = getLogger(`loop.${this.agentIdentity.id}`);
-        const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);
         this.toolUseService = new ToolUseService(
-            tools,
             this.agentIdentity.id,
             this.parentSessionId,
             this.sessionId,
             this.agentHandler
         );
         this.llm = new (this.getLLMConstructor())(
+            this.isSubLoop(),
             this.agentConfig.llm,
-            tools.map(tool => tool.tool)
         ) as LLM;
         this.messagesCompactor = this.createMessagesCompactor(
             this.agentIdentity.id, this.parentSessionId, this.sessionId, this.footPrints
@@ -64,30 +60,27 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     }
 
     public updateConfig(config: DeepclawConfig['agents'][0]): void {
-        const oldConfig = this.agentConfig;
+        const oldLLMConfig = this.agentConfig.llm;
+        const newLLMConfig = config.llm;
         this.agentConfig = config;
-
-        if (this.agentConfig.llm.baseURL !== oldConfig.llm.baseURL) {
-            // TODO loop baseURL change,但这里有个边缘状态：this.agentConfig 已经被更新为新 baseURL，而 this.llm 仍然是旧 baseURL 的实例。之后如果用户再改 apiKey/model，可能进入后面的重建逻辑，用新 config 创建旧 loop class 的 LLM，状态就更混乱。
-            this.loopLogger.info(`LLM baseURL changed from ${oldConfig.llm.baseURL} to ${this.agentConfig.llm.baseURL}`);
-            return;
-        }
-
-        if (this.agentConfig.mode !== oldConfig.mode
-            || this.agentConfig.llm.apiKey !== oldConfig.llm.apiKey
-        ) {
-            const tools = ToolsManager.provideTools(this.isSubLoop(), this.agentConfig.mode);
-            if (this.agentConfig.mode !== oldConfig.mode) {
-                this.toolUseService.updateTools(tools);
+        let newClient = null;
+        if (oldLLMConfig.baseURL !== newLLMConfig.baseURL || oldLLMConfig.apiKey !== newLLMConfig.apiKey) {
+            let protocolChanged = false;
+            if (oldLLMConfig.baseURL !== newLLMConfig.baseURL) {
+                const oldProtocol = detectAgentProtocolFromUrl(oldLLMConfig.baseURL);
+                const newProtocol = detectAgentProtocolFromUrl(newLLMConfig.baseURL);
+                protocolChanged = oldProtocol !== newProtocol;
             }
-            this.llm = new (this.getLLMConstructor())(
-                this.agentConfig.llm,
-                tools.map(tool => tool.tool)
-            ) as LLM;
-            this.messagesCompactor.updateLLM(this.llm);
-        } else {
-            this.llm.updateGWConfig({model: this.agentConfig.llm.model});
+            if (!protocolChanged) {
+                newClient = {
+                    baseURL: newLLMConfig.baseURL,
+                    apiKey: newLLMConfig.apiKey,
+                }
+            }
         }
+        const runtimeConfigs = {model: newLLMConfig.model};
+
+        this.llm.updateGWConfig(newClient, runtimeConfigs);
     }
 
     protected isSubLoop(): boolean {
@@ -106,6 +99,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             messages: this.history,
             oneLoopContext: {
                 chatKey,
+                isSubLoop: this.isSubLoop(),
                 agentId: this.agentIdentity.id,
                 turnCount: 0,
                 system: '',
@@ -147,7 +141,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 return finalText;
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
-                this.agentIdentity.id, this.isSubLoop(), this.agentConfig.mode
+                this.agentIdentity.id, this.isSubLoop(), state.oneLoopContext.loopConfig.mode
             );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
@@ -162,12 +156,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
         this.messagesCompactor.compactOldResults(this.history);
-        await this.messagesCompactor.compactFullHistory(context.system, this.history, context.logger);
+        await this.messagesCompactor.compactFullHistory(
+            context.loopConfig.mode, this.llm, context.system, this.history, context.logger
+        );
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
         await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
         const response = await this.llm.invoke(
+            state.oneLoopContext.loopConfig.mode,
             state.oneLoopContext.system,
             state.messages,
             (text: string) => this.agentHandler.onStreamText({

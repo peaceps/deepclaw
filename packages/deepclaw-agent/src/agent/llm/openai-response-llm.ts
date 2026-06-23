@@ -45,6 +45,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     protected override async _invoke(
         system: string,
         messages: ThinkingMessage[],
+        tools: Tool[],
         streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
 
@@ -53,7 +54,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             instructions: system,
             input: messages,
             stream: true,
-            tools: this.tools,
+            tools,
             max_output_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature,
         });

@@ -46,13 +46,14 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
     protected override async _invoke(
         system: string,
         messages: ThinkingMessage[],
+        tools: ToolUnion[],
         streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
         const stream = this.client.messages.stream({
             model: this.gw.model,
             system,
             messages,
-            tools: this.tools,
+            tools,
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature
         }).on('text', (text) => {

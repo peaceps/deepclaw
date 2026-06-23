@@ -1,28 +1,24 @@
-import { loadAgentConfig } from "@deepclaw/config";
-import type { LoopProtocol } from "@deepclaw/agent";
+export type LoopProtocol = "openai" | "anthropic";
 
-export function detectAgentSDKFromUrl(agentId: string): LoopProtocol | null {
-    const agentConfig = loadAgentConfig(agentId);
-    const baseURL = agentConfig.llm.baseURL.replace(/\/$/, "");
+export function detectAgentProtocolFromUrl(baseURL: string): LoopProtocol | null {
+    baseURL = baseURL.replace(/\/$/, "").toLowerCase();
+    if (!baseURL) return null;
+    try {
+        new URL(baseURL);
+    } catch {
+        return null;
+    }
     if (baseURL.includes("anthropic")) {
         return "anthropic";
     }
-    if (
-        baseURL.includes("openai") ||
-        baseURL.includes("compatible-mode") ||
-        baseURL.endsWith("/v1")
-    ) {
-        return "openai";
-    }
-    return null;
+    return "openai";
 }
 
 export async function detectAgentSDKFromRequest(
-    agentId: string,
+    baseURL: string,
+    apiKey: string
 ): Promise<LoopProtocol | null> {
-    const agentConfig = loadAgentConfig(agentId);
-    const baseURL = agentConfig.llm.baseURL.replace(/\/$/, "");
-    const apiKey = agentConfig.llm.apiKey;
+    baseURL = baseURL.replace(/\/$/, "");
     try {
         const openaiRes = await fetch(`${baseURL}/models`, {
             headers: apiKey ? {Authorization: `Bearer ${apiKey}`} : {},

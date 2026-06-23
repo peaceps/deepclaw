@@ -1,8 +1,9 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { ToolDesc, ToolUseResult } from "../../definitions/tool-definitions";
+import { ToolUseResult } from "../../definitions/tool-definitions";
 import { type SealedAgentHandler } from '@deepclaw/core';
 import { OneLoopContext } from '../../definitions/definitions';
 import { SESSION_DIR, AGENTS_DIR, TOOL_RESULT_DIR } from '../../paths';
+import { ToolsManager } from './tools-manager';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
@@ -18,13 +19,11 @@ export class ToolUseService {
     private agentId: string;
     private parentSessionId: string;
     private sessionId: string;
-    private toolMap: Map<string, ToolDesc> = new Map();
     private agentHandler: SealedAgentHandler;
     private truncateThreshold: number = 20000;
     private previewChars: number = 1000;
 
     constructor(
-        tools: ToolDesc[],
         agentId: string,
         parentSessionId: string,
         sessionId: string,
@@ -33,21 +32,11 @@ export class ToolUseService {
         this.agentId = agentId;
         this.parentSessionId = parentSessionId;
         this.sessionId = sessionId;
-        for (const tool of tools) {
-            this.toolMap.set(tool.tool.name, tool);
-        }
         this.agentHandler = agentHandler;
     }
 
-    public updateTools(tools: ToolDesc[]) {
-        this.toolMap.clear();
-        for (const tool of tools) {
-            this.toolMap.set(tool.tool.name, tool);
-        }
-    }
-
     public async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
-        const tool = this.toolMap.get(toolUseDef.name);
+        const tool = ToolsManager.getToolDesc(context.isSubLoop, context.loopConfig.mode, toolUseDef.name);
         if (!tool) {
             return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`);
         }

@@ -1,5 +1,5 @@
 // Todo need implement
-export const AGENTS_DIR = 'agents';
+export const AGENTS_DIR = '.agents';
 export const AGENT_MD = 'AGENT.md';
 export const AGENT_SOUL_JSON = 'SOUL.json';
 

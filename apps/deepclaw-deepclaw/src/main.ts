@@ -27,12 +27,12 @@ const cli = meow(`
 			tui: {
 				type: 'boolean',
 				optional: true,
-				default: true,
+				default: false,
 			},
 			web: {
 				type: 'boolean',
 				optional: true,
-				default: false,
+				default: true,
 			}
 		},
 	},
@@ -48,7 +48,7 @@ function startNextStart(): void {
 	const webDir = resolveWebAppDir();
 	const requireFromWeb = createRequire(join(webDir, 'package.json'));
 	const nextBin = requireFromWeb.resolve('next/dist/bin/next');
-	const child = spawn(process.execPath, [nextBin, 'start'], {
+	const child = spawn(process.execPath, [nextBin, 'dev'], {
 		cwd: webDir,
 		stdio: 'inherit',
 	});

@@ -5,13 +5,15 @@ import { AgentIdentityManager } from './loop/services/agent-identity-manager';
 import './loop/hooks/hooks';
 import { LoopAgent } from './loop/loop/loop';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop';
+import { loadAgentConfig } from '@deepclaw/config';
+import { detectAgentProtocolFromUrl, type LoopProtocol } from './loop-protocol-detector';
 
 type LoopConstructor = new (
     agentIdentity: AgentIdentity,
     handler: AgentHandler
 ) => LoopAgent<any, any, any>;
 
-export type LoopProtocol = "openai" | "anthropic"
+
 
 const loopClassMap: Record<LoopProtocol, LoopConstructor> = {
     openai: OpenAIChatLoop,
@@ -23,14 +25,16 @@ export class LoopInitializer {
         ensureBaseFiles();
     }
 
-    public static getLoop(agentId: string, sdk: LoopProtocol | null, handler: AgentHandler): LoopAgent<any, any, any> {
-        if (!sdk) {
-            throw new Error(`Invalid agent SDK: ${agentId}`);
-        }
+    public static getLoop(agentId: string, handler: AgentHandler): LoopAgent<any, any, any> {
         const identity = AgentIdentityManager.getAgent(agentId);
         if (!identity) {
             throw new Error(`Agent "${agentId}" not found`);
         }
-        return new (loopClassMap[sdk])(identity, handler);
+        const config = loadAgentConfig(agentId);
+        const protocol = detectAgentProtocolFromUrl(config.llm.baseURL);
+        if (!protocol) {
+            throw new Error(`Invalid agent baseURL: ${config.llm.baseURL}`);
+        }
+        return new (loopClassMap[protocol])(identity, handler);
     }
 }

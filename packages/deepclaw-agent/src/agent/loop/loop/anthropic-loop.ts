@@ -15,7 +15,7 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
     }
 
     protected override createMessagesCompactor(name: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, AnthropicLLM> {
-        return new AnthropicMessagesCompactor(name, this.llm, parentSessionId, sessionId, footPrints);
+        return new AnthropicMessagesCompactor(name, parentSessionId, sessionId, footPrints);
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
