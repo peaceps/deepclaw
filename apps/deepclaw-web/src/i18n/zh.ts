@@ -25,6 +25,9 @@ export const zh = {
             org: '组织架构',
             settings: '设置',
         },
+        manager: {
+            changeAvatar: '更换头像',
+        },
     },
     pages: {
         agents: {
@@ -53,6 +56,8 @@ export const zh = {
             details: {
                 header: {
                     projectsCompleted: '已完成项目数',
+                    changeAvatar: '更换头像',
+                    editRole: '编辑职位',
                 },
                 labels: {
                     save: '按回车保存',

@@ -11,14 +11,26 @@ export async function loadCurrentConfig<T>(key?: string, defaultValue?: T): Prom
   return loadConfig<T>(key, defaultValue);
 }
 
-export async function saveConfig(config: DeepclawConfig): Promise<AgentEmployee[]> {
+export async function saveFullConfig(config: DeepclawConfig): Promise<AgentEmployee[]> {
   const currentAgents = loadConfig<DeepclawConfig['agents']>('agents');
-  writeAppConfig(config);
-  LoopGateway.updateLoopConfig(config);
-  revalidatePath('/', 'layout');
-  const newAgents = config.agents.filter(agent => !currentAgents.find(a => a.id === agent.id))
+  const currentAvatar = loadConfig<string>('manager.avatar');
+  const merged: DeepclawConfig = { ...config, manager: { ...config.manager, avatar: currentAvatar } };
+  updateConfig(merged);
+  const newAgents = merged.agents.filter(agent => !currentAgents.find(a => a.id === agent.id))
     .map(agent => LoopGateway.newAgentIdentity(agent.id));
   return newAgents;
+}
+
+export async function updateManagerAvatar(avatar: string): Promise<void> {
+  const config = loadConfig<DeepclawConfig>();
+  const next: DeepclawConfig = { ...config, manager: { ...config.manager, avatar } };
+  updateConfig(next);
+}
+
+function updateConfig(config: DeepclawConfig): void {
+    writeAppConfig(config);
+    LoopGateway.updateLoopConfig(config);
+    revalidatePath('/', 'layout');
 }
 
 export type ValidationResult = {

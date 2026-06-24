@@ -45,7 +45,7 @@ export function AgentDetail({agent}: {
     <div className="h-full overflow-y-auto bg-gray-50 min-w-0">
       <div key={agent.id} className="p-4 space-y-4 sm:space-y-6">
         {/* Header */}
-        <AgentHeader agent={agent} />
+        <AgentHeader agent={agent} onUpdate={onAgentUpdate} />
 
         {/* Info Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">

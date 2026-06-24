@@ -11,6 +11,7 @@ export type DeepclawConfig = {
     manager: {
         name: string;
         title: string;
+        avatar: string;
     },
     agents: {
         id: string;
@@ -63,6 +64,9 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
     }
     if (!appConfig.manager.title || typeof appConfig.manager.title !== 'string' ) {
         appConfig.manager.title = 'CEO';
+    }
+    if (!appConfig.manager.avatar || typeof appConfig.manager.avatar !== 'string') {
+        appConfig.manager.avatar = '🐋';
     }
     for (const agent of appConfig.agents ?? []) {
         if (!agent.id || typeof agent.id !== 'string') {

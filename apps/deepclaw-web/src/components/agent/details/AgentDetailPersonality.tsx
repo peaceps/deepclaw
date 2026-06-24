@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
+import type { AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
 import { InfoCard } from "@/laf/info-card";
 import { Heart } from "lucide-react";
 import { DeepSwitch } from "@/laf/deep-switch";

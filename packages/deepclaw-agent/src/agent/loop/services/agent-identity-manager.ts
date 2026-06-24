@@ -37,7 +37,7 @@ export class AgentIdentityManager {
         FileUtils.ensureFileExist(`${AGENTS_DIR}/${agentId}/${AGENT_SOUL_JSON}`, 
             JSON.stringify({
                 id: agentId,
-                avatar: '🐋',
+                avatar: '🐟',
                 role: i18nInstance.t('agent.identity.default.role'),
                 personalities: parseArrayI18n('agent.identity.default.personalities'),
                 emotion: true,

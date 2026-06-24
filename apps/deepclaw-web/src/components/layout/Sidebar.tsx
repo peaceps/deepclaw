@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DeepclawConfig } from '@deepclaw/config';
+import { EmojiPicker } from '@/laf/emoji-picker';
+import { updateManagerAvatar } from '@/server/configs';
 
 const navItems = [
   { href: '/agents', label: 'sidebar.links.agents', icon: Users },
@@ -19,11 +21,19 @@ interface SidebarProps {
   manager: DeepclawConfig['manager'];
 }
 
-export function Sidebar({manager }: SidebarProps) {
+export function Sidebar({manager}: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [avatar, setAvatar] = useState(manager.avatar);
   const {t} = useTranslation();
+
+  const onAvatarSelect = useCallback((next: string) => {
+    setAvatar(next);
+    updateManagerAvatar(next).catch(() => {
+      // TODO handle fallback
+    });
+  }, []);
 
   return (
     <>
@@ -89,7 +99,7 @@ export function Sidebar({manager }: SidebarProps) {
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm">
-              👤
+              {avatar}
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">{manager.name}</p>
@@ -121,8 +131,8 @@ export function Sidebar({manager }: SidebarProps) {
           </Link>
         )}
         {collapsed && (
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center
-            text-white text-xl font-bold mx-auto">
+          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-sky-600 rounded-xl
+            flex items-center justify-center text-white text-xl font-bold mx-auto">
             D
           </div>
         )}
@@ -184,9 +194,14 @@ export function Sidebar({manager }: SidebarProps) {
       <div className="p-4 border-t border-gray-100">
         {!collapsed ? (
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-cyan-500 flex items-center justify-center text-sm">
-              💤
-            </div>
+            <EmojiPicker
+              value={avatar}
+              onSelect={onAvatarSelect}
+              title={t('sidebar.manager.changeAvatar')}
+              placement="top"
+              className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-cyan-500
+                flex items-center justify-center text-sm"
+            />
             <div>
               <p className="text-sm font-medium text-gray-900">{manager.name}</p>
               <p className="text-xs text-gray-500">{manager.title}</p>
@@ -194,9 +209,14 @@ export function Sidebar({manager }: SidebarProps) {
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-cyan-500 flex items-center justify-center text-sm">
-              💤
-            </div>
+            <EmojiPicker
+              value={avatar}
+              onSelect={onAvatarSelect}
+              title={t('sidebar.manager.changeAvatar')}
+              placement="top"
+              className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-cyan-500
+                flex items-center justify-center text-sm"
+            />
           </div>
         )}
       </div>

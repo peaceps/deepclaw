@@ -1,7 +1,7 @@
 'use client';
 
 import { InfoCard } from "@/laf/info-card";
-import { AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
+import type { AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
 import { Zap } from "lucide-react";
 import { useCallback } from "react";
 import { EditableLabels } from "@/laf/editable-labels";

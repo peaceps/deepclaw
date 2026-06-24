@@ -25,6 +25,9 @@ export const en = {
             org: 'Organization',
             settings: 'Settings',
         },
+        manager: {
+            changeAvatar: 'Change avatar',
+        },
     },
     pages: {
         agents: {
@@ -53,6 +56,8 @@ export const en = {
             details: {
                 header: {
                     projectsCompleted: 'Projects Completed',
+                    changeAvatar: 'Change avatar',
+                    editRole: 'Edit role',
                 },
                 labels: {
                     save: 'Press Enter to save',
