@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 
@@ -15,6 +15,14 @@ interface EmojiPickerProps {
 export function EmojiPicker({ value, onSelect, title, className, placement = 'bottom' }: EmojiPickerProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const onEmojiSelect = useCallback((emoji: { native: string }) => {
+    if (!emoji.native) {
+      return;
+    }
+    onSelect(emoji.native);
+    setOpen(false);
+  }, [onSelect]);
 
   useEffect(() => {
     if (!open) {
@@ -44,10 +52,7 @@ export function EmojiPicker({ value, onSelect, title, className, placement = 'bo
         <div className={`absolute z-20 left-0 ${placement === 'top' ? 'bottom-full mb-2' : 'mt-2'}`}>
           <Picker
             data={data}
-            onEmojiSelect={(emoji: { native: string }) => {
-              onSelect(emoji.native);
-              setOpen(false);
-            }}
+            onEmojiSelect={onEmojiSelect}
             previewPosition="none"
             skinTonePosition="none"
           />

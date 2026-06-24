@@ -13,7 +13,7 @@ interface AgentListProps {
 
 export function AgentList({ onSelect, collapsed = false, onToggleCollapse }: AgentListProps) {
   const {t} = useTranslation();
-  const { activeAgents, getOneOngoingProject } = useAppStore();
+  const { activeAgents } = useAppStore();
 
   return (
     <div className="flex flex-col h-full">
@@ -37,7 +37,6 @@ export function AgentList({ onSelect, collapsed = false, onToggleCollapse }: Age
       <div className={`flex-1 overflow-y-auto space-y-2 ${collapsed ? 'p-2' : 'p-4'}`}>
         {activeAgents.map((agent) => (
           <AgentCard
-            project={getOneOngoingProject(agent.id)}
             key={agent.id}
             agent={agent}
             collapsed={collapsed}

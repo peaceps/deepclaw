@@ -6,38 +6,50 @@ import { TraitBadge } from './trait-badge';
 import { colorClassMap, DeepColors } from './laf-types';
 import { useTranslation } from 'react-i18next';
 
-interface EditableLabelsProps {
+const DEFAULT_MAX_LABEL_TEXT_LENGTH = 15;
+const DEFAULT_MAX_LABEL_COUNT = 10;
+
+type EditableLabelsProps = {
   labels: string[];
   onChange: (labels: string[]) => void;
   color: DeepColors;
+  size?: 'normal' | 'small';
+  align?: 'start' | 'end';
   placeholder?: string;
+  maxLabelTextLength?: number;
+  maxLabelCount?: number;
 }
 
 export function EditableLabels({
   labels,
   onChange,
   color,
+  size = 'normal',
+  align = 'start',
   placeholder,
+  maxLabelTextLength = DEFAULT_MAX_LABEL_TEXT_LENGTH,
+  maxLabelCount = DEFAULT_MAX_LABEL_COUNT
 }: EditableLabelsProps) {
   const [inputVal, setInputVal] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const classes = colorClassMap[color];
   const {t} = useTranslation();
+  const normalizedLabels = labels.slice(0, maxLabelCount);
 
   const addLabel = useCallback(() => {
-    const val = inputVal.trim();
-    if (val && !labels.includes(val)) {
-      onChange([...labels, val]);
+    const val = inputVal.trim().slice(0, maxLabelTextLength);
+    if (val && !normalizedLabels.includes(val)) {
+      onChange([...normalizedLabels, val]);
     }
     setInputVal('');
     setIsEditing(false);
-  }, [inputVal, labels, onChange]);
+  }, [inputVal, normalizedLabels, onChange, maxLabelTextLength]);
 
   const removeLabel = useCallback(
     (label: string) => {
-      onChange(labels.filter((l) => l !== label));
+      onChange(normalizedLabels.filter((l) => l !== label));
     },
-    [labels, onChange]
+    [normalizedLabels, onChange]
   );
 
   const handleKeyDown = useCallback(
@@ -52,14 +64,17 @@ export function EditableLabels({
     },
     [addLabel]
   );
+  
+  const labelPy = size === 'normal' ? 'py-1.5' : 'py-0.5';
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {labels.map((label) => (
+    <div className={`flex flex-wrap items-center gap-2 ${align === 'end' ? 'justify-end' : ''}`}>
+      {normalizedLabels.map((label) => (
         <TraitBadge
           key={label}
           text={label}
           color={color}
+          py={labelPy}
           onRemove={() => removeLabel(label)}
         />
       ))}
@@ -69,26 +84,27 @@ export function EditableLabels({
           autoFocus
           type="text"
           value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
+          maxLength={maxLabelTextLength}
+          onChange={(e) => setInputVal(e.target.value.slice(0, maxLabelTextLength))}
           onKeyDown={handleKeyDown}
           onBlur={addLabel}
           placeholder={placeholder || t('pages.agents.details.labels.save')}
-          className={`px-3 py-1.5 rounded-full text-sm border border-gray-300 bg-white
+          className={`px-3 ${labelPy} rounded-full text-sm border border-gray-300 bg-white
                      focus:ring-1 ${classes.ringFocus} ${classes.borderFocus} outline-none
                      min-w-[80px] max-w-[160px]`}
         />
       ) : (
-        <button
+        normalizedLabels.length < maxLabelCount ? <button
           type="button"
           onClick={() => setIsEditing(true)}
-          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm
+          className={`inline-flex items-center gap-1 px-3 ${labelPy} rounded-full text-sm
                      border border-dashed border-gray-300 text-gray-500
                      ${classes.hoverText} ${classes.hoverBg}
                      transition-colors cursor-pointer`}
         >
           <Plus size={14} />
           {t('common.add')}
-        </button>
+        </button> : null
       )}
     </div>
   );

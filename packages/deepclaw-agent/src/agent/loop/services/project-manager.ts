@@ -1,7 +1,7 @@
 import { FileUtils } from '@deepclaw/node-utils';
 import { DeepclawConfig } from '@deepclaw/config';
 import { PROJECT_DIR } from '../../paths';
-import type { Project, Task, TaskStepsContext } from '@deepclaw/core';
+import { type Project, type Task, type TaskStepsContext, PROJECT_CONFIG } from '@deepclaw/core';
 
 const MAX_TASK_STEPS_COUNT = 8;
 
@@ -215,6 +215,18 @@ export class ProjectManager {
         if (!project) {
             throw new Error('Project not found.');
         }
+        return project;
+    }
+
+    public static updateProjectTags(projectId: string, tags: string[]): Project {
+        const project = this.projects[projectId];
+        if (!project) {
+            throw new Error('Project not found.');
+        }
+        project.tags = Array.from(new Set(
+            tags.map(tag => tag.trim().slice(0, PROJECT_CONFIG.maxTagTextLength)).filter(Boolean)
+        )).slice(0, PROJECT_CONFIG.maxTagCount);
+        this.saveProject(project.id);
         return project;
     }
 

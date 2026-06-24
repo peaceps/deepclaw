@@ -3,18 +3,19 @@
 import { X } from 'lucide-react';
 import { colorClassMap, DeepColors } from './laf-types';
 
-interface TraitBadgeProps {
+type TraitBadgeProps = {
     text: string;
     color: DeepColors;
+    py?: string;
     onRemove?: () => void;
 }
 
-export function TraitBadge({ text, color, onRemove }: TraitBadgeProps) {
+export function TraitBadge({ text, color, onRemove, py = 'py-1.5' }: TraitBadgeProps) {
     const classes = colorClassMap[color];
     return (
       <span
-        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm
-            font-medium border transition-colors
+        className={`inline-flex items-center gap-1 px-3 ${py}
+            rounded-full text-sm font-medium border transition-colors
             ${classes.bg} ${classes.textMuted} ${classes.border} ${classes.bgHover}
             ${onRemove ? 'pr-2' : ''}`
         }
@@ -26,7 +27,7 @@ export function TraitBadge({ text, color, onRemove }: TraitBadgeProps) {
             onClick={onRemove}
             className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 transition-colors cursor-pointer"
             aria-label={`Remove ${text}`}
-          >
+        >
             <X size={14} />
           </button>
         )}

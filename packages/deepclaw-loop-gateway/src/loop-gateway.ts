@@ -67,8 +67,10 @@ class LoopGatewayImpl {
             ...identity,
             status: 'idle',
             mood: 'none',
-            stats: {
-                tasksCompleted: 0
+            project: {
+                todo: 0,
+                ongoing: 0,
+                done: 0
             }
         };
     }
@@ -79,6 +81,10 @@ class LoopGatewayImpl {
 
     public static updateAgentDescription(id: string, description: string): void {
         AgentIdentityManager.updateAgentDescription(id, description);
+    }
+
+    public static updateProjectTags(projectId: string, tags: string[]): Project {
+        return ProjectManager.updateProjectTags(projectId, tags);
     }
 
     public static getLoopInfo(): LoopInfo {
@@ -99,14 +105,32 @@ class LoopGatewayImpl {
     }
 
     private static getAgents(projects: Project[]): AgentEmployee[] {
-        return AgentIdentityManager.getAgents().map(agent => ({
-            ...agent,
-            status: agent.fired ? 'fired' : projects.some(p  => p.creator === agent.id && !p.closedAt) ? 'busy' : 'idle',
-            mood: 'none',
-            stats: {
-                tasksCompleted: projects.filter(p => p.creator === agent.id && !!p.closedAt).length
+        const status: {[key: string]: {todo: number; ongoing: number; done: number}} = {};
+        for (const project of projects) {
+            if (!status[project.creator]) {
+                status[project.creator] = {
+                    todo: 0,
+                    ongoing: 0,
+                    done: 0
+                }
             }
-        }));
+            if (!!project.closedAt) {
+                status[project.creator]!.done++;
+            } else if (project.ongoingTasks.length > 0) {
+                status[project.creator]!.ongoing++;
+            } else {
+                status[project.creator]!.todo++;
+            }
+        }
+        return AgentIdentityManager.getAgents().map(agent => {
+            return {
+                ...agent,
+                status: agent.fired ? 'fired' :
+                    (status[agent.id]?.ongoing || status[agent.id]?.todo) ? 'busy' : 'idle',
+                mood: 'none',
+                project: status[agent.id] || {todo: 0, ongoing: 0, done: 0}
+            }
+        });
     }
 }
 

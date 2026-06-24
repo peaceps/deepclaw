@@ -11,7 +11,7 @@ import { updateManagerAvatar } from '@/server/configs';
 
 const navItems = [
   { href: '/agents', label: 'sidebar.links.agents', icon: Users },
-  { href: '/tasks', label: 'sidebar.links.tasks', icon: ClipboardList },
+  { href: '/projects', label: 'sidebar.links.projects', icon: ClipboardList },
   { href: '/chat', label: 'sidebar.links.chat', icon: MessageSquare },
   { href: '/org', label: 'sidebar.links.org', icon: LayoutDashboard },
   { href: '/settings', label: 'sidebar.links.settings', icon: Settings },
@@ -29,11 +29,12 @@ export function Sidebar({manager}: SidebarProps) {
   const {t} = useTranslation();
 
   const onAvatarSelect = useCallback((next: string) => {
+    const previous = avatar;
     setAvatar(next);
     updateManagerAvatar(next).catch(() => {
-      // TODO handle fallback
+      setAvatar(previous);
     });
-  }, []);
+  }, [avatar]);
 
   return (
     <>
@@ -139,7 +140,8 @@ export function Sidebar({manager}: SidebarProps) {
         {!collapsed && (
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-gray-100
+                text-gray-400 hover:text-gray-600 transition-colors"
             title={t('common.toggle.collapse')}
           >
             <ChevronLeft size={18} />
@@ -152,7 +154,8 @@ export function Sidebar({manager}: SidebarProps) {
         <div className="p-2 border-b border-gray-100 flex justify-center">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100
+                text-gray-400 hover:text-gray-600 transition-colors"
             title={t('common.toggle.expand')}
           >
             <ChevronRight size={20} />
@@ -199,8 +202,8 @@ export function Sidebar({manager}: SidebarProps) {
               onSelect={onAvatarSelect}
               title={t('sidebar.manager.changeAvatar')}
               placement="top"
-              className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-cyan-500
-                flex items-center justify-center text-sm"
+              className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-cyan-500
+                flex items-center justify-center text-xl leading-none"
             />
             <div>
               <p className="text-sm font-medium text-gray-900">{manager.name}</p>
@@ -214,8 +217,8 @@ export function Sidebar({manager}: SidebarProps) {
               onSelect={onAvatarSelect}
               title={t('sidebar.manager.changeAvatar')}
               placement="top"
-              className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-cyan-500
-                flex items-center justify-center text-sm"
+              className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-cyan-500
+                flex items-center justify-center text-xl leading-none"
             />
           </div>
         )}

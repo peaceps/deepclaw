@@ -52,16 +52,6 @@ export function TaskCard({ task, assignee }: TaskCardProps) {
           <span className="text-xs text-gray-600">{assignee.name}</span>
         </div>
 
-        {task.tags && <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-          <div className="flex gap-1">
-            {task.tags?.slice(0, 2).map((tag) => (
-              <span key={tag} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>}
-
         {task.stepsStatus?.steps.length && <div className='mt-1'>
            {task.stepsStatus.steps.map((step, i) => {
              const index = task.stepsStatus!.currentStepIndex;

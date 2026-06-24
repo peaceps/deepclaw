@@ -1,5 +1,5 @@
 export type DeepColors = 'blue' | 'purple' | 'green' | 'orange'
-  | 'gray' | 'cyan' | 'red' | 'yellow' | 'lime';
+  | 'gray' | 'cyan' | 'red' | 'yellow' | 'lime' | 'sky' | 'amber';
 
 interface ColorClassSet {
   text: string;
@@ -28,6 +28,32 @@ export const colorClassMap: Record<DeepColors, ColorClassSet> = {
     hoverBg: 'hover:bg-blue-50',
     peerFocusRing300: 'peer-focus:ring-blue-300',
     peerCheckedBg600: 'peer-checked:bg-blue-600',
+  },
+  amber: {
+    text: 'text-amber-500',
+    textMuted: 'text-amber-700',
+    bg: 'bg-amber-50',
+    bgHover: 'hover:bg-amber-100',
+    border: 'border-amber-200',
+    borderFocus: 'focus:border-amber-300',
+    ringFocus: 'focus:ring-amber-300',
+    hoverText: 'hover:text-amber-500',
+    hoverBg: 'hover:bg-amber-50',
+    peerFocusRing300: 'peer-focus:ring-amber-300',
+    peerCheckedBg600: 'peer-checked:bg-amber-600',
+  },
+  sky: {
+    text: 'text-sky-500',
+    textMuted: 'text-sky-700',
+    bg: 'bg-sky-50',
+    bgHover: 'hover:bg-sky-100',
+    border: 'border-sky-200',
+    borderFocus: 'focus:border-sky-300',
+    ringFocus: 'focus:ring-sky-300',
+    hoverText: 'hover:text-sky-500',
+    hoverBg: 'hover:bg-sky-50',
+    peerFocusRing300: 'peer-focus:ring-sky-300',
+    peerCheckedBg600: 'peer-checked:bg-sky-600',
   },
   purple: {
     text: 'text-purple-500',

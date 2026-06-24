@@ -13,7 +13,7 @@ export function getProjectProgress(project?: Project | null): string | null {
     if (project) {
         const total = Object.values(project.tasks).length;
         const done = Object.values(project.tasks).filter(task => task.status === 'done').length;
-        progress = total > 0 ? (done / total * 100).toFixed(2) : '0';
+        progress = total > 0 ? Math.round(done / total * 100).toString() : '0';
     }
     return progress;
 }

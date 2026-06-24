@@ -1,15 +1,14 @@
-import type { AgentEmployee, Project } from "@deepclaw/core";
+import type { AgentEmployee } from "@deepclaw/core";
 import { avatarBG, moodEmojis, statusColors } from "../styles-mapping";
 import { AgentTooltip } from "./AgentTooltip";
-import { AgentCurrentProject } from "./AgentCurrentTask";
 import { useTranslation } from "react-i18next";
 import { useAgentCard } from "./use-agent-card";
+import { AlarmClock, CheckCircle2, Clock } from "lucide-react";
 
 export function AgentExpandedCard({
-    agent, project, onSelect
+    agent, onSelect
  }: {
     agent: AgentEmployee;
-    project?: Project;
     onSelect?: () => void;
 }) {
     const {isSelected, tooltipVisible, setTooltipVisible, cardRef, handleClick} =
@@ -46,21 +45,17 @@ export function AgentExpandedCard({
               </div>
             </div>
     
-            <div className="mt-3 flex items-center justify-between text-xs">
+            <div className="mt-3 flex items-end justify-between text-xs">
               <span className={`px-2 py-1 rounded-full
                 ${statusColors[agent.status].replace('bg-', 'bg-opacity-20 bg-')} text-white`}>
                 {t(`pages.agents.status.${agent.status}`)}
               </span>
-              <span className="text-gray-400">
-                {t('pages.agents.card.finishedTasks', {count: agent.stats.tasksCompleted})}
-              </span>
+              <div className="text-gray-400 flex justify-between gap-2">
+                <span className="text-gray-400"><AlarmClock size={14} className="inline mr-1 mb-1"/>{agent.project.todo}</span>
+                <span className="text-sky-500"><Clock size={14} className="inline mr-1 mb-1"/>{agent.project.ongoing}</span>
+                <span className="text-lime-600"><CheckCircle2 size={14} className="inline mr-1 mb-1"/>{agent.project.done}</span>
+              </div>
             </div>
-    
-            {
-              project && (
-                <AgentCurrentProject project={project} />
-              )
-            }
           </div>
     
           <AgentTooltip

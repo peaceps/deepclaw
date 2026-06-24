@@ -1,6 +1,7 @@
 import { InfoCard } from "@/laf/info-card";
 import { AgentEmployee } from "@deepclaw/core";
 import { Target } from "lucide-react";
+import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { priorityStyles} from '../../styles-mapping';
 import { getProjectProgress } from "@/components/component-utils";
@@ -8,9 +9,8 @@ import { useAppStore } from "@/lib/store";
 
 export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
   const {t} = useTranslation();
-  const { getOneOngoingProject } = useAppStore();
-  const currentProject = agent.id ? getOneOngoingProject(agent.id) : null;
-  const progress = getProjectProgress(currentProject);
+  const { getOngoingProjects } = useAppStore();
+  const currentProjects = agent.id ? getOngoingProjects(agent.id) : [];
 
   return (
     <InfoCard title="pages.agents.details.workStatus.title" icon={<Target size={20} />} color="lime">
@@ -20,8 +20,14 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
           <label className="text-sm text-gray-500 mb-2 block">
             {t('pages.agents.details.workStatus.currentProject')}
           </label>
-          {currentProject ? (
-            <div className="bg-gray-50 rounded-lg p-3">
+          {currentProjects.length > 0 ? (currentProjects.map(currentProject => {
+            const progress = getProjectProgress(currentProject);
+            return <Link
+              href={`/projects?project=${encodeURIComponent(currentProject.id)}`}
+              className="block bg-gray-50 rounded-lg p-3 mt-4 cursor-pointer transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+              key={currentProject.id}
+              aria-label={`${t('pages.projects.projectList')}: ${currentProject.title}`}
+            >
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium text-gray-900">{currentProject.title}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -42,7 +48,7 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
                 />
               </div>
               </>}
-            </div>
+            </Link>})
           ) : (
             <div className="text-sm text-gray-400 italic">
               {t('pages.agents.details.workStatus.noProject')}

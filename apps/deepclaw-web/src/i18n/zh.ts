@@ -20,7 +20,7 @@ export const zh = {
         subtitle: '一人多Agent公司',
         links: {
             agents: '员工',
-            tasks: '任务看板',
+            projects: '项目看板',
             chat: '消息中心',
             org: '组织架构',
             settings: '设置',
@@ -89,7 +89,7 @@ export const zh = {
             projectList: '项目列表',
             ownerFilter: '负责人',
             search: {
-                placeholder: '搜索项目名称或描述...',
+                placeholder: '搜索项目名称、描述或标签...',
                 noResults: '没有匹配的项目',
                 clear: '清除搜索',
             },
@@ -103,6 +103,9 @@ export const zh = {
                 noTasksAtStatus: '暂无任务',
                 owner: '负责人',
                 progress: '进度',
+                labels: {
+                    save: '按 Enter 保存',
+                },
             }
         },
         chat: {
@@ -178,7 +181,7 @@ export const zh = {
         },
         ui: {
             lang: {
-                prompt: '语言',
+                prompt: '语言 / Language',
                 options: {
                     en: 'English',
                     zh: '简体中文',

@@ -22,6 +22,9 @@ export async function saveFullConfig(config: DeepclawConfig): Promise<AgentEmplo
 }
 
 export async function updateManagerAvatar(avatar: string): Promise<void> {
+  if (!avatar || avatar.length > 16) {
+    throw new Error('Invalid avatar');
+  }
   const config = loadConfig<DeepclawConfig>();
   const next: DeepclawConfig = { ...config, manager: { ...config.manager, avatar } };
   updateConfig(next);

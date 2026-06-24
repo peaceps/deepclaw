@@ -20,7 +20,7 @@ type AppState = {
   getChatMessages: (agentId: string, projectId: string) => Message[] | undefined;
   setSelectedAgent: (id: string | null) => void;
   getSelectedAgent: () => AgentEmployee | undefined;
-  getOneOngoingProject: (agentId: string) => Project | undefined;
+  getOngoingProjects: (agentId: string) => Project[];
   getProjectOwner: (projectId: string) => AgentEmployee | undefined;
   getTaskAssignee: (task: Task) => AgentEmployee | undefined;
 }
@@ -86,8 +86,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   getSelectedAgent(): AgentEmployee | undefined {
     return get().agents.find(a => a.id === get().selectedAgentId);
   },
-  getOneOngoingProject(agentId: string): Project | undefined {
-    return get().projects.find(p => p.creator === agentId && getProjectStatus(p) !== 'done');
+  getOngoingProjects(agentId: string): Project[] {
+    return get().projects.filter(p => p.creator === agentId && getProjectStatus(p) !== 'done');
   },
   getProjectOwner(projectId: string): AgentEmployee | undefined {
     const ownerId = get().projects.find(p => p.id === projectId)?.creator;

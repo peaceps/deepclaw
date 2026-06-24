@@ -20,7 +20,7 @@ export const en = {
         subtitle: 'One person many agents Company',
         links: {
             agents: 'Agents',
-            tasks: 'Task Board',
+            projects: 'Project Board',
             chat: 'Message Center',
             org: 'Organization',
             settings: 'Settings',
@@ -89,12 +89,12 @@ export const en = {
             projectList: 'Project list',
             ownerFilter: 'Owner',
             search: {
-                placeholder: 'Search project title or description...',
+                placeholder: 'Search project title, description, or tags...',
                 noResults: 'No matching projects',
                 clear: 'Clear search',
             },
             status: {
-                todo: 'Not started',
+                todo: 'Todo',
                 ongoing: 'Ongoing',
                 done: 'Done',
             },
@@ -103,6 +103,9 @@ export const en = {
                 noTasksAtStatus: 'No tasks',
                 owner: 'Owner',
                 progress: 'Progress',
+                labels: {
+                    save: 'Press Enter to save',
+                },
             }
         },
         chat: {
@@ -178,7 +181,7 @@ export const en = {
         },
         ui: {
             lang: {
-                prompt: 'Language',
+                prompt: 'Language / 语言',
                 options: {
                     en: 'English',
                     zh: '简体中文',

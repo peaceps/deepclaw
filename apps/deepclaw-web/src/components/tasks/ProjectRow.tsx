@@ -1,31 +1,41 @@
-import type { Project } from '@deepclaw/core';
+import { type Project, PROJECT_CONFIG } from '@deepclaw/core';
 import { ChevronDown, ChevronRight, Folder, User, CheckCircle2, Clock } from 'lucide-react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';
+import { useCallback } from 'react';
 import { ProjectTasks } from './ProjectTasks';
 import { getProjectStatusStyles } from '../styles-mapping';
-import { getProjectStatus } from '../component-utils';
+import { getProjectProgress, getProjectStatus } from '../component-utils';
 import { useAppStore } from '@/lib/store';
+import { EditableLabels } from '@/laf/editable-labels';
+import { updateProjectTags } from '@/server/loop';
 
 type ProjectRowProps = {
     project: Project; isExpanded: boolean; onToggle: () => void;
 }
 
 export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
-  const { getProjectOwner } = useAppStore();
+  const { getProjectOwner, updateProject } = useAppStore();
   const totalTasks = Object.keys(project.tasks).length;
   const inProgressTasks = project.ongoingTasks.length;
   const completedTasks = project.completedTasks.length;
-  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const progress = getProjectProgress(project);
   const ownerAgent = getProjectOwner(project.id);
   const {t} = useTranslation();
+  const onTagsChange = useCallback((tags: string[]) => {
+    const previousTags = project.tags;
+    updateProject({ ...project, tags });
+    updateProjectTags(project.id, tags).catch(() => {
+      updateProject({ ...project, tags: previousTags });
+    });
+  }, [project, updateProject]);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div onClick={onToggle} className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 
         to-white border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
             <div className="text-gray-400 flex-shrink-0">
               {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
             </div>
@@ -33,9 +43,27 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
               flex items-center justify-center text-white flex-shrink-0">
                 <Folder size={20} />
             </div>
-            <div className="min-w-0">
-              <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate">{project.title}</h3>
-              <p className="text-sm text-gray-500 truncate hidden sm:block">{project.description}</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0">
+                <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate min-w-0">
+                    {project.title}
+                </h3>
+                <div
+                  className="flex-shrink-0 max-w-[60%]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <EditableLabels
+                    labels={project.tags ?? []}
+                    onChange={onTagsChange}
+                    color="sky"
+                    size="small"
+                    maxLabelCount={PROJECT_CONFIG.maxTagCount}
+                    maxLabelTextLength={PROJECT_CONFIG.maxTagTextLength}
+                    placeholder={t('pages.projects.project.labels.save')}
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-gray-500 truncate mt-1 hidden sm:block">{project.description}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 sm:gap-6 flex-wrap">

@@ -29,7 +29,7 @@ export const DEFAULT_PROJECT_FILTERS: ProjectFilters = {
 function textSearchProjects(projects: Project[], query: string): Project[] {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return projects;
-    return projects.filter(project => [project.title, project.description]
+    return projects.filter(project => [project.title, project.description, ...(project.tags ?? [])]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()

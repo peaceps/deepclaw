@@ -1,7 +1,7 @@
 import type { AgentEmployee, AgentSoulIdentity } from "@deepclaw/core";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BriefcaseBusiness, CheckCircle2, Pencil } from "lucide-react";
+import { BriefcaseBusiness, Pencil } from "lucide-react";
 import { avatarBG, moodEmojis, statusColors } from "../../styles-mapping";
 import { EmojiPicker } from "@/laf/emoji-picker";
 
@@ -101,15 +101,24 @@ export function AgentHeader({ agent, onUpdate }: {
   
             {/* Stats */}
             <div className="flex gap-4 sm:gap-6">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <div
-                  title={t('pages.agents.details.header.projectsCompleted')}
-                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-green-50 flex items-center justify-center"
+                  title={t('pages.projects.status.todo')}
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-gray-50 text-gray-500 text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
-                  <CheckCircle2 size={16} className="sm:w-5 sm:h-5 text-green-600" />
+                  <span>{t('pages.projects.status.todo')}&nbsp;{agent.project.todo}</span>
                 </div>
-                <div>
-                  <div className="text-base sm:text-lg font-bold text-gray-900">{agent.stats.tasksCompleted}</div>
+                <div
+                  title={t('pages.projects.status.ongoing')}
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-sky-50 text-sky-500 text-[8px] sm:text-[12px] flex items-center justify-center"
+                >
+                  <span>{t('pages.projects.status.ongoing')}&nbsp;{agent.project.ongoing}</span>
+                </div>
+                <div
+                  title={t('pages.projects.status.done')}
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-green-50 text-green-600 text-[8px] sm:text-[12px] flex items-center justify-center"
+                >
+                  <span>{t('pages.projects.status.done')}&nbsp;{agent.project.done}</span>
                 </div>
               </div>
             </div>

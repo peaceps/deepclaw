@@ -23,6 +23,7 @@ const logger = getLogger('ChatPanel');
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [previousAgent, setPreviousAgent] = useState(agent.id);
   const { addMessage, updateMessageStream, getChatMessages } = useAppStore();
   const agentMessages = getChatMessages(agent.id, projectId);
   const { t, i18n } = useTranslation();
@@ -36,6 +37,12 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
     stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
   };
 
+  if (agent.id !== previousAgent) {
+    setStreaming(false);
+    setInput('');
+    setPreviousAgent(agent.id);
+  }
+
   const lastContent = agentMessages?.[agentMessages.length - 1]?.content ?? '';
   useEffect(() => {
     const el = scrollRef.current;
@@ -46,8 +53,6 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
 
   useEffect(() => {
     stickToBottomRef.current = true;
-    setStreaming(false);
-    setInput('');
   }, [agent.id]);
 
   const handleSend = async () => {
