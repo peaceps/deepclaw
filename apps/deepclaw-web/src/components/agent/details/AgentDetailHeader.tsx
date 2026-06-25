@@ -5,6 +5,7 @@ import { BriefcaseBusiness, Pencil } from "lucide-react";
 import { avatarBG, moodEmojis, statusColors } from "../../styles-mapping";
 import { EmojiPicker } from "@/laf/emoji-picker";
 import { deriveAgentSummary, useAppStore } from "@/lib/store";
+import { AgentActionMenu } from "../AgentActionMenu";
 
 export function AgentHeader({ agent, onUpdate }: {
     agent: AgentEmployee;
@@ -43,8 +44,9 @@ export function AgentHeader({ agent, onUpdate }: {
     }, [saveRole]);
 
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
-        <div className="flex items-start gap-4 sm:gap-6">
+      <div className="relative bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+        <AgentActionMenu className="right-3 top-3" />
+        <div className="flex items-start gap-4 sm:gap-6 pr-8 sm:pr-10">
           {/* Avatar */}
           <div className="relative flex-shrink-0">
             {/* Mobile: read-only */}

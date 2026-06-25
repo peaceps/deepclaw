@@ -11,7 +11,7 @@ import { AgentDetailWorkStatus } from './AgentDetailWorkStatus';
 import { useTranslation } from 'react-i18next';
 import { AgentDetailDescription } from './AgentDetailDescription';
 import { useCallback } from 'react';
-import { updateAgentIdentity } from "@/server/loop";
+import { updateAgentIdentity } from "@/server/data";
 import { useAppStore } from '@/lib/store';
 
 export function AgentDetail({agent}: {

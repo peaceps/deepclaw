@@ -53,6 +53,11 @@ export const en = {
                 idle: 'Idle',
                 fired: 'Graduated',
             },
+            actions: {
+                praise: 'Praise',
+                criticize: 'Criticize',
+                more: 'More actions',
+            },
             details: {
                 header: {
                     projectsCompleted: 'Projects Completed',

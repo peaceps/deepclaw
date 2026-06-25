@@ -53,6 +53,11 @@ export const zh = {
                 idle: '空闲',
                 fired: '毕业',
             },
+            actions: {
+                praise: '表扬',
+                criticize: '批评',
+                more: '更多操作',
+            },
             details: {
                 header: {
                     projectsCompleted: '已完成项目数',

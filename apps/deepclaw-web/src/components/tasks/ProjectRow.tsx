@@ -7,7 +7,7 @@ import { ProjectTasks } from './ProjectTasks';
 import { formatDate } from '@/components/component-utils';
 import { useAppStore } from '@/lib/store';
 import { EditableLabels } from '@/laf/editable-labels';
-import { updateProjectTags } from '@/server/loop';
+import { updateProjectTags } from '@/server/data';
 import { ProjectOwner } from './ProjectOwner';
 import { ProjectMeta } from './ProjectMeta';
 

@@ -33,7 +33,7 @@ export function ProgressBar({
       )}
       <div className={`${sizeClasses[size]} bg-gray-200 rounded-full overflow-hidden`}>
         <div
-          className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
+          className="h-full bg-gradient-to-r from-lime-50 to-lime-600 rounded-full transition-all"
           style={{ width: `${safeValue}%` }}
         />
       </div>

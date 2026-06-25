@@ -2,6 +2,7 @@ import { AgentEmployee } from "@deepclaw/core";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {avatarBG, moodEmojis} from '../styles-mapping';
+import { AgentActionMenu } from '@/components/agent/AgentActionMenu';
 
 export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
     agent: AgentEmployee;
@@ -31,9 +32,14 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
           onClose();
         }
       };
+      const handleScroll = () => onClose();
   
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', handleScroll, true);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        window.removeEventListener('scroll', handleScroll, true);
+      };
     }, [visible, onClose]);
   
     if (!visible || agent.fired) return null;
@@ -53,13 +59,14 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
   
         <div className="relative">
           {/* 头部 */}
-          <div className="flex items-start gap-3 mb-3">
+          <AgentActionMenu className="right-0 top-0" />
+          <div className="flex items-start gap-3 mb-3 pr-8">
             <div className={`w-12 h-12 rounded-full ${avatarBG} flex items-center justify-center text-2xl`}>
               {agent.avatar}
             </div>
-            <div className="flex-1">
-              <h4 className="font-bold text-gray-900">{agent.name}<span className="text-sm ml-1">{moodEmojis[agent.mood]}</span></h4>
-              <p className="text-sm text-gray-500">{agent.role}</p>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-gray-900 truncate">{agent.name}<span className="text-sm ml-1">{moodEmojis[agent.mood]}</span></h4>
+              <p className="text-sm text-gray-500 truncate">{agent.role}</p>
             </div>
           </div>
   

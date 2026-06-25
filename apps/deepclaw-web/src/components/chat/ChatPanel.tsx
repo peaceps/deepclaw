@@ -2,7 +2,7 @@
 
 import { AgentEmployee } from "@deepclaw/core";
 import { Send } from 'lucide-react';
-import { invoke } from '@/server/loop';
+import { invoke } from '@/server/loop-agent';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
