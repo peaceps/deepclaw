@@ -13,7 +13,9 @@ export default function SettingsPage({
       & {onSave: (config: DeepclawConfig) => Promise<AgentEmployee[]>};
 }) {
   const {i18n} = useTranslation();
-  const {agents, setAgents, updateAgentEmployee} = useAppStore();
+  const agents = useAppStore(s => s.agents);
+  const setAgents = useAppStore(s => s.setAgents);
+  const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
 
   const handleSave = (newConfig: DeepclawConfig) => {
     const oldLang = i18n.language;

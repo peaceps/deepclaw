@@ -1,4 +1,5 @@
-import { AgentEmployee } from "@deepclaw/core";
+import { deriveAgentSummary, useAppStore } from "@/lib/store";
+import type { AgentEmployee, AgentStatus } from "@deepclaw/core";
 
 // TODO test file only, will remove later
 const colors: Record<AgentEmployee['mood'], string> = {
@@ -47,7 +48,7 @@ const moodThoughts: Record<AgentEmployee['mood'], string[]> = {
     ],
 };
 
-const statusThoughts: Record<AgentEmployee['status'], string[]> = {
+const statusThoughts: Record<AgentStatus, string[]> = {
     busy: [
         '忙死了，任务堆成山了！',
         '手头事情好多，压力有点大',
@@ -65,9 +66,9 @@ const statusThoughts: Record<AgentEmployee['status'], string[]> = {
     ]
 };
 
-function getAgentThoughts(agent: AgentEmployee): { emoji: string; text: string; color: string } {
+function getAgentThoughts(agent: AgentEmployee, agentStatus: AgentStatus): { emoji: string; text: string; color: string } {
   
-    const thoughtPool = [...moodThoughts[agent.mood], ...statusThoughts[agent.status]];
+    const thoughtPool = [...moodThoughts[agent.mood], ...statusThoughts[agentStatus]];
   
     // 根据 agent id 和当前时间选择一个想法（保持一致性）
     const seed = [...agent.id].reduce((p, r) => p + r.charCodeAt(0), 0) + new Date().getMinutes();
@@ -81,7 +82,9 @@ function getAgentThoughts(agent: AgentEmployee): { emoji: string; text: string; 
   }
   
 export function AgentThoughts({ agent }: { agent: AgentEmployee }) {
-    const { emoji, text, color } = getAgentThoughts(agent);
+    const projects = useAppStore(s => s.projects);
+    const { status: agentStatus } = deriveAgentSummary(agent, projects);
+    const { emoji, text, color } = getAgentThoughts(agent, agentStatus);
   
     return (
         <>

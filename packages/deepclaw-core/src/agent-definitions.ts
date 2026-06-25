@@ -13,14 +13,16 @@ export type AgentIdentity = AgentSoulIdentity & {
   description: string;
 }
 
-export type AgentStatus = {
-  status: 'busy' | 'idle' | 'fired';
-  mood: 'happy' | 'focused' | 'tired' | 'confused' | 'none';
-  project: {
-    todo: number;
-    ongoing: number;
-    done: number;
-  };
+export type AgentStatus = 'busy' | 'idle' | 'fired';
+
+export type AgentProjectStats = {
+  todo: number;
+  ongoing: number;
+  done: number;
 }
 
-export type AgentEmployee = AgentIdentity & AgentStatus;
+export type AgentMood = {
+  mood: 'happy' | 'focused' | 'tired' | 'confused' | 'none';
+}
+
+export type AgentEmployee = AgentIdentity & AgentMood;

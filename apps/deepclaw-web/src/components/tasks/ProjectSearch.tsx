@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { MissionStatus, Project } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
-import { getProjectStatus } from '../component-utils';
+import { getProjectStatus } from '@deepclaw/core';
 
 const statusIcon: Record<MissionStatus, {
     icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -52,7 +52,8 @@ export function ProjectSearch({filters, onChange}: {
     onChange: (filters: ProjectFilters) => void;
 }) {
 
-    const { agents, projects } = useAppStore();
+    const agents = useAppStore(s => s.agents);
+    const projects = useAppStore(s => s.projects);
     const {t} = useTranslation();
 
     const searchedProjects = useMemo(

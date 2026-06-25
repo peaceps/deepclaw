@@ -16,7 +16,8 @@ type RootLayoutProps = {
 }
 
 export function RootLayout({ manager, lang, loopInfo, children }: RootLayoutProps) {
-  const { setAgents, setProjects } = useAppStore();
+  const setAgents = useAppStore(s => s.setAgents);
+  const setProjects = useAppStore(s => s.setProjects);
   const i18nInitRef = useRef<boolean | null>(null);
   const storeRef = useRef<LoopInfo | null>(null);
   if (i18nInitRef.current === null) {

@@ -1,16 +1,17 @@
 import { InfoCard } from "@/laf/info-card";
-import { AgentEmployee } from "@deepclaw/core";
+import { type AgentEmployee, getProjectProgress, getProjectStatus } from "@deepclaw/core";
 import { Target } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { priorityStyles} from '../../styles-mapping';
-import { getProjectProgress } from "@/components/component-utils";
 import { useAppStore } from "@/lib/store";
 
 export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
   const {t} = useTranslation();
-  const { getOngoingProjects } = useAppStore();
-  const currentProjects = agent.id ? getOngoingProjects(agent.id) : [];
+  const projects = useAppStore(s => s.projects);
+  const currentProjects = agent.id
+    ? projects.filter(p => p.creator === agent.id && getProjectStatus(p) !== 'done')
+    : [];
 
   return (
     <InfoCard title="pages.agents.details.workStatus.title" icon={<Target size={20} />} color="lime">
@@ -24,7 +25,9 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
             const progress = getProjectProgress(currentProject);
             return <Link
               href={`/projects?project=${encodeURIComponent(currentProject.id)}`}
-              className="block bg-gray-50 rounded-lg p-3 mt-4 cursor-pointer transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+              className="block bg-gray-50 rounded-lg p-3 mt-4 cursor-pointer transition-colors
+                hover:bg-gray-100 focus:outline-none
+                focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
               key={currentProject.id}
               aria-label={`${t('pages.projects.projectList')}: ${currentProject.title}`}
             >

@@ -13,8 +13,6 @@ type LoopConstructor = new (
     handler: AgentHandler
 ) => LoopAgent<any, any, any>;
 
-
-
 const loopClassMap: Record<LoopProtocol, LoopConstructor> = {
     openai: OpenAIChatLoop,
     anthropic: AnthropicLoop,

@@ -13,11 +13,11 @@ interface AgentListProps {
 
 export function AgentList({ onSelect, collapsed = false, onToggleCollapse }: AgentListProps) {
   const {t} = useTranslation();
-  const { activeAgents } = useAppStore();
+  const activeAgents = useAppStore(s => s.activeAgents);
 
   return (
     <div className="flex flex-col h-full">
-      <div className={`flex items-center py-3 border-b border-gray-200 shrink-0
+      <div className={`flex items-center h-12 border-b border-gray-200 shrink-0
         ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}
       >
         {!collapsed && <h2 className="text-lg font-semibold text-gray-900">

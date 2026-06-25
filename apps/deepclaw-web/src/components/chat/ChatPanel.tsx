@@ -6,7 +6,7 @@ import { invoke } from '@/server/loop';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
-import { useAppStore } from '@/lib/store';
+import { getChatKey, useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { getLogger } from "@/lib/logger";
@@ -24,8 +24,9 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [previousAgent, setPreviousAgent] = useState(agent.id);
-  const { addMessage, updateMessageStream, getChatMessages } = useAppStore();
-  const agentMessages = getChatMessages(agent.id, projectId);
+  const addMessage = useAppStore(s => s.addMessage);
+  const updateMessageStream = useAppStore(s => s.updateMessageStream);
+  const agentMessages = useAppStore(s => s.messages[getChatKey(agent.id, projectId)]);
   const { t, i18n } = useTranslation();
 
   const scrollRef = useRef<HTMLDivElement>(null);

@@ -90,7 +90,6 @@ All steps should be done when task is going to be marked as done.`,
     parallelSafe: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
-
         const tasks = input.tasks.map(task => ProjectManager.createTask({
             ...task,
             agentId: context.agentId,

@@ -18,7 +18,7 @@ export function AgentDetail({agent}: {
     agent?: AgentEmployee;
 }) {
   const {t} = useTranslation();
-  const {updateAgentEmployee} = useAppStore();
+  const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
 
   const onAgentUpdate = useCallback((agentId: string, patch: Partial<AgentSoulIdentity> | string) => {
     updateAgentEmployee(agentId, typeof patch === 'string' ? { description: patch } : patch);

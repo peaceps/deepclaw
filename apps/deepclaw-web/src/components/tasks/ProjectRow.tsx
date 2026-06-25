@@ -1,11 +1,10 @@
-import { type Project, PROJECT_CONFIG } from '@deepclaw/core';
+import { type Project, PROJECT_CONFIG, getProjectProgress, getProjectStatus } from '@deepclaw/core';
 import { ChevronDown, ChevronRight, Folder, User, CheckCircle2, Clock } from 'lucide-react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';
 import { useCallback } from 'react';
 import { ProjectTasks } from './ProjectTasks';
 import { getProjectStatusStyles } from '../styles-mapping';
-import { getProjectProgress, getProjectStatus } from '../component-utils';
 import { useAppStore } from '@/lib/store';
 import { EditableLabels } from '@/laf/editable-labels';
 import { updateProjectTags } from '@/server/loop';
@@ -15,12 +14,12 @@ type ProjectRowProps = {
 }
 
 export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
-  const { getProjectOwner, updateProject } = useAppStore();
+  const updateProject = useAppStore(s => s.updateProject);
+  const ownerAgent = useAppStore(s => s.agents.find(a => a.id === project.creator));
   const totalTasks = Object.keys(project.tasks).length;
   const inProgressTasks = project.ongoingTasks.length;
   const completedTasks = project.completedTasks.length;
   const progress = getProjectProgress(project);
-  const ownerAgent = getProjectOwner(project.id);
   const {t} = useTranslation();
   const onTagsChange = useCallback((tags: string[]) => {
     const previousTags = project.tags;

@@ -8,7 +8,8 @@ import type { SSEConnectedEvent, SSEInfoEvent } from '@/app/api/sse-server';
 const logger = getLogger('InfoClient');
 
 export function InfoClient() {
-  const {updateProject, updateAgentEmployee} = useAppStore();
+  const updateProject = useAppStore(s => s.updateProject);
+  const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
 
   useEffect(() => {
     const eventSource = new EventSource('/api/info?secret=info');

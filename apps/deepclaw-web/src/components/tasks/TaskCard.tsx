@@ -1,12 +1,10 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import type { Task } from '@deepclaw/core';
-import type { AgentEmployee } from '@deepclaw/core';
+import  { type Task, type AgentEmployee, getTaskProgress } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
-import { getTaskProgress } from '../component-utils';
 
 type TaskCardProps = {
   task: Task;
@@ -44,7 +42,8 @@ export function TaskCard({ task, assignee }: TaskCardProps) {
         <div
           ref={assigneeRef}
           onClick={handleAssigneeClick}
-          className="mt-1 flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg p-1 -ml-1 transition-colors"
+          className="mt-1 flex items-center gap-2 cursor-pointer hover:bg-gray-50
+            rounded-lg p-1 -ml-1 transition-colors"
         >
           <div className={`w-6 h-6 rounded-full ${avatarBG} flex items-center justify-center text-xs`}>
             {assignee.avatar}

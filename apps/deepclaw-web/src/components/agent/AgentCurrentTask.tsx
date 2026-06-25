@@ -1,7 +1,6 @@
 'use client';
-import type { Project } from "@deepclaw/core";
+import { type Project, getProjectProgress } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
-import { getProjectProgress } from "../component-utils";
 
 export function AgentCurrentProject({ project }: { project: Project }) {
     const {t} = useTranslation();

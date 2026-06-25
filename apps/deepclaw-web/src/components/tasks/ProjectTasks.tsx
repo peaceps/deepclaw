@@ -20,7 +20,7 @@ type ProjectTasksProps = {
 export function ProjectTasks({project}: ProjectTasksProps) {
   const [collapsed, setCollapsed] = useState(false);
   const {t} = useTranslation();
-  const { getTaskAssignee } = useAppStore();
+  const agents = useAppStore(s => s.agents);
 
     return (
         <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 transition-all duration-300
@@ -55,7 +55,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                             <div className="space-y-2">
                                 {columnTasks.map(task => <TaskCard 
                                     key={task.title} task={task} 
-                                    assignee={getTaskAssignee(task)}
+                                    assignee={task.assignee ? agents.find(a => a.id === task.assignee) : undefined}
                                 />)}
                             </div>
                             {columnTasks.length === 0 && <div className="text-center py-6 text-gray-400 text-xs">{t('pages.projects.project.noTasksAtStatus')}</div>}

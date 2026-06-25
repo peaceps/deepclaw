@@ -1,7 +1,29 @@
 import { create } from 'zustand';
-import type { Task, Project, AgentEmployee } from '@deepclaw/core';
+import type { Project, AgentEmployee, AgentStatus, AgentProjectStats } from '@deepclaw/core';
+import { getProjectStatus } from '@deepclaw/core';
 import type { Message } from '@/component-types';
-import { getProjectStatus } from '@/components/component-utils';
+
+export type AgentSummary = {
+  status: AgentStatus;
+  stats: AgentProjectStats;
+};
+
+export function deriveAgentSummary(agent: AgentEmployee | undefined, projects: Project[]): AgentSummary {
+  const stats: AgentProjectStats = { todo: 0, ongoing: 0, done: 0 };
+  if (!agent) {
+    return { status: 'fired', stats };
+  }
+  for (const project of projects) {
+    if (project.creator === agent.id) {
+      stats[getProjectStatus(project)]++;
+    }
+  }
+  if (agent.fired) {
+    return { status: 'fired', stats };
+  }
+  const status: AgentStatus = (stats.ongoing > 0 || stats.todo > 0) ? 'busy' : 'idle';
+  return { status, stats };
+}
 
 type AppState = {
   agents: AgentEmployee[];
@@ -17,12 +39,7 @@ type AppState = {
   updateProject: (project: Project) => void;
   addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => void;
   updateMessageStream: (chatKey: string, text: string) => void;
-  getChatMessages: (agentId: string, projectId: string) => Message[] | undefined;
   setSelectedAgent: (id: string | null) => void;
-  getSelectedAgent: () => AgentEmployee | undefined;
-  getOngoingProjects: (agentId: string) => Project[];
-  getProjectOwner: (projectId: string) => AgentEmployee | undefined;
-  getTaskAssignee: (task: Task) => AgentEmployee | undefined;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -78,24 +95,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         };
     }
   }),
-  getChatMessages: (agentId: string, projectId: string): Message[] | undefined =>  {
-    return get().messages[getChatKey(agentId, projectId)];
-  },
-
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
-  getSelectedAgent(): AgentEmployee | undefined {
-    return get().agents.find(a => a.id === get().selectedAgentId);
-  },
-  getOngoingProjects(agentId: string): Project[] {
-    return get().projects.filter(p => p.creator === agentId && getProjectStatus(p) !== 'done');
-  },
-  getProjectOwner(projectId: string): AgentEmployee | undefined {
-    const ownerId = get().projects.find(p => p.id === projectId)?.creator;
-    return ownerId ? get().agents.find(a => a.id === ownerId) : undefined;
-  },
-  getTaskAssignee(task: Task): AgentEmployee | undefined {
-    return task?.assignee ? get().agents.find(a => a.id === task.assignee) : undefined;
-  }
 }));
 
 function newMessage(type: 'user' | 'agent', agentId: string, content: string): Message {
@@ -118,6 +118,6 @@ function selectFirstActiveAgent(get: () => AppState, set: (state: Partial<AppSta
     }
 }
 
-function getChatKey(agentId: string, projectId: string): string {
+export function getChatKey(agentId: string, projectId: string): string {
   return `${agentId}.${projectId}`;
 }

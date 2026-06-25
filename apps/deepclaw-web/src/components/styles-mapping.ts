@@ -1,6 +1,6 @@
 import type { Message } from "@/component-types";
-import type { Project, MissionStatus, AgentEmployee} from "@deepclaw/core";
-import { getProjectStatus } from "./component-utils";
+import type { Project, MissionStatus, AgentEmployee, AgentStatus} from "@deepclaw/core";
+import { getProjectStatus } from "@deepclaw/core";
 
 export const avatarBG = 'bg-gradient-to-br from-amber-300 to-sky-300';
 
@@ -22,7 +22,7 @@ export const moodEmojis: Record<AgentEmployee['mood'], string> = {
     none: '🙃',
 };
 
-export const statusColors: Record<AgentEmployee['status'], string> = {
+export const statusColors: Record<AgentStatus, string> = {
     busy: 'bg-red-500',
     idle: 'bg-green-500',
     fired: 'bg-gray-400',

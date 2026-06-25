@@ -36,3 +36,30 @@ export type Task = {
     closedAt?: string;
     stepsStatus?: TaskStepsContext
 };
+
+export function getProjectStatus(project: Project): MissionStatus {
+    if (!project.closedAt) {
+        return !project.ongoingTasks.length ? 'todo' : 'ongoing';
+    }
+    return 'done';
+}
+
+export function getProjectProgress(project?: Project | null): number | null {
+    let progress = null;
+    if (project) {
+        const total = Object.values(project.tasks).length;
+        const done = Object.values(project.tasks).filter(task => task.status === 'done').length;
+        progress = total > 0 ? Math.round(done / total * 100) : 0;
+    }
+    return progress;
+}
+
+export function getTaskProgress(task: Task): number | null {
+    if (task.status !== 'ongoing' || !task.stepsStatus?.steps.length) {
+        return null;
+    }
+    if (task.stepsStatus.currentStepIndex < 0) {
+        return 0;
+    }
+    return Math.round(((task.stepsStatus.currentStepIndex) / task.stepsStatus.steps.length) * 100);
+}

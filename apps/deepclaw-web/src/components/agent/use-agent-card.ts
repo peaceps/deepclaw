@@ -9,7 +9,8 @@ export function useAgentCard({ agent, onSelect }: {
     onSelect?: () => void;
   }) {
     
-    const { selectedAgentId, setSelectedAgent } = useAppStore();
+    const selectedAgentId = useAppStore(s => s.selectedAgentId);
+    const setSelectedAgent = useAppStore(s => s.setSelectedAgent);
     const [tooltipVisible, setTooltipVisible] = useState(false);
     const isSelected = selectedAgentId === agent.id;
 

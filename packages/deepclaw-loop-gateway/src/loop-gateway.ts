@@ -65,13 +65,7 @@ class LoopGatewayImpl {
         const identity = AgentIdentityManager.newAgentIdentity(id);
         return {
             ...identity,
-            status: 'idle',
             mood: 'none',
-            project: {
-                todo: 0,
-                ongoing: 0,
-                done: 0
-            }
         };
     }
 
@@ -90,7 +84,7 @@ class LoopGatewayImpl {
     public static getLoopInfo(): LoopInfo {
         const projects = this.getProjects();
         return {
-            agents: this.getAgents(projects),
+            agents: this.getAgents(),
             projects,
         };
     }
@@ -104,31 +98,11 @@ class LoopGatewayImpl {
         return res;
     }
 
-    private static getAgents(projects: Project[]): AgentEmployee[] {
-        const status: {[key: string]: {todo: number; ongoing: number; done: number}} = {};
-        for (const project of projects) {
-            if (!status[project.creator]) {
-                status[project.creator] = {
-                    todo: 0,
-                    ongoing: 0,
-                    done: 0
-                }
-            }
-            if (!!project.closedAt) {
-                status[project.creator]!.done++;
-            } else if (project.ongoingTasks.length > 0) {
-                status[project.creator]!.ongoing++;
-            } else {
-                status[project.creator]!.todo++;
-            }
-        }
+    private static getAgents(): AgentEmployee[] {
         return AgentIdentityManager.getAgents().map(agent => {
             return {
                 ...agent,
-                status: agent.fired ? 'fired' :
-                    (status[agent.id]?.ongoing || status[agent.id]?.todo) ? 'busy' : 'idle',
                 mood: 'none',
-                project: status[agent.id] || {todo: 0, ongoing: 0, done: 0}
             }
         });
     }

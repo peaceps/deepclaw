@@ -5,9 +5,7 @@ import { MobileAgentPage } from './mobile/MobileAgentPage';
 import { DesktopAgentPage } from './DesktopAgentPage';
 
 export function AgentPage() {
-  const { getSelectedAgent } = useAppStore();
-
-  const selectedAgent = getSelectedAgent();
+  const selectedAgent = useAppStore(s => s.agents.find(a => a.id === s.selectedAgentId));
 
   return (
     <div className="h-full flex">

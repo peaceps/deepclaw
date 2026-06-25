@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {ProjectRow} from './ProjectRow';
 import { useTranslation } from 'react-i18next';
-import { getProjectStatus } from '../component-utils';
+import { getProjectStatus } from '@deepclaw/core';
 import { ProjectSearch, DEFAULT_PROJECT_FILTERS, filterProjects } from './ProjectSearch';
 
 export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string }) {
-  const { projects } = useAppStore();
+  const projects = useAppStore(s => s.projects);
   const selectedProject = selectedProjectId
     ? projects.find(project => project.id === selectedProjectId)
     : undefined;
