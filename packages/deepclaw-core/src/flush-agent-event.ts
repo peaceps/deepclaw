@@ -1,14 +1,18 @@
 import { AgentEmployee } from "./agent-definitions";
 import { Project } from "./project-definitions";
 
+export function getFlushAgentKey(agentId: string, projectId?: string): string {
+    return !projectId ? agentId : `${agentId}.${projectId}`;
+}
+
 export type AgentStreamEvent = {
-    chatKey: string;
+    loopId: string;
     text: string;
     done?: boolean;
 };
 
 export type AgentToolResultEvent = {
-    chatKey: string;
+    loopId: string;
     toolName: string;
     data: any;
 };

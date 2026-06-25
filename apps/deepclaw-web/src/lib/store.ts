@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Project, AgentEmployee, AgentStatus, AgentProjectStats } from '@deepclaw/core';
-import { getProjectStatus } from '@deepclaw/core';
+import { getFlushAgentKey, getProjectStatus } from '@deepclaw/core';
 import type { Message } from '@/component-types';
 
 export type AgentSummary = {
@@ -38,7 +38,7 @@ type AppState = {
   setProjects: (projects: Project[]) => void;
   updateProject: (project: Project) => void;
   addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => void;
-  updateMessageStream: (chatKey: string, text: string) => void;
+  updateMessageStream: (agentId: string, projectId: string, text: string) => void;
   setSelectedAgent: (id: string | null) => void;
 }
 
@@ -81,7 +81,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       )]}}
     };
   }),
-  updateMessageStream: (chatKey: string, text: string) => set((state) => {
+  updateMessageStream: (agentId: string, projectId: string, text: string) => set((state) => {
+    const chatKey = getChatKey(agentId, projectId);
     const message = state.messages[chatKey]?.findLast(m => m.type === 'agent');
     if (!message) {
         // PASS
@@ -119,5 +120,5 @@ function selectFirstActiveAgent(get: () => AppState, set: (state: Partial<AppSta
 }
 
 export function getChatKey(agentId: string, projectId: string): string {
-  return `${agentId}.${projectId}`;
+    return getFlushAgentKey(agentId, projectId);
 }

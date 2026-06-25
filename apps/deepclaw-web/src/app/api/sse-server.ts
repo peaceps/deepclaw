@@ -1,7 +1,7 @@
 import { LoopGateway, type SSEType } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
-import type { AgentEmployee, AgentInfoEvent, AgentStreamEvent, Project } from "@deepclaw/core";
+import { type AgentEmployee, type AgentInfoEvent, type AgentStreamEvent, type Project } from "@deepclaw/core";
 
 export type SSEEvent = {
     sseType: string;
@@ -23,13 +23,14 @@ export type SSEInfoEvent = SSEEvent & ({
 
 export type SSELoopStreamEvent = SSEEvent & ({
     sseType: 'streamText';
-    chatKey: string;
+    loopId: string;
     content: string;
     done: boolean;
 });
 
 type SSEClient = {
     id: string;
+    loopId?: string;
     controller: ReadableStreamDefaultController;
     encoder: TextEncoder;
 }
@@ -53,7 +54,8 @@ class SSEServerImpl {
     }
 
     public static addClient(
-        type: SSEType, id: string, controller: ReadableStreamDefaultController, encoder: TextEncoder
+        type: SSEType, id: string, loopId: string | undefined,
+        controller: ReadableStreamDefaultController, encoder: TextEncoder
     ): void {
         const store = this.sseStore[type];
         if (!store.unsubscriber) {
@@ -62,17 +64,22 @@ class SSEServerImpl {
                 this.broadcastEvent(type, sseEvent.sseType, sseEvent);
             });
         }
-        store.clients.set(id, { id, controller, encoder });
+        store.clients.set(id, { id, loopId, controller, encoder });
     }
 
     public static removeClient(type: SSEType, id: string): void {
-        this.sseStore[type].clients.delete(id);
+        const store = this.sseStore[type];
+        store.clients.delete(id);
+        if (store.clients.size === 0) {
+            store.unsubscriber?.();
+            store.unsubscriber = undefined;
+        }
     }
 
-    private static broadcastEvent(type: SSEType, event: string, data: any): void {
+    private static broadcastEvent(type: SSEType, event: string, data: SSEEvent): void {
         const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
         for (const client of this.sseStore[type].clients.values()) {
-            if (type === 'loop' && client.id !== data.chatKey) {
+            if (type === 'loop' && ( !('loopId' in data) || client.loopId !== data.loopId)) {
                 continue;
             }
             try {
@@ -88,7 +95,7 @@ class SSEServerImpl {
         if ('text' in e) {
             return {
                 sseType: 'streamText',
-                chatKey: e.chatKey,
+                loopId: e.loopId,
                 content: e.text,
                 done: !!e.done
             } as SSELoopStreamEvent;

@@ -73,14 +73,14 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const handleToolResult = useEffectEvent((e: AgentToolResultEvent) => {
         const formatedResult = formatToolResult(e, t);
         if (formatedResult) {
-            handleStream({text: formatedResult, done: false, chatKey: ''});
+            handleStream({text: formatedResult, done: false, loopId: agentIdRef.current});
         } 
     });
 
 	useEffect(() => {
         if (envConfigReady) {
             agentIdRef.current = LoopGateway.getLoopInfo().agents[0]!.id;
-            LoopGateway.init(agentIdRef.current, {
+            LoopGateway.init(agentIdRef.current, '', {
                 onStreamText: handleStream,
                 onToolText: handleToolResult,
                 onInteractionEvent: handleAgentEvent

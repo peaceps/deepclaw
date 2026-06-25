@@ -5,7 +5,6 @@ import {
     type AgentInteractionEvent,
     FlushAgent,
     type AgentHandler,
-    type AgentIdentity,
     AgentToolResultEvent,
 } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
@@ -21,7 +20,6 @@ import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
-    private agentIdentity: AgentIdentity;
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
     protected parentSessionId: string;
@@ -33,19 +31,19 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private agentConfig: DeepclawConfig['agents'][0];
 
     constructor(
-        agentIdentity: AgentIdentity,
+        agentId: string,
         handler: AgentHandler,
+        projectId: string = '',
         history: I[] = [],
         parentSessionId: string = '',
     ) {
-        super(handler);
-        this.agentIdentity = agentIdentity;
-        this.agentConfig = loadAgentConfig(agentIdentity.id);
+        super(agentId, projectId, handler);
+        this.agentConfig = loadAgentConfig(agentId);
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
         this.toolUseService = new ToolUseService(
-            this.agentIdentity.id,
+            this.agentId,
             this.parentSessionId,
             this.sessionId,
             this.agentHandler
@@ -55,7 +53,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             this.agentConfig.llm,
         ) as LLM;
         this.messagesCompactor = this.createMessagesCompactor(
-            this.agentIdentity.id, this.parentSessionId, this.sessionId, this.footPrints
+            this.agentId, this.parentSessionId, this.sessionId, this.footPrints
         );
     }
 
@@ -93,14 +91,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         agentId: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]
     ): MessagesCompactor<I, O, unknown, LLM>;
 
-    protected async _invoke(chatKey: string, input: string): Promise<string> {
+    protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
-                chatKey,
+                loopId: this.getId(),
                 isSubLoop: this.isSubLoop(),
-                agentId: this.agentIdentity.id,
+                agentId: this.agentId,
+                projectId: this.projectId,
                 turnCount: 0,
                 system: '',
                 logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
@@ -137,17 +136,17 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 const finalText = i18nInstance.t('agent.maxTurnReached', {
                     finalText: this.extractFinalText(state)
                 });
-                this.agentHandler.onStreamText({chatKey: state.oneLoopContext.chatKey, text: finalText});
+                this.agentHandler.onStreamText({text: finalText});
                 return finalText;
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
-                this.agentIdentity.id, this.isSubLoop(), state.oneLoopContext.loopConfig.mode
+                this.agentId, this.isSubLoop(), state.oneLoopContext.loopConfig.mode
             );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 const finalText = this.extractFinalText(state);
                 if (finalText && state.oneLoopContext.transitionReason === 'error') {
-                    this.agentHandler.onStreamText({chatKey: state.oneLoopContext.chatKey, text: finalText});
+                    this.agentHandler.onStreamText({text: finalText});
                 }
                 return finalText;
             }
@@ -168,7 +167,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             state.oneLoopContext.system,
             state.messages,
             (text: string) => this.agentHandler.onStreamText({
-                chatKey: state.oneLoopContext.chatKey,
                 text
             }),
             state.oneLoopContext.logger
@@ -239,15 +237,11 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
 
-    public getIdentity(): AgentIdentity {
-        return this.agentIdentity;
-    }
-
     public createSubLoop(fork?: boolean): LoopAgent<I, O, LLM> {
         if (this.isSubLoop()) {
             throw new Error('Sub-loop cannot create a sub-loop');
         }
-        return this.newSubLoop(this.createSubLoopIdentity(), {
+        return this.newSubLoop(this.agentId, this.projectId, {
             onStreamText: () => {},
             onToolText: (e: AgentToolResultEvent) => this.agentHandler.onToolText(e),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
@@ -255,22 +249,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         }, fork ? this.history : [], this.sessionId);
     }
 
-    private createSubLoopIdentity(): AgentIdentity {
-        return {
-            id: this.agentIdentity.id,
-            name: `${this.agentIdentity.name}-subloop`,
-            avatar: '',
-            role: 'temp loop',
-            fired: false,
-            description: 'You are a subloop',
-            personalities: [],
-            emotion: false,
-            expertises: []
-        };
-    }
-
     protected abstract newSubLoop(
-        agentIdentity: AgentIdentity,
+        agentId: string,
+        projectId: string,
         subLoopAgentHandler: AgentHandler,
         history: I[],
         parentSessionId: string,

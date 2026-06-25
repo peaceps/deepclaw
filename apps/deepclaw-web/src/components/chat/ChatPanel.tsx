@@ -6,7 +6,7 @@ import { invoke } from '@/server/loop-agent';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
-import { getChatKey, useAppStore } from '@/lib/store';
+import { useAppStore, getChatKey } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { getLogger } from "@/lib/logger";
@@ -66,7 +66,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
     try {
       await invoke(agent.id, projectId, trimmed);
     } catch (e: any) {
-      updateMessageStream(`${agent.id}.${projectId}`, `\n${e?.message?.toString() || t('pages.chat.invoke.error')}`);
+      updateMessageStream(agent.id, projectId, `\n${e?.message?.toString() || t('pages.chat.invoke.error')}`);
       setStreaming(false);
     }
   };
@@ -83,18 +83,21 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   };
 
   useEffect(() => {
-    const eventSource = new EventSource(`/api/loop?agentId=${agent.id}&projectId=${projectId}`);
+    const params = new URLSearchParams({
+        loopId: getChatKey(agent.id, projectId),
+    });
+    const eventSource = new EventSource(`/api/loop?${params.toString()}`);
 
     const connectedListener = (event: MessageEvent<string>) => {
       const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'connected'}>;
       logger.info(`Connected for ${clientId}.`);
     };
     const streamTextListener = (event: MessageEvent<string>) => {
-      const {chatKey, content, done} = JSON.parse(event.data) as Extract<SSELoopStreamEvent, {sseType: 'streamText'}>;
+      const {content, done} = JSON.parse(event.data) as Extract<SSELoopStreamEvent, {sseType: 'streamText'}>;
       if (done) {
           setStreaming(false);
         } else {
-          updateMessageStream(chatKey, content);
+          updateMessageStream(agent.id, projectId, content);
       }
     };
 

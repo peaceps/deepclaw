@@ -3,7 +3,7 @@ import { IM } from '../im-definitions';
 import { AgentInteractionEvent } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import {stringifiedInteractionEvent, parseStringifiedAnswer} from '../stringified-event';
-import { LoopInitializer } from '@deepclaw/agent';
+import { LoopInitializer, AgentIdentityManager } from '@deepclaw/agent';
 
 type EndPoint = {
     sessionWebhook: string;
@@ -17,8 +17,9 @@ const onBotMessage = (client: DWClient) => {
     const endPoint = {sessionWebhook: '', senderStaffId: ''};
     let interactionResolver: Function | null = null;
     let sequentialInteraction: Promise<void> = Promise.resolve();
+    const agent = AgentIdentityManager.getAgents()[0]!;
 
-    const agent = LoopInitializer.getLoop('main', {
+    const loop = LoopInitializer.getLoop(agent.id, '', {
         onStreamText: () => {},
         onToolText: () => {},
         onInteractionEvent: handleInteractionEvent,
@@ -66,7 +67,7 @@ const onBotMessage = (client: DWClient) => {
             
             sendMessage(endPoint, i18nInstance.t('im.wait'));
             sequentialInteraction = sequentialInteraction.then(
-                () => agent.invoke(agent.getIdentity().id + '.', content).then(res => {
+                () => loop.invoke(content).then(res => {
                     sendMessage(endPoint, res);
                 }).catch(() => {
                     sendMessage(endPoint, i18nInstance.t('im.error'));

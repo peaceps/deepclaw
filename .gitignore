@@ -26,3 +26,6 @@ apps/*/skills
 packages/*/skills
 
 package-lock.json
+
+# Stray diff artifacts
+*.diff

@@ -8,7 +8,7 @@ import {
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 
-export type LoopStore = Record<string, LoopAgent<unknown, any, any>>;
+export type LoopStore = Record<string, Record<string, LoopAgent<unknown, any, any>>>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
 export type SSEType = 'info' | 'loop';
 
@@ -20,6 +20,7 @@ class LoopGatewayImpl {
         info: new Set(),
         loop: new Set()
     };
+
     private static defaultHandler: AgentHandler = {
         onStreamText: (e) => LoopGatewayImpl.sseSubscribers.loop.forEach(cb => cb(e)),
         onToolText: () => {},
@@ -27,9 +28,13 @@ class LoopGatewayImpl {
         onInfoEvent: (e) => LoopGatewayImpl.sseSubscribers.info.forEach(cb => cb(e))
     };
 
-    public static init(agentId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
+    public static init(agentId: string, projectId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
         if (!this.loops[agentId]) {
-            this.loops[agentId] = LoopInitializer.getLoop(agentId, {
+            this.loops[agentId] = {};
+        }
+        // TODO LRU
+        if (!this.loops[agentId][projectId]) {
+            this.loops[agentId][projectId] = LoopInitializer.getLoop(agentId, projectId, {
                 onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
                 onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
                 onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
@@ -39,10 +44,10 @@ class LoopGatewayImpl {
     }
 
     public static async invoke(agentId: string, projectId: string, input: string): Promise<string> {
-        if (!this.loops[agentId]) {
-            this.init(agentId, {});
+        if (!this.loops[agentId]?.[projectId]) {
+            this.init(agentId, projectId, {});
         }
-        return this.loops[agentId]!.invoke(`${agentId}.${projectId}`, input);
+        return this.loops[agentId]![projectId]!.invoke(input);
     }
 
     public static updateLoopConfig(config: DeepclawConfig) {
@@ -50,7 +55,9 @@ class LoopGatewayImpl {
             if (!this.loops[agentConfig.id]) {
                 continue;
             }
-            this.loops[agentConfig.id]!.updateConfig(agentConfig);
+            for (const projectId of Object.keys(this.loops[agentConfig.id]!)) {
+                this.loops[agentConfig.id]![projectId]!.updateConfig(agentConfig);
+            }
         }
     }
 

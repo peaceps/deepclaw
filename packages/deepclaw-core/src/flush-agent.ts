@@ -1,10 +1,6 @@
-import { AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent } from './flush-agent-event';
-import { AgentIdentity } from './agent-definitions';
-
-export type FlushAgentConstructor = new (
-    agentIdentity: AgentIdentity,
-    handler: AgentHandler
-) => FlushAgent;
+import {
+    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent, getFlushAgentKey
+} from './flush-agent-event';
 
 export type LLMGWConfig = {
     model: string,
@@ -21,44 +17,56 @@ export type AgentHandler = {
 }
 
 export type SealedAgentHandler = AgentHandler & {
-    onStreamText(e: Omit<AgentStreamEvent, 'done'>): void;
+    onStreamText(e: Omit<AgentStreamEvent, 'done'|'loopId'>): void;
 }
 
 export abstract class FlushAgent {
-    protected agentHandler: AgentHandler;
-    private flusher: (e: AgentStreamEvent & {done: boolean}) => void;
+    protected agentId: string;
+    protected projectId: string;
+    protected agentHandler: SealedAgentHandler;
+    private flusher: (e: Omit<AgentStreamEvent, 'done'|'loopId'> & {done: boolean}) => void;
 
     constructor(
+        agentId: string,
+        projectId: string = '',
         handler: AgentHandler
     ) {
-        this.flusher = (e: AgentStreamEvent & {done: boolean}) => handler.onStreamText({
-            chatKey: e.chatKey,
+        this.agentId = agentId;
+        this.projectId = projectId;
+        this.flusher = (e: Omit<AgentStreamEvent, 'done'|'loopId'> & {done: boolean}) => handler.onStreamText({
+            loopId: this.getId(),
             text: this.formatLLMText(e.text, e.done),
             done: e.done
         });
         this.agentHandler = {
-            onStreamText: (e: Omit<AgentStreamEvent, 'done'>) => this.flusher({chatKey: e.chatKey, text: e.text, done: false}),
+            onStreamText: (e: Omit<AgentStreamEvent, 'done'|'loopId'>) => this.flusher({
+                text: e.text, done: false
+            }),
             onToolText: (e: AgentToolResultEvent) => handler.onToolText(e),
             onInteractionEvent: handler.onInteractionEvent,
             onInfoEvent: handler.onInfoEvent
         };
     }
 
-    protected abstract _invoke(chatKey: string, input: string): Promise<string>;
+    protected abstract _invoke(input: string): Promise<string>;
 
-    async invoke(chatKey: string, input: string): Promise<string> {
+    protected getId() {
+        return getFlushAgentKey(this.agentId, this.projectId);
+    }
+
+    async invoke(input: string): Promise<string> {
         try {
-            const res = await this._invoke(chatKey, input);
-            return this.finishInvoke(chatKey, res);
+            const res = await this._invoke(input);
+            return this.finishInvoke(res);
         } catch (e: any) {
-            return this.finishInvoke(chatKey, e?.message || '');
+            return this.finishInvoke(e?.message || '');
         }
     }
 
-    private finishInvoke(chatKey: string, content: string): Promise<string> {
+    private finishInvoke(content: string): Promise<string> {
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.flusher({chatKey, text: content, done: true});
+                this.flusher({text: content, done: true});
                 resolve(content);
             }, 100);
         });
@@ -72,6 +80,4 @@ export abstract class FlushAgent {
         }
         return result;
     }
-
-    public abstract getIdentity(): AgentIdentity;
 }

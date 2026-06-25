@@ -6,7 +6,7 @@ import { ToolUseDef } from "../services/tool-use-service";
 import { MessagesCompactor } from "../compactor/messages-compactor";
 import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor";
 import { LLMConstructor } from '../../llm/llmgw';
-import { AgentHandler, AgentIdentity } from '@deepclaw/core';
+import { AgentHandler } from '@deepclaw/core';
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
 
@@ -37,12 +37,13 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
     }
 
     protected override newSubLoop(
-        agentIdentity: AgentIdentity,
+        agentId: string,
+        projectId: string,
         subLoopAgentHandler: AgentHandler,
         history: ThinkingMessage[],
         parentSessionId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
-        return new AnthropicLoop(agentIdentity, subLoopAgentHandler, history, parentSessionId);
+        return new AnthropicLoop(agentId, subLoopAgentHandler, projectId, history, parentSessionId);
     }
 
 }

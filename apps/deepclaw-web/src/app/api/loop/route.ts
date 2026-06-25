@@ -1,10 +1,9 @@
-import { newSSEEndpoint } from '../sse';
+import { newLoopSSEEndpoint } from '../sse';
 
 export async function GET(request: Request) {
     const url = new URL(request.url);
-    if (!url.searchParams.has('agentId') || !url.searchParams.has('projectId'))
+    if (!url.searchParams.has('loopId'))
         return Response.json({}, {status: 404});
 
-    return newSSEEndpoint('loop',
-        `${url.searchParams.get('agentId')}.${url.searchParams.get('projectId')}`);
+    return newLoopSSEEndpoint(url.searchParams.get('loopId')!);
 }

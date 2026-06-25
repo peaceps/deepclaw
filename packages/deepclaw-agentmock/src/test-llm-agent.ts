@@ -1,19 +1,6 @@
-import { AgentIdentity, FlushAgent } from '@deepclaw/core';
+import { FlushAgent } from '@deepclaw/core';
 
 export class TestLlmAgent extends FlushAgent {
-    public override getIdentity(): AgentIdentity {
-        return {
-            id: 'test',
-            avatar: '',
-            name: 'test',
-            fired: false,
-            role: '',
-            description: '',
-            personalities: [],
-            emotion: false,
-            expertises: [],
-        };
-    }
 
     protected async _invoke(): Promise<string> {
         const text = [
@@ -41,7 +28,7 @@ export class TestLlmAgent extends FlushAgent {
         let i = 0;
         return new Promise((resolve) => {
             const interval = setInterval(() => {
-                this.agentHandler.onStreamText({chatKey: 'test.', text: lines[i++]!});
+                this.agentHandler.onStreamText({text: lines[i++]!});
                 if (i >= lines.length) {
                     clearInterval(interval);
                     resolve('its done.');

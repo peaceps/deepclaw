@@ -1,4 +1,4 @@
-import { type AgentIdentity, type AgentHandler } from '@deepclaw/core';
+import { type AgentHandler } from '@deepclaw/core';
 import { AnthropicLoop } from './loop/loop/anthropic-loop';
 import { ensureBaseFiles } from '../base-file-initializer';
 import { AgentIdentityManager } from './loop/services/agent-identity-manager';
@@ -9,8 +9,9 @@ import { loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl, type LoopProtocol } from './loop-protocol-detector';
 
 type LoopConstructor = new (
-    agentIdentity: AgentIdentity,
-    handler: AgentHandler
+    agentId: string,
+    handler: AgentHandler,
+    projectId: string,
 ) => LoopAgent<any, any, any>;
 
 const loopClassMap: Record<LoopProtocol, LoopConstructor> = {
@@ -23,7 +24,7 @@ export class LoopInitializer {
         ensureBaseFiles();
     }
 
-    public static getLoop(agentId: string, handler: AgentHandler): LoopAgent<any, any, any> {
+    public static getLoop(agentId: string, projectId: string, handler: AgentHandler): LoopAgent<any, any, any> {
         const identity = AgentIdentityManager.getAgent(agentId);
         if (!identity) {
             throw new Error(`Agent "${agentId}" not found`);
@@ -33,6 +34,6 @@ export class LoopInitializer {
         if (!protocol) {
             throw new Error(`Invalid agent baseURL: ${config.llm.baseURL}`);
         }
-        return new (loopClassMap[protocol])(identity, handler);
+        return new (loopClassMap[protocol])(agentId, handler, projectId);
     }
 }
