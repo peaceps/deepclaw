@@ -6,6 +6,7 @@ import  { type Task, type AgentEmployee, getTaskProgress } from '@deepclaw/core'
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
+import { ProgressBar } from '@/laf/progress-bar';
 
 type TaskCardProps = {
   task: Task;
@@ -21,9 +22,7 @@ export function TaskCard({ task, assignee, blockedByTitles }: TaskCardProps) {
 
   const handleAssigneeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (assignee) {
-      setTooltipVisible(true);
-    }
+    setTooltipVisible(true);
   };
 
   if (!assignee) return null;
@@ -46,7 +45,7 @@ export function TaskCard({ task, assignee, blockedByTitles }: TaskCardProps) {
             ref={assigneeRef}
             onClick={handleAssigneeClick}
             className="inline-flex items-center gap-2 cursor-pointer hover:bg-gray-50
-              rounded-lg p-1 -ml-1 transition-colors"
+              max-sm:pointer-events-none rounded-lg p-1 -ml-1 transition-colors"
           >
             <div className={`w-6 h-6 rounded-full ${avatarBG} flex items-center justify-center text-xs`}>
               {assignee.avatar}
@@ -73,18 +72,7 @@ export function TaskCard({ task, assignee, blockedByTitles }: TaskCardProps) {
         </div>}
 
         {progress !== null && (
-          <div className="mt-2">
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-gray-500">{t('pages.projects.project.progress')}</span>
-              <span className="font-medium text-gray-700">{progress}%</span>
-            </div>
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 rounded-full transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
+          <ProgressBar value={progress} size="sm" className="mt-2" />
         )}
       </div>
 

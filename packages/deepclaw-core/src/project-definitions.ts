@@ -9,7 +9,7 @@ export type Project = {
     id: string;
     title: string;
     description: string;
-    createdAt?: string;
+    createdAt: string;
     closedAt?: string;
     creator: string;
     priority: 'low' | 'medium' | 'high' | 'urgent';

@@ -19,7 +19,10 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
   );
   const [handledSelectedProjectId, setHandledSelectedProjectId] = useState<string | undefined>();
   const [filters, setFilters] = useState(DEFAULT_PROJECT_FILTERS);
-  const filteredProjects = useMemo(() => filterProjects(projects, filters), [projects, filters]);
+  const filteredProjects = useMemo(
+    () => [...filterProjects(projects, filters)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [projects, filters]
+  );
   const {t} = useTranslation();
 
   if (!selectedProjectId && handledSelectedProjectId) {

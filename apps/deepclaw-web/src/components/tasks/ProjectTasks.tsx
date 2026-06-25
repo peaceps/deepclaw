@@ -25,7 +25,12 @@ export function ProjectTasks({project}: ProjectTasksProps) {
     return (
         <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 transition-all duration-300
           lg:max-h-[600px] lg:overflow-y-auto ${collapsed ? 'w-12' : 'lg:w-[60%]'}`}>
-          <div className={`hidden lg:flex items-center border-b border-gray-200 bg-gray-50 w-full ${collapsed ? 'flex-col' : 'justify-end'} py-3`}>
+            
+          <div className={`hidden lg:flex items-center border-b border-gray-200
+              bg-gray-50 w-full ${collapsed ? 'flex-col' : 'pl-6 justify-end'} py-3`}>
+            {!collapsed && <p className="flex-1 text-sm text-gray-500 truncate hidden sm:block">
+                {project.description}
+            </p>}
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors ${collapsed ? '' : 'mr-2'}`}
