@@ -103,6 +103,7 @@ export const zh = {
                 noTasksAtStatus: '暂无任务',
                 owner: '负责人',
                 progress: '进度',
+                blockedBy: '前置任务：{{titles}}',
                 labels: {
                     save: '按 Enter 保存',
                 },

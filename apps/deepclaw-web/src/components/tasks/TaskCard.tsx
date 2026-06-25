@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { Ban } from 'lucide-react';
 import  { type Task, type AgentEmployee, getTaskProgress } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
@@ -8,10 +9,11 @@ import {avatarBG, priorityStyles} from '../styles-mapping';
 
 type TaskCardProps = {
   task: Task;
-  assignee?: AgentEmployee
+  assignee?: AgentEmployee;
+  blockedByTitles?: string[];
 }
 
-export function TaskCard({ task, assignee }: TaskCardProps) {
+export function TaskCard({ task, assignee, blockedByTitles }: TaskCardProps) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
   const {t} = useTranslation();
@@ -39,16 +41,23 @@ export function TaskCard({ task, assignee }: TaskCardProps) {
         <p className="text-sm text-gray-500 mt-2 line-clamp-2">{task.description}</p>
 
         {/* Assignee - 可点击 */}
-        <div
-          ref={assigneeRef}
-          onClick={handleAssigneeClick}
-          className="mt-1 flex items-center gap-2 cursor-pointer hover:bg-gray-50
-            rounded-lg p-1 -ml-1 transition-colors"
-        >
-          <div className={`w-6 h-6 rounded-full ${avatarBG} flex items-center justify-center text-xs`}>
-            {assignee.avatar}
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <div
+            ref={assigneeRef}
+            onClick={handleAssigneeClick}
+            className="inline-flex items-center gap-2 cursor-pointer hover:bg-gray-50
+              rounded-lg p-1 -ml-1 transition-colors"
+          >
+            <div className={`w-6 h-6 rounded-full ${avatarBG} flex items-center justify-center text-xs`}>
+              {assignee.avatar}
+            </div>
+            <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
-          <span className="text-xs text-gray-600">{assignee.name}</span>
+          {blockedByTitles && blockedByTitles.length > 0 && (
+            <span title={t('pages.projects.project.blockedBy', { titles: blockedByTitles.join('、') })} className="flex-shrink-0">
+              <Ban size={16} className="mr-1 text-gray-500" />
+            </span>
+          )}
         </div>
 
         {task.stepsStatus?.steps.length && <div className='mt-1'>

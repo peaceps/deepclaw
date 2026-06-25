@@ -56,6 +56,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                                 {columnTasks.map(task => <TaskCard 
                                     key={task.title} task={task} 
                                     assignee={task.assignee ? agents.find(a => a.id === task.assignee) : undefined}
+                                    blockedByTitles={task.blockedBy.filter(bt => project.tasks[bt] && project.tasks[bt].status !== 'done')}
                                 />)}
                             </div>
                             {columnTasks.length === 0 && <div className="text-center py-6 text-gray-400 text-xs">{t('pages.projects.project.noTasksAtStatus')}</div>}
