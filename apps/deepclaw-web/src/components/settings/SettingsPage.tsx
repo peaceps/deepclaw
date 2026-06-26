@@ -3,33 +3,22 @@
 import { SettingsForm, type SettingsProps } from '@/components/settings/SettingsForm';
 import { type DeepclawConfig } from '@deepclaw/config';
 import { useTranslation } from 'react-i18next';
-import { useAppStore } from '@/lib/store';
-import { AgentEmployee } from '@deepclaw/core';
 
 export default function SettingsPage({
     settings
 }: {
     settings: Omit<SettingsProps, 'onSave'>
-      & {onSave: (config: DeepclawConfig) => Promise<AgentEmployee[]>};
+      & {onSave: (config: DeepclawConfig) => Promise<void>};
 }) {
   const {i18n} = useTranslation();
-  const agents = useAppStore(s => s.agents);
-  const setAgents = useAppStore(s => s.setAgents);
-  const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
 
-  const handleSave = (newConfig: DeepclawConfig) => {
+  const handleSave = (newConfig: DeepclawConfig): Promise<void> => {
     const oldLang = i18n.language;
 
-    settings.onSave(newConfig).then((newAgents) => {
+    return settings.onSave(newConfig).then(() => {
         if (oldLang !== newConfig.ui.lang) {
           i18n.changeLanguage(newConfig.ui.lang);
         }
-        setAgents([...agents, ...newAgents]);
-        newConfig.agents.filter(agent => !newAgents.find(a => a.id === agent.id)).forEach(agent => {
-            updateAgentEmployee(agent.id, { name: agent.name, fired: !!agent.fired });
-        });
-    }).catch(() => {
-        // TODO handle fallback
     });
   };
 

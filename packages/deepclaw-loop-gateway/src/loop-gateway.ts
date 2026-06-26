@@ -1,7 +1,8 @@
 import type {
-    AgentHandler, AgentEmployee, AgentSoulIdentity, Project, AgentInfoEvent,
+    AgentHandler, AgentEmployee, Project, AgentInfoEvent,
     AgentStreamEvent, AgentLoopBusyEvent,
-    Task
+    Task,
+    AgentIdentity
 } from "@deepclaw/core";
 import { getFlushAgentKey } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
@@ -99,14 +100,15 @@ class LoopGatewayImpl {
 
     public static newAgentIdentity(id: string): AgentEmployee {
         const identity = AgentIdentityManager.newAgentIdentity(id);
-        this.fireSSEEvent('info', { type: 'updateAgent', content: { ...identity } });
-        return {
+        const newAgent = {
             ...identity,
-            mood: 'none',
+            mood: 'none' as const,
         };
+        this.fireSSEEvent('info', { type: 'updateAgent', content: newAgent });
+        return newAgent;
     }
 
-    public static updateAgentIdentity(id: string, identity: Partial<AgentSoulIdentity>): void {
+    public static updateAgentIdentity(id: string, identity: Partial<AgentIdentity>): void {
         AgentIdentityManager.updateAgentIdentity(id, identity);
         this.fireSSEEvent('info', { type: 'updateAgent', content: { id, ...identity } });
     }

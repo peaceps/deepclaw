@@ -20,12 +20,14 @@ export type SettingsProps = {
   configEvents: CONFIGS_EVENTS;
   initialConfig: DeepclawConfig;
   initialValidation: ValidationResult;
-  onSave: (config: DeepclawConfig) => void;
+  onSave: (config: DeepclawConfig) => Promise<void>;
 };
 
 export function SettingsForm({settings}: {settings: SettingsProps}) {
   const { configEvents, initialConfig, initialValidation, onSave } = settings;
   const {t} = useTranslation();
+  const [edited, setEdited] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<DeepclawConfig>(initialConfig);
   const [savedMessage, setSavedMessage] = useState<string>('');
   const [validationResult, setValidationResult] = useState<ValidationResult>(initialValidation);
@@ -37,20 +39,24 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
 
   const updateUIConfig = useCallback((updates: Partial<DeepclawConfig['ui']>) => {
     setConfig((prev) => ({ ...prev, ui: { ...prev.ui, ...updates } }));
+    setEdited(true);
   }, []);
 
   const updateManagerConfig = useCallback((updates: Partial<DeepclawConfig['manager']>) => {
     setConfig((prev) => ({ ...prev, manager: { ...prev.manager, ...updates } }));
+    setEdited(true);
   }, []);
 
   const addAgent = useCallback(() => {
     const newAgent = {
+      id: crypto.randomUUID(),
       name: '',
       mode: '',
       llm: { baseURL: '', apiKey: '', model: '' },
     } as unknown as AgentConfig;
     setConfig((prev) => ({ ...prev, agents: [...prev.agents, newAgent] }));
     setPanelToggleStatus(pre => ({...pre, [`agents.${config.agents.length}`]: true}));
+    setEdited(true);
   }, [config.agents.length]);
 
   const updateAgent = useCallback((index: number, updates: Partial<AgentConfig>) => {
@@ -58,6 +64,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       ...prev,
       agents: prev.agents.map((agent, i) => (i === index ? { ...agent, ...updates } : agent)),
     }));
+    setEdited(true);
   }, []);
 
   const updateAgentLLM = useCallback((index: number, updates: Partial<LLMConfig>) => {
@@ -67,6 +74,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
         i === index ? { ...agent, llm: { ...agent.llm, ...updates } } : agent
       ),
     }));
+    setEdited(true);
   }, []);
 
   const updateAgentIM = useCallback((index: number, updates: Partial<IMConfig>) => {
@@ -78,6 +86,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
           : agent
       ),
     }));
+    setEdited(true);
   }, []);
 
   const removeAgent = useCallback((index: number) => {
@@ -89,6 +98,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       delete pre[`agents.${index}`];
       return {...pre};
     });
+    setEdited(true);
   }, []);
 
   const validate = useCallback(async (cfg: DeepclawConfig) => {
@@ -103,15 +113,35 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
   }, []);
 
   const handleSave = useCallback(async (cfg: DeepclawConfig) => {
-    const isInvalid = await validate(cfg);
-    if (isInvalid) {
-        return;
+    if (saving) {
+      return;
     }
+    setSaving(true);
+    try {
+      const isInvalid = await validate(cfg);
+      if (isInvalid) {
+          return;
+      }
+      await onSave(cfg);
+      setSavedMessage('pages.settings.saved');
+      setEdited(false);
+    } catch (e) {
+      // TODO change to logger
+      console.error(e);
+      setSavedMessage('pages.settings.saveFailed');
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSavedMessage(''), 5000);
+    }
+  }, [onSave, saving, validate]);
 
-    onSave(cfg);
-    setSavedMessage('pages.settings.saved');
-    setTimeout(() => setSavedMessage(''), 5000);
-  }, [onSave, validate]);
+  const savedMessageClass = savedMessage === 'pages.settings.saved' ? 'text-green-600' : 'text-red-600';
+  const saveButtonDisabled = !edited || saving;
+  const saveButtonClass = `flex items-center gap-2 px-6 py-3 rounded-lg transition-colors font-medium ${
+    saveButtonDisabled
+      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+      : 'bg-blue-600 text-white hover:bg-blue-700'
+  }`;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -123,11 +153,12 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       <SettingsError validationResult={validationResult}/>
 
       <div className="mb-6 flex items-center gap-4">
-        <button onClick={() => handleSave(config)} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+        <button onClick={() => handleSave(config)} disabled={saveButtonDisabled}
+          className={saveButtonClass}>
           <Save size={20} />
           {t('pages.settings.saveButton')}
         </button>
-        {savedMessage && <span className="text-green-600 text-sm">{t(savedMessage)}</span>}
+        {savedMessage && <span className={`${savedMessageClass} text-sm`}>{t(savedMessage)}</span>}
       </div>
 
       <div className="space-y-4">
@@ -203,11 +234,12 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       </div>
 
       <div className="mt-8 flex items-center gap-4">
-        <button onClick={() => handleSave(config)} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+        <button onClick={() => handleSave(config)} disabled={saveButtonDisabled}
+          className={saveButtonClass}>
           <Save size={20} />
           {t('pages.settings.saveButton')}
         </button>
-        {savedMessage && <span className="text-green-600 text-sm">{t(savedMessage)}</span>}
+        {savedMessage && <span className={`${savedMessageClass} text-sm`}>{t(savedMessage)}</span>}
       </div>
     </div>
   );

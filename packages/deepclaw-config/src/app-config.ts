@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { FileUtils } from '@deepclaw/node-utils';
+import { FileUtils, globalize } from '@deepclaw/node-utils';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 
@@ -36,7 +36,8 @@ export type DeepclawConfig = {
 
 export type MissingAppConfig = (string|{[key in keyof Partial<DeepclawConfig>]: {[key: number]: string[]}})[];
 
-let currentDeepclawConfig: DeepclawConfig = loadAppConfig();
+const globalDeepclawConfig: {config: DeepclawConfig} =
+    globalize('globalDeepclawConfig', {config: loadAppConfig()});
 
 function loadAppConfig(): DeepclawConfig {
     let appConfig: Partial<DeepclawConfig> = {};
@@ -94,8 +95,8 @@ function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject 
     return target;
 }
 
-export function validateCurrentAppConfig(headless: boolean, reload = false): {config: DeepclawConfig, lacks: MissingAppConfig} {
-    return validateAppConfig(headless, reload ? loadAppConfig() : currentDeepclawConfig);
+export function validateCurrentAppConfig(headless: boolean): {config: DeepclawConfig, lacks: MissingAppConfig} {
+    return validateAppConfig(headless, globalDeepclawConfig.config);
 }
 
 export function validateAppConfig(headless: boolean, configToValidate: Partial<DeepclawConfig>): {config: DeepclawConfig, lacks: MissingAppConfig} {
@@ -170,13 +171,13 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
 export function writeAppConfig(config: DeepclawConfig) {
     autoMigrate(config);
     FileUtils.writeFile(APP_CONFIG_FILE, JSON.stringify(config, null, 2));
-    currentDeepclawConfig = loadAppConfig();
+    globalDeepclawConfig.config = loadAppConfig();
 }
 
 export function loadConfig<T>(key?: string, defaultValue?: T): T {
-    if (!key) return currentDeepclawConfig as T;
+    if (!key) return globalDeepclawConfig.config as T;
     const keyPath = key.split('.');
-    let value: any = currentDeepclawConfig;
+    let value: any = globalDeepclawConfig.config;
     for (const key of keyPath) {
         value = value?.[key as keyof typeof value];
     }

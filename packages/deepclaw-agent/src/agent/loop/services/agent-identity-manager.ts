@@ -72,22 +72,25 @@ export class AgentIdentityManager {
         return identity;
     }
 
-    public static updateAgentIdentity(id: string, identity: Partial<AgentSoulIdentity>): void {
+    public static updateAgentIdentity(id: string, identity: Partial<AgentIdentity>): void {
         const current = this.agentMap.get(id);
         if (!current) {
             throw new Error(`Agent "${id}" not found`);
         }
         Object.assign(current, identity);
         this.agentMap.set(id, current);
-        const soul: AgentSoulIdentity = {
-            id: current.id,
-            avatar: current.avatar,
-            role: current.role,
-            personalities: current.personalities,
-            emotion: current.emotion,
-            expertises: current.expertises,
-        };
-        FileUtils.writeFile(`${AGENTS_DIR}/${id}/${AGENT_SOUL_JSON}`, JSON.stringify(soul, null, 2));
+        if ('avatar' in identity || 'role' in identity || 'personalities' in identity
+            || 'emotion' in identity || 'expertises' in identity) {
+            const soul: AgentSoulIdentity = {
+                id: current.id,
+                avatar: current.avatar,
+                role: current.role,
+                personalities: current.personalities,
+                emotion: current.emotion,
+                expertises: current.expertises,
+            };
+            FileUtils.writeFile(`${AGENTS_DIR}/${id}/${AGENT_SOUL_JSON}`, JSON.stringify(soul, null, 2));
+        }
     }
 
     public static updateAgentDescription(id: string, description: string): void {

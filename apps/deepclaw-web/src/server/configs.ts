@@ -3,7 +3,6 @@
 import {
     type DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig,
 } from '@deepclaw/config';
-import { AgentEmployee } from '@deepclaw/core';
 import { LoopGateway } from '@deepclaw/loop-gateway';
 import { revalidatePath } from 'next/cache';
 
@@ -11,14 +10,19 @@ export async function loadCurrentConfig<T>(key?: string, defaultValue?: T): Prom
   return loadConfig<T>(key, defaultValue);
 }
 
-export async function saveFullConfig(config: DeepclawConfig): Promise<AgentEmployee[]> {
+export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
   const currentAgents = loadConfig<DeepclawConfig['agents']>('agents');
   const currentAvatar = loadConfig<string>('manager.avatar');
   const merged: DeepclawConfig = { ...config, manager: { ...config.manager, avatar: currentAvatar } };
   updateConfig(merged);
-  const newAgents = merged.agents.filter(agent => !currentAgents.find(a => a.id === agent.id))
-    .map(agent => LoopGateway.newAgentIdentity(agent.id));
-  return newAgents;
+  for (const agent of config.agents) {
+    if (currentAgents.some(current => current.id === agent.id)) {
+        LoopGateway.updateAgentIdentity(agent.id, { name: agent.name, fired: !!agent.fired });
+    } else {
+        LoopGateway.newAgentIdentity(agent.id);
+    }
+  }
+  revalidatePath('/', 'layout');
 }
 
 export async function updateManagerAvatar(avatar: string): Promise<void> {
@@ -28,12 +32,12 @@ export async function updateManagerAvatar(avatar: string): Promise<void> {
   const config = loadConfig<DeepclawConfig>();
   const next: DeepclawConfig = { ...config, manager: { ...config.manager, avatar } };
   updateConfig(next);
+  revalidatePath('/', 'layout');
 }
 
 function updateConfig(config: DeepclawConfig): void {
     writeAppConfig(config);
     LoopGateway.updateLoopConfig(config);
-    revalidatePath('/', 'layout');
 }
 
 export type ValidationResult = {

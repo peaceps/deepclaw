@@ -56,7 +56,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           <div
             ref={assigneeRef}
             onClick={handleAssigneeClick}
-            className="inline-flex flex-1 items-center gap-2 cursor-pointer hover:bg-gray-50
+            className="inline-flex items-center gap-2 cursor-pointer hover:bg-gray-100
               max-sm:pointer-events-none rounded-lg p-1 -ml-1 transition-colors"
           >
             <div className={`w-6 h-6 rounded-full ${avatarBG} flex items-center justify-center text-xs`}>
@@ -64,6 +64,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
             </div>
             <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
+          <div className='flex-1'></div>
           {task.status !== 'done' && <button
               onClick={handlePauseClick}
               className='mr-1 flex-shrink-0'

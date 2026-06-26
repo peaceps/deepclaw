@@ -59,7 +59,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   updateAgentEmployee: (id: string, employee: Partial<AgentEmployee>) => {
     set((state) => {
-        const agents = state.agents.map(a => a.id === id ? { ...a, ...employee } : a);
+        const exists = state.agents.some(a => a.id === id);
+        const agents = exists ? state.agents.map(a => a.id === id ? { ...a, ...employee } : a)
+          : [...state.agents, { id, ...employee } as AgentEmployee];
         const activeAgents = agents.filter(a => !a.fired);
         return { agents, activeAgents };
     });

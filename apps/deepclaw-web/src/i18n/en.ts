@@ -151,6 +151,7 @@ export const en = {
             description: 'Configure the settings for the application',
             saveButton: 'Save',
             saved: 'Settings saved',
+            saveFailed: 'Settings saving failed',
             errors: {
                 total: 'error(s) found, please fix before saving',
                 ui: 'UI Settings: {{count}} error(s)',
