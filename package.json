@@ -11,7 +11,7 @@
 	},
 	"scripts": {
     	"preinstall": "only-allow pnpm",
-        "deepclaw": "pnpm --filter @deepclaw/launcher dev",
+		"deepclaw": "pnpm --filter @deepclaw/launcher dev",
 		"lint": "eslint **/*.{ts,tsx}",
 		"test": "vitest run"
 	},

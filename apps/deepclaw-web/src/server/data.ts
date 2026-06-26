@@ -1,6 +1,6 @@
 'use server';
 
-import { Project } from "@deepclaw/core";
+import type { Task } from "@deepclaw/core";
 import { AgentSoulIdentity } from "@deepclaw/core";
 import { LoopGateway } from "@deepclaw/loop-gateway";
 import { revalidatePath } from "next/cache";
@@ -22,14 +22,25 @@ export async function updateAgentIdentity(id: string, identity: Partial<AgentSou
       throw error;
     }
 }
-  
-export async function updateProjectTags(projectId: string, tags: string[]): Promise<Project> {
+
+export async function updateProjectTags(projectId: string, tags: string[]): Promise<void> {
     try {
-        const updated = LoopGateway.updateProjectTags(projectId, tags);
+        LoopGateway.updateProjectTags(projectId, tags);
         revalidatePath('/', 'layout');
-        return updated;
     } catch (error) {
         console.error('Error saving project tags:', error);
+        throw error;
+    }
+}
+
+export async function updateProjectTask(
+    projectId: string, taskTitle: string, task: Pick<Task, 'pause'>
+): Promise<void> {
+    try {
+        LoopGateway.updateProjectTask(projectId, taskTitle, task);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error saving project task:', error);
         throw error;
     }
 }

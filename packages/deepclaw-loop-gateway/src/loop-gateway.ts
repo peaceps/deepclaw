@@ -1,6 +1,7 @@
 import type {
     AgentHandler, AgentEmployee, AgentSoulIdentity, Project, AgentInfoEvent,
-    AgentStreamEvent, AgentLoopBusyEvent
+    AgentStreamEvent, AgentLoopBusyEvent,
+    Task
 } from "@deepclaw/core";
 import { getFlushAgentKey } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
@@ -27,11 +28,15 @@ class LoopGatewayImpl {
     };
 
     private static defaultHandler: AgentHandler = {
-        onStreamText: (e) => LoopGatewayImpl.sseSubscribers.loop.forEach(cb => cb(e)),
+        onStreamText: (e) => this.fireSSEEvent('loop', e),
         onToolText: () => {},
         onInteractionEvent: () => Promise.resolve(''),
-        onInfoEvent: (e) => LoopGatewayImpl.sseSubscribers.info.forEach(cb => cb(e))
+        onInfoEvent: (e) => this.fireSSEEvent('info', e)
     };
+
+    private static fireSSEEvent(type: SSEType, e: LoopSSEEvent) {
+        this.sseSubscribers[type].forEach(cb => cb(e));
+    }
 
     public static init(agentId: string, projectId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
         if (!this.loops[agentId]) {
@@ -94,6 +99,7 @@ class LoopGatewayImpl {
 
     public static newAgentIdentity(id: string): AgentEmployee {
         const identity = AgentIdentityManager.newAgentIdentity(id);
+        this.fireSSEEvent('info', { type: 'updateAgent', content: { ...identity } });
         return {
             ...identity,
             mood: 'none',
@@ -102,14 +108,24 @@ class LoopGatewayImpl {
 
     public static updateAgentIdentity(id: string, identity: Partial<AgentSoulIdentity>): void {
         AgentIdentityManager.updateAgentIdentity(id, identity);
+        this.fireSSEEvent('info', { type: 'updateAgent', content: { id, ...identity } });
     }
 
     public static updateAgentDescription(id: string, description: string): void {
         AgentIdentityManager.updateAgentDescription(id, description);
+        this.fireSSEEvent('info', { type: 'updateAgent', content: { id, description } });
     }
 
-    public static updateProjectTags(projectId: string, tags: string[]): Project {
-        return ProjectManager.updateProjectTags(projectId, tags);
+    public static updateProjectTags(projectId: string, tags: string[]): void {
+        ProjectManager.updateProjectTags(projectId, tags);
+        this.fireSSEEvent('info', { type: 'updateProject', content: { id: projectId, tags } });
+    }
+
+    public static updateProjectTask(projectId: string, taskTitle: string, task: Partial<Task>): void {
+        const project = ProjectManager.updateProjectTask(projectId, taskTitle, task);
+        this.fireSSEEvent('info', { type: 'updateProject', content: {
+            id: projectId, tasks: project.tasks 
+        }});
     }
 
     public static getLoopInfo(): LoopInfo {

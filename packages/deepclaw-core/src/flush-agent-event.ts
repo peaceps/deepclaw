@@ -39,7 +39,7 @@ export type AgentInteractionEvent = {
 
 export type AgentInfoEvent = {
     type: 'updateProject',
-    content: Project
+    content: Partial<Project> & {id: string}
 } | {
     type: 'updateAgent',
     content: Partial<AgentEmployee> & {id: string}

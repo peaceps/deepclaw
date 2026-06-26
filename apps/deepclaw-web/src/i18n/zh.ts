@@ -112,6 +112,14 @@ export const zh = {
                 labels: {
                     save: '按 Enter 保存',
                 },
+            },
+            task: {
+                pause: {
+                    title: {
+                        on: '在完成此任务后暂停',
+                        off: '不会在完成此任务后暂停',
+                    }
+                }
             }
         },
         chat: {

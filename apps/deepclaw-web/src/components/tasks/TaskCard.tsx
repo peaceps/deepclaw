@@ -1,29 +1,41 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Ban } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { Ban, CirclePause } from 'lucide-react';
 import  { type Task, type AgentEmployee, getTaskProgress } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
 import { ProgressBar } from '@/laf/progress-bar';
+import { updateProjectTask as updateProjectTaskToServer } from '@/server/data';
+import { useAppStore } from '@/lib/store';
 
 type TaskCardProps = {
   task: Task;
   assignee?: AgentEmployee;
   blockedByTitles?: string[];
+  projectId: string;
 }
 
-export function TaskCard({ task, assignee, blockedByTitles }: TaskCardProps) {
+export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCardProps) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
   const {t} = useTranslation();
   const progress = getTaskProgress(task);
+  const updateProjectTask = useAppStore(s => s.updateProjectTask);
 
   const handleAssigneeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setTooltipVisible(true);
   };
+
+  const handlePauseClick = useCallback(() => {
+    const next = !task.pause;
+    updateProjectTask(projectId, task.title, { pause: next });
+    updateProjectTaskToServer(projectId, task.title, { pause: next }).catch(() => {
+      updateProjectTask(projectId, task.title, { pause: !next });
+    });
+  }, [projectId, task.title, task.pause, updateProjectTask]);
 
   if (!assignee) return null;
 
@@ -44,7 +56,7 @@ export function TaskCard({ task, assignee, blockedByTitles }: TaskCardProps) {
           <div
             ref={assigneeRef}
             onClick={handleAssigneeClick}
-            className="inline-flex items-center gap-2 cursor-pointer hover:bg-gray-50
+            className="inline-flex flex-1 items-center gap-2 cursor-pointer hover:bg-gray-50
               max-sm:pointer-events-none rounded-lg p-1 -ml-1 transition-colors"
           >
             <div className={`w-6 h-6 rounded-full ${avatarBG} flex items-center justify-center text-xs`}>
@@ -52,8 +64,14 @@ export function TaskCard({ task, assignee, blockedByTitles }: TaskCardProps) {
             </div>
             <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
+          {task.status !== 'done' && <button
+              onClick={handlePauseClick}
+              className='mr-1 flex-shrink-0'
+              title={t(`pages.projects.task.pause.title.${task.pause ? 'on' : 'off'}`)}>
+            <CirclePause size={18} className={`${task.pause ? 'text-yellow-500' : 'text-gray-200'}`} />
+          </button>}
           {blockedByTitles && blockedByTitles.length > 0 && (
-            <span title={t('pages.projects.project.blockedBy', { titles: blockedByTitles.join('、') })} className="flex-shrink-0">
+            <span title={t('pages.projects.project.blockedBy', { titles: blockedByTitles.join('/') })} className="flex-shrink-0">
               <Ban size={16} className="mr-1 text-gray-500" />
             </span>
           )}

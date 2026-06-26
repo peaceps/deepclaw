@@ -34,6 +34,7 @@ export type Task = {
     blocks: string[];
     assignee?: string;
     closedAt?: string;
+    pause?: boolean;
     stepsStatus?: TaskStepsContext
 };
 

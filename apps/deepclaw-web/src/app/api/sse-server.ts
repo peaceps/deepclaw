@@ -16,7 +16,7 @@ export type SSEConnectedEvent = SSEEvent & {
 
 export type SSEInfoEvent = SSEEvent & ({
     sseType: 'updateProject'
-    content: Project
+    content: Partial<Project> & { id: string }
 } | {
     sseType: 'updateAgent'
     content: Partial<AgentEmployee> & {id: string}

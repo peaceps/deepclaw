@@ -59,7 +59,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                             </div>
                             <div className="space-y-2">
                                 {columnTasks.map(task => <TaskCard 
-                                    key={task.title} task={task} 
+                                    key={task.title} task={task} projectId={project.id}
                                     assignee={task.assignee ? agents.find(a => a.id === task.assignee) : undefined}
                                     blockedByTitles={task.blockedBy.filter(bt => project.tasks[bt] && project.tasks[bt].status !== 'done')}
                                 />)}

@@ -112,6 +112,14 @@ export const en = {
                 labels: {
                     save: 'Press Enter to save',
                 },
+            },
+            task: {
+                pause: {
+                    title: {
+                        on: 'Pause after this task done.',
+                        off: 'Will not pause after this task done.'
+                    }
+                }
             }
         },
         chat: {

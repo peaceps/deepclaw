@@ -230,6 +230,20 @@ export class ProjectManager {
         return project;
     }
 
+    public static updateProjectTask(projectId: string, taskTitle: string, config: Partial<Task>): Project {
+        const project = this.projects[projectId];
+        if (!project) {
+            throw new Error('Project not found.');
+        }
+        const task = project.tasks[taskTitle];
+        if (!task) {
+            throw new Error('Task not found.');
+        }
+        Object.assign(task, config);
+        this.saveProject(project.id);
+        return project;
+    }
+
     private static calculateProjectTaskInfo(tasks: Record<string, Task>): {
         completedTasks: string[];
         ongoingTasks: string[];

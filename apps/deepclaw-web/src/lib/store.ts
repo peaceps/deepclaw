@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, AgentEmployee, AgentStatus, AgentProjectStats } from '@deepclaw/core';
+import type { Project, AgentEmployee, AgentStatus, AgentProjectStats, Task } from '@deepclaw/core';
 import { getFlushAgentKey, getProjectStatus } from '@deepclaw/core';
 import type { Message } from '@/component-types';
 
@@ -37,7 +37,8 @@ type AppState = {
   setAgents: (agents: AgentEmployee[]) => void;
   updateAgentEmployee: (id: string, employee: Partial<AgentEmployee>) => void;
   setProjects: (projects: Project[]) => void;
-  updateProject: (project: Project) => void;
+  updateProject: (project: Partial<Project> & { id: string }) => void;
+  updateProjectTask: (projectId: string, taskTitle: string, task: Partial<Task>) => void;
   addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => void;
   updateMessageStreamByChatKey: (chatKey: string, text: string) => void;
   setChatBusy: (chatKey: string, busy: boolean) => void;
@@ -64,17 +65,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   setProjects: (projects) => set({ projects }),
-  updateProject: (project: Project): void => {
+  updateProject: (project: Partial<Project> & { id: string }): void => {
     set((state) => {
       const exists = state.projects.some(p => p.id === project.id);
       return {
         projects: exists
-          ? state.projects.map(p => p.id === project.id ? project : p)
-          : [...state.projects, project],
+          ? state.projects.map(p => p.id === project.id ? { ...p, ...project } : p)
+          : [...state.projects, project as Project],
       };
     });
   },
-
+  updateProjectTask: (projectId: string, taskTitle: string, data: Partial<Task>): void => {
+    set((state) => {
+      const project = state.projects.find(p => p.id === projectId);
+      if (!project) {
+        throw new Error('Project not found.');
+      }
+      const task = project.tasks[taskTitle];
+      if (!task) {
+        throw new Error('Task not found.');
+      }
+      return { projects: state.projects.map(p => p.id === projectId ? {
+        ...project,
+        tasks: {...project.tasks, [taskTitle]: { ...task, ...data }},
+      } : p) };
+    });
+  },
   addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => set((state) => {
     const chatKey = getChatKey(agentId, projectId);
     const oldMessages = state.messages[getChatKey(agentId, projectId)] || [];
