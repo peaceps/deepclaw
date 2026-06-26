@@ -7,6 +7,7 @@ import type { DeepclawConfig } from '@deepclaw/config';
 import type { LoopInfo } from '@deepclaw/loop-gateway';
 import { useAppStore } from '@/lib/store';
 import { InfoClient } from './InfoClient';
+import { SSEProvider } from './SSEProvider';
 
 type RootLayoutProps = {
   lang: string;
@@ -31,12 +32,12 @@ export function RootLayout({ manager, lang, loopInfo, children }: RootLayoutProp
   }
 
   return (
-    <>
+    <SSEProvider>
       <InfoClient />
       <Sidebar
         manager={manager}
       />
       <main className="flex-1 overflow-hidden w-full h-full pt-[57px] lg:pt-0">{children}</main>
-    </>
+    </SSEProvider>
   );
 }

@@ -1,7 +1,8 @@
 import type {
     AgentHandler, AgentEmployee, AgentSoulIdentity, Project, AgentInfoEvent,
-    AgentStreamEvent
+    AgentStreamEvent, AgentLoopBusyEvent
 } from "@deepclaw/core";
+import { getFlushAgentKey } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
@@ -11,11 +12,15 @@ import { type DeepclawConfig } from "@deepclaw/config";
 export type LoopStore = Record<string, Record<string, LoopAgent<unknown, any, any>>>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
 export type SSEType = 'info' | 'loop';
+export type LoopSSEEvent = AgentInfoEvent | AgentStreamEvent | AgentLoopBusyEvent;
+
+export const LOOP_BUSY_ERROR = 'LOOP_BUSY';
 
 class LoopGatewayImpl {
     private static loops: LoopStore = {};
+    private static busyLoops = new Set<string>();
     private static sseSubscribers: {[key in SSEType]: Set<
-        (e: AgentInfoEvent | AgentStreamEvent) => void
+        (e: LoopSSEEvent) => void
     >} = {
         info: new Set(),
         loop: new Set()
@@ -43,11 +48,30 @@ class LoopGatewayImpl {
         }
     }
 
+    public static isLoopBusy(loopId: string): boolean {
+        return this.busyLoops.has(loopId);
+    }
+
+    private static broadcastLoopBusy(loopId: string, busy: boolean): void {
+        this.sseSubscribers.loop.forEach(cb => cb({ loopId, busy }));
+    }
+
     public static async invoke(agentId: string, projectId: string, input: string): Promise<string> {
+        const loopId = getFlushAgentKey(agentId, projectId);
+        if (this.busyLoops.has(loopId)) {
+            throw new Error(LOOP_BUSY_ERROR);
+        }
         if (!this.loops[agentId]?.[projectId]) {
             this.init(agentId, projectId, {});
         }
-        return this.loops[agentId]![projectId]!.invoke(input);
+        this.busyLoops.add(loopId);
+        this.broadcastLoopBusy(loopId, true);
+        try {
+            return await this.loops[agentId]![projectId]!.invoke(input);
+        } finally {
+            this.busyLoops.delete(loopId);
+            this.broadcastLoopBusy(loopId, false);
+        }
     }
 
     public static updateLoopConfig(config: DeepclawConfig) {
@@ -61,7 +85,7 @@ class LoopGatewayImpl {
         }
     }
 
-    public static subscribe(type: SSEType, cb: (e: AgentInfoEvent | AgentStreamEvent) => void): () => void {
+    public static subscribe(type: SSEType, cb: (e: LoopSSEEvent) => void): () => void {
         this.sseSubscribers[type].add(cb);
         return () => {
             this.sseSubscribers[type].delete(cb);

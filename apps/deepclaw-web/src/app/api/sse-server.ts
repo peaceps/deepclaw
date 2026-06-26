@@ -1,7 +1,8 @@
 import { LoopGateway, type SSEType } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
-import { type AgentEmployee, type AgentInfoEvent, type AgentStreamEvent, type Project } from "@deepclaw/core";
+import { type AgentEmployee, type Project } from "@deepclaw/core";
+import type { LoopSSEEvent } from "@deepclaw/loop-gateway";
 
 export type SSEEvent = {
     sseType: string;
@@ -10,7 +11,7 @@ export type SSEEvent = {
 
 export type SSEConnectedEvent = SSEEvent & {
     sseType: 'connected';
-    clientId: string;
+    content: string;
 };
 
 export type SSEInfoEvent = SSEEvent & ({
@@ -26,6 +27,12 @@ export type SSELoopStreamEvent = SSEEvent & ({
     loopId: string;
     content: string;
     done: boolean;
+});
+
+export type SSELoopBusyEvent = SSEEvent & ({
+    sseType: 'loopBusy';
+    loopId: string;
+    busy: boolean;
 });
 
 type SSEClient = {
@@ -59,12 +66,19 @@ class SSEServerImpl {
     ): void {
         const store = this.sseStore[type];
         if (!store.unsubscriber) {
-            store.unsubscriber = LoopGateway.subscribe(type, (e: AgentInfoEvent | AgentStreamEvent) => {
+            store.unsubscriber = LoopGateway.subscribe(type, (e: LoopSSEEvent) => {
                 const sseEvent = this.convertToSSEEvent(e);
                 this.broadcastEvent(type, sseEvent.sseType, sseEvent);
             });
         }
-        store.clients.set(id, { id, loopId, controller, encoder });
+        const client = { id, loopId, controller, encoder };
+        store.clients.set(id, client);
+
+        if (type === 'loop' && loopId) {
+            this.sendEvent(type, client, 'loopBusy', {
+                sseType: 'loopBusy', loopId, content: '', busy: LoopGateway.isLoopBusy(loopId)
+            } as SSELoopBusyEvent);
+        }
     }
 
     public static removeClient(type: SSEType, id: string): void {
@@ -77,21 +91,33 @@ class SSEServerImpl {
     }
 
     private static broadcastEvent(type: SSEType, event: string, data: SSEEvent): void {
-        const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
         for (const client of this.sseStore[type].clients.values()) {
             if (type === 'loop' && ( !('loopId' in data) || client.loopId !== data.loopId)) {
                 continue;
             }
-            try {
-                client.controller.enqueue(client.encoder.encode(message));
-            } catch (err) {
-                this.removeClient(type, client.id);
-                this.logger.error(`Failed to send to client ${client.id} for ${type}: ${err}`);
-            }
+            this.sendEvent(type, client, event, data);
         }
     }
 
-    private static convertToSSEEvent(e: AgentInfoEvent | AgentStreamEvent): SSEEvent {
+    private static sendEvent(type: SSEType, client: SSEClient, event: string, data: SSEEvent): void {
+        const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        try {
+            client.controller.enqueue(client.encoder.encode(message));
+        } catch (err) {
+            this.removeClient(type, client.id);
+            this.logger.error(`Failed to send to client ${client.id} for ${type}: ${err}`);
+        }
+    }
+
+    private static convertToSSEEvent(e: LoopSSEEvent): SSEEvent {
+        if ('busy' in e) {
+            return {
+                sseType: 'loopBusy',
+                loopId: e.loopId,
+                content: '',
+                busy: e.busy
+            } as SSELoopBusyEvent;
+        }
         if ('text' in e) {
             return {
                 sseType: 'streamText',

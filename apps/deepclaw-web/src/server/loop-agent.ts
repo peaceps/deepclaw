@@ -1,13 +1,21 @@
 'use server';
 
-import { LoopGateway } from '@deepclaw/loop-gateway';
+import { LoopGateway, LOOP_BUSY_ERROR } from '@deepclaw/loop-gateway';
 
-export async function invoke(agentId: string, projectId: string, input: string): Promise<string> {
+export type InvokeResult =
+  | { status: 'ok' }
+  | { status: 'busy' }
+  | { status: 'error' };
+
+export async function invoke(agentId: string, projectId: string, input: string): Promise<InvokeResult> {
   try {
-    const result = await LoopGateway.invoke(agentId, projectId, input);
-    return result;
+    await LoopGateway.invoke(agentId, projectId, input);
+    return { status: 'ok' };
   } catch (error) {
+    if (error instanceof Error && error.message === LOOP_BUSY_ERROR) {
+      return { status: 'busy' };
+    }
     console.error('Error invoking function:', error);
-    throw error;
+    return { status: 'error' };
   }
 }

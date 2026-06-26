@@ -4,33 +4,50 @@ import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getLogger } from '@/lib/logger';
 import type { SSEConnectedEvent, SSEInfoEvent } from '@/app/api/sse-server';
+import { useSSEClient } from './SSEProvider';
 
 const logger = getLogger('InfoClient');
 
+const INFO_SSE_KEY = 'info';
+const INFO_SSE_URL = '/api/info?secret=info';
+
 export function InfoClient() {
+  const sseClient = useSSEClient();
   const updateProject = useAppStore(s => s.updateProject);
   const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
 
   useEffect(() => {
-    const eventSource = new EventSource('/api/info?secret=info');
+    const unsubscribers = [
+      sseClient.subscribe<Extract<SSEConnectedEvent, {sseType: 'connected'}>>(
+        INFO_SSE_KEY,
+        INFO_SSE_URL,
+        'connected',
+        ({content}) => {
+          logger.info(`Connected for ${content}.`);
+        },
+      ),
+      sseClient.subscribe<Extract<SSEInfoEvent, {sseType: 'updateProject'}>>(
+        INFO_SSE_KEY,
+        INFO_SSE_URL,
+        'updateProject',
+        ({content}) => {
+          updateProject(content);
+        },
+      ),
+      sseClient.subscribe<Extract<SSEInfoEvent, {sseType: 'updateAgent'}>>(
+        INFO_SSE_KEY,
+        INFO_SSE_URL,
+        'updateAgent',
+        ({content}) => {
+          updateAgentEmployee(content.id, content);
+        },
+      ),
+    ];
 
-    eventSource.addEventListener('connected', (event) => {
-      const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'connected'}>;
-      logger.info(`Connected for ${clientId}.`);
-    });
-
-    eventSource.addEventListener('updateProject', (event) => {
-      const {content} = JSON.parse(event.data) as Extract<SSEInfoEvent, {sseType: 'updateProject'}>;
-      updateProject(content);
-    });
-
-    eventSource.addEventListener('updateAgent', (event) => {
-      const {content} = JSON.parse(event.data) as Extract<SSEInfoEvent, {sseType: 'updateAgent'}>;
-      updateAgentEmployee(content.id, content);
-    });
-
-    return () => eventSource.close();
-  }, [updateProject, updateAgentEmployee]);
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [sseClient, updateProject, updateAgentEmployee]);
 
   return <></>;
 }

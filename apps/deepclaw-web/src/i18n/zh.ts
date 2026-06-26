@@ -17,7 +17,7 @@ export const zh = {
         add: '添加',
     },
     sidebar: {
-        subtitle: '一人多Agent公司',
+        subtitle: '一个人也可以很热闹',
         links: {
             agents: '员工',
             projects: '项目看板',
@@ -130,6 +130,7 @@ export const zh = {
                 error: '大模型发生了意外错误.'
             },
             send: '给 {{name}} 发消息...',
+            busy: '{{name}} 正在忙,请稍候...',
             loading: '思考中...',
             emptyLLMOutput: '大模型沉默了...',
             noAgent: {

@@ -1,6 +1,6 @@
 export const en = {
     meta: {
-        title: 'DeepClaw - You AI company manager',
-        description: 'The one person many agents company manager',
+        title: 'DeepClaw - Your agent is working',
+        description: 'See what your agents are doing',
     },
 };

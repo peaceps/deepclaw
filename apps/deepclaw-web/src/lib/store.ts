@@ -30,6 +30,7 @@ type AppState = {
   activeAgents: AgentEmployee[];
   projects: Project[];
   messages: {[key: string]: Message[]},
+  busyChatKeys: Record<string, boolean>;
   selectedAgentId: string | null;
 
   // Actions
@@ -38,7 +39,8 @@ type AppState = {
   setProjects: (projects: Project[]) => void;
   updateProject: (project: Project) => void;
   addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => void;
-  updateMessageStream: (agentId: string, projectId: string, text: string) => void;
+  updateMessageStreamByChatKey: (chatKey: string, text: string) => void;
+  setChatBusy: (chatKey: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
 }
 
@@ -47,6 +49,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeAgents: [],
   projects: [],
   messages: {},
+  busyChatKeys: {},
   selectedAgentId: null,
 
   setAgents: (agents) => {
@@ -81,8 +84,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       )]}}
     };
   }),
-  updateMessageStream: (agentId: string, projectId: string, text: string) => set((state) => {
-    const chatKey = getChatKey(agentId, projectId);
+  updateMessageStreamByChatKey: (chatKey: string, text: string) => set((state) => {
     const message = state.messages[chatKey]?.findLast(m => m.type === 'agent');
     if (!message) {
         // PASS
@@ -96,6 +98,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         };
     }
   }),
+  setChatBusy: (chatKey: string, busy: boolean) => set((state) => ({
+    busyChatKeys: {
+      ...state.busyChatKeys,
+      [chatKey]: busy,
+    },
+  })),
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
 }));
 

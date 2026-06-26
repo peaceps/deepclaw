@@ -10,8 +10,9 @@ import { useAppStore, getChatKey } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { getLogger } from "@/lib/logger";
-import type { SSEConnectedEvent, SSELoopStreamEvent } from '@/app/api/sse-server';
+import type { SSEConnectedEvent, SSELoopStreamEvent, SSELoopBusyEvent } from '@/app/api/sse-server';
 import { Markdown } from "./Markdown";
+import { useSSEClient } from '@/components/layout/SSEProvider';
 
 type ChatPanelProps = {
   agent: AgentEmployee;
@@ -20,13 +21,22 @@ type ChatPanelProps = {
 
 const logger = getLogger('ChatPanel');
 
+function loopSse(loopId: string): { key: string; url: string } {
+  const params = new URLSearchParams({ loopId });
+  return { key: `loop:${loopId}`, url: `/api/loop?${params.toString()}` };
+}
+
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
+  const chatKey = getChatKey(agent.id, projectId);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
-  const [previousAgent, setPreviousAgent] = useState(agent.id);
+  const [previousChatKey, setPreviousChatKey] = useState(chatKey);
   const addMessage = useAppStore(s => s.addMessage);
-  const updateMessageStream = useAppStore(s => s.updateMessageStream);
-  const agentMessages = useAppStore(s => s.messages[getChatKey(agent.id, projectId)]);
+  const updateMessageStreamByChatKey = useAppStore(s => s.updateMessageStreamByChatKey);
+  const setChatBusy = useAppStore(s => s.setChatBusy);
+  const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
+  const agentMessages = useAppStore(s => s.messages[chatKey]);
+  const sseClient = useSSEClient();
   const { t, i18n } = useTranslation();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -38,10 +48,10 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
     stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
   };
 
-  if (agent.id !== previousAgent) {
+  if (chatKey !== previousChatKey) {
     setStreaming(false);
     setInput('');
-    setPreviousAgent(agent.id);
+    setPreviousChatKey(chatKey);
   }
 
   const lastContent = agentMessages?.[agentMessages.length - 1]?.content ?? '';
@@ -54,20 +64,50 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
 
   useEffect(() => {
     stickToBottomRef.current = true;
-  }, [agent.id]);
+  }, [chatKey]);
 
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed || streaming || locked) return;
+
+    const loopId = chatKey;
+    const { key: sseKey, url: sseUrl } = loopSse(loopId);
+
     setInput('');
     setStreaming(true);
+    setChatBusy(loopId, true);
     addMessage('user', agent.id, projectId, trimmed);
     addMessage('agent', agent.id, projectId, '');
+    const unsubscribeMessageStream = sseClient.subscribePersistent<Extract<SSELoopStreamEvent, {sseType: 'streamText'}>>(
+      sseKey,
+      sseUrl,
+      'streamText',
+      ({loopId, content, done}) => {
+        if (!done) {
+          updateMessageStreamByChatKey(loopId, content);
+        }
+      },
+      {
+        listenerKey: 'streamText:message',
+        removeOn: ({done}) => done,
+      },
+    );
     try {
-      await invoke(agent.id, projectId, trimmed);
-    } catch (e: any) {
-      updateMessageStream(agent.id, projectId, `\n${e?.message?.toString() || t('pages.chat.invoke.error')}`);
+      const result = await invoke(agent.id, projectId, trimmed);
+      if (result.status !== 'ok') {
+        unsubscribeMessageStream();
+        const text = result.status === 'busy'
+          ? t('pages.chat.busy', { name: agent.name })
+          : t('pages.chat.invoke.error');
+        updateMessageStreamByChatKey(loopId, `\n${text}`);
+        setStreaming(false);
+        setChatBusy(loopId, result.status === 'busy');
+      }
+    } catch {
+      unsubscribeMessageStream();
+      updateMessageStreamByChatKey(loopId, `\n${t('pages.chat.invoke.error')}`);
       setStreaming(false);
+      setChatBusy(loopId, false);
     }
   };
 
@@ -83,33 +123,42 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams({
-        loopId: getChatKey(agent.id, projectId),
-    });
-    const eventSource = new EventSource(`/api/loop?${params.toString()}`);
+    const loopId = chatKey;
+    const { key: sseKey, url: sseUrl } = loopSse(loopId);
 
-    const connectedListener = (event: MessageEvent<string>) => {
-      const {clientId} = JSON.parse(event.data) as Extract<SSEConnectedEvent, {sseType: 'connected'}>;
-      logger.info(`Connected for ${clientId}.`);
-    };
-    const streamTextListener = (event: MessageEvent<string>) => {
-      const {content, done} = JSON.parse(event.data) as Extract<SSELoopStreamEvent, {sseType: 'streamText'}>;
-      if (done) {
-          setStreaming(false);
-        } else {
-          updateMessageStream(agent.id, projectId, content);
-      }
-    };
-
-    eventSource.addEventListener('connected', connectedListener);
-    eventSource.addEventListener('streamText', streamTextListener);
+    const unsubscribers = [
+      sseClient.subscribe<Extract<SSEConnectedEvent, {sseType: 'connected'}>>(
+        sseKey,
+        sseUrl,
+        'connected',
+        ({content}) => {
+          logger.info(`Connected for ${content}.`);
+        },
+      ),
+      sseClient.subscribe<Extract<SSELoopStreamEvent, {sseType: 'streamText'}>>(
+        sseKey,
+        sseUrl,
+        'streamText',
+        ({done}) => {
+          if (done) {
+            setStreaming(false);
+          }
+        },
+      ),
+      sseClient.subscribe<Extract<SSELoopBusyEvent, {sseType: 'loopBusy'}>>(
+        sseKey,
+        sseUrl,
+        'loopBusy',
+        ({loopId, busy}) => {
+          setChatBusy(loopId, busy);
+        },
+      ),
+    ];
 
     return () => {
-        eventSource.removeEventListener('connected', connectedListener);
-        eventSource.removeEventListener('streamText', streamTextListener);
-        eventSource.close();
+      unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [updateMessageStream, agent.id, projectId]);
+  }, [sseClient, setChatBusy, chatKey]);
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
@@ -142,7 +191,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
                         {message.content || t('pages.chat.loading')}
                     </p>}
                 {message.type === 'agent' && !(i === agentMessages.length - 1 && streaming) &&
-                    <Markdown content={message.content || t('pages.chat.emptyLLMOutput')} />}
+                    <Markdown content={message.content || t('pages.chat.loading')} />}
                 <p className={`text-xs mt-1 ${messageTimeStyles[message.type]}`}>
                   {formatDate(i18n.language, message.timestamp)}
                 </p>
@@ -156,18 +205,20 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           <input
             type="text"
             value={input}
-            disabled={streaming}
+            disabled={streaming || locked}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={t('pages.chat.send', { name: agent.name })}
-            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg
+            placeholder={locked && !streaming
+              ? t('pages.chat.busy', { name: agent.name })
+              : t('pages.chat.send', { name: agent.name })}
+            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg disabled:bg-gray-50
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <button
             onClick={handleSend}
-            disabled={streaming}
+            disabled={streaming || locked}
             className={`px-4 py-2 bg-blue-500 text-white rounded-lg
-              ${streaming ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}
+              ${streaming || locked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}
               transition-colors flex items-center gap-2`}
           >
             <Send size={18} />

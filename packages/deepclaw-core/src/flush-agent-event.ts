@@ -17,6 +17,11 @@ export type AgentToolResultEvent = {
     data: any;
 };
 
+export type AgentLoopBusyEvent = {
+    loopId: string;
+    busy: boolean;
+};
+
 export type AgentInteractionEventOption = string | {label: string; value: string | boolean | number};
 
 export type AgentInteractionEvent = {

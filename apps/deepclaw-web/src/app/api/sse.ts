@@ -16,7 +16,9 @@ function newSSEEndpoint(type: SSEType, loopId?: string): Response {
     const stream = new ReadableStream({
         start(controller) {
             SSEServer.addClient(type, clientId, loopId, controller, encoder);
-            controller.enqueue(encoder.encode(`event: connected\ndata: ${JSON.stringify({ clientId })}\n\n`));
+            controller.enqueue(encoder.encode(
+                `event: connected\ndata: ${JSON.stringify({ content: clientId })}\n\n`
+            ));
         },
         cancel() {
             SSEServer.removeClient(type, clientId);

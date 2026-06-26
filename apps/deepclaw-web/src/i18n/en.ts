@@ -17,7 +17,7 @@ export const en = {
         add: 'Add',
     },
     sidebar: {
-        subtitle: 'One person many agents Company',
+        subtitle: 'You are not alone',
         links: {
             agents: 'Agents',
             projects: 'Project Board',
@@ -130,6 +130,7 @@ export const en = {
                 error: 'LLM has an unexpected error.'
             },
             send: 'Send message to {{name}}...',
+            busy: '{{name}} is busy, please wait...',
             loading: 'Thinking...',
             emptyLLMOutput: 'LLM kept silent...',
             noAgent: {

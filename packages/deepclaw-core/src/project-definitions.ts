@@ -39,7 +39,7 @@ export type Task = {
 
 export function getProjectStatus(project: Project): MissionStatus {
     if (!project.closedAt) {
-        return !project.ongoingTasks.length ? 'todo' : 'ongoing';
+        return !project.ongoingTasks.length && !project.completedTasks.length ? 'todo' : 'ongoing';
     }
     return 'done';
 }
