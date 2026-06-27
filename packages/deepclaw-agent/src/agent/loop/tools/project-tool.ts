@@ -2,6 +2,7 @@ import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
 import type { Project, Task } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
+import {i18nInstance} from '@deepclaw/i18n';
 
 type CreateProjectInput = {
     title: string;
@@ -19,7 +20,9 @@ type CreateProjectInput = {
 export const createProjectTool: ToolDesc<CreateProjectInput> = {
     tool: {
         name: 'create_project',
-        description: 'Create a new project with its tasks. project is a long term goal that can be broken down into tasks, they will be persisted in file system.',
+        description: `Create a new project with its tasks. project is a long term goal that can be broken down into tasks,
+they will be persisted in file system. After project created, user can review the plan and ask to make changes to the plan, 
+so do not call tools updating project/tasks immediately with create_project`,
         schema: {
             type: 'object',
             additionalProperties: false,
@@ -102,6 +105,10 @@ All steps should be done when task is going to be marked as done.`,
         }, tasks);
         
         fireProjectInfoEvent(project.id, context);
+        const stopText = i18nInstance.t('agent.tools.project.stop.projectCreated');
+        context.transitionReason = 'projectCreated';
+        context.toolStopText = stopText;
+        context.actions.agentHandler.onStreamText({text: `\n${stopText}`});
         return `Project created successfully.
 Here's the project info:
 ${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
@@ -118,7 +125,9 @@ type CreateSimpleTaskInput = {
 export const createSimpleTaskTool: ToolDesc<CreateSimpleTaskInput> = {
     tool: {
         name: 'create_simple_task',
-        description: `Create a single task without dependencies. It will be wrapped into a project that contains only this task.`,
+        description: `Create a single task without dependencies. It will be wrapped into a project that contains only this task.
+they will be persisted in file system. After task created, user can review the plan and ask to make changes to the plan, 
+so do not call tools updating project/tasks immediately with create_simple_task`,
         schema: {
             type: 'object',
             additionalProperties: false,
@@ -166,6 +175,10 @@ All steps should be done when task is going to be marked as done.`,
             priority: task.priority,
         }, [task]);
         fireProjectInfoEvent(project.id, context);
+        const stopText = i18nInstance.t('agent.tools.project.stop.projectCreated');
+        context.transitionReason = 'projectCreated';
+        context.toolStopText = stopText;
+        context.actions.agentHandler.onStreamText({text: `\n${stopText}`});
         return `Task created successfully.
 Here's the wrapper project info:
 ${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
@@ -217,7 +230,8 @@ They shoudl be short descriptions of each step, should not be too long for user 
         if (input.steps?.length && input.steps?.length > 8) {
             throw new Error('Too much steps for a task. Max is 8.')
         }
-        ProjectManager.updateTask(input.projectId, {
+        const oldStatus = ProjectManager.getProjectDetail(input.projectId).tasks[input.taskTitle]?.status;
+        const task = ProjectManager.updateTask(input.projectId, {
             title: input.taskTitle,
             assignee: input.assignee,
             steps: input.steps,
@@ -226,6 +240,13 @@ They shoudl be short descriptions of each step, should not be too long for user 
 
         const project = ProjectManager.getProjectDetail(input.projectId);
         fireProjectInfoEvent(input.projectId, context);
+
+        if (!!task.pause && oldStatus !== 'done' && input.status === 'done') {
+            const stopText = i18nInstance.t('agent.tools.project.stop.taskPause', {name: input.taskTitle});
+            context.transitionReason = 'taskPause';
+            context.toolStopText = stopText;
+            context.actions.agentHandler.onStreamText({text: `\n${stopText}`});
+        }
 
         return `Task updated successfully.
 Here's the related info:

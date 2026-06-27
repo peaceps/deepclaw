@@ -44,6 +44,10 @@ export const zh = {
                     empty: '没有步骤。',
                     current: '\n当前步骤：\n{{steps}}\n',
                     completed: '({{completed}}/{{total}} 已完成)',
+                },
+                stop: {
+                    projectCreated: '项目创建好了，你可以继续让我调整建好的计划。',
+                    taskPause: '任务{{name}}已经完成，请验收成果。'
                 }
             }
         },

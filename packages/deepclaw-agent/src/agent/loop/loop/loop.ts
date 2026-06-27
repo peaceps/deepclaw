@@ -8,7 +8,7 @@ import {
     AgentToolResultEvent,
 } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
-import { FootPrint, LoopState, OneLoopContext, TransitionReason} from '../../definitions/definitions';
+import { FootPrint, LoopState, OneLoopContext, TransitionReason, isToolStopReason} from '../../definitions/definitions';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
@@ -180,6 +180,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 const toolUseDefs = this.extractToolUseFromResponse(response);
                 const results = await this.runTools(toolUseDefs, state.oneLoopContext);
                 this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
+                if (isToolStopReason(state.oneLoopContext.transitionReason)) {
+                    this.addStringMessage(state.oneLoopContext.toolStopText || `Loop paused: ${state.oneLoopContext.transitionReason}`, false);
+                }
                 break;
             case 'inputMaxTokens':
                 await this.compactIfNeeded(state.oneLoopContext);
@@ -202,12 +205,24 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             await HookManager.emitVisitor('turnError', state.oneLoopContext);
         }
         await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
-        return state.oneLoopContext.transitionReason !== 'endLoop' && state.oneLoopContext.transitionReason !== 'error';
+        return state.oneLoopContext.transitionReason !== 'endLoop' && state.oneLoopContext.transitionReason !== 'error'
+            && !isToolStopReason(state.oneLoopContext.transitionReason);
     }
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
+        let toolStop = false;
         for (const toolUseDef of toolUseDefs) {
+            if (toolStop) {
+                const toolResult = {
+                    result: {
+                        id: toolUseDef.id,
+                        content: `Tool call execution skipped because loop paused for user review: ${context.toolStopText}`
+                    }
+                };
+                results.push(toolResult.result);
+                continue;
+            }
             await HookManager.emitVisitor('preEachToolUse', context, toolUseDef);
             const result = await HookManager.emitInterceptor('preEachToolUse', context, toolUseDef);
             if (result && result.result === 'stop') {
@@ -217,6 +232,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 });
             } else {
                 const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
+                if (!toolStop && isToolStopReason(context.transitionReason)) {
+                    toolStop = true;
+                }
                 results.push(toolResult.result);
                 await HookManager.emitVisitor('postEachToolUse', context);
             }
@@ -224,8 +242,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         return results;
     }
 
-    protected addStringMessage(message: string): void {
-        this.history.push(this.llm.newInputMessage(message));
+    protected addStringMessage(message: string, user: boolean = true): void {
+        this.history.push(this.llm.newInputMessage(message, user));
     }
         
     protected extractFinalText(state: LoopState<I>): string {

@@ -28,7 +28,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
             
           <div className={`hidden lg:flex items-center border-b border-gray-200
               bg-gray-50 w-full ${collapsed ? 'flex-col' : 'pl-6 justify-end'} py-3`}>
-            {!collapsed && <p className="flex-1 text-sm text-gray-500 truncate hidden sm:block">
+            {!collapsed && <p className="flex-1 text-sm text-gray-500 truncate hidden sm:block" title={project.description}>
                 {project.description}
             </p>}
             <button

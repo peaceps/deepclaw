@@ -61,7 +61,8 @@ export class ToolUseService {
         }
         try {
             const output = await tool.invoke(input, context);
-            return this.toolResult(toolUseDef.id, this.truncateLargeOutput(toolUseDef.id, output));
+            const truncated = this.truncateLargeOutput(toolUseDef.id, output);
+            return this.toolResult(toolUseDef.id, truncated);
         } catch (error) {
             return this.toolResult(toolUseDef.id, `Error: ${error}`);
         }
@@ -82,9 +83,9 @@ export class ToolUseService {
         FileUtils.writeFile(fullPath, output);
         output = output.slice(0, this.previewChars);
         return `<persisted-output>
-        Full output saved to: ${fullPath}
-        Preview:
-        ${output}
-        </persisted-output>`;
+Full output saved to: ${fullPath}
+Preview:
+${output}
+</persisted-output>`;
     }
 }

@@ -7,7 +7,15 @@ export type FootPrint = {
     content: string;
 }
 
-export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens' | 'refused' | 'error';
+export const TOOL_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
+
+export function isToolStopReason(reason?: TransitionReason): reason is ToolStopReason {
+    return (TOOL_STOP_REASONS as readonly string[]).includes(reason ?? '');
+}
+
+export type ToolStopReason = typeof TOOL_STOP_REASONS[number];
+
+export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens' | 'refused' | 'error' | ToolStopReason;
 
 export type LoopState<I> = {
     messages: I[];
@@ -21,6 +29,7 @@ export type OneLoopContext = {
     isSubLoop: boolean;
     turnCount: number;
     transitionReason?: TransitionReason;
+    toolStopText?: string;
     system: string;
     logger: Logger;
     loopConfig: DeepclawConfig['agents'][0];

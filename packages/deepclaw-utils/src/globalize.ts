@@ -1,7 +1,7 @@
-export function globalize<T>(key: string, clazz: T): typeof clazz {
+export function globalize<T>(key: string, value: T): typeof value {
     const globalKey = `__${key}`;
     const globalForGlobalize = globalThis as typeof globalThis & {
-        [globalKey]?: typeof clazz;
+        [globalKey]?: typeof value;
     };
-    return (globalForGlobalize[globalKey] ??= clazz);
+    return (globalForGlobalize[globalKey] ??= value);
 }

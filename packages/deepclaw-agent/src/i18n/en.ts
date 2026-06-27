@@ -44,6 +44,10 @@ export const en = {
                     empty: 'No steps.',
                     current: '\nCurrent step:\n{{steps}}\n',
                     completed: '({{completed}}/{{total}} completed)'
+                },
+                stop: {
+                    projectCreated: 'Project is created, please continue to adjust the plan.',
+                    taskPause: 'Task {{name}} is done, please verify.'
                 }
             },
         },

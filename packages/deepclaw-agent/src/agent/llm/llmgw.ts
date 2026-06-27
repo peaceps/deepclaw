@@ -120,8 +120,8 @@ ${content}`;
         return this.getTextFromResponse(response);
     }
     
-    public newInputMessage(content: string): I {
-        return {role: 'user', content} as I;
+    public newInputMessage(content: string, user: boolean = true): I {
+        return {role: user ? 'user' : 'assistant', content} as I;
     }
 
     protected abstract setTransitionReason(response: O): O;
