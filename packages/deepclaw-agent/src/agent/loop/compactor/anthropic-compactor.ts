@@ -2,9 +2,9 @@ import {
     ToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
 import { ThinkingMessage, ThinkingResponse, AnthropicLLM } from "../../llm/anthropic-llm";
-import { MessagesCompactor } from "./messages-compactor";
+import { AbstractMessagesCompactor } from "./abstract-messages-compactor";
 
-export class AnthropicMessagesCompactor extends MessagesCompactor<ThinkingMessage, ThinkingResponse, ToolResultBlockParam, AnthropicLLM> {
+export class AnthropicMessagesCompactor extends AbstractMessagesCompactor<ThinkingMessage, ThinkingResponse, ToolResultBlockParam, AnthropicLLM> {
 
     protected override getToolResults(messages: ThinkingMessage[]): ToolResultBlockParam[] {
         return messages.map(message => message.content)

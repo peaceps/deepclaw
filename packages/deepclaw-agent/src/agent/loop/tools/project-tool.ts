@@ -276,7 +276,7 @@ All steps should be done when task is going to be marked as done.`,
     exclusiveInSubLoop: false,
     invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
         const {projectId, tasks, ...patch} =  input;
-        const projectTasks = input.tasks?.map(task => ProjectManager.createTask({
+        const projectTasks = tasks?.map(task => ProjectManager.createTask({
             ...task,
             agentId: context.agentId,
         }));

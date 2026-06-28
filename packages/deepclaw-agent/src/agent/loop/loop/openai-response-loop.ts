@@ -1,10 +1,7 @@
 import { LoopAgent } from './loop'
 import { ToolUseDef } from '../services/tool-use-service';
-import { FootPrint } from '../../definitions/definitions';
 import { ToolUseResult } from '../../definitions/tool-definitions';
 import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
-import { MessagesCompactor } from '../compactor/messages-compactor';
-import { OpenAIResponseMessagesCompactor } from '../compactor/openai-response-compactor';
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
 
@@ -12,10 +9,6 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return OpenAIResponseLLM;
-    }
-
-    protected override createMessagesCompactor(name: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, OpenAIResponseLLM> {
-        return new OpenAIResponseMessagesCompactor(name, parentSessionId, sessionId, footPrints);
     }
 
     protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {

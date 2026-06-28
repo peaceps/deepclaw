@@ -1,10 +1,7 @@
 import { AnthropicLLM, ThinkingMessage, ThinkingResponse } from "../../llm/anthropic-llm";
 import { LoopAgent } from "./loop";
-import { FootPrint } from "../../definitions/definitions";
 import { ToolUseResult } from "../../definitions/tool-definitions";
 import { ToolUseDef } from "../services/tool-use-service";
-import { MessagesCompactor } from "../compactor/messages-compactor";
-import { AnthropicMessagesCompactor } from "../compactor/anthropic-compactor";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
 
@@ -12,10 +9,6 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return AnthropicLLM;
-    }
-
-    protected override createMessagesCompactor(name: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]): MessagesCompactor<ThinkingMessage, ThinkingResponse, unknown, AnthropicLLM> {
-        return new AnthropicMessagesCompactor(name, parentSessionId, sessionId, footPrints);
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {

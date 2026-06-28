@@ -12,11 +12,12 @@ import { FootPrint, LoopState, OneLoopContext, TransitionReason, isToolStopReaso
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
-import { MessagesCompactor } from '../compactor/messages-compactor';
 import { getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
 import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
+import { AGENT_SESSION_DIR, AGENTS_DIR, PROJECT_DIR } from '../../paths';
+import { MessageCompactor } from '../compactor/messages-compactor';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -25,8 +26,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     protected parentSessionId: string;
     private sessionId: string;
     protected history: I[] = [];
-    protected toolUseService: ToolUseService;
-    private messagesCompactor: MessagesCompactor<I, O, unknown, LLM>;
     private footPrints: FootPrint[] = [];
     private agentConfig: DeepclawConfig['agents'][0];
 
@@ -42,19 +41,18 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         this.parentSessionId = parentSessionId;
         this.sessionId = crypto.randomUUID();
         this.history = history;
-        this.toolUseService = new ToolUseService(
-            this.agentId,
-            this.parentSessionId,
-            this.sessionId,
-            this.agentHandler
-        );
         this.llm = new (this.getLLMConstructor())(
             this.isSubLoop(),
             this.agentConfig.llm,
         ) as LLM;
-        this.messagesCompactor = this.createMessagesCompactor(
-            this.agentId, this.parentSessionId, this.sessionId, this.footPrints
-        );
+    }
+
+    protected getSeesionDir() {
+        if (!!this.projectId) {
+            return `${PROJECT_DIR}/${this.projectId}`;
+        } else {
+            return `${AGENTS_DIR}/${this.agentId}/${AGENT_SESSION_DIR}/${this.sessionId}`;
+        }
     }
 
     public updateConfig(config: DeepclawConfig['agents'][0]): void {
@@ -87,10 +85,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
-    protected abstract createMessagesCompactor(
-        agentId: string, parentSessionId: string, sessionId: string, footPrints: FootPrint[]
-    ): MessagesCompactor<I, O, unknown, LLM>;
-
     protected async _invoke(input: string): Promise<string> {
         this.addStringMessage(input);
         const state: LoopState<I> = {
@@ -100,6 +94,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 isSubLoop: this.isSubLoop(),
                 agentId: this.agentId,
                 projectId: this.projectId,
+                sessionDir: this.getSeesionDir(),
                 turnCount: 0,
                 system: '',
                 logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
@@ -154,8 +149,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     }
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
-        this.messagesCompactor.compactOldResults(this.history);
-        await this.messagesCompactor.compactFullHistory(
+        const compactor = MessageCompactor.getCompactor(this);
+        compactor.compactOldResults(this.history);
+        await compactor.compactFullHistory(context.sessionDir, this.footPrints,
             context.loopConfig.mode, this.llm, context.system, this.history, context.logger
         );
     }
@@ -231,7 +227,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     content: result.stopReason || 'Tool use rejected by hook.',
                 });
             } else {
-                const toolResult = await this.toolUseService.executeToolCall(toolUseDef, context);
+                const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
                 if (!toolStop && isToolStopReason(context.transitionReason)) {
                     toolStop = true;
                 }

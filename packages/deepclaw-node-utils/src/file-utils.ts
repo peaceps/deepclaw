@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 export class FileUtils {
@@ -43,6 +44,9 @@ export class FileUtils {
     public static isPathInWorkspace(filePath: string): boolean {
         let workspacePath = this.getAbsolutePath(process.cwd());
         let targetPath = this.getAbsolutePath(filePath);
+        if (targetPath.startsWith(os.tmpdir() + '/')) {
+            return true;
+        }
         if (process.platform === 'win32' || process.platform === 'darwin') {
             workspacePath = workspacePath.toLowerCase();
             targetPath = targetPath.toLowerCase();

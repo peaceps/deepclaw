@@ -2,9 +2,9 @@ import {
     ChatCompletionToolMessageParam,
  } from 'openai/resources/chat/completions.js';
 import { ThinkingMessage, ThinkingResponse, OpenAIChatLLM } from "../../llm/openai-chat-llm";
-import { MessagesCompactor } from "./messages-compactor";
+import { AbstractMessagesCompactor } from "./abstract-messages-compactor";
 
-export class OpenAIChatMessagesCompactor extends MessagesCompactor<ThinkingMessage, ThinkingResponse, ChatCompletionToolMessageParam, OpenAIChatLLM> {
+export class OpenAIChatMessagesCompactor extends AbstractMessagesCompactor<ThinkingMessage, ThinkingResponse, ChatCompletionToolMessageParam, OpenAIChatLLM> {
 
     protected override getToolResults(messages: ThinkingMessage[]): ChatCompletionToolMessageParam[] {
         return messages.filter(message => message.role === 'tool');

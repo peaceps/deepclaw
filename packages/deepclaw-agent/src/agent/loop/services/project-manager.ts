@@ -1,5 +1,5 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { PROJECT_DIR } from '../../paths';
+import { PROJECT_DIR, PROJECT_JSON } from '../../paths';
 import { type Project, type Task, type TaskStepsContext, getProjectStatus, PROJECT_CONFIG } from '@deepclaw/core';
 
 export type ProjectListInfo = {
@@ -34,7 +34,7 @@ export class ProjectManager {
     }
 
     private static loadProjects(): void {
-        const files = FileUtils.readDir(PROJECT_DIR);
+        const files = FileUtils.readDir(PROJECT_DIR, dir => `${dir}/${PROJECT_JSON}`);
         for (const fileContent of Object.values(files)) {
             try {
                 const project = JSON.parse(fileContent) as Project;
@@ -55,7 +55,7 @@ export class ProjectManager {
         if (!project) {
             throw new Error(`Project ${projectId} not found!`);
         }
-        FileUtils.writeFile(`${PROJECT_DIR}/${project.id}.json`, JSON.stringify(project, null, 2));
+        FileUtils.writeFile(`${PROJECT_DIR}/${project.id}/${PROJECT_JSON}`, JSON.stringify(project, null, 2));
     }
 
     public static createProject(projectInfo: ProjectInitInfo, tasks: Task[]): Project {

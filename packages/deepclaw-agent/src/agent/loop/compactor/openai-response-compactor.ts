@@ -1,8 +1,8 @@
 import { ResponseInputItem } from "openai/resources/responses/responses";
 import { ThinkingMessage, ThinkingResponse, OpenAIResponseLLM } from "../../llm/openai-response-llm";
-import { MessagesCompactor } from "./messages-compactor";
+import { AbstractMessagesCompactor } from "./abstract-messages-compactor";
 
-export class OpenAIResponseMessagesCompactor extends MessagesCompactor<ThinkingMessage, ThinkingResponse, ResponseInputItem.FunctionCallOutput, OpenAIResponseLLM> {
+export class OpenAIResponseMessagesCompactor extends AbstractMessagesCompactor<ThinkingMessage, ThinkingResponse, ResponseInputItem.FunctionCallOutput, OpenAIResponseLLM> {
 
     protected override getToolResults(messages: ThinkingMessage[]): ResponseInputItem.FunctionCallOutput[] {
         return messages.filter(message => message.type === 'function_call_output');

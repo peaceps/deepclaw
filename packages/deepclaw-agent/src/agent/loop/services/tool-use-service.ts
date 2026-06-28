@@ -1,8 +1,8 @@
+import os from 'os';
 import { FileUtils } from '@deepclaw/node-utils';
 import { ToolUseResult } from "../../definitions/tool-definitions";
-import { type SealedAgentHandler } from '@deepclaw/core';
 import { OneLoopContext } from '../../definitions/definitions';
-import { SESSION_DIR, AGENTS_DIR, TOOL_RESULT_DIR } from '../../paths';
+import { TOOL_RESULT_DIR } from '../../paths';
 import { ToolsManager } from './tools-manager';
 
 export type ToolUseServiceResult = {
@@ -15,27 +15,12 @@ export type ToolUseDef = {
     input: unknown;
 }
 
+const TRUNCATE_THRESHOLD = 20000;
+const PREVIEW_CHAR_LENGTH = 1000;
+
 export class ToolUseService {
-    private agentId: string;
-    private parentSessionId: string;
-    private sessionId: string;
-    private agentHandler: SealedAgentHandler;
-    private truncateThreshold: number = 20000;
-    private previewChars: number = 1000;
 
-    constructor(
-        agentId: string,
-        parentSessionId: string,
-        sessionId: string,
-        agentHandler: SealedAgentHandler
-    ) {
-        this.agentId = agentId;
-        this.parentSessionId = parentSessionId;
-        this.sessionId = sessionId;
-        this.agentHandler = agentHandler;
-    }
-
-    public async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
+    public static async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
         const tool = ToolsManager.getToolDesc(context.isSubLoop, context.loopConfig.mode, toolUseDef.name);
         if (!tool) {
             return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`);
@@ -53,7 +38,7 @@ export class ToolUseService {
             if (guardResult.result === 'denied') {
                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
             } else if (guardResult.result === 'ask') {
-                const choice = await this.agentHandler.onInteractionEvent({type: 'input', content: guardResult.question || ''});
+                const choice = await context.actions.agentHandler.onInteractionEvent({type: 'input', content: guardResult.question || ''});
                 if (!guardResult.checkAnswer(choice as string)) {
                     return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
                 }
@@ -61,27 +46,28 @@ export class ToolUseService {
         }
         try {
             const output = await tool.invoke(input, context);
-            const truncated = this.truncateLargeOutput(toolUseDef.id, output);
+            const truncated = this.truncateLargeOutput(toolUseDef.id, output, context.sessionDir, context.isSubLoop);
             return this.toolResult(toolUseDef.id, truncated);
         } catch (error) {
             return this.toolResult(toolUseDef.id, `Error: ${error}`);
         }
     }
 
-    private toolResult(toolUseId: string, content: string): ToolUseServiceResult {
+    private static toolResult(toolUseId: string, content: string): ToolUseServiceResult {
         return ({
             result: {id: toolUseId, content},
         });
     }
 
-    private truncateLargeOutput(toolUseId: string, output: string): string {
-        if (output.length <= this.truncateThreshold) {
+    private static truncateLargeOutput(toolUseId: string, output: string, sessionDir: string, isSubLoop: boolean): string {
+        if (output.length <= TRUNCATE_THRESHOLD) {
             return output;
         }
         const fileName = FileUtils.wrapTimestamp(`${toolUseId}.txt`);
-        const fullPath = `${AGENTS_DIR}/${this.agentId}/${SESSION_DIR}/${this.parentSessionId}/${this.sessionId}/${TOOL_RESULT_DIR}/${fileName}`;
+        const folder = isSubLoop ? `${os.tmpdir()}/.deepclaw/subloop` : sessionDir;
+        const fullPath = `${folder}/${TOOL_RESULT_DIR}/${fileName}`;
         FileUtils.writeFile(fullPath, output);
-        output = output.slice(0, this.previewChars);
+        output = output.slice(0, PREVIEW_CHAR_LENGTH);
         return `<persisted-output>
 Full output saved to: ${fullPath}
 Preview:

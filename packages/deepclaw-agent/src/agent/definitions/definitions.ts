@@ -26,6 +26,7 @@ export type OneLoopContext = {
     agentId: string;
     projectId: string;
     loopId: string;
+    sessionDir: string;
     isSubLoop: boolean;
     turnCount: number;
     transitionReason?: TransitionReason;
