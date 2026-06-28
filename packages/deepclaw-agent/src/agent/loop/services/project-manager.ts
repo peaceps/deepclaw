@@ -1,9 +1,6 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { DeepclawConfig } from '@deepclaw/config';
 import { PROJECT_DIR } from '../../paths';
-import { type Project, type Task, type TaskStepsContext, PROJECT_CONFIG } from '@deepclaw/core';
-
-const MAX_TASK_STEPS_COUNT = 8;
+import { type Project, type Task, type TaskStepsContext, getProjectStatus, PROJECT_CONFIG } from '@deepclaw/core';
 
 export type ProjectListInfo = {
     projects: {
@@ -62,16 +59,9 @@ export class ProjectManager {
     }
 
     public static createProject(projectInfo: ProjectInitInfo, tasks: Task[]): Project {
-        if (new Set(tasks.map(task => task.title)).size < tasks.length) {
-            throw new Error('There are duplicated task titles.');
-        }
-        const taskObject = tasks.reduce((p, n) => {
-            p[n.title] = n;
-            return p;
-        }, {} as Record<string, Task>);
-        const projectId = crypto.randomUUID();
+        const taskObject = this.convertTasks(tasks);
         const project: Project = {
-            id: projectId,
+            id: crypto.randomUUID(),
             title: projectInfo.title,
             description: projectInfo.description,
             priority: projectInfo.priority,
@@ -80,24 +70,59 @@ export class ProjectManager {
             tasks: taskObject,
             ...this.calculateProjectTaskInfo(taskObject)
         }
-        
-        for (const task of Object.values(project.tasks)) {
-            for (const blockedBy of task.blockedBy) {
-                if (!project.tasks[blockedBy]) {
-                    throw new Error('Invalid blocked task.');
-                }
-                project.tasks[blockedBy].blocks.push(task.title);
-            }
-        }
-
         this.projects[project.id] = project;
         this.saveProject(project.id);
         return project;
     }
 
+    public static updateProject(projectInfo: Partial<Omit<Project, "tasks">> & {id: string}, tasks?: Task[]): Project {
+        const project = this.projects[projectInfo.id];
+        if (!project) {
+            throw new Error(`Project ${projectInfo.id} not found.`);
+        }
+        if (getProjectStatus(project) !== 'todo' && !!tasks) {
+            throw new Error('Only projects in todo state can update tasks.')
+        }
+        if (tasks) {
+            project.tasks = this.convertTasks(tasks);
+        }
+        Object.assign(project, projectInfo);
+        if (projectInfo.tags) {
+            project.tags = Array.from(new Set(
+                projectInfo.tags.map(tag => tag.trim().slice(0, PROJECT_CONFIG.maxTagTextLength)).filter(Boolean)
+            )).slice(0, PROJECT_CONFIG.maxTagCount);
+        }
+        Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
+        this.saveProject(project.id);
+        return project;
+    }
+
+    private static convertTasks(tasks: Task[]): Record<string, Task> {
+        if (new Set(tasks.map(task => task.title)).size < tasks.length) {
+            throw new Error('There are duplicated task titles.');
+        }
+        if (tasks.length > PROJECT_CONFIG.maxTasksCount) {
+            throw new Error('There are too many tasks.');
+        }
+
+        const taskObject = tasks.reduce((p, n) => {
+            p[n.title] = n;
+            return p;
+        }, {} as Record<string, Task>);
+        for (const task of Object.values(taskObject)) {
+            for (const blockedBy of task.blockedBy) {
+                if (!taskObject[blockedBy]) {
+                    throw new Error('Invalid blocked task.');
+                }
+                taskObject[blockedBy].blocks.push(task.title);
+            }
+        }
+        return taskObject;
+    }
+
     public static createTask(taskInfo: TaskInitInfo): Task {
-        if (taskInfo.steps?.length && taskInfo.steps?.length > MAX_TASK_STEPS_COUNT) {
-            throw new Error(`Too much steps for a task. Max is ${MAX_TASK_STEPS_COUNT}.`);
+        if (taskInfo.steps?.length && taskInfo.steps?.length > PROJECT_CONFIG.maxTaskStepsCount) {
+            throw new Error(`Too much steps for a task. Max is ${PROJECT_CONFIG.maxTaskStepsCount}.`);
         }
         const task: Task = {
             title: taskInfo.title,
@@ -115,10 +140,10 @@ export class ProjectManager {
         return task;
     }
 
-    public static updateTask(projectId: string, taskInfo: {title: string; assignee?: string; status: Task['status'], steps?: string[]}): Task {
+    public static updateTask(projectId: string, taskInfo: Partial<Task> & {title: string}, steps?: string[]): Task {
         let task: Task | undefined;
-        if (taskInfo.steps?.length && taskInfo.steps?.length > MAX_TASK_STEPS_COUNT) {
-            throw new Error(`Too much steps for a task. Max is ${MAX_TASK_STEPS_COUNT}.`);
+        if (steps?.length && steps?.length > PROJECT_CONFIG.maxTaskStepsCount) {
+            throw new Error(`Too much steps for a task. Max is ${PROJECT_CONFIG.maxTaskStepsCount}.`);
         }
         task = this.projects[projectId]?.tasks?.[taskInfo.title];
         if (!task) {
@@ -129,23 +154,22 @@ export class ProjectManager {
             task.status === 'done' && taskInfo.status !== 'done') {
             throw new Error('You can only update the status from todo to ongoing or from ongoing to done.');
         }
-        if (taskInfo.status === 'done' && taskInfo.steps) {
+        if (taskInfo.status === 'done' && steps) {
             throw new Error('Cannot add steps and mark task done at the same time.');
         }
         if (taskInfo.status === 'done' && !this.isStepsCompleted(task)) {
             throw new Error('All steps should be completed before marking the task as done.');
         }
-        if (taskInfo.steps?.length) {
+        if (steps?.length) {
             if (task.status === 'ongoing' && !!task.stepsStatus?.steps || task.status === 'done') {
                 throw new Error('Cannot update steps.')
             }
             task.stepsStatus = {
-                steps: taskInfo.steps,
+                steps,
                 currentStepIndex: -1
             };
         }
-        task.status = taskInfo.status;
-        task.assignee = taskInfo.assignee || task.assignee;
+        Object.assign(task, taskInfo);
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();
         }
@@ -218,32 +242,6 @@ export class ProjectManager {
         return project;
     }
 
-    public static updateProjectTags(projectId: string, tags: string[]): Project {
-        const project = this.projects[projectId];
-        if (!project) {
-            throw new Error('Project not found.');
-        }
-        project.tags = Array.from(new Set(
-            tags.map(tag => tag.trim().slice(0, PROJECT_CONFIG.maxTagTextLength)).filter(Boolean)
-        )).slice(0, PROJECT_CONFIG.maxTagCount);
-        this.saveProject(project.id);
-        return project;
-    }
-
-    public static updateProjectTask(projectId: string, taskTitle: string, config: Partial<Task>): Project {
-        const project = this.projects[projectId];
-        if (!project) {
-            throw new Error('Project not found.');
-        }
-        const task = project.tasks[taskTitle];
-        if (!task) {
-            throw new Error('Task not found.');
-        }
-        Object.assign(task, config);
-        this.saveProject(project.id);
-        return project;
-    }
-
     private static calculateProjectTaskInfo(tasks: Record<string, Task>): {
         completedTasks: string[];
         ongoingTasks: string[];
@@ -261,7 +259,7 @@ export class ProjectManager {
         return this.projects[projectId]?.tasks[taskTitle];
     }
 
-    public static prompts(agentMode: DeepclawConfig['agents'][0]['mode']): string {
+    public static prompts(): string {
         return `
 ## Project Management tools
 You can use project related tools to plan, manage projects.
@@ -282,9 +280,8 @@ You can create detailed steps for each task if needed,
 steps info are important for user to get current task execution status, so make sure to update them in a timely manner.
 
 ## Update task status
-${agentMode !== 'agent' ? 'You are in plan mode so you can only plan and chat. You don\'t have update tools and cannot update the task status.' :
-    `You can update a task with update_task tool and update the step index with update_task_current_step tool.
+You can update a task with update_task tool and update the step index with update_task_current_step tool.
 For simple tasks just set the wrapped project id.
-It's also allowed for subloop agents to take action on tasks, and update task status.`}`;
+It's also allowed for subloop agents to take action on tasks, and update task status.`;
     }
 }

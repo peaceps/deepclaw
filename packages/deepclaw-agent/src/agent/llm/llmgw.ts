@@ -11,7 +11,7 @@ export type LLMConstructor<I, O, T, LLM> = new (isSubLoop: boolean, llmConfig: D
 
 export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
-    private tools: Record<DeepclawConfig['agents'][0]['mode'], T[]> = {agent: [], plan: [], chat: []};
+    private tools: Record<DeepclawConfig['agents'][0]['mode'], T[]> = {agent: [], chat: []};
     protected gw: LLMGWConfig;
 
     constructor(isSubLoop: boolean, llmConfig: DeepclawConfig['agents'][0]['llm']) {

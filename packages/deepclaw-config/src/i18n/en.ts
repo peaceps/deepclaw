@@ -21,7 +21,6 @@ export const en = {
                 prompt: 'Choose the agent mode you prefer:',
                 options: {
                     agent: 'Agent (Operate the OS, with all capability to the files on the computer)',
-                    plan: 'Plan (Only do the plan, won\'t do any real operation)',
                     chat: 'Chat (A chat tool, won\'t do any operation)',
                 },
             },

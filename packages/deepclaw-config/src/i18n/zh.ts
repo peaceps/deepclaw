@@ -21,7 +21,6 @@ export const zh = {
                 prompt: '使用什么模式？',
                 options: {
                     agent: 'Agent (可以操作电脑，拥有完整权限)',
-                    plan: 'Plan (只作规划，不实际操作电脑)',
                     chat: 'Chat (只聊天)',
                 },
             },

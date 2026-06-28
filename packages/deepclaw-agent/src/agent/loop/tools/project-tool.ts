@@ -1,6 +1,6 @@
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
-import type { Project, Task } from "@deepclaw/core";
+import { PROJECT_CONFIG, type Project, type Task } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
 import {i18nInstance} from '@deepclaw/i18n';
 
@@ -70,10 +70,10 @@ so do not call tools updating project/tasks immediately with create_project`,
                             steps: {
                                 type: 'array',
                                 items: {type: 'string'},
-                                description: `The detailed steps to complete the task. Max step count is 8.
+                                description: `The detailed steps to complete the task. Max step count is ${PROJECT_CONFIG.maxTaskStepsCount}.
 You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
 All steps should be done when task is going to be marked as done.`,
-                                maxItems: 8,
+                                maxItems: PROJECT_CONFIG.maxTaskStepsCount,
                             },
                             blockedBy: {
                                 type: 'array',
@@ -83,13 +83,13 @@ All steps should be done when task is going to be marked as done.`,
                         },
                         required: ['title', 'description', 'priority'],
                     },
-                    maxItems: 20,
+                    maxItems: PROJECT_CONFIG.maxTasksCount,
                 },
             },
             required: ['title', 'description', 'priority', 'tasks'],
         },
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
@@ -152,16 +152,16 @@ so do not call tools updating project/tasks immediately with create_simple_task`
                 steps: {
                     type: 'array',
                     items: {type: 'string'},
-                    description: `The detailed steps to complete the task. Max step count is 8.
+                    description: `The detailed steps to complete the task. Max step count is ${PROJECT_CONFIG.maxTaskStepsCount}.
 You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
 All steps should be done when task is going to be marked as done.`,
-                    maxItems: 8,
+                    maxItems: PROJECT_CONFIG.maxTaskStepsCount,
                 },
             },
             required: ['title', 'description', 'priority'],
         },
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateSimpleTaskInput, context: OneLoopContext): Promise<string> {
@@ -185,10 +185,116 @@ ${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
     }
 };
 
+type UpdateProjectInput = {
+    projectId: string;
+    title?: string;
+    description?: string;
+    priority?: Project['priority'];
+    tasks?: {
+        title: string;
+        description: string;
+        priority: Task['priority'];
+        steps?: string[];
+        blockedBy?: string[];
+    }[];
+};
+
+export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
+    tool: {
+        name: 'update_project',
+        description: 'Update project info, tasks can only be updated when a project is in todo state.',
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                projectId: {type: 'string', description: 'The ID of the project.'},
+                title: {
+                    type: 'string',
+                    description: 'The title of the project, will display to the user.',
+                    minLength: 1,
+                    maxLength: 50,
+                },
+                description: {
+                    type: 'string',
+                    description: 'A short description of the project, will display to the user.',
+                    minLength: 1,
+                    maxLength: 100,
+                },
+                priority: {
+                    type: 'string',
+                    enum: ['low', 'medium', 'high', 'urgent'],
+                    description: 'The priority of the project.'
+                },
+                tasks: {
+                    type: 'array',
+                    description: 'Full tasks of the project',
+                    items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        properties: {
+                            title: {
+                                type: 'string',
+                                description: 'The title of the task, will display to the user. It should be unique across tasks in this project.',
+                                minLength: 1,
+                                maxLength: 50,
+                            },
+                            description: {
+                                type: 'string',
+                                description: 'A short description of the task, will display to the user.',
+                                minLength: 1,
+                                maxLength: 100,
+                            },
+                            priority: {
+                                type: 'string',
+                                enum: ['low', 'medium', 'high', 'urgent'],
+                                description: 'The priority of the task.'
+                            },
+                            steps: {
+                                type: 'array',
+                                items: {type: 'string'},
+                                description: `The detailed steps to complete the task. Max step count is ${PROJECT_CONFIG.maxTaskStepsCount}.
+You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
+All steps should be done when task is going to be marked as done.`,
+                                maxItems: PROJECT_CONFIG.maxTaskStepsCount,
+                            },
+                            blockedBy: {
+                                type: 'array',
+                                items: {type: 'string'},
+                                description: 'The task title of the tasks that this task is blocked by.'
+                            },
+                        },
+                        required: ['title', 'description', 'priority'],
+                    },
+                    maxItems: PROJECT_CONFIG.maxTasksCount,
+                },
+            },
+            required: ['projectId'],
+        }
+    },
+    agentMode: ['agent'],
+    parallelSafe: false,
+    exclusiveInSubLoop: false,
+    invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
+        const {projectId, tasks, ...patch} =  input;
+        const projectTasks = input.tasks?.map(task => ProjectManager.createTask({
+            ...task,
+            agentId: context.agentId,
+        }));
+        ProjectManager.updateProject({
+            id: projectId,
+            ...patch,
+        }, projectTasks);
+        fireProjectInfoEvent(projectId, context);
+        return `Project updated successfully.
+Here's the project info:
+${JSON.stringify(ProjectManager.getProjectDetail(input.projectId))}`;
+    }
+}
+
 type UpdateTaskInput = {
     projectId: string;
     taskTitle: string;
-    status: Task['status'];
+    status?: Task['status'];
     steps?: string[];
     assignee?: string;
 };
@@ -216,27 +322,22 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
                     },
                     description: `The steps to update, it can be set when a task is in todo status, or when there is no steps in an ongoing task.
 They shoudl be short descriptions of each step, should not be too long for user to read.`,
-                    maxItems: 8,
+                    maxItems: PROJECT_CONFIG.maxTaskStepsCount,
                 },
                 assignee: {type: 'string', description: 'The agent name of the task being assigned to.'},
             },
-            required: ['projectId', 'taskTitle', 'status'],
+            required: ['projectId', 'taskTitle'],
         },
     },
     agentMode: ['agent'],
     parallelSafe: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
-        if (input.steps?.length && input.steps?.length > 8) {
-            throw new Error('Too much steps for a task. Max is 8.')
-        }
         const oldStatus = ProjectManager.getProjectDetail(input.projectId).tasks[input.taskTitle]?.status;
-        const task = ProjectManager.updateTask(input.projectId, {
-            title: input.taskTitle,
-            assignee: input.assignee,
-            steps: input.steps,
-            status: input.status,
-        });
+        const taskInfo: Partial<Task> & {title: string} = {title: input.taskTitle};
+        if (input.assignee) taskInfo.assignee = input.assignee;
+        if (input.status) taskInfo.status = input.status;
+        const task = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
 
         const project = ProjectManager.getProjectDetail(input.projectId);
         fireProjectInfoEvent(input.projectId, context);
@@ -314,7 +415,7 @@ closed projects will also be included.`,
             required: ['includingClosed'],
         },
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: GetProjectListInput): Promise<string> {
@@ -339,7 +440,7 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
             required: ['projectId'],
         },
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: GetProjectDetailInput): Promise<string> {

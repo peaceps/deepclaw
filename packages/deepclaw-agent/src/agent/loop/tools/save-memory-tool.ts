@@ -30,7 +30,7 @@ You can update old memory content via its type and name if you are sure the old 
             required: ['type', 'name', 'description', 'content'],
         },
     },
-    agentMode: ['agent', 'plan', 'chat'],
+    agentMode: ['agent', 'chat'],
     exclusiveInSubLoop: true,
     parallelSafe: false,
     invoke: async (input: SaveMemoryInput, context: OneLoopContext): Promise<string> => {

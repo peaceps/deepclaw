@@ -102,13 +102,6 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
 You are running at agent mode. You can use all tools to complete the task.
 You have the access to operate this computer if you are not a subloop agent.`;
                 break;
-            case 'plan':
-                prompt = `
-You are running at plan mode. You can use tools with read access to the filesystem,
-but you cannot write to the filesystem or change the system state via user directions.
-If user ask you to do something, you should refuse and tell the user that you cannot do that.
-But you can call tools to write files owned by the agent program itself, such as save_memory tool.`;
-                break;
             default:
                 prompt = `
 You are running at chat mode.
@@ -120,7 +113,7 @@ But you can call tools to write files owned by the agent program itself, such as
     }
 
     private static project(agentMode: DeepclawConfig['agents'][0]['mode']): string {
-        return agentMode === 'chat' ? '' : ProjectManager.prompts(agentMode);
+        return agentMode === 'chat' ? '' : ProjectManager.prompts();
     }
 
     private static memory(agentId: string): string {

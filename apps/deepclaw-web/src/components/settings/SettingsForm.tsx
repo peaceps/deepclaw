@@ -17,6 +17,7 @@ type IMConfig = NonNullable<AgentConfig['im']>;
 type LLMConfig = AgentConfig['llm'];
 
 export type SettingsProps = {
+  metaData: {maxAgentCount: number},
   configEvents: CONFIGS_EVENTS;
   initialConfig: DeepclawConfig;
   initialValidation: ValidationResult;
@@ -143,6 +144,10 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       : 'bg-blue-600 text-white hover:bg-blue-700'
   }`;
 
+  const maxAgentReached = config.agents.filter(agent => !agent.fired).length >= settings.metaData.maxAgentCount;
+  const newAgentClass = `w-full flex items-center justify-center gap-2 px-4 py-3 border-2 transition-colors border-dashed 
+rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed" : "border-gray-300 text-gray-500 hover:border-blue-500 hover:text-blue-600"}`;
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
@@ -224,7 +229,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
                   onRemove={removeAgent}
                 />
               ))}
-              <button onClick={addAgent} className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-600 transition-colors">
+              <button onClick={addAgent} disabled={maxAgentReached} className={newAgentClass}>
                 <Plus size={20} />
                 {t('pages.settings.panels.agents.addButton')}
               </button>

@@ -20,7 +20,7 @@ Will return the output of the command. This is local function tool, not MCP comp
             required: ['command'],
         },
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: false,
     invoke: execute,
     guard: syncCommandGuard,

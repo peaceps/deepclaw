@@ -17,7 +17,7 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
             },
             required: ['prompt']}
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: true,
     exclusiveInSubLoop: true,
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
@@ -41,7 +41,7 @@ export const subLoopWithHistoryTool: ToolDesc<SubLoopInput> = {
             },
             required: ['prompt']}
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: true,
     exclusiveInSubLoop: true,
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {

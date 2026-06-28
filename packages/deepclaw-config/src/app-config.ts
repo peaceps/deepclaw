@@ -3,6 +3,8 @@ import { FileUtils, globalize } from '@deepclaw/node-utils';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 
+export const MAX_AGENT_COUNT = 3;
+
 type AgentConfigSingleValue = string | number | boolean;
 type AgentConfigValue = AgentConfigSingleValue | AgentConfigSingleValue[] | undefined;
 type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject | ConfigObject[]};
@@ -22,7 +24,7 @@ export type DeepclawConfig = {
             appId: string;
             secret: string;
         },
-        mode: 'agent' | 'plan' | 'chat';
+        mode: 'agent' | 'chat';
         llm: {
             baseURL: string;
             apiKey: string;
@@ -74,6 +76,12 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
             agent.id = crypto.randomUUID();
         }
     }
+    const activeAgents = appConfig.agents.filter(agent => !agent.fired);
+    if (activeAgents.length > MAX_AGENT_COUNT) {
+        const active = activeAgents.slice(0, MAX_AGENT_COUNT);
+        const fired = appConfig.agents.filter(agent => !!agent.fired);
+        appConfig.agents = active.concat(fired);
+    }
 }
 
 function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject {
@@ -120,7 +128,7 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
             if (!agent.name) {
                 agentLacks.push(`name`);
             }
-            if (agent.mode && !['agent', 'plan', 'chat'].includes(agent.mode)) {
+            if (agent.mode && !['agent', 'chat'].includes(agent.mode)) {
                 agent.mode = undefined as any;
             }
             if (!agent.mode) {

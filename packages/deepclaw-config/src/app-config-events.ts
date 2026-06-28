@@ -37,7 +37,6 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
         content: 'config.agents.mode.prompt',
         options: [
             {label: 'config.agents.mode.options.agent', value: 'agent'},
-            {label: 'config.agents.mode.options.plan', value: 'plan'},
             {label: 'config.agents.mode.options.chat', value: 'chat'},
         ],
     },

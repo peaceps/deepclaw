@@ -16,7 +16,7 @@ export const loadSkillTool: ToolDesc<SkillInput> = {
             required: ['name'],
         },
     },
-    agentMode: ['agent', 'plan', 'chat'],
+    agentMode: ['agent', 'chat'],
     parallelSafe: true,
     invoke: async function(input: SkillInput): Promise<string> {
         const { name } = input;

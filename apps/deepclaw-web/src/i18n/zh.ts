@@ -213,7 +213,6 @@ export const zh = {
                 prompt: '运行模式',
                 options: {
                     agent: '代理 (完整操作权限)',
-                    plan: '计划',
                     chat: '聊天',
                 },
             },

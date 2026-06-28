@@ -2,7 +2,9 @@ export type MissionStatus = 'todo' | 'ongoing' | 'done';
 
 export const PROJECT_CONFIG = {
     maxTagCount: 5,
-    maxTagTextLength: 15
+    maxTagTextLength: 15,
+    maxTasksCount: 20,
+    maxTaskStepsCount: 8,
 } as const;
 
 export type Project = {

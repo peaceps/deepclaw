@@ -119,14 +119,14 @@ class LoopGatewayImpl {
     }
 
     public static updateProjectTags(projectId: string, tags: string[]): void {
-        ProjectManager.updateProjectTags(projectId, tags);
+        ProjectManager.updateProject({id: projectId, tags});
         this.fireSSEEvent('info', { type: 'updateProject', content: { id: projectId, tags } });
     }
 
     public static updateProjectTask(projectId: string, taskTitle: string, task: Partial<Task>): void {
-        const project = ProjectManager.updateProjectTask(projectId, taskTitle, task);
+        ProjectManager.updateTask(projectId, {...task, title: taskTitle});
         this.fireSSEEvent('info', { type: 'updateProject', content: {
-            id: projectId, tasks: project.tasks 
+            id: projectId, tasks: ProjectManager.getProjectDetail(projectId).tasks
         }});
     }
 

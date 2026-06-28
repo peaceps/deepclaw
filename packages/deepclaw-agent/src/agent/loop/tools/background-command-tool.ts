@@ -81,7 +81,7 @@ export const checkBackgroundCommandStatusTool: ToolDesc<CheckBackgroundCommandSt
             required: ['commandId'],
         },
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: true,
     exclusiveInSubLoop: false,
     invoke: async function(input: CheckBackgroundCommandStatusInput): Promise<string> {
@@ -104,7 +104,7 @@ export const checkAllBackgroundCommandStatusTool: ToolDesc<void> = {
             required: [],
         },
     },
-    agentMode: ['agent', 'plan'],
+    agentMode: ['agent'],
     parallelSafe: true,
     exclusiveInSubLoop: false,
     invoke: async function(): Promise<string> {

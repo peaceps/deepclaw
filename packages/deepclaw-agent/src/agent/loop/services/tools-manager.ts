@@ -41,13 +41,13 @@ type ToolsStrorage<T extends (Record<string, ToolDesc<any>> | LLMTool[])> = {
 export class ToolsManager {
 
     private static map: ToolsStrorage<Record<string, ToolDesc<any>>> = {
-        loop: {agent: {}, plan: {}, chat: {}},
-        subLoop: {agent: {}, plan: {}, chat: {}},
+        loop: {agent: {}, chat: {}},
+        subLoop: {agent: {}, chat: {}},
     }
 
     private static array: ToolsStrorage<LLMTool[]> = {
-        loop: {agent: [], plan: [], chat: []},
-        subLoop: {agent: [], plan: [], chat: []},
+        loop: {agent: [], chat: []},
+        subLoop: {agent: [], chat: []},
     }
 
     static {
