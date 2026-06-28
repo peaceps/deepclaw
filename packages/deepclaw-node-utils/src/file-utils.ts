@@ -41,6 +41,29 @@ export class FileUtils {
         fs.writeFileSync(absolutePath, content, 'utf8');
     }
 
+    public static enforceFileCountLimit(folder: string, limit: number): void {
+        const fullPath = this.getAbsolutePath(folder);
+        if (!fs.existsSync(fullPath)) {
+            return;
+        }
+
+        const files = fs.readdirSync(fullPath).map(file => {
+            const filePath = path.join(fullPath, file);
+            const stat = fs.statSync(filePath);
+            return { filePath, stat };
+        }).filter(item => item.stat.isFile()).sort((a, b) => a.stat.mtimeMs - b.stat.mtimeMs);
+
+        const removeCount = files.length - limit;
+        if (removeCount <= 0) {
+            return;
+        }
+
+        for (const file of files.slice(0, removeCount)) {
+            fs.rmSync(file.filePath);
+        }
+    }
+
+
     public static isPathInWorkspace(filePath: string): boolean {
         let workspacePath = this.getAbsolutePath(process.cwd());
         let targetPath = this.getAbsolutePath(filePath);

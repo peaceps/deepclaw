@@ -12,12 +12,14 @@ import { FootPrint, LoopState, OneLoopContext, TransitionReason, isToolStopReaso
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
-import { getLoopLogger } from '@deepclaw/node-utils';
+import { FileUtils, getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
 import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
-import { AGENT_SESSION_DIR, AGENTS_DIR, PROJECT_DIR } from '../../paths';
+import { AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, PROJECT_DIR, SESSION_METADATA_FILE } from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
+
+type LoopSessionStatus = 'running' | 'paused' | 'ended' | 'error';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -112,22 +114,32 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 }
             },
         };
+        let finalText = '';
         try {
             await HookManager.emitVisitor('preLoopStart', state.oneLoopContext);
-            const result = await this.agentLoop(state);
-            return result;
+            this.persistLoopState(state.oneLoopContext, 'running', undefined, false);
+            finalText = await this.agentLoop(state);
+            return finalText;
         } catch (error) {
             const msg = `Error in loop, ${error instanceof Error ? error.message : 'Unknown error.'}`;
+            state.oneLoopContext.transitionReason = 'error';
             state.oneLoopContext.logger.error(error, msg);
+            finalText = msg;
             return msg;
         } finally {
-            await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
+            try {
+                await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
+            } finally {
+                this.persistLoopState(state.oneLoopContext, this.getInvokeEndSessionStatus(state.oneLoopContext),
+                    finalText || undefined, state.oneLoopContext.turnCount === 0);
+            }
         }
     }
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
+                state.oneLoopContext.transitionReason = 'endLoop';
                 const finalText = i18nInstance.t('agent.maxTurnReached', {
                     finalText: this.extractFinalText(state)
                 });
@@ -200,9 +212,64 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         if (state.oneLoopContext.transitionReason === 'error') {
             await HookManager.emitVisitor('turnError', state.oneLoopContext);
         }
-        await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
+        try {
+            await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
+        } finally {
+            this.persistLoopState(state.oneLoopContext, this.getLoopSessionStatus(state.oneLoopContext), undefined, false);
+        }
         return state.oneLoopContext.transitionReason !== 'endLoop' && state.oneLoopContext.transitionReason !== 'error'
             && !isToolStopReason(state.oneLoopContext.transitionReason);
+    }
+
+    private getLoopSessionStatus(context: OneLoopContext): LoopSessionStatus {
+        if (context.transitionReason === 'error') {
+            return 'error';
+        }
+        if (isToolStopReason(context.transitionReason)) {
+            return 'paused';
+        }
+        if (context.transitionReason === 'endLoop') {
+            return 'ended';
+        }
+        return 'running';
+    }
+
+    private getInvokeEndSessionStatus(context: OneLoopContext): LoopSessionStatus {
+        if (!context.transitionReason) {
+            return 'ended';
+        }
+        return this.getLoopSessionStatus(context);
+    }
+
+    private persistLoopState(context: OneLoopContext, status: LoopSessionStatus, finalText?: string, forceMessagesSnapshot: boolean = false): void {
+        // Sub-loop context is intentionally not durably persisted; only parent/main loop state is durable.
+        if (context.isSubLoop) {
+            return;
+        }
+        try {
+            const now = new Date().toISOString();
+            const messagesPath = `${context.sessionDir}/${MESSAGE_SNAPSHOT_FILE}`;
+            if (forceMessagesSnapshot || context.turnCount > 0) {
+                FileUtils.writeFile(messagesPath, JSON.stringify(this.history, null, 2));
+            }
+            FileUtils.writeFile(`${context.sessionDir}/${SESSION_METADATA_FILE}`, JSON.stringify({
+                agentId: this.agentId,
+                projectId: this.projectId,
+                sessionId: this.sessionId,
+                parentSessionId: this.parentSessionId || undefined,
+                loopId: context.loopId,
+                isSubLoop: context.isSubLoop,
+                status,
+                transitionReason: context.transitionReason,
+                turnCount: context.turnCount,
+                messagesPath,
+                finalText,
+                updatedAt: now,
+                endedAt: status === 'running' ? undefined : now,
+            }, null, 2));
+        } catch (error) {
+            context.logger.error(error, 'Persist loop state failed');
+        }
     }
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {

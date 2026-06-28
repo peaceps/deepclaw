@@ -12,6 +12,8 @@ export const TOOL_RESULT_DIR = 'tool_results';
 export const HISTORY_DIR = 'history';
 export const BACKGROUND_COMMANDS_DIR = 'background_commands';
 export const HISTORY_COMPACT_FILE = 'history_compact.jsonl';
+export const MESSAGE_SNAPSHOT_FILE = 'messages.json';
+export const SESSION_METADATA_FILE = 'session.json';
 
 export const SUB_LOOP_DIR = 'subloop';
 

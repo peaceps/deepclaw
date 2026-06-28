@@ -5,20 +5,21 @@ import { HISTORY_DIR } from '../../paths';
 import { HISTORY_COMPACT_FILE } from '../../paths';
 import { DeepclawConfig } from '@deepclaw/config';
 
-export abstract class AbstractMessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unknown, unknown>> {
-    private maxRecent: number = 20;
-    private toolResultThreshold: number = 1200;
-    private toolResultCompactedMessage: string = '<tool result compacted> Earlier tool result compacted. Re-run the tool if you need full detail.</tool result compacted>';
+const maxRecentToolResultCount: number = 20;
+const toolResultThreshold: number = 1200;
+const toolResultCompactedMessage: string = '<tool result compacted> Earlier tool result compacted. Re-run the tool if you need full detail.</tool result compacted>';
+const historyThreshold: number = 200000;
+const maxHistoryFileCount: number = 5;
 
-    private historyThreshold: number = 200000;
+export abstract class AbstractMessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unknown, unknown>> {
 
     public compactOldResults(messages: I[]): void {
         const toolResultMessages = this.getToolResults(messages);
-        if (toolResultMessages.length > this.maxRecent) {
-            const oldestResult = toolResultMessages.slice(0, toolResultMessages.length - this.maxRecent);
+        if (toolResultMessages.length > maxRecentToolResultCount) {
+            const oldestResult = toolResultMessages.slice(0, toolResultMessages.length - maxRecentToolResultCount);
             for (const result of oldestResult) {
-                if (this.getContentLength(result) > this.toolResultThreshold) {
-                    this.compactToolResult(result, this.toolResultCompactedMessage);
+                if (this.getContentLength(result) > toolResultThreshold) {
+                    this.compactToolResult(result, toolResultCompactedMessage);
                 }
             }
         }
@@ -29,7 +30,7 @@ export abstract class AbstractMessagesCompactor<I, O, R, LLM extends LLMModel<I,
         llm: LLM, system: string, messages: I[], logger: Logger
     ): Promise<void> {
         const jsonl = messages.map(message => JSON.stringify(message)).join('\n');
-        if (jsonl.length > this.historyThreshold) {
+        if (jsonl.length > historyThreshold) {
             this.saveHistory(sessionDir, jsonl);
             const summary = await this.summarizeHistory(mode, footPrints, llm, system, jsonl, logger);
             messages.splice(0, messages.length, summary);
@@ -40,6 +41,7 @@ export abstract class AbstractMessagesCompactor<I, O, R, LLM extends LLMModel<I,
         const fileName = FileUtils.wrapTimestamp(HISTORY_COMPACT_FILE);
         const filePath = `${sessionDir}/${HISTORY_DIR}/${fileName}`;
         FileUtils.writeFile(filePath, jsonl);
+        FileUtils.enforceFileCountLimit(`${sessionDir}/${HISTORY_DIR}`, maxHistoryFileCount);
     }
 
     private async summarizeHistory(
