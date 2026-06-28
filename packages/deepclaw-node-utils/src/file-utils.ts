@@ -41,6 +41,20 @@ export class FileUtils {
         fs.writeFileSync(absolutePath, content, 'utf8');
     }
 
+    public static findLatest(folder: string, subFile: string = ''): string {
+        const fullFolder = this.getAbsolutePath(folder);
+        if (!fs.existsSync(fullFolder)) {
+            return '';
+        }
+        const files = fs.readdirSync(fullFolder);
+        const sorted = files.map(file => {
+            const filePath = path.join(fullFolder, file + (!subFile ? '' : `/${subFile}`));
+            const stat = !fs.existsSync(filePath) ? null : fs.statSync(filePath);
+            return { file, stat };
+        }).filter(item => item.stat && item.stat.isFile()).sort((a, b) => b.stat!.mtimeMs - a.stat!.mtimeMs);
+        return sorted[0]?.file || '';
+    }
+
     public static enforceFileCountLimit(folder: string, limit: number): void {
         const fullPath = this.getAbsolutePath(folder);
         if (!fs.existsSync(fullPath)) {
@@ -63,11 +77,10 @@ export class FileUtils {
         }
     }
 
-
     public static isPathInWorkspace(filePath: string): boolean {
         let workspacePath = this.getAbsolutePath(process.cwd());
         let targetPath = this.getAbsolutePath(filePath);
-        if (targetPath.startsWith(os.tmpdir() + '/')) {
+        if (targetPath.startsWith(this.formatSlash(`${os.tmpdir()}/.deepclaw/`))) {
             return true;
         }
         if (process.platform === 'win32' || process.platform === 'darwin') {

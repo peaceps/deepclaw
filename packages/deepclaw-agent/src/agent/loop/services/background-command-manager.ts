@@ -1,5 +1,5 @@
 import {runCommandAsync, FileUtils} from '@deepclaw/node-utils'
-import { BACKGROUND_COMMANDS_DIR, PROJECT_DIR } from '../../paths';
+import { BACKGROUND_COMMANDS_DIR } from '../../paths';
 
 type BackGroundCommandInfo = {
     id: string;
@@ -11,8 +11,6 @@ type BackGroundCommandInfo = {
 
 export type BackgroundCommand = BackGroundCommandInfo & {
     command: string;
-    projectId: string;
-    taskTitle: string;
     createdAt: string;
     completedAt?: string;
     output?: string;
@@ -20,12 +18,12 @@ export type BackgroundCommand = BackGroundCommandInfo & {
 };
 
 export class BackgroundCommandManager {
-    private static completedCommands: string[] = [];
+    private static completedCommands: Set<string> = new Set();
     private static commands: Map<string, BackgroundCommand> = new Map();
-    
-    public static runCommand(command: BackgroundCommand): void { 
+
+    public static runCommand(command: BackgroundCommand, sessionDir: string): void {
         const id = command.id;
-        command.outputPath = `${PROJECT_DIR}/${command.projectId}/${command.taskTitle}/${BACKGROUND_COMMANDS_DIR}${id}.log`;
+        command.outputPath = `${sessionDir}/${BACKGROUND_COMMANDS_DIR}/${id}.bgout`;
         this.commands.set(id, command);
         runCommandAsync(command.command).then(({ output, preview }) => {
             command.output = output;
@@ -34,7 +32,7 @@ export class BackgroundCommandManager {
             command.output = `Error: ${e?.message || 'Unknown error'}`;
             command.preview = command.output;
         }).finally(() => {
-            this.completedCommands.push(id);
+            this.completedCommands.add(id);
             command.completedAt = new Date().toISOString();
             command.status = 'completed';
             FileUtils.writeFile(command.outputPath!, command.output || '');
@@ -71,10 +69,10 @@ export class BackgroundCommandManager {
 
     public static drainFinishedCommands(): BackGroundCommandInfo[] {
         const finishedCommands: BackGroundCommandInfo[] = [];
-        for (const id of this.completedCommands) {
+        for (const id of Array.from(this.completedCommands)) {
             finishedCommands.push(this.getCommandStatus(id));
         }
-        this.completedCommands = [];
+        this.completedCommands.clear();
         return finishedCommands;
     }
 }

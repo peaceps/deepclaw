@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import os from 'os';
 import { i18nInstance } from '@deepclaw/i18n';
 import { 
     type AgentInfoEvent,
@@ -16,7 +17,7 @@ import { FileUtils, getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
 import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
-import { AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, PROJECT_DIR, SESSION_METADATA_FILE } from '../../paths';
+import { AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, PROJECT_DIR, SESSION_METADATA_FILE, SUB_LOOP_DIR, } from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
 
 type LoopSessionStatus = 'running' | 'paused' | 'ended' | 'error';
@@ -41,19 +42,45 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         super(agentId, projectId, handler);
         this.agentConfig = loadAgentConfig(agentId);
         this.parentSessionId = parentSessionId;
-        this.sessionId = crypto.randomUUID();
-        this.history = history;
+        this.sessionId = this.initializeSessionId(history);
+        this.history = this.loadPersistedHistory(history);
         this.llm = new (this.getLLMConstructor())(
             this.isSubLoop(),
             this.agentConfig.llm,
         ) as LLM;
     }
 
-    protected getSeesionDir() {
+    private initializeSessionId(history: I[]): string {
+        if (this.isSubLoop() || this.projectId || history.length > 0) {
+            return crypto.randomUUID();
+        }
+        return this.loadLatestSessionId() || crypto.randomUUID();
+    }
+
+    private loadLatestSessionId(): string {
+        const sessionRoot = `${AGENTS_DIR}/${this.agentId}/${AGENT_SESSION_DIR}`;
+        return FileUtils.findLatest(sessionRoot, MESSAGE_SNAPSHOT_FILE);
+    }
+
+    protected getSessionDir() {
         if (!!this.projectId) {
             return `${PROJECT_DIR}/${this.projectId}`;
         } else {
             return `${AGENTS_DIR}/${this.agentId}/${AGENT_SESSION_DIR}/${this.sessionId}`;
+        }
+    }
+
+    private loadPersistedHistory(history: I[]): I[] {
+        if (this.isSubLoop() || history.length > 0) {
+            return history;
+        }
+
+        try {
+            const content = FileUtils.readFile(`${this.getSessionDir()}/${MESSAGE_SNAPSHOT_FILE}`);
+            const messages = JSON.parse(content);
+            return Array.isArray(messages) ? messages as I[] : history;
+        } catch {
+            return history;
         }
     }
 
@@ -96,7 +123,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 isSubLoop: this.isSubLoop(),
                 agentId: this.agentId,
                 projectId: this.projectId,
-                sessionDir: this.getSeesionDir(),
+                sessionDir: this.isSubLoop() ? `${os.tmpdir()}/.deepclaw/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
                 turnCount: 0,
                 system: '',
                 logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
@@ -250,7 +277,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             const now = new Date().toISOString();
             const messagesPath = `${context.sessionDir}/${MESSAGE_SNAPSHOT_FILE}`;
             if (forceMessagesSnapshot || context.turnCount > 0) {
-                FileUtils.writeFile(messagesPath, JSON.stringify(this.history, null, 2));
+                FileUtils.writeFile(messagesPath, JSON.stringify(this.history));
             }
             FileUtils.writeFile(`${context.sessionDir}/${SESSION_METADATA_FILE}`, JSON.stringify({
                 agentId: this.agentId,

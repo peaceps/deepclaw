@@ -1,11 +1,10 @@
 import crypto from 'crypto';
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { BackgroundCommand, BackgroundCommandManager } from '../services/background-command-manager';
+import { OneLoopContext } from '../../definitions/definitions';
 
 type RunBackgroundCommandInput = {
     title: string;
-    projectId: string;
-    taskTitle: string;
     command: string;
 };
 
@@ -24,39 +23,29 @@ and the agent can check the result of the background command later.`,
                     minLength: 1,
                     maxLength: 50,
                 },
-                projectId: {
-                    type: 'string',
-                    description: 'The ID of the project this command is running for.',
-                },
-                taskTitle: {
-                    type: 'string',
-                    description: 'The title of the task this command is running for.',
-                },
                 command: {
                     type: 'string',
                     description: 'The command to run in background.',
                 },
             },
-            required: ['title', 'projectId', 'taskTitle', 'command'],
+            required: ['title', 'command'],
         },
     },
     agentMode: ['agent'],
     parallelSafe: true,
     exclusiveInSubLoop: false,
-    invoke: async function(input: RunBackgroundCommandInput): Promise<string> {
-        const { title, projectId, taskTitle, command } = input;
+    invoke: async function(input: RunBackgroundCommandInput, context: OneLoopContext): Promise<string> {
+        const { title, command } = input;
         const id = crypto.randomUUID();
         const backgroundCommand: BackgroundCommand = {
             id,
             command,
             title,
-            projectId,
-            taskTitle,
             createdAt: new Date().toISOString(),
             creator: 'main',
             status: 'running',
         };
-        BackgroundCommandManager.runCommand(backgroundCommand);
+        BackgroundCommandManager.runCommand(backgroundCommand, context.sessionDir);
         return `Background command "${title}" created with ID: ${id} starts to run. You can check the status of this command later with check_background_command_status tool.`;
     }
 }

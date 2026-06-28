@@ -1,4 +1,3 @@
-import os from 'os';
 import { FileUtils } from '@deepclaw/node-utils';
 import { ToolUseResult } from "../../definitions/tool-definitions";
 import { OneLoopContext } from '../../definitions/definitions';
@@ -46,7 +45,7 @@ export class ToolUseService {
         }
         try {
             const output = await tool.invoke(input, context);
-            const truncated = this.truncateLargeOutput(toolUseDef.id, output, context.sessionDir, context.isSubLoop);
+            const truncated = this.truncateLargeOutput(toolUseDef.id, output, context.sessionDir);
             return this.toolResult(toolUseDef.id, truncated);
         } catch (error) {
             return this.toolResult(toolUseDef.id, `Error: ${error}`);
@@ -59,13 +58,12 @@ export class ToolUseService {
         });
     }
 
-    private static truncateLargeOutput(toolUseId: string, output: string, sessionDir: string, isSubLoop: boolean): string {
+    private static truncateLargeOutput(toolUseId: string, output: string, sessionDir: string): string {
         if (output.length <= TRUNCATE_THRESHOLD) {
             return output;
         }
         const fileName = FileUtils.wrapTimestamp(`${toolUseId}.txt`);
-        const folder = isSubLoop ? `${os.tmpdir()}/.deepclaw/subloop` : sessionDir;
-        const fullPath = `${folder}/${TOOL_RESULT_DIR}/${fileName}`;
+        const fullPath = `${sessionDir}/${TOOL_RESULT_DIR}/${fileName}`;
         FileUtils.writeFile(fullPath, output);
         output = output.slice(0, PREVIEW_CHAR_LENGTH);
         return `<persisted-output>

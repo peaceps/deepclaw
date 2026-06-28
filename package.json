@@ -12,6 +12,7 @@
 	"scripts": {
     	"preinstall": "only-allow pnpm",
 		"deepclaw": "pnpm --filter @deepclaw/launcher dev",
+		"typecheck": "tsc -b && pnpm --filter @deepclaw/web typecheck",
 		"lint": "eslint **/*.{ts,tsx}",
 		"test": "vitest run"
 	},
