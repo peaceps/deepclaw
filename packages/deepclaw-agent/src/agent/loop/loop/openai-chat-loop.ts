@@ -4,8 +4,13 @@ import { ToolUseDef } from '../services/tool-use-service';
 import { ToolUseResult } from '../../definitions/tool-definitions';
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
+import { LLMProtocol } from '../../definitions/definitions';
 
 export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
+
+    protected override getLLMProtocol(): LLMProtocol {
+        return 'OpenAIChat'
+    }
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return OpenAIChatLLM;

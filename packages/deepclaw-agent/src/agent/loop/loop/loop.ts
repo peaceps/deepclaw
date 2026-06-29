@@ -9,7 +9,9 @@ import {
     AgentToolResultEvent,
 } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
-import { FootPrint, LoopState, OneLoopContext, TransitionReason, isToolStopReason} from '../../definitions/definitions';
+import {
+    FootPrint, LLMProtocol, LoopState, OneLoopContext, TransitionReason, isToolStopReason, LoopSessionStatus, SessionMetadata
+} from '../../definitions/definitions';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
@@ -20,7 +22,7 @@ import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
 import { AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, PROJECT_DIR, SESSION_METADATA_FILE, SUB_LOOP_DIR, } from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
 
-type LoopSessionStatus = 'running' | 'paused' | 'ended' | 'error';
+const SESSION_TIMEOUT = 1000 * 60 * 60 * 24;
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -50,6 +52,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         ) as LLM;
     }
 
+    protected abstract getLLMProtocol(): LLMProtocol;
+
     private initializeSessionId(history: I[]): string {
         if (this.isSubLoop() || this.projectId || history.length > 0) {
             return crypto.randomUUID();
@@ -59,7 +63,42 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     private loadLatestSessionId(): string {
         const sessionRoot = `${AGENTS_DIR}/${this.agentId}/${AGENT_SESSION_DIR}`;
-        return FileUtils.findLatest(sessionRoot, MESSAGE_SNAPSHOT_FILE);
+        const sessionId = FileUtils.findLatest(sessionRoot, MESSAGE_SNAPSHOT_FILE);
+        if (!sessionId) {
+            return '';
+        }
+        try {
+            const metaFile = FileUtils.readFile(`${sessionRoot}/${sessionId}/${SESSION_METADATA_FILE}`);
+            const meta = JSON.parse(metaFile) as SessionMetadata;
+            if (meta.llmProtocol !== this.getLLMProtocol()) {
+                return '';
+            }
+            const status = meta.status;
+            const date = new Date(meta.updatedAt);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+            let timeout = SESSION_TIMEOUT;
+            switch(status) {
+                case 'running':
+                    timeout = SESSION_TIMEOUT * 2;
+                    break;
+                case 'paused':
+                    timeout = SESSION_TIMEOUT * 7;
+                    break;
+                case 'ended':
+                case 'error':
+                default:
+                    timeout = 0;
+                    break;
+            }
+            const diff = new Date().getTime() - date.getTime();
+            if (diff > timeout) {
+                return '';
+            }
+            return sessionId;
+        } catch {}
+        return '';
     }
 
     protected getSessionDir() {
@@ -188,7 +227,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     }
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
-        const compactor = MessageCompactor.getCompactor(this);
+        const compactor = MessageCompactor.getCompactor(this.getLLMProtocol());
         compactor.compactOldResults(this.history);
         await compactor.compactFullHistory(context.sessionDir, this.footPrints,
             context.loopConfig.mode, this.llm, context.system, this.history, context.logger
@@ -279,7 +318,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             if (forceMessagesSnapshot || context.turnCount > 0) {
                 FileUtils.writeFile(messagesPath, JSON.stringify(this.history));
             }
-            FileUtils.writeFile(`${context.sessionDir}/${SESSION_METADATA_FILE}`, JSON.stringify({
+            const metadata: SessionMetadata = {
+                llmProtocol: this.getLLMProtocol(),
                 agentId: this.agentId,
                 projectId: this.projectId,
                 sessionId: this.sessionId,
@@ -293,7 +333,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 finalText,
                 updatedAt: now,
                 endedAt: status === 'running' ? undefined : now,
-            }, null, 2));
+            };
+            FileUtils.writeFile(
+                `${context.sessionDir}/${SESSION_METADATA_FILE}`, JSON.stringify(metadata, null, 2)
+            );
         } catch (error) {
             context.logger.error(error, 'Persist loop state failed');
         }

@@ -4,8 +4,13 @@ import { ToolUseResult } from '../../definitions/tool-definitions';
 import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
+import { LLMProtocol } from '../../definitions/definitions';
 
 export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
+
+    protected override getLLMProtocol(): LLMProtocol {
+        return 'OpenAIResponse'
+    }
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return OpenAIResponseLLM;

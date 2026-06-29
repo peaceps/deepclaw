@@ -4,8 +4,13 @@ import { ToolUseResult } from "../../definitions/tool-definitions";
 import { ToolUseDef } from "../services/tool-use-service";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
+import { LLMProtocol } from "../../definitions/definitions";
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
+
+    protected override getLLMProtocol(): LLMProtocol {
+        return 'Anthropic'
+    }
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return AnthropicLLM;

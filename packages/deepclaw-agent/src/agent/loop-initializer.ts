@@ -6,7 +6,9 @@ import './loop/hooks/hooks';
 import { LoopAgent } from './loop/loop/loop';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop';
 import { loadAgentConfig } from '@deepclaw/config';
-import { detectAgentProtocolFromUrl, type LoopProtocol } from './loop-protocol-detector';
+import { detectAgentProtocolFromUrl } from './loop-protocol-detector';
+import { LLMProtocol } from './definitions/definitions';
+import { OpenAIResponseLoop } from './loop/loop/openai-response-loop';
 
 type LoopConstructor = new (
     agentId: string,
@@ -14,9 +16,10 @@ type LoopConstructor = new (
     projectId: string,
 ) => LoopAgent<any, any, any>;
 
-const loopClassMap: Record<LoopProtocol, LoopConstructor> = {
-    openai: OpenAIChatLoop,
-    anthropic: AnthropicLoop,
+const loopClassMap: Record<LLMProtocol, LoopConstructor> = {
+    OpenAIChat: OpenAIChatLoop,
+    OpenAIResponse: OpenAIResponseLoop,
+    Anthropic: AnthropicLoop,
 };
 
 export class LoopInitializer {

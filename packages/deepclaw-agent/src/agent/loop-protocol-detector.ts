@@ -1,6 +1,7 @@
-export type LoopProtocol = "openai" | "anthropic";
+import { LLMProtocol } from "./definitions/definitions";
 
-export function detectAgentProtocolFromUrl(baseURL: string): LoopProtocol | null {
+// TODO CHECK FOR OPENAI RESPONSE
+export function detectAgentProtocolFromUrl(baseURL: string): LLMProtocol | null {
     baseURL = baseURL.replace(/\/$/, "").toLowerCase();
     if (!baseURL) return null;
     try {
@@ -9,22 +10,23 @@ export function detectAgentProtocolFromUrl(baseURL: string): LoopProtocol | null
         return null;
     }
     if (baseURL.includes("anthropic")) {
-        return "anthropic";
+        return "Anthropic";
     }
-    return "openai";
+    return "OpenAIChat";
 }
 
+// TODO CHECK FOR OPENAI RESPONSE
 export async function detectAgentSDKFromRequest(
     baseURL: string,
     apiKey: string
-): Promise<LoopProtocol | null> {
+): Promise<LLMProtocol | null> {
     baseURL = baseURL.replace(/\/$/, "");
     try {
         const openaiRes = await fetch(`${baseURL}/models`, {
             headers: apiKey ? {Authorization: `Bearer ${apiKey}`} : {},
         });
         if (openaiRes.status !== 404 && openaiRes.status !== 405) {
-            return "openai";
+            return "OpenAIChat";
         }
     } catch {}
 
@@ -43,7 +45,7 @@ export async function detectAgentSDKFromRequest(
             }),
         });
         if (anthropicRes.status !== 404 && anthropicRes.status !== 405) {
-            return "anthropic";
+            return "Anthropic";
         }
     } catch {}
 
