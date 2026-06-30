@@ -18,7 +18,7 @@ export class PromptService {
     private static thoughtsPrompt: string = this.thoughts();
     private static mainIdentityPrompt: {loop: string, subloop: string} = this.mainIdentity();
 
-    public static provideSystemPrompt(agentId: string, isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): string {
+    public static provideSystemPrompt(agentId: string, projectId: string, isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): string {
         return `
 # Platform
 ${this.platformPrompt}
@@ -39,7 +39,7 @@ ${this.agentMode(agentMode)}
 ${this.project(agentMode)}
 
 # Memory
-${this.memory(agentId)}
+${this.memory(agentId, projectId)}
 
 # Skills
 ${this.availableSkills()}`;
@@ -116,8 +116,8 @@ But you can call tools to write files owned by the agent program itself, such as
         return agentMode === 'chat' ? '' : ProjectManager.prompts();
     }
 
-    private static memory(agentId: string): string {
-        return MemoryManager.getMemoryPrompt(agentId);
+    private static memory(agentId: string, projectId: string): string {
+        return MemoryManager.getMemoryPrompt(agentId, projectId);
     }
 
     private static availableSkills(): string {

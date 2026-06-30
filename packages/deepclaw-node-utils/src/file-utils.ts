@@ -127,10 +127,11 @@ export class FileUtils {
         return pathStr.replace(/\\/g, '/').replace(/\/\//g, '/');
     }
 
-    private static sanitizeFileName(fileName: string): string {
+    private static sanitizeFileName(fileName: string, allowFolder: boolean = true): string {
         const index = fileName.indexOf(':');
         const prefix = index !== -1 ? fileName.slice(0, index + 1) : '';
         const suffix = index !== -1 ? fileName.slice(index + 1) : fileName;
-        return prefix + this.formatSlash(suffix).replace(/[\*?<>&|:'"%^@`~]/g, '_');
+        const reg = allowFolder ? /[\*?<>&|:'"%^@`~]/g : /[\*?<>&|:'"%^@`~/\.]/g;
+        return prefix + this.formatSlash(suffix).replace(reg, '_');
     }
 }

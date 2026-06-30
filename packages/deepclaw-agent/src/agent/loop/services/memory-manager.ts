@@ -1,27 +1,37 @@
 import matter from 'gray-matter';
 import { FileUtils } from '@deepclaw/node-utils';
-import { AGENTS_DIR, MEMORY_DIR, MEMORY_INDEX_FILE } from '../../paths';
-import { loadConfig, DeepclawConfig } from '@deepclaw/config';
+import { AGENTS_DIR, GLOBAL_MEMORY_DIR, MEMORY_DIR, PROJECT_DIR } from '../../paths';
 
 const MEMORY_INDEX_LINES = 100;
 const MEMORY_INDEX_LINE_LENGTH = 200;
 
 const MEMORY_PROMPT = `
 When to save memories:
-- User states a preference ("I like tabs", "always use pytest") -> type: user
-- User corrects you ("don't do X", "that was wrong because...") -> type: feedback
-- You learn a project fact that is not easy to infer from current code alone
-  (for example: a rule exists because of compliance, or a legacy module must
-  stay untouched for business reasons) -> type: project
-- You learn where an external resource lives (ticket board, dashboard, docs URL)
-  -> type: reference
+- type preference: user's or team's preferred style, habits, defaults, tool choices.
+- type rules: constraints, corrections, project facts, decisions, safety/business rules that should be followed later.
+- type reference: pointers to external resources, docs, dashboards, tickets, not the copied content.
+
+scope:
+- global: applies to all agents/projects.
+- agent: private to the current agent.
+- project: applies to the current project.
+
+Typical examples:
+- global + preference: user's default language or coding style.
+- agent + rules: corrections about this agent's behavior.
+- project + rules: project-specific constraints or decisions.
+- project/global + reference: docs, dashboards, tickets.
 
 When NOT to save:
 - Anything easily derivable from code (function signatures, file structure, directory layout)
 - Temporary task state (current branch, open PR numbers, current TODOs)
 - Secrets or credentials (API keys, passwords)`;
 
-export type MemoryType = 'user' | 'feedback' | 'project' | 'reference';
+export const MEMORY_TYPES = ['preference', 'rules', 'reference'] as const;
+export type MemoryType = typeof MEMORY_TYPES[number];
+
+export const MEMORY_SCOPES = ['global', 'agent', 'project'] as const;
+export type MemoryScope = typeof MEMORY_SCOPES[number];
 
 type Memory = {
     type: MemoryType;
@@ -33,31 +43,24 @@ type Memory = {
 
 // TODO 定期整理记忆库，删除过期、重复、不重要的记忆
 export class MemoryManager {
-    private static allMemories: Map<string, Map<string, Map<string, Memory>>> = this.loadMemories();
-    private static memoryPrompt: Record<string, string> = this.generateMemoryPrompt();
+    private static globalMemories: Map<string, Memory> = this.loadMemoriesFromFolder(GLOBAL_MEMORY_DIR);
+    private static globalMemoryIndex: string = this.summary(this.globalMemories, 'global');
+    private static agentsMemories: Map<string, Map<string, Memory>> = new Map();
+    private static agentsMemoryIndex: Map<string, string> = new Map();
+    private static projectsMemories: Map<string, Map<string, Memory>> = new Map();
+    private static projectsMemoryIndex: Map<string, string> = new Map();
 
-    private static loadMemories(): Map<string, Map<string, Map<string, Memory>>> {
-        const memoriesMap = new Map<string, Map<string, Map<string, Memory>>>();
-        for (const agent of loadConfig<DeepclawConfig['agents']>('agents')) {
-            memoriesMap.set(agent.id, this.loadMemoriesForAgent(agent.id));
-        }
-        return memoriesMap;
-    }
-
-    private static loadMemoriesForAgent(agentId: string): Map<string, Map<string, Memory>> {
-        const memories: Map<string, Map<string, Memory>> = new Map();
-        const files = FileUtils.readDir(`${this.getMemoryDir(agentId)}`, (file: string) => file === MEMORY_INDEX_FILE ? '' : file);
+    private static loadMemoriesFromFolder(folder: string): Map<string, Memory> {
+        const memories: Map<string, Memory> = new Map();
+        const files = FileUtils.readDir(folder);
         for (const fileContent of Object.values(files)) {
             try {
                 const {data, content} = matter(fileContent.replace(/\r\n/g, '\n'));
                 if (data && data['type'] && data['name'] && data['description']) {
-                    if (!['user', 'feedback', 'project', 'reference'].includes(data['type'])) {
+                    if (!MEMORY_TYPES.includes(data['type'] as MemoryType)) {
                         continue;
                     }
-                    if (!memories.has(data['type'])) {
-                        memories.set(data['type'], new Map());
-                    }
-                    memories.get(data['type'])!.set(data['name'], {
+                    memories.set(data['name'], {
                         type: data['type'],
                         datetime: data['datetime'] || '',
                         name: data['name'], 
@@ -73,45 +76,49 @@ export class MemoryManager {
         return memories;
     }
 
-    private static generateMemoryPrompt(): Record<string, string> {
-        const memoryPrompt: Record<string, string> = {};
-        for (const agentId of this.allMemories.keys()) {
-            memoryPrompt[agentId] = this.generateMemoryPromptForAgent(agentId);
+    public static getMemoryPrompt(agentId: string, projectId?: string): string {
+        this.ensureMemoryLoaded(agentId, projectId);
+        const sections: string[] = [];
+        if (this.globalMemoryIndex) {
+            sections.push(`## Global memories index (shared by all agents)\n${this.globalMemoryIndex}`);
         }
-        return memoryPrompt;
+        const agent = this.agentsMemoryIndex.get(agentId);
+        if (agent) {
+            sections.push(`## Agent memories index (private to this agent)\n${agent}`);
+        }
+        if (projectId) {
+            const project = this.projectsMemoryIndex.get(projectId);
+            if (project) {
+                sections.push(`## Project memories index (Focus on this project)\n${project}`);
+            }
+        }
+        const body = sections.length ? sections.join('\n\n') : '(none on disk yet)';
+        return `${MEMORY_PROMPT}
+
+# Memory indexes (persistent across sessions)
+You can get full content via read_memory_detail tool with scope and name.
+
+${body}`;
     }
 
-    private static generateMemoryPromptForAgent(agentId: string): string {
-        let prompt = `${MEMORY_PROMPT}\n\n`;
-        prompt += '# Memories (persistent across sessions)\n\n';
-        if (!this.allMemories.get(agentId)?.size) {
-            prompt += '(none on disk yet)\n';
-            return prompt;
+    public static getMemoryDetail(name: string, agentId?: string, projectId?: string): string {
+        if (agentId) {
+            this.ensureMemoryLoaded(agentId, projectId);
         }
-        const agentMemories = this.allMemories.get(agentId)!;
-        for (const type of Array.from(agentMemories.keys())) {
-            prompt += `## ${type}\n\n`;
-            const memories = Array.from(agentMemories.get(type)!.values());
-            memories.sort((a, b) => b.datetime.localeCompare(a.datetime));
-            prompt += memories.map(
-                m => `### ${m.name}: ${m.description}\n${m.content}`
-            ).join('\n');
-        }
-        return prompt;
+        const memoryMap = this.getMemoryMap(agentId, projectId);
+        if (!memoryMap) return `Memory not found.`;
+        const memory = memoryMap.get(name);
+        return memory ? memory.content : `Memory not found.`;
     }
 
-    public static getMemoryPrompt(agentId: string): string {
-        return this.memoryPrompt[agentId] || '';
-    }
-
-    public static addMemory(agentId: string, memory: Omit<Memory, 'datetime'>): void {
-        const agentMemories = this.allMemories.get(agentId);
-        if (!agentMemories) return;
+    public static addMemory(memory: Omit<Memory, 'datetime'>, agentId?: string, projectId?: string): void {
+        if (agentId) {
+            this.ensureMemoryLoaded(agentId, projectId);
+        }
+        const memoryMap = this.getMemoryMap(agentId, projectId);
+        if (!memoryMap) return;
         const datetime = new Date().toISOString();
-        if (!agentMemories.has(memory.type)) {
-            agentMemories.set(memory.type, new Map());
-        }
-        agentMemories.get(memory.type)!.set(memory.name, {
+        memoryMap.set(memory.name, {
             type: memory.type,
             datetime,
             name: memory.name,
@@ -124,26 +131,54 @@ export class MemoryManager {
             description: memory.description,
             datetime,
         });
-        FileUtils.writeFile(`${this.getMemoryDir(agentId)}/${memory.name}.md`, md);
-        this.rewriteIndex(agentId);
-        this.memoryPrompt[agentId] = this.generateMemoryPromptForAgent(agentId);
-    }
-
-    private static rewriteIndex(agentId: string): void {
-        const agentMemories = this.allMemories.get(agentId);
-        if (!agentMemories) return;
-        let index = '';
-        for (const type of Array.from(agentMemories.keys())) {
-            const memories = Array.from(agentMemories.get(type)!.values());
-            memories.sort((a, b) => b.datetime.localeCompare(a.datetime));
-            index += memories.slice(0, MEMORY_INDEX_LINES).map(
-                m => `Type: ${type} -> Name: ${m.name} -> Description: ${m.description?.slice(0, MEMORY_INDEX_LINE_LENGTH) || ''}`
-            ).join('\n');
+        const memoryDir = this.getMemoryDir(agentId, projectId);
+        FileUtils.writeFile(`${memoryDir}/${memory.name}.md`, md);
+        const index = this.summary(memoryMap, this.getMemoryScope(agentId, projectId));
+        if (projectId) {
+            this.projectsMemoryIndex.set(projectId, index);
+        } else if (agentId) {
+            this.agentsMemoryIndex.set(agentId, index);
+        } else {
+            this.globalMemoryIndex = index;
         }
-        FileUtils.writeFile(`${this.getMemoryDir(agentId)}/${MEMORY_INDEX_FILE}`, index);
     }
 
-    private static getMemoryDir(agentId: string): string {
-        return `${AGENTS_DIR}/${agentId}/${MEMORY_DIR}`;
+    private static summary(memoryMap: Map<string, Memory>, scope: MemoryScope): string {
+        if (!memoryMap?.size) return '';
+        let index = '';
+        const memories = Array.from(memoryMap.values() || []);
+        memories.sort((a, b) => b.datetime.localeCompare(a.datetime));
+        index += memories.slice(0, MEMORY_INDEX_LINES).map(
+            m => `Scope: ${scope} -> Type: ${m.type} -> Name: ${m.name} -> Description: ${m.description?.slice(0, MEMORY_INDEX_LINE_LENGTH) || ''}`
+        ).join('\n') + '\n';
+        return index;
+    }
+
+    private static ensureMemoryLoaded(agentId: string, projectId?: string) {
+        if (!this.agentsMemories.has(agentId)) {
+            const memoryMap = this.loadMemoriesFromFolder(this.getMemoryDir(agentId));
+            this.agentsMemories.set(agentId, memoryMap);
+            this.agentsMemoryIndex.set(agentId, this.summary(memoryMap, 'agent'));
+        }
+        if (projectId) {
+            if (!this.projectsMemories.has(projectId)) {
+                const memoryMap = this.loadMemoriesFromFolder(this.getMemoryDir(agentId, projectId));
+                this.projectsMemories.set(projectId, memoryMap);
+                this.projectsMemoryIndex.set(projectId, this.summary(memoryMap, 'project'));
+            }
+        }
+    }
+
+    private static getMemoryMap(agentId?: string, projectId?: string): Map<string, Memory> | undefined {
+        return !agentId ? this.globalMemories : !projectId ? this.agentsMemories.get(agentId) : this.projectsMemories.get(projectId);
+    }
+
+    private static getMemoryDir(agentId?: string, projectId?: string): string {
+        return !agentId ? GLOBAL_MEMORY_DIR :
+            !projectId ? `${AGENTS_DIR}/${agentId}/${MEMORY_DIR}` : `${PROJECT_DIR}/${projectId}/${MEMORY_DIR}`;
+    }
+
+    private static getMemoryScope(agentId?: string, projectId?: string): MemoryScope {
+        return !agentId ? 'global' : !projectId ? 'agent' : 'project';
     }
 }

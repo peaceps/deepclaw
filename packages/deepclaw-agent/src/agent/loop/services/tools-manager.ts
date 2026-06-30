@@ -8,7 +8,7 @@ import {
     checkAllBackgroundCommandStatusTool,
     checkBackgroundCommandStatusTool
 } from '../tools/background-command-tool';
-import {saveMemoryTool} from '../tools/save-memory-tool';
+import {saveMemoryTool, readMemoryDetailTool} from '../tools/save-memory-tool';
 import {createProjectTool, createSimpleTaskTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
 import { DeepclawConfig } from '@deepclaw/config';
@@ -22,6 +22,7 @@ const tools: ToolDesc<any>[] = [
     writeFileTool,
     editFileTool,
     saveMemoryTool,
+    readMemoryDetailTool,
     createProjectTool,
     updateTaskTool,
     updateTaskCurrentStepTool,

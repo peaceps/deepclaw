@@ -213,7 +213,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 return finalText;
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
-                this.agentId, this.isSubLoop(), state.oneLoopContext.loopConfig.mode
+                this.agentId, this.projectId, this.isSubLoop(), state.oneLoopContext.loopConfig.mode
             );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
