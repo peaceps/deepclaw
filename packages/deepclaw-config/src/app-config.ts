@@ -3,7 +3,7 @@ import { FileUtils, globalize } from '@deepclaw/node-utils';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 
-export const MAX_AGENT_COUNT = 3;
+export const MAX_AGENT_COUNT = 30;
 
 type AgentConfigSingleValue = string | number | boolean;
 type AgentConfigValue = AgentConfigSingleValue | AgentConfigSingleValue[] | undefined;

@@ -63,8 +63,8 @@ function startNextStart(): void {
 
 if (cli.flags.headless) {
     void import('@deepclaw/headless');
-} else if (cli.flags.web) {
-	startNextStart();
 } else if (cli.flags.tui) {
 	void import('@deepclaw/tui');
+} else if (cli.flags.web) {
+	startNextStart();
 }

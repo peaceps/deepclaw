@@ -1,21 +1,31 @@
-# deepclaw
+# deepclaw dev
 
 ## Install
 
 ```bash
-$ npm install
+$ pnpm install
 ```
 
-## CLI
+## Start
 
+### Web
+```bash
+pnpm --filter=@deepclaw/deepclaw web
 ```
-	Usage
-	  $ npx tsx main.tsx
+<img src="resources/agents.png"/><br>
+<img src="resources/projects.png"/><br>
+<img src="resources/settings.png"/><br>
 
-	Options
-		--test  Test mode
-
-	Examples
-	  $ npx tsx main.tsx --test
+### TUI
+```bash
+pnpm --filter=@deepclaw/deepclaw tui
 ```
+<img src="resources/tuis1.png"/><br>
+<img src="resources/tuis2.png"/><br>
+<img src="resources/tui.png"/><br>
 
+### Headless
+```bash
+pnpm --filter=@deepclaw/deepclaw headless
+```
+<img src="resources/headless.png"/>

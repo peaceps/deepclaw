@@ -14,7 +14,9 @@
 		"build": "rollup -c",
 		"lint": "eslint **/*.ts",
 		"test": "vitest run",
-		"dev": "npx tsx src/main.ts"
+		"web": "npx tsx src/main.ts",
+		"tui": "npx tsx src/main.ts --tui",
+		"headless": "npx tsx src/main.ts --headless"
 	},
 	"dependencies": {
 		"@deepclaw/tui": "workspace:*",
