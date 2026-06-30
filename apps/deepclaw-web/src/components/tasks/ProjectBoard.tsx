@@ -14,9 +14,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
     : undefined;
   const projectRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastScrolledProjectIdRef = useRef<string | undefined>(undefined);
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
-    () => new Set(selectedProjectId ? [selectedProjectId] : [])
-  );
+  const [expandedProjectId, setExpandedProjectId] = useState<string | undefined>(selectedProjectId);
   const [handledSelectedProjectId, setHandledSelectedProjectId] = useState<string | undefined>();
   const [filters, setFilters] = useState(DEFAULT_PROJECT_FILTERS);
   const filteredProjects = useMemo(
@@ -29,12 +27,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
     setHandledSelectedProjectId(undefined);
   } else if (selectedProjectId && selectedProject && selectedProjectId !== handledSelectedProjectId) {
     setHandledSelectedProjectId(selectedProjectId);
-    setExpandedProjects(prev => {
-      if (prev.has(selectedProjectId)) return prev;
-      const next = new Set(prev);
-      next.add(selectedProjectId);
-      return next;
-    });
+    setExpandedProjectId(selectedProjectId);
     if (filterProjects([selectedProject], filters).length === 0) {
       setFilters({
         ...DEFAULT_PROJECT_FILTERS,
@@ -47,9 +40,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
   const [prevProjectIdsKey, setPrevProjectIdsKey] = useState(projectIdsKey);
   if (projectIdsKey !== prevProjectIdsKey) {
     setPrevProjectIdsKey(projectIdsKey);
-    setExpandedProjects(prev => {
-      return new Set(Array.from(prev).filter(id => projects.some(p => p.id === id)));
-    });
+    setExpandedProjectId(prev => (prev && projects.some(p => p.id === prev) ? prev : undefined));
   }
 
   useEffect(() => {
@@ -57,7 +48,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
         lastScrolledProjectIdRef.current = undefined;
         return;
     }
-    if (!expandedProjects.has(selectedProjectId)) return;
+    if (expandedProjectId !== selectedProjectId) return;
     if (lastScrolledProjectIdRef.current === selectedProjectId) return;
 
     const projectElement = projectRefs.current[selectedProjectId];
@@ -68,14 +59,10 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
       projectElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     return () => cancelAnimationFrame(frame);
-  }, [expandedProjects, filteredProjects, selectedProjectId]);
+  }, [expandedProjectId, filteredProjects, selectedProjectId]);
 
   const toggleProject = (projectId: string) => {
-    setExpandedProjects(prev => {
-      const next = new Set(prev);
-      if (next.has(projectId)) next.delete(projectId); else next.add(projectId);
-      return next;
-    });
+    setExpandedProjectId(prev => (prev === projectId ? undefined : projectId));
   };
 
   return (
@@ -97,7 +84,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
             }}
           >
             <ProjectRow project={project}
-              isExpanded={expandedProjects.has(project.id)} onToggle={() => toggleProject(project.id)}
+              isExpanded={expandedProjectId === project.id} onToggle={() => toggleProject(project.id)}
             />
           </div>
         )) : (
