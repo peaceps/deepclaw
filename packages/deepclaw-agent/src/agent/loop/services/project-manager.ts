@@ -259,9 +259,8 @@ export class ProjectManager {
         return this.projects[projectId]?.tasks[taskTitle];
     }
 
-    public static prompts(): string {
-        return `
-## Project Management tools
+    public static promptManagementTools(): string {
+        return `## Project Management tools
 You can use project related tools to plan, manage projects.
 Projects are considered long term goals that can be broken down into tasks, they will be persisted in file system.
 Simple tasks are independent tasks and not related to any project when created,
@@ -283,5 +282,23 @@ steps info are important for user to get current task execution status, so make 
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
 For simple tasks just set the wrapped project id.
 It's also allowed for subloop agents to take action on tasks, and update task status.`;
+    }
+
+    public static promptCurrentProject(projectId: string): string {
+        const project = this.projects[projectId];
+        return `${project ? `## You are currently working on the project below:
+${JSON.stringify({
+    id: project.id,
+    title: project.title,
+    description: project.description,
+    tasks: Object.values(project.tasks).map(task => ({
+        title: task.title,
+        description: task.description
+    })),
+    completedTasks: project.completedTasks,
+    ongoingTasks: project.ongoingTasks,
+    canStartTasks: project.canStartTasks,
+})}
+If the user does not specify another project, assume they are talking about this project.` : ''}`
     }
 }

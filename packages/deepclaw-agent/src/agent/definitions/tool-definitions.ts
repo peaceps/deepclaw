@@ -1,5 +1,5 @@
 import { OneLoopContext } from './definitions';
-import { DeepclawConfig } from '@deepclaw/config';
+import { AgentMode } from '@deepclaw/config';
 import { i18nInstance } from '@deepclaw/i18n';
 
 export type LLMTool = {
@@ -34,10 +34,10 @@ export type ToolCallback<T = unknown> = (input: T, context: OneLoopContext) => P
 export type ToolDesc<T = unknown> = {
     tool: LLMTool;
     parallelSafe: boolean;
-    agentMode: DeepclawConfig['agents'][0]['mode'][];
+    agentMode: AgentMode[];
     exclusiveInSubLoop?: boolean; // if true, the tool will not be available in sub-loop
     invoke: ToolCallback<T>;
-    guard?: (input: T, agentMode: DeepclawConfig['agents'][0]['mode']) => ToolGuardResult;
+    guard?: (input: T, agentMode: AgentMode) => ToolGuardResult;
 }
 
 export function askPermissionGuard(reason: string): ToolGuardResult {

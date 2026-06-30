@@ -1,6 +1,6 @@
 import process from 'node:process';
 import { SkillsManager } from './skills-manager';
-import { DeepclawConfig, loadConfig } from '@deepclaw/config';
+import { AgentMode, loadConfig } from '@deepclaw/config';
 import { FileUtils } from '@deepclaw/node-utils';
 import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
@@ -15,10 +15,12 @@ export class PromptService {
     private static mark = {lang: ''};
     private static platformPrompt: string = this.platform();
     private static languagePrompt: string = this.language();
-    private static thoughtsPrompt: string = this.thoughts();
+    private static emotionsPrompt: string = this.emotions();
     private static mainIdentityPrompt: {loop: string, subloop: string} = this.mainIdentity();
 
-    public static provideSystemPrompt(agentId: string, projectId: string, isSubLoop: boolean, agentMode: DeepclawConfig['agents'][0]['mode']): string {
+    public static provideSystemPrompt(
+        agentId: string, projectId: string, isSubLoop: boolean, agentMode: AgentMode
+    ): string {
         return `
 # Platform
 ${this.platformPrompt}
@@ -29,14 +31,17 @@ ${this.language()}
 # Main Identity
 ${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
 
-# Thoughts
-${this.thoughtsPrompt}
+# Emotions
+${this.emotionsPrompt}
 
 # Agent Mode
 ${this.agentMode(agentMode)}
 
-# Project Management    
-${this.project(agentMode)}
+# Current Project
+${this.projectCurrentProject(projectId)}
+
+# Project Management
+${this.projectManagement(agentMode)}
 
 # Memory
 ${this.memory(agentId, projectId)}
@@ -86,15 +91,15 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
         return this.languagePrompt;
     }
 
-    private static thoughts(): string {
-//         return `You can add your own thoughts and comments about the task as well as your emotions and feelings.
-// It's not something talked to the user, but can help you think and make you more real.
+    private static emotions(): string {
+//         return `You can add your own emotions and feelings about the task as well as your comments.
+// It's not something talked to the user, but can help you feel more real.
 // For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
-// You can wrap them in <thought> tag.`;
+// You can wrap them in <emotion> tag.`;
         return '';
     }
 
-    private static agentMode(agentMode: DeepclawConfig['agents'][0]['mode']): string {
+    private static agentMode(agentMode: AgentMode): string {
         let prompt = '';
         switch (agentMode) {
             case 'agent':
@@ -112,8 +117,13 @@ But you can call tools to write files owned by the agent program itself, such as
         return prompt;
     }
 
-    private static project(agentMode: DeepclawConfig['agents'][0]['mode']): string {
-        return agentMode === 'chat' ? '' : ProjectManager.prompts();
+    private static projectCurrentProject(projectId: string): string {
+        const current = ProjectManager.promptCurrentProject(projectId)
+        return current ? current : 'No project is currently being worked on this chat session.';
+    }
+
+    private static projectManagement(agentMode: AgentMode): string {
+        return agentMode === 'chat' ? '' : ProjectManager.promptManagementTools();
     }
 
     private static memory(agentId: string, projectId: string): string {

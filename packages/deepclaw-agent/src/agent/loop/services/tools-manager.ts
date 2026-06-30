@@ -11,7 +11,7 @@ import {
 import {saveMemoryTool, readMemoryDetailTool} from '../tools/save-memory-tool';
 import {createProjectTool, createSimpleTaskTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
-import { DeepclawConfig } from '@deepclaw/config';
+import { AgentMode } from '@deepclaw/config';
 
 const tools: ToolDesc<any>[] = [
     syncCommandTool,
@@ -35,8 +35,8 @@ const tools: ToolDesc<any>[] = [
 ];
 
 type ToolsStrorage<T extends (Record<string, ToolDesc<any>> | LLMTool[])> = {
-    loop: Record<DeepclawConfig['agents'][0]['mode'], T>;
-    subLoop: Record<DeepclawConfig['agents'][0]['mode'], T>;
+    loop: Record<AgentMode, T>;
+    subLoop: Record<AgentMode, T>;
 }
 
 export class ToolsManager {
@@ -68,7 +68,7 @@ export class ToolsManager {
         }
     }
 
-    public static getToolDesc(isSubLoop: boolean, mode: DeepclawConfig['agents'][0]['mode'], name: string): ToolDesc<any> | undefined {
+    public static getToolDesc(isSubLoop: boolean, mode: AgentMode, name: string): ToolDesc<any> | undefined {
         if (isSubLoop) {
             return this.map.subLoop[mode][name];
         } else {
@@ -76,7 +76,7 @@ export class ToolsManager {
         }
     }
 
-    public static getToolsArray(isSubLoop: boolean): Record<DeepclawConfig['agents'][0]['mode'], LLMTool[]> {
+    public static getToolsArray(isSubLoop: boolean): Record<AgentMode, LLMTool[]> {
         if (isSubLoop) {
             return this.array.subLoop;
         } else {

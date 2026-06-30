@@ -35,6 +35,7 @@ export type DeepclawConfig = {
         lang: string;
     }
 };
+export type AgentMode = DeepclawConfig['agents'][number]['mode'];
 
 export type MissingAppConfig = (string|{[key in keyof Partial<DeepclawConfig>]: {[key: number]: string[]}})[];
 

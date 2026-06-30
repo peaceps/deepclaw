@@ -1,4 +1,4 @@
-import {DeepclawConfig} from '@deepclaw/config';
+import {DeepclawConfig, AgentMode} from '@deepclaw/config';
 import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
 import { TransitionReason } from '../definitions/definitions';
@@ -11,7 +11,7 @@ export type LLMConstructor<I, O, T, LLM> = new (isSubLoop: boolean, llmConfig: D
 
 export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
-    private tools: Record<DeepclawConfig['agents'][0]['mode'], T[]> = {agent: [], chat: []};
+    private tools: Record<AgentMode, T[]> = {agent: [], chat: []};
     protected gw: LLMGWConfig;
 
     constructor(isSubLoop: boolean, llmConfig: DeepclawConfig['agents'][0]['llm']) {
@@ -22,7 +22,7 @@ export abstract class LLMModel<I, O, T, LLM> {
             maxTokens: 8000
         }
         const allTools = ToolsManager.getToolsArray(isSubLoop);
-        for (const mode of Object.keys(allTools) as DeepclawConfig['agents'][0]['mode'][]) {
+        for (const mode of Object.keys(allTools) as AgentMode[]) {
             this.tools[mode] = this.convertTools(allTools[mode]);
         };
         this.client = this.createLLMClient(llmConfig.baseURL, llmConfig.apiKey, this.gw.timeoutMs);
@@ -43,7 +43,7 @@ export abstract class LLMModel<I, O, T, LLM> {
     protected abstract createLLMClient(baseURL: string, apiKey: string, timeout: number): LLM;
 
     public async invoke(
-        mode: DeepclawConfig['agents'][0]['mode'],
+        mode: AgentMode,
         system: string,
         messages: I[],
         streamer: (text: string) => void, logger: Logger
@@ -92,7 +92,7 @@ export abstract class LLMModel<I, O, T, LLM> {
     }
 
     public async compact(
-        mode: DeepclawConfig['agents'][0]['mode'],
+        mode: AgentMode,
         system: string,
         content: string,
         logger: Logger

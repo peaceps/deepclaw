@@ -3,7 +3,7 @@ import { LLMModel } from '../../llm/llmgw';
 import { FootPrint } from '../../definitions/definitions';
 import { HISTORY_DIR } from '../../paths';
 import { HISTORY_COMPACT_FILE } from '../../paths';
-import { DeepclawConfig } from '@deepclaw/config';
+import { AgentMode } from '@deepclaw/config';
 
 const MAX_RECENT_TOOL_RESULT_COUNT: number = 20;
 const TOOL_RESULT_THRESHOLD: number = 1200;
@@ -26,7 +26,7 @@ export abstract class AbstractMessagesCompactor<I, O, R, LLM extends LLMModel<I,
     }
 
     public async compactFullHistory(
-        sessionDir: string, footPrints: FootPrint[], mode: DeepclawConfig['agents'][0]['mode'],
+        sessionDir: string, footPrints: FootPrint[], mode: AgentMode,
         llm: LLM, system: string, messages: I[], logger: Logger
     ): Promise<void> {
         const jsonl = messages.map(message => JSON.stringify(message)).join('\n');
@@ -45,7 +45,7 @@ export abstract class AbstractMessagesCompactor<I, O, R, LLM extends LLMModel<I,
     }
 
     private async summarizeHistory(
-        mode: DeepclawConfig['agents'][0]['mode'], footPrints: FootPrint[],
+        mode: AgentMode, footPrints: FootPrint[],
         llm: LLM, system: string, jsonl: string, logger: Logger
     ): Promise<I> {
         const summary = await llm.compact(mode, system, jsonl, logger);
