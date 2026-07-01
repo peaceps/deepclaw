@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import {initI18n} from '@/i18n';
 import { Sidebar } from './Sidebar';
-import type { DeepclawConfig } from '@deepclaw/config';
+import type { ManagerConfig } from '@deepclaw/config';
 import type { LoopInfo } from '@deepclaw/loop-gateway';
 import { useAppStore } from '@/lib/store';
 import { InfoClient } from './InfoClient';
@@ -11,7 +11,7 @@ import { SSEProvider } from './SSEProvider';
 
 type RootLayoutProps = {
   lang: string;
-  manager: DeepclawConfig['manager'];
+  manager: ManagerConfig;
   loopInfo: LoopInfo;
   children: React.ReactNode;
 }

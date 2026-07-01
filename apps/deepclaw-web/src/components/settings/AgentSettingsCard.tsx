@@ -4,7 +4,7 @@ import {
   CircleAlert,
   MessageSquare,
 } from 'lucide-react';
-import type { CONFIGS_EVENTS, DeepclawConfig } from '@deepclaw/config';
+import type { CONFIGS_EVENTS, AgentConfig, IMConfig, LLMConfig } from '@deepclaw/config';
 import type { AgentInteractionEvent } from '@deepclaw/core';
 import { type ValidationResult } from '@/server/configs';
 import {DeepSelect} from '@/laf/deep-select';
@@ -14,10 +14,6 @@ import {DeepCustomHeaderExpandablePanel} from '@/laf/deep-expandable-panel';
 import { useCallback } from 'react';
 import {AgentSettingsHeader} from './AgentSettingsHeader';
 import { AgentSettingsSection } from './AgentSettingsSection';
-
-type AgentConfig = NonNullable<DeepclawConfig['agents'][0]>;
-type IMConfig = NonNullable<AgentConfig['im']>;
-type LLMConfig = AgentConfig['llm'];
 
 export function AgentSettingsCard({
   name,

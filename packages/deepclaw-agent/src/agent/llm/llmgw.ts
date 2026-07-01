@@ -1,4 +1,4 @@
-import {DeepclawConfig, AgentMode} from '@deepclaw/config';
+import {AgentMode, LLMConfig} from '@deepclaw/config';
 import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
 import { TransitionReason } from '../definitions/definitions';
@@ -7,14 +7,14 @@ import { ToolsManager } from '../loop/services/tools-manager';
 
 const llmRetry = 3;
 
-export type LLMConstructor<I, O, T, LLM> = new (isSubLoop: boolean, llmConfig: DeepclawConfig['agents'][0]['llm']) => LLMModel<I, O, T, LLM>;
+export type LLMConstructor<I, O, T, LLM> = new (isSubLoop: boolean, llmConfig: LLMConfig) => LLMModel<I, O, T, LLM>;
 
 export abstract class LLMModel<I, O, T, LLM> {
     protected client: LLM;
     private tools: Record<AgentMode, T[]> = {agent: [], chat: []};
     protected gw: LLMGWConfig;
 
-    constructor(isSubLoop: boolean, llmConfig: DeepclawConfig['agents'][0]['llm']) {
+    constructor(isSubLoop: boolean, llmConfig: LLMConfig) {
         this.gw = {
             model: llmConfig.model,
             timeoutMs: 300 * 1000, // JSON: seconds → client: ms
@@ -30,7 +30,7 @@ export abstract class LLMModel<I, O, T, LLM> {
 
     public updateGWConfig(
         newClient: {baseURL: string, apiKey: string}|null,
-        config: CommonKeys<DeepclawConfig['agents'][0]['llm'], LLMGWConfig>
+        config: CommonKeys<LLMConfig, LLMGWConfig>
     ) {
         Object.assign(this.gw, config);
         if (newClient) {

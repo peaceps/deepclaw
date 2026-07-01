@@ -10,17 +10,22 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
 import {
-    FootPrint, LLMProtocol, LoopState, OneLoopContext, TransitionReason, isToolStopReason, LoopSessionStatus, SessionMetadata
+    FootPrint, LLMProtocol, LoopState, OneLoopContext, TransitionReason,
+    isToolStopReason, LoopSessionStatus, SessionMetadata
 } from '../../definitions/definitions';
 import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
 import { FileUtils, getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
-import { DeepclawConfig, loadAgentConfig } from '@deepclaw/config';
+import { AgentConfig, loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
-import { AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, PROJECT_DIR, SESSION_METADATA_FILE, SUB_LOOP_DIR, } from '../../paths';
+import {
+    AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, PROJECT_DIR,
+    SESSION_METADATA_FILE, SUB_LOOP_DIR
+} from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
+import { AgentIdentityManager } from '../services/agent-identity-manager';
 
 const SESSION_TIMEOUT = 1000 * 60 * 60 * 24;
 
@@ -32,7 +37,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private sessionId: string;
     protected history: I[] = [];
     private footPrints: FootPrint[] = [];
-    private agentConfig: DeepclawConfig['agents'][0];
+    private agentConfig: AgentConfig;
 
     constructor(
         agentId: string,
@@ -123,7 +128,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         }
     }
 
-    public updateConfig(config: DeepclawConfig['agents'][0]): void {
+    public updateConfig(config: AgentConfig): void {
         const oldLLMConfig = this.agentConfig.llm;
         const newLLMConfig = config.llm;
         this.agentConfig = config;
@@ -213,7 +218,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 return finalText;
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
-                this.agentId, this.projectId, this.isSubLoop(), state.oneLoopContext.loopConfig.mode
+                this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
+                this.projectId, this.isSubLoop()
             );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {

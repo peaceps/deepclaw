@@ -1,6 +1,6 @@
 import type { Logger } from '@deepclaw/node-utils';
 import { SealedAgentHandler, type FlushAgent } from '@deepclaw/core';
-import { DeepclawConfig } from '@deepclaw/config';
+import { AgentConfig } from '@deepclaw/config';
 
 export type LLMProtocol = 'Anthropic' | 'OpenAIChat' | 'OpenAIResponse';
 
@@ -35,7 +35,7 @@ export type OneLoopContext = {
     toolStopText?: string;
     system: string;
     logger: Logger;
-    loopConfig: DeepclawConfig['agents'][0];
+    loopConfig: AgentConfig;
     recoveryState: {
         maxTokenRetries: number;
         refusalState: '' // TODO: 添加拒绝状态

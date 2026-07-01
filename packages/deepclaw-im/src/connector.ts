@@ -1,16 +1,14 @@
-import { DeepclawConfig, loadConfig } from "@deepclaw/config";
+import { AgentsConfig, IMConfig, loadConfig } from "@deepclaw/config";
 import { dingTalk } from "./im/dingtalk";
 import { feishu } from "./im/feishu";
 import type { IM } from "./im-definitions";
-
-type ImConfig = NonNullable<DeepclawConfig["agents"][0]["im"]>;
 
 const ims: Record<string, IM> = {
     dingtalk: dingTalk,
     feishu: feishu,
 };
 
-const getIM = (engine: ImConfig["engine"]): IM => {
+const getIM = (engine: IMConfig["engine"]): IM => {
     const im = ims[engine];
     if (!im) {
         throw new Error(`IM engine ${engine} not found`);
@@ -19,7 +17,7 @@ const getIM = (engine: ImConfig["engine"]): IM => {
 }
 
 export function connectIM(): { disconnect: () => void } {
-    const agent = loadConfig<DeepclawConfig['agents']>('agents')[0];
+    const agent = loadConfig<AgentsConfig>('agents')[0];
     if (!agent) {
         return {disconnect: () => {}};
     }

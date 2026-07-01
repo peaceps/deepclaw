@@ -2,10 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MessageSquare, ClipboardList, Settings, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
+import {
+    LayoutDashboard, Users, MessageSquare, ClipboardList, Settings,
+    ChevronLeft, ChevronRight, Menu, X
+} from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { DeepclawConfig } from '@deepclaw/config';
+import type { ManagerConfig } from '@deepclaw/config';
 import { EmojiPicker } from '@/laf/emoji-picker';
 import { updateManagerAvatar } from '@/server/configs';
 
@@ -18,7 +21,7 @@ const navItems = [
 ];
 
 interface SidebarProps {
-  manager: DeepclawConfig['manager'];
+  manager: ManagerConfig;
 }
 
 export function Sidebar({manager}: SidebarProps) {

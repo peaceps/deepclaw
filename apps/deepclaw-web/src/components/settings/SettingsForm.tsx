@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { CONFIGS_EVENTS, DeepclawConfig} from '@deepclaw/config';
+import type {
+    CONFIGS_EVENTS, DeepclawConfig, AgentConfig, IMConfig,
+    LLMConfig, UIConfig, ManagerConfig
+} from '@deepclaw/config';
 import { type AgentInteractionEvent } from '@deepclaw/core';
 import { Save, Plus, Bot, Globe } from 'lucide-react';
 import { AgentSettingsCard } from './AgentSettingsCard';
@@ -11,10 +14,7 @@ import {DeepSelect} from '@/laf/deep-select';
 import {DeepInput} from '@/laf/deep-input';
 import {SettingsError} from './SettingsError';
 import { useTranslation } from 'react-i18next';
-
-type AgentConfig = NonNullable<DeepclawConfig['agents'][0]>;
-type IMConfig = NonNullable<AgentConfig['im']>;
-type LLMConfig = AgentConfig['llm'];
+import { type SupportedLanguage } from '@deepclaw/i18n';
 
 export type SettingsProps = {
   metaData: {maxAgentCount: number},
@@ -38,12 +38,12 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
     setPanelToggleStatus(pre => ({...pre, [name]: !pre[name]}));
   }, []);
 
-  const updateUIConfig = useCallback((updates: Partial<DeepclawConfig['ui']>) => {
+  const updateUIConfig = useCallback((updates: Partial<UIConfig>) => {
     setConfig((prev) => ({ ...prev, ui: { ...prev.ui, ...updates } }));
     setEdited(true);
   }, []);
 
-  const updateManagerConfig = useCallback((updates: Partial<DeepclawConfig['manager']>) => {
+  const updateManagerConfig = useCallback((updates: Partial<ManagerConfig>) => {
     setConfig((prev) => ({ ...prev, manager: { ...prev.manager, ...updates } }));
     setEdited(true);
   }, []);
@@ -179,7 +179,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
             <DeepSelect
                 uiInfo={configEvents['ui.lang'] as Extract<AgentInteractionEvent, {type: 'select'}>}
                 value={config.ui.lang}
-                onSelect={e => updateUIConfig({ lang: e.target.value })}
+                onSelect={e => updateUIConfig({ lang: e.target.value as SupportedLanguage })}
                 error={validationResult.errors.some(e => e === 'ui.lang')}
             />
           </div>

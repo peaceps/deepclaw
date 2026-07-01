@@ -1,15 +1,12 @@
 import process from 'node:process';
 import { SkillsManager } from './skills-manager';
-import { AgentMode, loadConfig } from '@deepclaw/config';
+import { AgentMode, AgentConfig, loadLang } from '@deepclaw/config';
+import { FULL_NAME_MAP } from '@deepclaw/i18n';
 import { FileUtils } from '@deepclaw/node-utils';
 import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
 import { DEEPCLAW_MD } from '../../paths';
-
-const LANG_MAP: {[k: string]: string} = {
-    en: 'English',
-    zh: 'Simplified Chinese'
-};
+import { AgentIdentity } from '@deepclaw/core';
 
 export class PromptService {
     private static mark = {lang: ''};
@@ -19,7 +16,8 @@ export class PromptService {
     private static mainIdentityPrompt: {loop: string, subloop: string} = this.mainIdentity();
 
     public static provideSystemPrompt(
-        agentId: string, projectId: string, isSubLoop: boolean, agentMode: AgentMode
+        agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
+        projectId: string, isSubLoop: boolean
     ): string {
         return `
 # Platform
@@ -31,20 +29,23 @@ ${this.language()}
 # Main Identity
 ${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
 
+# Personality
+${isSubLoop || !agentIdentity ? "" : this.personality(agentIdentity)}
+
 # Emotions
-${this.emotionsPrompt}
+${isSubLoop ? "" : this.emotionsPrompt}
 
 # Agent Mode
-${this.agentMode(agentMode)}
+${this.agentMode(agentConfig.mode)}
 
 # Current Project
 ${this.projectCurrentProject(projectId)}
 
 # Project Management
-${this.projectManagement(agentMode)}
+${this.projectManagement(agentConfig.mode)}
 
 # Memory
-${this.memory(agentId, projectId)}
+${this.memory(agentConfig.id, projectId)}
 
 # Skills
 ${this.availableSkills()}`;
@@ -54,6 +55,17 @@ ${this.availableSkills()}`;
         const PLATFORM = process.platform.includes('win32') ? 'Windows' : 'Linux';
         const CWD = process.cwd();
         return `You are a worker on ${PLATFORM} platform working in "${CWD}".`;
+    }
+
+    private static language(): string {
+        const lang = loadLang();
+        if (this.mark.lang !== lang) {
+            this.mark.lang = lang;
+            const fullLang = FULL_NAME_MAP[lang];
+            this.languagePrompt = `
+User set ${fullLang} as the preferred language, please answer in ${fullLang} by default.`;
+        }
+        return this.languagePrompt;
     }
 
     private static mainIdentity(): {loop: string, subloop: string} {
@@ -79,16 +91,12 @@ just return it as the output of the agent without writing it to any file.
         };
     }
 
-    private static language(): string {
-        let lang = loadConfig<string>('ui.lang');
-        lang = lang in LANG_MAP ? lang : 'en';
-        if (this.mark.lang !== lang) {
-            this.mark.lang = lang;
-            const fullLang = LANG_MAP[lang];
-            this.languagePrompt = `
-User set ${fullLang} as the preferred language, please answer in ${fullLang} by default.`;
-        }
-        return this.languagePrompt;
+    private static personality(agentIdentity: AgentIdentity): string {
+        const personalities = agentIdentity.personalities.join(',');
+        return `Your name is ${agentIdentity.name}, your role is ${agentIdentity.role}.
+${personalities ? `You have the following personalities: ${personalities}.` : ""}
+${agentIdentity.description ? `You are described as: ${agentIdentity.description}.` : ""}
+Of course you should always focus on the tasks to do, personalities are just for your reference.`;
     }
 
     private static emotions(): string {

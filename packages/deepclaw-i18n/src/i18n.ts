@@ -1,7 +1,8 @@
 import i18n, { Module } from 'i18next';
 import { DEFAULT_LANG } from './locales';
+import { SupportedLanguage } from './supported-languages';
 
-const locales = {
+const locales: Record<SupportedLanguage, {translation: Record<string, string>}> = {
     en: {translation: {}},
     zh: {translation: {}}
 }

@@ -7,13 +7,11 @@ import {
   MessageSquare,
   Trash2,
 } from 'lucide-react';
-import type { CONFIGS_EVENTS, DeepclawConfig } from '@deepclaw/config';
+import type { CONFIGS_EVENTS, AgentConfig } from '@deepclaw/config';
 import type { AgentInteractionEvent } from '@deepclaw/core';
 import { type ValidationResult } from '@/server/configs';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-
-type AgentConfig = NonNullable<DeepclawConfig['agents'][0]>;
 
 export function AgentSettingsHeader({
   name,

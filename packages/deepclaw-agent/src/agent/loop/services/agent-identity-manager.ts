@@ -1,5 +1,5 @@
 import { AgentSoulIdentity, AgentIdentity } from '@deepclaw/core';
-import { DeepclawConfig, loadAgentConfig, loadConfig} from '@deepclaw/config';
+import { AgentsConfig, loadAgentConfig, loadConfig} from '@deepclaw/config';
 import { i18nInstance, parseArrayI18n } from '@deepclaw/i18n';
 import { FileUtils } from '@deepclaw/node-utils';
 import { AGENTS_DIR, AGENT_MD, AGENT_SOUL_JSON } from '../../paths';
@@ -23,7 +23,7 @@ export class AgentIdentityManager {
     }
 
     private static init() {
-        for (const agent of loadConfig<DeepclawConfig['agents']>('agents')) {
+        for (const agent of loadConfig<AgentsConfig>('agents')) {
             this.ensureAgentFiles(agent.id);
             this.agentMap.set(agent.id, this.loadIdentity(agent.id));
         }

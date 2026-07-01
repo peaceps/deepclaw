@@ -2,6 +2,7 @@
 
 import {
     type DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig,
+    AgentsConfig,
 } from '@deepclaw/config';
 import { LoopGateway } from '@deepclaw/loop-gateway';
 import { revalidatePath } from 'next/cache';
@@ -11,7 +12,7 @@ export async function loadCurrentConfig<T>(key?: string, defaultValue?: T): Prom
 }
 
 export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
-  const currentAgents = loadConfig<DeepclawConfig['agents']>('agents');
+  const currentAgents = loadConfig<AgentsConfig>('agents');
   const currentAvatar = loadConfig<string>('manager.avatar');
   const merged: DeepclawConfig = { ...config, manager: { ...config.manager, avatar: currentAvatar } };
   updateConfig(merged);

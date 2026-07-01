@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { DEFAULT_LANG, SUPPORTED_LANGUAGES, SupportedLanguage } from '@deepclaw/i18n';
 import { FileUtils, globalize } from '@deepclaw/node-utils';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
@@ -32,10 +33,16 @@ export type DeepclawConfig = {
         }
     }[],
     ui: {
-        lang: string;
+        lang: SupportedLanguage;
     }
 };
-export type AgentMode = DeepclawConfig['agents'][number]['mode'];
+export type ManagerConfig = DeepclawConfig['manager'];
+export type UIConfig = DeepclawConfig['ui'];
+export type AgentsConfig = DeepclawConfig['agents'];
+export type AgentConfig = AgentsConfig[number];
+export type AgentMode = AgentConfig['mode'];
+export type IMConfig = NonNullable<AgentConfig['im']>;
+export type LLMConfig = AgentConfig['llm'];
 
 export type MissingAppConfig = (string|{[key in keyof Partial<DeepclawConfig>]: {[key: number]: string[]}})[];
 
@@ -58,10 +65,10 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
         appConfig.agents = [];
     }
     if (!appConfig.ui) {
-        appConfig.ui = {} as DeepclawConfig['ui'];
+        appConfig.ui = {} as UIConfig;
     }
     if (!appConfig.manager) {
-        appConfig.manager = {} as DeepclawConfig['manager'];
+        appConfig.manager = {} as ManagerConfig;
     }
     if (!appConfig.manager.name || typeof appConfig.manager.name !== 'string') {
         appConfig.manager.name = 'Deepclaw';
@@ -108,11 +115,13 @@ export function validateCurrentAppConfig(headless: boolean): {config: DeepclawCo
     return validateAppConfig(headless, globalDeepclawConfig.config);
 }
 
-export function validateAppConfig(headless: boolean, configToValidate: Partial<DeepclawConfig>): {config: DeepclawConfig, lacks: MissingAppConfig} {
+export function validateAppConfig(headless: boolean, configToValidate: Partial<DeepclawConfig>): {
+    config: DeepclawConfig, lacks: MissingAppConfig
+} {
     const lacks: MissingAppConfig = [];
     const cloned: DeepclawConfig = mergeAbsence({}, configToValidate) as DeepclawConfig;
-    if (cloned.ui.lang && !['en', 'zh'].includes(cloned.ui.lang)) {
-        cloned.ui.lang = 'undefined' as any;
+    if (cloned.ui.lang && !SUPPORTED_LANGUAGES.includes(cloned.ui.lang)) {
+        cloned.ui.lang = undefined as any;
     }
     if (!cloned.ui.lang) {
         lacks.push('ui.lang');
@@ -137,7 +146,7 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
             }
             if (!agent.im) {
                 if (headless) {
-                    agent.im = {} as DeepclawConfig['agents'][0]['im'];
+                    agent.im = {} as IMConfig;
                     agentLacks.push(`im.engine`, `im.appId`, `im.secret`);
                 }
             } else {
@@ -153,7 +162,7 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
             }
 
             if (!agent.llm) {
-                agent.llm = {} as DeepclawConfig['agents'][0]['llm'];
+                agent.llm = {} as LLMConfig;
                 agentLacks.push('llm.baseURL', 'llm.apiKey', 'llm.model');
             } else {
                 if (!agent.llm.baseURL) {
@@ -193,11 +202,15 @@ export function loadConfig<T>(key?: string, defaultValue?: T): T {
     return (value ?? defaultValue) as T;
 }
 
-export function loadAgentConfig(agentId: string): DeepclawConfig['agents'][0] {
-    const agents = loadConfig<DeepclawConfig['agents']>('agents');
+export function loadAgentConfig(agentId: string): AgentConfig {
+    const agents = loadConfig<AgentsConfig>('agents');
     const agent = agents.find(a => a.id === agentId);
     if (!agent) {
         throw new Error('Agent doesn\'t exit!');
     }
     return agent;
+}
+
+export function loadLang(): SupportedLanguage {
+    return loadConfig<SupportedLanguage>('ui.lang', DEFAULT_LANG);
 }
