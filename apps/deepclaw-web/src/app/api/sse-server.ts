@@ -1,8 +1,7 @@
 import { LoopGateway, type SSEType } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
-import { type AgentEmployee, type Project } from "@deepclaw/core";
-import type { LoopSSEEvent } from "@deepclaw/loop-gateway";
+import { type AgentEmployee, type Project, type AgentEvent } from "@deepclaw/core";
 
 export type SSEEvent = {
     sseType: string;
@@ -66,7 +65,7 @@ class SSEServerImpl {
     ): void {
         const store = this.sseStore[type];
         if (!store.unsubscriber) {
-            store.unsubscriber = LoopGateway.subscribe(type, (e: LoopSSEEvent) => {
+            store.unsubscriber = LoopGateway.subscribe(type, (e: AgentEvent) => {
                 const sseEvent = this.convertToSSEEvent(e);
                 this.broadcastEvent(type, sseEvent.sseType, sseEvent);
             });
@@ -109,8 +108,8 @@ class SSEServerImpl {
         }
     }
 
-    private static convertToSSEEvent(e: LoopSSEEvent): SSEEvent {
-        if ('busy' in e) {
+    private static convertToSSEEvent(e: AgentEvent): SSEEvent {
+        if (e.eventType === 'busy') {
             return {
                 sseType: 'loopBusy',
                 loopId: e.loopId,
@@ -118,7 +117,7 @@ class SSEServerImpl {
                 busy: e.busy
             } as SSELoopBusyEvent;
         }
-        if ('text' in e) {
+        if (e.eventType === 'stream') {
             return {
                 sseType: 'streamText',
                 loopId: e.loopId,

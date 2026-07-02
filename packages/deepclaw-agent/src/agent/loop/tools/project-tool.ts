@@ -387,7 +387,6 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
     invoke: async function(input: UpdateTaskCurrentStepInput, context: OneLoopContext): Promise<string> {
         const updated = ProjectManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
         context.actions.agentHandler.onToolText({
-            loopId: context.loopId,
             toolName: 'update_task_current_step',
             data: updated
         });

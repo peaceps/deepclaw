@@ -1,6 +1,6 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent, useRef} from 'react';
 import { Box, Static, useApp } from 'ink';
-import { AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent } from '@deepclaw/core';
+import { AgentInteractionEventConfig, AgentStreamEvent, AgentToolResultEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import {LoopGateway} from '@deepclaw/loop-gateway';
 import {HistoryLine, type HistoryItem} from './history';
@@ -21,7 +21,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [histories, setHistories] = useState([] as HistoryItem[]);
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
-    const [agentEvent, setAgentEvent] = useState(null as AgentInteractionEvent | null);
+    const [agentEvent, setAgentEvent] = useState(null as AgentInteractionEventConfig | null);
     const [agentResolver, setAgentResolver] = useState(null as any);
     const {t, i18n} = useTranslation();
 
@@ -47,7 +47,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         });
     }, [t, handleLlmDone]);
 
-    const handleAgentEvent = useCallback((event: AgentInteractionEvent): Promise<string> => {
+    const handleAgentEvent = useCallback((event: AgentInteractionEventConfig): Promise<string> => {
         setAgentEvent(event);
         return new Promise((resolve) => {
             setAgentResolver(() => (choice: string) => {
@@ -73,7 +73,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const handleToolResult = useEffectEvent((e: AgentToolResultEvent) => {
         const formatedResult = formatToolResult(e, t);
         if (formatedResult) {
-            handleStream({text: formatedResult, done: false, loopId: agentIdRef.current});
+            handleStream({eventType: 'stream', text: formatedResult, done: false, loopId: agentIdRef.current});
         } 
     });
 

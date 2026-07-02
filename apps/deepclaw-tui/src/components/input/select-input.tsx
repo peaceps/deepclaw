@@ -5,13 +5,13 @@ import {StaticContext} from '../../hooks/static-context';
 
 export function SelectInput({
     onEnter,
-	customPrompt,
+    customPrompt,
     options = [],
     color = ''
 }: {
-    onEnter: (input: string|boolean|number) => void;
+    onEnter: (input: string) => void;
 	customPrompt: string;
-	options: (string | {label: string; value: string|number|boolean})[];
+	options: (string | {label: string; value: string})[];
 	color?: string;
 }): ReactElement {
     const [userSelection, setUserSelection] = useState(0);

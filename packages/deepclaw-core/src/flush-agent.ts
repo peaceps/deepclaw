@@ -1,5 +1,5 @@
 import {
-    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent, getFlushAgentKey
+    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent, getFlushAgentKey, AgentInteractionEventConfig
 } from './flush-agent-event';
 
 export type LLMGWConfig = {
@@ -12,12 +12,15 @@ export type LLMGWConfig = {
 export type AgentHandler = {
     onStreamText(e: AgentStreamEvent): void;
     onToolText(e: AgentToolResultEvent): void;
-    onInteractionEvent(event: AgentInteractionEvent): Promise<string|boolean|number>;
+    onInteractionEvent(event: AgentInteractionEvent): Promise<string>;
     onInfoEvent(event: AgentInfoEvent): void;
 }
 
-export type SealedAgentHandler = AgentHandler & {
-    onStreamText(e: Omit<AgentStreamEvent, 'done'|'loopId'>): void;
+export type SealedAgentHandler = {
+    onStreamText(e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>): void;
+    onToolText(e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>): void;
+    onInteractionEvent(event: Omit<AgentInteractionEvent, 'eventType'|'loopId'>): Promise<string>;
+    onInfoEvent(event: Omit<AgentInfoEvent, 'eventType'>): void;
 }
 
 export abstract class FlushAgent {
@@ -34,17 +37,24 @@ export abstract class FlushAgent {
         this.agentId = agentId;
         this.projectId = projectId;
         this.flusher = (e: Omit<AgentStreamEvent, 'done'|'loopId'> & {done: boolean}) => handler.onStreamText({
+            eventType: 'stream',
             loopId: this.getId(),
             text: this.formatLLMText(e.text, e.done),
             done: e.done
         });
         this.agentHandler = {
-            onStreamText: (e: Omit<AgentStreamEvent, 'done'|'loopId'>) => this.flusher({
-                text: e.text, done: false
+            onStreamText: (e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>) => this.flusher({
+                eventType: 'stream', text: e.text, done: false
             }),
-            onToolText: (e: AgentToolResultEvent) => handler.onToolText(e),
-            onInteractionEvent: handler.onInteractionEvent,
-            onInfoEvent: handler.onInfoEvent
+            onToolText: (e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>) => handler.onToolText(
+                {eventType: 'toolResult', loopId: this.getId(), ...e}
+            ),
+            onInteractionEvent: (e: AgentInteractionEventConfig) => handler.onInteractionEvent(
+                {eventType: 'interact', loopId: this.getId(), ...e}
+            ),
+            onInfoEvent: (e: Omit<AgentInfoEvent, 'eventType'>) => handler.onInfoEvent(
+                {eventType: 'info', ...e}
+            )
         };
     }
 
@@ -66,7 +76,7 @@ export abstract class FlushAgent {
     private finishInvoke(content: string): Promise<string> {
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.flusher({text: content, done: true});
+                this.flusher({eventType: 'stream', text: content, done: true});
                 resolve(content);
             }, 100);
         });

@@ -258,7 +258,11 @@ importers:
         specifier: 3.5.0
         version: 3.5.0
 
-  packages/deepclaw-core: {}
+  packages/deepclaw-core:
+    dependencies:
+      '@deepclaw/utils':
+        specifier: workspace:*
+        version: link:../deepclaw-utils
 
   packages/deepclaw-i18n:
     dependencies:

@@ -1,8 +1,5 @@
 import type {
-    AgentHandler, AgentEmployee, Project, AgentInfoEvent,
-    AgentStreamEvent, AgentLoopBusyEvent,
-    Task,
-    AgentIdentity
+    AgentHandler, AgentEmployee, Project, AgentEvent, Task, AgentIdentity
 } from "@deepclaw/core";
 import { getFlushAgentKey } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
@@ -14,7 +11,6 @@ import { type DeepclawConfig } from "@deepclaw/config";
 export type LoopStore = Record<string, Record<string, LoopAgent<unknown, any, any>>>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
 export type SSEType = 'info' | 'loop';
-export type LoopSSEEvent = AgentInfoEvent | AgentStreamEvent | AgentLoopBusyEvent;
 
 export const LOOP_BUSY_ERROR = 'LOOP_BUSY';
 
@@ -22,7 +18,7 @@ class LoopGatewayImpl {
     private static loops: LoopStore = {};
     private static busyLoops = new Set<string>();
     private static sseSubscribers: {[key in SSEType]: Set<
-        (e: LoopSSEEvent) => void
+        (e: AgentEvent) => void
     >} = {
         info: new Set(),
         loop: new Set()
@@ -35,7 +31,7 @@ class LoopGatewayImpl {
         onInfoEvent: (e) => this.fireSSEEvent('info', e)
     };
 
-    private static fireSSEEvent(type: SSEType, e: LoopSSEEvent) {
+    private static fireSSEEvent(type: SSEType, e: AgentEvent) {
         this.sseSubscribers[type].forEach(cb => cb(e));
     }
 
@@ -59,7 +55,7 @@ class LoopGatewayImpl {
     }
 
     private static broadcastLoopBusy(loopId: string, busy: boolean): void {
-        this.sseSubscribers.loop.forEach(cb => cb({ loopId, busy }));
+        this.sseSubscribers.loop.forEach(cb => cb({ eventType: 'busy', loopId, busy }));
     }
 
     public static async invoke(agentId: string, projectId: string, input: string): Promise<string> {
@@ -91,7 +87,7 @@ class LoopGatewayImpl {
         }
     }
 
-    public static subscribe(type: SSEType, cb: (e: LoopSSEEvent) => void): () => void {
+    public static subscribe(type: SSEType, cb: (e: AgentEvent) => void): () => void {
         this.sseSubscribers[type].add(cb);
         return () => {
             this.sseSubscribers[type].delete(cb);
@@ -104,28 +100,28 @@ class LoopGatewayImpl {
             ...identity,
             mood: 'none' as const,
         };
-        this.fireSSEEvent('info', { type: 'updateAgent', content: newAgent });
+        this.fireSSEEvent('info', { eventType: 'info', type: 'updateAgent', content: newAgent });
         return newAgent;
     }
 
     public static updateAgentIdentity(id: string, identity: Partial<AgentIdentity>): void {
         AgentIdentityManager.updateAgentIdentity(id, identity);
-        this.fireSSEEvent('info', { type: 'updateAgent', content: { id, ...identity } });
+        this.fireSSEEvent('info', { eventType: 'info', type: 'updateAgent', content: { id, ...identity } });
     }
 
     public static updateAgentDescription(id: string, description: string): void {
         AgentIdentityManager.updateAgentDescription(id, description);
-        this.fireSSEEvent('info', { type: 'updateAgent', content: { id, description } });
+        this.fireSSEEvent('info', { eventType: 'info', type: 'updateAgent', content: { id, description } });
     }
 
     public static updateProjectTags(projectId: string, tags: string[]): void {
         ProjectManager.updateProject({id: projectId, tags});
-        this.fireSSEEvent('info', { type: 'updateProject', content: { id: projectId, tags } });
+        this.fireSSEEvent('info', { eventType: 'info', type: 'updateProject', content: { id: projectId, tags } });
     }
 
     public static updateProjectTask(projectId: string, taskTitle: string, task: Partial<Task>): void {
         ProjectManager.updateTask(projectId, {...task, title: taskTitle});
-        this.fireSSEEvent('info', { type: 'updateProject', content: {
+        this.fireSSEEvent('info', { eventType: 'info', type: 'updateProject', content: {
             id: projectId, tasks: ProjectManager.getProjectDetail(projectId).tasks
         }});
     }

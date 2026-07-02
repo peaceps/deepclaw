@@ -1,6 +1,6 @@
 import {DWClient, DWClientDownStream, EventAck, TOPIC_ROBOT} from 'dingtalk-stream';
 import { IM } from '../im-definitions';
-import { AgentInteractionEvent } from '@deepclaw/core';
+import { AgentInteractionEventConfig } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import {stringifiedInteractionEvent, parseStringifiedAnswer} from '../stringified-event';
 import { LoopInitializer, AgentIdentityManager } from '@deepclaw/agent';
@@ -23,10 +23,10 @@ const onBotMessage = (client: DWClient) => {
         onStreamText: () => {},
         onToolText: () => {},
         onInteractionEvent: handleInteractionEvent,
-        onInfoEvent: () => Promise.resolve(''),
+        onInfoEvent: () => Promise.resolve(),
     });
 
-    async function handleInteractionEvent(event: AgentInteractionEvent): Promise<string|boolean|number> {
+    async function handleInteractionEvent(event: AgentInteractionEventConfig): Promise<string> {
         sendMessage(endPoint, stringifiedInteractionEvent(event));
         return event.type === 'readonly' ? Promise.resolve('') : new Promise<string>((resolve) => {
             interactionResolver = resolve;

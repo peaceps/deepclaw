@@ -1,6 +1,6 @@
-import {AgentInteractionEvent} from "@deepclaw/core";
+import {AgentInteractionEventConfig} from "@deepclaw/core";
 
-export type CONFIGS_EVENTS = {[key: string]: AgentInteractionEvent};
+export type CONFIGS_EVENTS = {[key: string]: AgentInteractionEventConfig};
 
 export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
     ['hint']: {
@@ -44,8 +44,8 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
         type: 'select',
         content: 'config.agents.headlessEnabled.prompt',
         options: [
-            {label: 'common.yes', value: true},
-            {label: 'common.no', value: false},
+            {label: 'common.yes', value: "yes"},
+            {label: 'common.no', value: "no"},
         ],
     },
     ['agents.im.engine']: {

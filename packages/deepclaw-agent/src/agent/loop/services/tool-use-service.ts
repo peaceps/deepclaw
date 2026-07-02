@@ -37,7 +37,9 @@ export class ToolUseService {
             if (guardResult.result === 'denied') {
                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
             } else if (guardResult.result === 'ask') {
-                const choice = await context.actions.agentHandler.onInteractionEvent({type: 'input', content: guardResult.question || ''});
+                const choice = await context.actions.agentHandler.onInteractionEvent({
+                    type: 'input', content: guardResult.question || ''
+                });
                 if (!guardResult.checkAnswer(choice as string)) {
                     return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
                 }

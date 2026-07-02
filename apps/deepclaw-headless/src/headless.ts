@@ -4,17 +4,17 @@ import { cleanupOnShutdown } from '@deepclaw/node-utils';
 import { validateAndFixCurrentConfig } from '@deepclaw/config';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import { connectIM, stringifiedInteractionEvent, parseStringifiedAnswer } from '@deepclaw/im';
-import { AgentInteractionEvent } from '@deepclaw/core';
+import { AgentInteractionEventConfig } from '@deepclaw/core';
 import {i18nInstance} from '@deepclaw/i18n';
 
 let rl: readline.Interface | null = null;
 
-async function handleInteractionEvent(event: AgentInteractionEvent): Promise<string|boolean|number> {
+async function handleInteractionEvent(event: AgentInteractionEventConfig): Promise<string> {
     if (!rl) {
         rl = readline.createInterface({ input: stdin, output: stdout });
     }
     try {
-        let answer: string|boolean|number = '';
+        let answer: string = '';
         const question = stringifiedInteractionEvent(event);
         if (event.type === 'readonly') {
             console.log(question);
