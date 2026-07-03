@@ -3,11 +3,11 @@ import { Box} from 'ink';
 import {TextInput} from './input/text-input';
 import {ReadOnlyInput} from './input/readonly-input';
 import {SelectInput} from './input/select-input';
-import { AgentInteractionEventConfig } from '@deepclaw/core';
+import { AgentInteractionEventPayload } from '@deepclaw/core';
 import { type TFunction } from '@deepclaw/i18n';
 import { useTranslation } from 'react-i18next';
 
-function translateEvent(t: TFunction<"translation", undefined>, event: AgentInteractionEventConfig): AgentInteractionEventConfig {
+function translateEvent(t: TFunction<"translation", undefined>, event: AgentInteractionEventPayload): AgentInteractionEventPayload {
     const translatedContent = t(event.content, event.i18nParam) as string;
     if (event.type === 'select') {
         return {
@@ -27,7 +27,7 @@ export function UserInteraction({
     event,
     onEnter
 }: {
-    event: AgentInteractionEventConfig,
+    event: AgentInteractionEventPayload,
     onEnter: (input: string) => void
 }): ReactElement {
     const {t} = useTranslation();

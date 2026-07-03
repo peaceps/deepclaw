@@ -1,6 +1,6 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent, useRef} from 'react';
 import { Box, Static, useApp } from 'ink';
-import { AgentInteractionEventConfig, AgentStreamEvent, AgentToolResultEvent } from '@deepclaw/core';
+import { AgentInteractionEventPayload, AgentStreamEvent, AgentToolResultEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import {LoopGateway} from '@deepclaw/loop-gateway';
 import {HistoryLine, type HistoryItem} from './history';
@@ -21,7 +21,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const [histories, setHistories] = useState([] as HistoryItem[]);
     const [llmOutput, setLlmOutput] = useState('');
     const [llmWorking, setLlmWorking] = useState(false);
-    const [agentEvent, setAgentEvent] = useState(null as AgentInteractionEventConfig | null);
+    const [agentEvent, setAgentEvent] = useState(null as AgentInteractionEventPayload | null);
     const [agentResolver, setAgentResolver] = useState(null as any);
     const {t, i18n} = useTranslation();
 
@@ -40,14 +40,14 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const invokeLlm = useCallback((userInput: string) => {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
-        LoopGateway.invoke(agentIdRef.current!, '', userInput).catch(err => {
+        LoopGateway.invoke(agentIdRef.current!, '', '', userInput).catch(err => {
             setTimeout(() => {
                 handleLlmDone(`${t('common.error')} ${err.message?.trim() || t('common.unexpected')}`);
             }, 0);
         });
     }, [t, handleLlmDone]);
 
-    const handleAgentEvent = useCallback((event: AgentInteractionEventConfig): Promise<string> => {
+    const handleAgentEvent = useCallback((event: AgentInteractionEventPayload): Promise<string> => {
         setAgentEvent(event);
         return new Promise((resolve) => {
             setAgentResolver(() => (choice: string) => {

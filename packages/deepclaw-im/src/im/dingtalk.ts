@@ -1,6 +1,6 @@
 import {DWClient, DWClientDownStream, EventAck, TOPIC_ROBOT} from 'dingtalk-stream';
 import { IM } from '../im-definitions';
-import { AgentInteractionEventConfig } from '@deepclaw/core';
+import { AgentInteractionEventPayload } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import {stringifiedInteractionEvent, parseStringifiedAnswer} from '../stringified-event';
 import { LoopInitializer, AgentIdentityManager } from '@deepclaw/agent';
@@ -26,7 +26,7 @@ const onBotMessage = (client: DWClient) => {
         onInfoEvent: () => Promise.resolve(),
     });
 
-    async function handleInteractionEvent(event: AgentInteractionEventConfig): Promise<string> {
+    async function handleInteractionEvent(event: AgentInteractionEventPayload): Promise<string> {
         sendMessage(endPoint, stringifiedInteractionEvent(event));
         return event.type === 'readonly' ? Promise.resolve('') : new Promise<string>((resolve) => {
             interactionResolver = resolve;
@@ -67,7 +67,7 @@ const onBotMessage = (client: DWClient) => {
             
             sendMessage(endPoint, i18nInstance.t('im.wait'));
             sequentialInteraction = sequentialInteraction.then(
-                () => loop.invoke(content).then(res => {
+                () => loop.invoke(content, { clientId: '' }).then(res => {
                     sendMessage(endPoint, res);
                 }).catch(() => {
                     sendMessage(endPoint, i18nInstance.t('im.error'));

@@ -1,7 +1,7 @@
-import { AgentInteractionEventConfig } from '@deepclaw/core';
+import { AgentInteractionEventPayload } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 
-export function stringifiedInteractionEvent(event: AgentInteractionEventConfig): string {
+export function stringifiedInteractionEvent(event: AgentInteractionEventPayload): string {
     let question = '';
     const content = i18nInstance.t(event.content || '', event.i18nParam) as string;
     if (event.type === 'input') {
@@ -18,10 +18,10 @@ export function stringifiedInteractionEvent(event: AgentInteractionEventConfig):
 }
 
 export async function parseStringifiedAnswer(
-    event: AgentInteractionEventConfig,
+    event: AgentInteractionEventPayload,
     answer: string,
     notify: (message: string) => void,
-    callSelf: (event: AgentInteractionEventConfig) => Promise<string>
+    callSelf: (event: AgentInteractionEventPayload) => Promise<string>
 ): Promise<string> {
     if (event.type !== 'select') {
         return answer;

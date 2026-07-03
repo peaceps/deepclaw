@@ -22,7 +22,9 @@ export const en = {
         },
         tools: {
             permission: {
-                request: 'Request access permission. Allow(y/n)?',
+                request: 'Request access permission.',
+                allow: 'Allow',
+                deny: 'Deny',
             },
             file: {
                 guard: 'Deepclaw is going to access files outside current work dir.',

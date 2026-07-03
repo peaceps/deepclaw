@@ -4,12 +4,12 @@ import { cleanupOnShutdown } from '@deepclaw/node-utils';
 import { validateAndFixCurrentConfig } from '@deepclaw/config';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import { connectIM, stringifiedInteractionEvent, parseStringifiedAnswer } from '@deepclaw/im';
-import { AgentInteractionEventConfig } from '@deepclaw/core';
+import { AgentInteractionEventPayload } from '@deepclaw/core';
 import {i18nInstance} from '@deepclaw/i18n';
 
 let rl: readline.Interface | null = null;
 
-async function handleInteractionEvent(event: AgentInteractionEventConfig): Promise<string> {
+async function handleInteractionEvent(event: AgentInteractionEventPayload): Promise<string> {
     if (!rl) {
         rl = readline.createInterface({ input: stdin, output: stdout });
     }

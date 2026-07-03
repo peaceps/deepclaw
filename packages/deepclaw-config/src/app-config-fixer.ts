@@ -1,4 +1,4 @@
-import {AgentInteractionEventConfig} from "@deepclaw/core";
+import {AgentInteractionEventPayload} from "@deepclaw/core";
 import {
     AgentConfig, DeepclawConfig, IMConfig, MissingAppConfig,
     validateCurrentAppConfig, writeAppConfig
@@ -6,7 +6,7 @@ import {
 import {APP_CONFIG_EVENTS} from './app-config-events';
 
 export async function validateAndFixCurrentConfig(
-    handleAgentEvent: (event: AgentInteractionEventConfig) => Promise<string>,
+    handleAgentEvent: (event: AgentInteractionEventPayload) => Promise<string>,
     headless: boolean = false,
 ) {
     const appConfig = validateCurrentAppConfig(headless);
@@ -30,7 +30,7 @@ export async function validateAndFixCurrentConfig(
 async function ensureAppConfig(
     headless: boolean,
     {config, lacks}: {config: DeepclawConfig, lacks: MissingAppConfig},
-    handleAgentEvent: (event: AgentInteractionEventConfig) => Promise<string>,
+    handleAgentEvent: (event: AgentInteractionEventPayload) => Promise<string>,
 ) {
     for (const lack of lacks) {
         if (typeof lack === 'string') {
@@ -55,7 +55,7 @@ async function ensureAppConfig(
                         if (subLack !== 'headlessEnabled') {
                             setConfigValue(subConfig, subLack, answer);
                         }
-                        if (subLack === 'headlessEnabled' && answer.toLocaleLowerCase() === 'yes') {
+                        if (subLack === 'headlessEnabled' && answer.toLowerCase() === 'yes') {
                             subConfig.im = {} as IMConfig;
                             for (const key of ['engine', 'appId', 'secret']) {
                                 const event = APP_CONFIG_EVENTS[`agents.im.${key}`]!;

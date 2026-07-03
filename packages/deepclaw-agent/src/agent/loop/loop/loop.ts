@@ -6,7 +6,8 @@ import {
     type AgentInteractionEvent,
     FlushAgent,
     type AgentHandler,
-    AgentToolResultEvent,
+    type AgentToolResultEvent,
+    AgentInvokeOptions,
 } from '@deepclaw/core';
 import { ToolUseResult } from '../../definitions/tool-definitions';
 import {
@@ -29,7 +30,8 @@ import { AgentIdentityManager } from '../services/agent-identity-manager';
 
 const SESSION_TIMEOUT = 1000 * 60 * 60 * 24;
 
-export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason }, LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
+export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason },
+    LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
@@ -158,7 +160,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
-    protected async _invoke(input: string): Promise<string> {
+    protected async _invoke(input: string, options: AgentInvokeOptions): Promise<string> {
         this.addStringMessage(input);
         const state: LoopState<I> = {
             messages: this.history,
@@ -167,6 +169,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 isSubLoop: this.isSubLoop(),
                 agentId: this.agentId,
                 projectId: this.projectId,
+                clientId: options.clientId,
                 sessionDir: this.isSubLoop() ? `${os.tmpdir()}/.deepclaw/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
                 turnCount: 0,
                 system: '',

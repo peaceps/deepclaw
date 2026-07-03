@@ -6,10 +6,14 @@ export function getFlushAgentKey(agentId: string, projectId?: string): string {
     return !projectId ? agentId : `${agentId}.${projectId}`;
 }
 
-export type AgentEvent = AgentInfoEvent | AgentStreamEvent |
-    AgentLoopBusyEvent | AgentInteractionEvent;
+export function getInteractionId(loopId: string, clientId: string): string {
+    return `${loopId}_${clientId}`;
+}
 
-type AgentEventType = 'info' | 'stream' | 'busy' | 'interact' | 'toolResult';
+export type AgentEvent = AgentInfoEvent | AgentStreamEvent |
+    AgentLoopBusyEvent | AgentInteractionEvent | AgentCancelInteractionEvent;
+
+type AgentEventType = 'info' | 'stream' | 'busy' | 'interact' | 'cancelInteract' | 'toolResult';
 
 type FlushAgentEvent = {
     eventType: AgentEventType;
@@ -40,6 +44,7 @@ export type AgentInteractionEventOption = string | {label: string; value: string
 export type AgentInteractionEvent = FlushAgentEvent & {
     eventType: 'interact';
     loopId: string;
+    clientId: string;
     content: string;
     i18nParam?: Record<string, string | number>;
     key?: string;
@@ -52,7 +57,13 @@ export type AgentInteractionEvent = FlushAgentEvent & {
     options: AgentInteractionEventOption[];
 });
 
-export type AgentInteractionEventConfig = DistributiveOmit<AgentInteractionEvent, 'eventType' | 'loopId'>;
+export type AgentInteractionEventPayload = DistributiveOmit<AgentInteractionEvent, 'eventType' | 'loopId' | 'clientId'>;
+
+export type AgentCancelInteractionEvent = FlushAgentEvent & {
+    eventType: 'cancelInteract';
+    loopId: string;
+    clientId: string;
+};
 
 export type AgentInfoEvent = FlushAgentEvent & {eventType: 'info'} & ({
     type: 'updateProject',

@@ -266,6 +266,9 @@ importers:
 
   packages/deepclaw-i18n:
     dependencies:
+      '@deepclaw/utils':
+        specifier: workspace:*
+        version: link:../deepclaw-utils
       i18next:
         specifier: 26.2.0
         version: 26.2.0(typescript@6.0.3)

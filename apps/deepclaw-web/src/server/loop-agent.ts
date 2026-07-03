@@ -7,9 +7,9 @@ export type InvokeResult =
   | { status: 'busy' }
   | { status: 'error' };
 
-export async function invoke(agentId: string, projectId: string, input: string): Promise<InvokeResult> {
+export async function invoke(agentId: string, projectId: string, clientId: string, input: string): Promise<InvokeResult> {
   try {
-    await LoopGateway.invoke(agentId, projectId, input);
+    await LoopGateway.invoke(agentId, projectId, clientId, input);
     return { status: 'ok' };
   } catch (error) {
     if (error instanceof Error && error.message === LOOP_BUSY_ERROR) {

@@ -1,7 +1,9 @@
 import type {
-    AgentHandler, AgentEmployee, Project, AgentEvent, Task, AgentIdentity
+    AgentHandler, AgentEmployee, Project, AgentEvent, Task, AgentIdentity,
+    AgentInteractionEvent,
+    AgentInfoEvent
 } from "@deepclaw/core";
-import { getFlushAgentKey } from "@deepclaw/core";
+import { getFlushAgentKey, getInteractionId } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
@@ -13,26 +15,61 @@ export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
 export type SSEType = 'info' | 'loop';
 
 export const LOOP_BUSY_ERROR = 'LOOP_BUSY';
+const INTERACTION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+
+type InteractionResolver = {
+    timer: ReturnType<typeof setTimeout> | null;
+    resolve: (answer: string) => void;
+    reject: (reason: string) => void;
+};
 
 class LoopGatewayImpl {
     private static loops: LoopStore = {};
     private static busyLoops = new Set<string>();
-    private static sseSubscribers: {[key in SSEType]: Set<
-        (e: AgentEvent) => void
-    >} = {
+    private static sseSubscribers: {[key in SSEType]: Set<(e: AgentEvent) => void>} = {
         info: new Set(),
         loop: new Set()
     };
+    private static waitingInteractions: Map<string, InteractionResolver> = new Map();
 
     private static defaultHandler: AgentHandler = {
         onStreamText: (e) => this.fireSSEEvent('loop', e),
         onToolText: () => {},
-        onInteractionEvent: () => Promise.resolve(''),
+        onInteractionEvent: (e) => this.fireWaitedSSEEvent('loop', e),
         onInfoEvent: (e) => this.fireSSEEvent('info', e)
     };
 
     private static fireSSEEvent(type: SSEType, e: AgentEvent) {
         this.sseSubscribers[type].forEach(cb => cb(e));
+    }
+
+    private static async fireWaitedSSEEvent(type: SSEType, e: AgentInteractionEvent): Promise<string> {
+        const interactionId = getInteractionId(e.loopId, e.clientId);
+        const waiting = new Promise<string>((resolve, reject) => this.waitingInteractions.set(
+            interactionId, {timer: null, resolve, reject}
+        ));
+        this.sseSubscribers[type].forEach(cb => cb(e));
+        try {
+            const timeout = new Promise((res) => {
+                const timer = setTimeout(res, INTERACTION_TIMEOUT);
+                this.waitingInteractions.get(interactionId)!.timer = timer;
+            }).then(() => {
+                this.fireSSEEvent('loop', { eventType: 'cancelInteract', loopId: e.loopId, clientId: e.clientId });
+                this.cancelInteraction(e.loopId, e.clientId, 'Interaction timed out');
+            });
+            const result = await Promise.race([waiting, timeout]);
+            return result || '';
+        } finally {
+            const timer = this.waitingInteractions.get(interactionId)?.timer;
+            if (timer) {
+                clearTimeout(timer);
+            }
+            this.waitingInteractions.delete(interactionId);
+        }
+    }
+
+    private static fireInfoSSEEvent(e: Omit<AgentInfoEvent, 'eventType'>): void {
+        this.sseSubscribers['info'].forEach(cb => cb({ eventType: 'info', ...e }));
     }
 
     public static init(agentId: string, projectId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
@@ -58,7 +95,7 @@ class LoopGatewayImpl {
         this.sseSubscribers.loop.forEach(cb => cb({ eventType: 'busy', loopId, busy }));
     }
 
-    public static async invoke(agentId: string, projectId: string, input: string): Promise<string> {
+    public static async invoke(agentId: string, projectId: string, clientId: string, input: string): Promise<string> {
         const loopId = getFlushAgentKey(agentId, projectId);
         if (this.busyLoops.has(loopId)) {
             throw new Error(LOOP_BUSY_ERROR);
@@ -69,7 +106,7 @@ class LoopGatewayImpl {
         this.busyLoops.add(loopId);
         this.broadcastLoopBusy(loopId, true);
         try {
-            return await this.loops[agentId]![projectId]!.invoke(input);
+            return await this.loops[agentId]![projectId]!.invoke(input, {clientId});
         } finally {
             this.busyLoops.delete(loopId);
             this.broadcastLoopBusy(loopId, false);
@@ -100,30 +137,48 @@ class LoopGatewayImpl {
             ...identity,
             mood: 'none' as const,
         };
-        this.fireSSEEvent('info', { eventType: 'info', type: 'updateAgent', content: newAgent });
+        this.fireInfoSSEEvent({ type: 'updateAgent', content: newAgent });
         return newAgent;
     }
 
     public static updateAgentIdentity(id: string, identity: Partial<AgentIdentity>): void {
         AgentIdentityManager.updateAgentIdentity(id, identity);
-        this.fireSSEEvent('info', { eventType: 'info', type: 'updateAgent', content: { id, ...identity } });
+        this.fireInfoSSEEvent({ type: 'updateAgent', content: { id, ...identity } });
     }
 
     public static updateAgentDescription(id: string, description: string): void {
         AgentIdentityManager.updateAgentDescription(id, description);
-        this.fireSSEEvent('info', { eventType: 'info', type: 'updateAgent', content: { id, description } });
+        this.fireInfoSSEEvent({ type: 'updateAgent', content: { id, description } });
     }
 
     public static updateProjectTags(projectId: string, tags: string[]): void {
         ProjectManager.updateProject({id: projectId, tags});
-        this.fireSSEEvent('info', { eventType: 'info', type: 'updateProject', content: { id: projectId, tags } });
+        this.fireInfoSSEEvent({ type: 'updateProject', content: { id: projectId, tags } });
     }
 
     public static updateProjectTask(projectId: string, taskTitle: string, task: Partial<Task>): void {
         ProjectManager.updateTask(projectId, {...task, title: taskTitle});
-        this.fireSSEEvent('info', { eventType: 'info', type: 'updateProject', content: {
+        this.fireInfoSSEEvent({ type: 'updateProject', content: {
             id: projectId, tasks: ProjectManager.getProjectDetail(projectId).tasks
         }});
+    }
+
+    public static resolveInteraction(loopId: string, clientId: string, answer: string): boolean {
+        const interactionId = getInteractionId(loopId, clientId);
+        const resolver = this.waitingInteractions.get(interactionId);
+        if (resolver) {
+            resolver.resolve(answer);
+            return true;
+        }
+        return false;
+    }
+
+    public static cancelInteraction(loopId: string, clientId: string, reason: string): void {
+        const interactionId = getInteractionId(loopId, clientId);
+        const resolver = this.waitingInteractions.get(interactionId);
+        if (resolver) {
+            resolver.reject(reason);
+        }
     }
 
     public static getLoopInfo(): LoopInfo {

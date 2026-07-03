@@ -15,6 +15,10 @@ export const en = {
         notReady: 'Coming soon...',
         edit: 'Edit',
         add: 'Add',
+        cancel: 'Cancel',
+        confirm: 'Confirm',
+        send: 'Send',
+        ok: 'OK',
     },
     sidebar: {
         subtitle: 'You are not alone',

@@ -15,3 +15,8 @@ export function formatDate(lang: string, dateStr: string): string {
 function getLocale(lang: SupportedLanguage): string {
     return LANG_LOCALE_MAP[lang];
 }
+
+export function loopSse(loopId: string): { key: string; url: string } {
+  const params = new URLSearchParams({ loopId });
+  return { key: `loop:${loopId}`, url: `/api/loop?${params.toString()}` };
+}

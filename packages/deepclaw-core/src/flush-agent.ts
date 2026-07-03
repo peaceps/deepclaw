@@ -1,5 +1,5 @@
 import {
-    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent, getFlushAgentKey, AgentInteractionEventConfig
+    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent, getFlushAgentKey, AgentInteractionEventPayload
 } from './flush-agent-event';
 
 export type LLMGWConfig = {
@@ -19,8 +19,12 @@ export type AgentHandler = {
 export type SealedAgentHandler = {
     onStreamText(e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>): void;
     onToolText(e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>): void;
-    onInteractionEvent(event: Omit<AgentInteractionEvent, 'eventType'|'loopId'>): Promise<string>;
+    onInteractionEvent(event: AgentInteractionEventPayload & {clientId: string}): Promise<string>;
     onInfoEvent(event: Omit<AgentInfoEvent, 'eventType'>): void;
+}
+
+export type AgentInvokeOptions = {
+    clientId: string;
 }
 
 export abstract class FlushAgent {
@@ -49,7 +53,7 @@ export abstract class FlushAgent {
             onToolText: (e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>) => handler.onToolText(
                 {eventType: 'toolResult', loopId: this.getId(), ...e}
             ),
-            onInteractionEvent: (e: AgentInteractionEventConfig) => handler.onInteractionEvent(
+            onInteractionEvent: (e: AgentInteractionEventPayload & {clientId: string}) => handler.onInteractionEvent(
                 {eventType: 'interact', loopId: this.getId(), ...e}
             ),
             onInfoEvent: (e: Omit<AgentInfoEvent, 'eventType'>) => handler.onInfoEvent(
@@ -58,15 +62,15 @@ export abstract class FlushAgent {
         };
     }
 
-    protected abstract _invoke(input: string): Promise<string>;
+    protected abstract _invoke(input: string, options?: AgentInvokeOptions): Promise<string>;
 
     protected getId() {
         return getFlushAgentKey(this.agentId, this.projectId);
     }
 
-    async invoke(input: string): Promise<string> {
+    async invoke(input: string, options: AgentInvokeOptions): Promise<string> {
         try {
-            const res = await this._invoke(input);
+            const res = await this._invoke(input, options);
             return this.finishInvoke(res);
         } catch (e: any) {
             return this.finishInvoke(e?.message || '');

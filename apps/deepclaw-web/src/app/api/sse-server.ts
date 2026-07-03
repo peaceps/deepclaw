@@ -1,10 +1,13 @@
 import { LoopGateway, type SSEType } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
-import { type AgentEmployee, type Project, type AgentEvent } from "@deepclaw/core";
+import { type AgentEmployee, type Project, type AgentEvent, type AgentInteractionEvent } from "@deepclaw/core";
+
+export type SSEEventType = 'connected' | 'updateProject' | 'updateAgent' | 'streamText'
+    | 'loopBusy' | 'interact' | 'cancelInteract';
 
 export type SSEEvent = {
-    sseType: string;
+    sseType: SSEEventType;
     content: unknown;
 }
 
@@ -34,6 +37,20 @@ export type SSELoopBusyEvent = SSEEvent & ({
     busy: boolean;
 });
 
+export type SSEInteractEvent = SSEEvent & {
+    sseType: 'interact';
+    loopId: string;
+    clientId: string;
+    content: AgentInteractionEvent;
+};
+
+export type SSECancelInteractEvent = SSEEvent & {
+    sseType: 'cancelInteract';
+    loopId: string;
+    clientId: string;
+    content: '';
+};
+
 type SSEClient = {
     id: string;
     loopId?: string;
@@ -51,12 +68,8 @@ class SSEServerImpl {
     // TODO
     private static logger = getLogger('SSEServer');
     private static sseStore: SSEStore = {
-        info: {
-            clients: new Map<string, SSEClient>(),
-        },
-        loop: {
-            clients: new Map<string, SSEClient>(),
-        }
+        info: { clients: new Map<string, SSEClient>(), },
+        loop: { clients: new Map<string, SSEClient>(), }
     }
 
     public static addClient(
@@ -82,6 +95,10 @@ class SSEServerImpl {
 
     public static removeClient(type: SSEType, id: string): void {
         const store = this.sseStore[type];
+        const client = store.clients.get(id);
+        if (client && client.loopId) {
+            LoopGateway.cancelInteraction(client.loopId, client.id, `Client ${id} disconnected`);
+        }
         store.clients.delete(id);
         if (store.clients.size === 0) {
             store.unsubscriber?.();
@@ -89,16 +106,25 @@ class SSEServerImpl {
         }
     }
 
-    private static broadcastEvent(type: SSEType, event: string, data: SSEEvent): void {
+    private static shouldBroadcast(type: SSEType, client: SSEClient, data: SSEEvent) {
+        if (type === 'info') {
+            return true;
+        }
+        if ('clientId' in data) {
+            return client.id === data.clientId;
+        }
+        return 'loopId' in data && client.loopId === data.loopId;
+    }
+
+    private static broadcastEvent(type: SSEType, event: SSEEventType, data: SSEEvent): void {
         for (const client of this.sseStore[type].clients.values()) {
-            if (type === 'loop' && ( !('loopId' in data) || client.loopId !== data.loopId)) {
-                continue;
+            if (this.shouldBroadcast(type, client, data)) {
+                this.sendEvent(type, client, event, data);
             }
-            this.sendEvent(type, client, event, data);
         }
     }
 
-    private static sendEvent(type: SSEType, client: SSEClient, event: string, data: SSEEvent): void {
+    private static sendEvent(type: SSEType, client: SSEClient, event: SSEEventType, data: SSEEvent): void {
         const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
         try {
             client.controller.enqueue(client.encoder.encode(message));
@@ -124,6 +150,22 @@ class SSEServerImpl {
                 content: e.text,
                 done: !!e.done
             } as SSELoopStreamEvent;
+        }
+        if (e.eventType === 'interact') {
+            return {
+                sseType: 'interact',
+                loopId: e.loopId,
+                clientId: e.clientId,
+                content: e,
+            } as SSEInteractEvent;
+        }
+        if (e.eventType === 'cancelInteract') {
+            return {
+                sseType: 'cancelInteract',
+                loopId: e.loopId,
+                clientId: e.clientId,
+                content: '',
+            } as SSECancelInteractEvent;
         }
         return {
             sseType: e.type,

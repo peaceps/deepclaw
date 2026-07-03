@@ -1,5 +1,6 @@
 import { OneLoopContext } from './definitions';
 import { AgentMode } from '@deepclaw/config';
+import { AgentInteractionEventPayload } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 
 export type LLMTool = {
@@ -25,7 +26,7 @@ export type ToolGuardResult = {
     reason: string;
 } | {
     result: 'ask';
-    question: string;
+    question: AgentInteractionEventPayload;
     checkAnswer: (answer: string) => boolean;
 }
 
@@ -43,7 +44,14 @@ export type ToolDesc<T = unknown> = {
 export function askPermissionGuard(reason: string): ToolGuardResult {
     return {
         result: 'ask',
-        question: `${reason}${i18nInstance.t('agent.tools.permission.request')}`,
+        question: {
+            type: 'select',
+            content: `${reason}${i18nInstance.t('agent.tools.permission.request')}`,
+            options: [
+                { label: i18nInstance.t('agent.tools.permission.allow'), value: 'y' },
+                { label: i18nInstance.t('agent.tools.permission.deny'), value: 'n' }
+            ]
+        },
         checkAnswer: (answer: string) => {
             return answer.trim().toLowerCase() === 'y';
         }

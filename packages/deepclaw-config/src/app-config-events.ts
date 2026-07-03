@@ -1,6 +1,6 @@
-import {AgentInteractionEventConfig} from "@deepclaw/core";
+import {AgentInteractionEventPayload} from "@deepclaw/core";
 
-export type CONFIGS_EVENTS = {[key: string]: AgentInteractionEventConfig};
+export type CONFIGS_EVENTS = {[key: string]: AgentInteractionEventPayload};
 
 export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
     ['hint']: {

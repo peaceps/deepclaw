@@ -1,5 +1,6 @@
 'use client';
 
+import { SSEEventType } from '@/app/api/sse-server';
 import { getLogger } from '@/lib/logger';
 
 const logger = getLogger('SSEClient');
@@ -7,7 +8,6 @@ const logger = getLogger('SSEClient');
 export type SSEHandler<T> = (data: T, event: MessageEvent<string>) => void;
 
 type SSEPersistentOptions<T> = {
-  listenerKey?: string;
   removeOn?: (data: T) => boolean;
 };
 
@@ -37,7 +37,7 @@ export class SSEClient {
   public subscribe<T>(
     key: string,
     url: string,
-    eventName: string,
+    eventName: SSEEventType,
     handler: SSEHandler<T>,
   ): () => void {
     const connection = this.getOrCreateConnection(key, url);
@@ -64,14 +64,13 @@ export class SSEClient {
   public subscribePersistent<T>(
     key: string,
     url: string,
-    eventName: string,
+    eventName: SSEEventType,
     handler: SSEHandler<T>,
     options: SSEPersistentOptions<T> = {},
   ): () => void {
     const connection = this.getOrCreateConnection(key, url);
-    const listenerKey = options.listenerKey ?? eventName;
 
-    if (connection.persistentListeners.has(listenerKey)) {
+    if (connection.persistentListeners.has(eventName)) {
       return () => {};
     }
 
@@ -81,7 +80,7 @@ export class SSEClient {
       active = false;
 
       connection.source.removeEventListener(eventName, listener);
-      connection.persistentListeners.delete(listenerKey);
+      connection.persistentListeners.delete(eventName);
       this.closeIfUnused(key, connection);
     };
 
@@ -95,7 +94,7 @@ export class SSEClient {
       }
     };
 
-    connection.persistentListeners.set(listenerKey, { eventName, listener });
+    connection.persistentListeners.set(eventName, { eventName, listener });
     connection.source.addEventListener(eventName, listener);
 
     return unsubscribe;

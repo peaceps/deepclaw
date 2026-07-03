@@ -15,6 +15,10 @@ export const zh = {
         notReady: '功能开发中...',
         edit: '编辑',
         add: '添加',
+        cancel: '取消',
+        confirm: '确认',
+        send: '发送',
+        ok: '确定',
     },
     sidebar: {
         subtitle: '一个人也可以很热闹',

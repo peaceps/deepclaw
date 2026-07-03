@@ -8,11 +8,12 @@ import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
 import { useAppStore, getChatKey } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
-import { formatDate } from '../component-utils';
+import { formatDate, loopSse } from '../component-utils';
 import { getLogger } from "@/lib/logger";
-import type { SSEConnectedEvent, SSELoopStreamEvent, SSELoopBusyEvent } from '@/app/api/sse-server';
+import type { SSEConnectedEvent, SSELoopStreamEvent, SSELoopBusyEvent, SSEInteractEvent, SSECancelInteractEvent } from '@/app/api/sse-server';
 import { Markdown } from "./Markdown";
 import { useSSEClient } from '@/components/layout/SSEProvider';
+import { useModalStore } from '@/lib/modal-store';
 
 type ChatPanelProps = {
   agent: AgentEmployee;
@@ -20,11 +21,6 @@ type ChatPanelProps = {
 };
 
 const logger = getLogger('ChatPanel');
-
-function loopSse(loopId: string): { key: string; url: string } {
-  const params = new URLSearchParams({ loopId });
-  return { key: `loop:${loopId}`, url: `/api/loop?${params.toString()}` };
-}
 
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const chatKey = getChatKey(agent.id, projectId);
@@ -37,7 +33,10 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
   const agentMessages = useAppStore(s => s.messages[chatKey]);
   const sseClient = useSSEClient();
+  const showModal = useModalStore(s => s.showModal);
+  const closeModal = useModalStore(s => s.closeModal);
   const { t, i18n } = useTranslation();
+  const clientIdRef = useRef('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -88,12 +87,11 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
         }
       },
       {
-        listenerKey: 'streamText:message',
         removeOn: ({done}) => done,
       },
     );
     try {
-      const result = await invoke(agent.id, projectId, trimmed);
+      const result = await invoke(agent.id, projectId, clientIdRef.current, trimmed);
       if (result.status !== 'ok') {
         unsubscribeMessageStream();
         const text = result.status === 'busy'
@@ -132,6 +130,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
         sseUrl,
         'connected',
         ({content}) => {
+          clientIdRef.current = content;
           logger.info(`Connected for ${content}.`);
         },
       ),
@@ -153,12 +152,40 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           setChatBusy(loopId, busy);
         },
       ),
+      sseClient.subscribe<SSEInteractEvent>(
+        sseKey,
+        sseUrl,
+        'interact',
+        (data) => {
+          if (data.loopId !== loopId || data.clientId !== clientIdRef.current) return;
+          showModal(loopId, data.content).then((answer) => {
+            if (answer === null) return;
+            fetch('/api/interact', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ loopId, clientId: clientIdRef.current, answer }),
+            }).catch((err) => {
+              logger.error('Failed to resolve interaction:', err);
+            });
+          });
+        },
+      ),
+      sseClient.subscribe<SSECancelInteractEvent>(
+        sseKey,
+        sseUrl,
+        'cancelInteract',
+        (data) => {
+          if (data.loopId !== loopId || data.clientId !== clientIdRef.current) return;
+          closeModal(null);
+        },
+      ),
     ];
 
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
+      clientIdRef.current = '';
     };
-  }, [sseClient, setChatBusy, chatKey]);
+  }, [sseClient, setChatBusy, chatKey, showModal, closeModal]);
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">

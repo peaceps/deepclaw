@@ -22,7 +22,9 @@ export const zh = {
         },
         tools: {
             permission: {
-                request: '是否允许(y/n)：',
+                request: '允许访问？',
+                allow: '允许',
+                deny: '拒绝',
             },
             file: {
                 guard: 'Deepclaw想要访问当前工作区外的文件。',

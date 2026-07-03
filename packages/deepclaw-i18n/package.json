@@ -18,6 +18,7 @@
         "test": "vitest run"
 	},
     "dependencies": {
+		"@deepclaw/utils": "workspace:*",
 		"i18next": "26.2.0"
     }
 }
