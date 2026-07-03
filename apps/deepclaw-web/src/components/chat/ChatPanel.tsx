@@ -29,7 +29,9 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const [previousChatKey, setPreviousChatKey] = useState(chatKey);
   const addMessage = useAppStore(s => s.addMessage);
   const updateMessageStreamByChatKey = useAppStore(s => s.updateMessageStreamByChatKey);
+  const persistLastAgentMessage = useAppStore(s => s.persistLastAgentMessage);
   const setChatBusy = useAppStore(s => s.setChatBusy);
+  const loadMessages = useAppStore(s => s.loadMessages);
   const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
   const agentMessages = useAppStore(s => s.messages[chatKey]);
   const sseClient = useSSEClient();
@@ -65,6 +67,11 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
     stickToBottomRef.current = true;
   }, [chatKey]);
 
+  // Load persisted messages on mount / chatKey change
+  useEffect(() => {
+    loadMessages(chatKey);
+  }, [chatKey, loadMessages]);
+
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || streaming || locked) return;
@@ -84,6 +91,8 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
       ({loopId, content, done}) => {
         if (!done) {
           updateMessageStreamByChatKey(loopId, content);
+        } else {
+          persistLastAgentMessage(loopId);
         }
       },
       {
@@ -98,12 +107,14 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           ? t('pages.chat.busy', { name: agent.name })
           : t('pages.chat.invoke.error');
         updateMessageStreamByChatKey(loopId, `\n${text}`);
+        persistLastAgentMessage(loopId);
         setStreaming(false);
         setChatBusy(loopId, result.status === 'busy');
       }
     } catch {
       unsubscribeMessageStream();
       updateMessageStreamByChatKey(loopId, `\n${t('pages.chat.invoke.error')}`);
+      persistLastAgentMessage(loopId);
       setStreaming(false);
       setChatBusy(loopId, false);
     }

@@ -41,8 +41,10 @@ type AppState = {
   updateProjectTask: (projectId: string, taskTitle: string, task: Partial<Task>) => void;
   addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => void;
   updateMessageStreamByChatKey: (chatKey: string, text: string) => void;
+  persistLastAgentMessage: (chatKey: string) => void;
   setChatBusy: (chatKey: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
+  loadMessages: (chatKey: string) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -96,10 +98,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => set((state) => {
     const chatKey = getChatKey(agentId, projectId);
     const oldMessages = state.messages[getChatKey(agentId, projectId)] || [];
+    const message = newMessage(type, agentId, content);
+    // Fire-and-forget persist
+    fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatKey, ...message }),
+    }).catch(() => {});
     return {
-      messages: {...state.messages, ...{[chatKey]: [...oldMessages, newMessage(
-        type, agentId, content
-      )]}}
+      messages: {...state.messages, ...{[chatKey]: [...oldMessages, message]}}
     };
   }),
   updateMessageStreamByChatKey: (chatKey: string, text: string) => set((state) => {
@@ -116,6 +123,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         };
     }
   }),
+  persistLastAgentMessage: (chatKey: string) => {
+    const state = get();
+    const message = state.messages[chatKey]?.findLast(m => m.type === 'agent');
+    if (!message) return;
+    fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatKey, ...message }),
+    }).catch(() => {});
+  },
   setChatBusy: (chatKey: string, busy: boolean) => set((state) => ({
     busyChatKeys: {
       ...state.busyChatKeys,
@@ -123,6 +140,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
   })),
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
+  loadMessages: async (chatKey: string) => {
+    try {
+      const res = await fetch(`/api/messages?chatKey=${encodeURIComponent(chatKey)}`);
+      if (!res.ok) return;
+      const data = await res.json() as { messages: Message[] };
+      if (Array.isArray(data.messages) && data.messages.length > 0) {
+        set((state) => ({
+          messages: { ...state.messages, [chatKey]: data.messages },
+        }));
+      }
+    } catch {
+      // ignore
+    }
+  },
 }));
 
 function newMessage(type: 'user' | 'agent', agentId: string, content: string): Message {
