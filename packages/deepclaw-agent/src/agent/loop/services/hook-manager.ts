@@ -1,5 +1,4 @@
 import type { OneLoopContext } from '../../definitions/definitions';
-import type { ToolUseDef } from './tool-use-service';
 
 type Hook = InterceptorHook | VisitorHook;
 type InterceptorHook = 'preEachToolUse';
@@ -10,6 +9,7 @@ type VisitorHook =
     'turnError' |
     'postTurnEnd' |
     'preEachToolUse' |
+    'toolGuardDenied' |
     'postEachToolUse';
 
 type InterceptorResult = {
@@ -17,8 +17,8 @@ type InterceptorResult = {
     stopReason?: string;
 };
 
-type InterceptorHookFunction = (oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef) => Promise<string> | string;
-type VisitorHookFunction = (oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef) => Promise<void> | void;
+type InterceptorHookFunction = (oneLoopContext: OneLoopContext, content?: any) => Promise<string> | string;
+type VisitorHookFunction = (oneLoopContext: OneLoopContext, content?: any) => Promise<void> | void;
 type HookFunction = InterceptorHookFunction | VisitorHookFunction;
 
 export class HookManager {
@@ -41,20 +41,20 @@ export class HookManager {
         hooks.get(hook)!.push(callback);
     }
 
-    public static async emitVisitor(hook: VisitorHook, oneLoopContext: OneLoopContext, toolUseDef?: ToolUseDef): Promise<void> {
+    public static async emitVisitor(hook: VisitorHook, oneLoopContext: OneLoopContext, content?: any): Promise<void> {
         for (const hookFunction of this.visitorHooks.get(hook) ?? []) {
-            await hookFunction(oneLoopContext, toolUseDef);
+            await hookFunction(oneLoopContext, content);
         }
     }
 
     public static async emitInterceptor(
         hook: InterceptorHook,
         oneLoopContext: OneLoopContext,
-        toolUseDef?: ToolUseDef
+        content?: any
     ): Promise<InterceptorResult> {
         for (const hookFunction of this.interceptorHooks.get(hook) ?? []) {
             try {
-                const result = await hookFunction(oneLoopContext, toolUseDef);
+                const result = await hookFunction(oneLoopContext, content);
                 if (result) {
                     return {result: 'stop', stopReason: result};
                 }

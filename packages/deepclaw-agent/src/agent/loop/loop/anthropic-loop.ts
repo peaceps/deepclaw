@@ -4,7 +4,7 @@ import { ToolUseResult } from "../../definitions/tool-definitions";
 import { ToolUseDef } from "../services/tool-use-service";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
-import { LLMProtocol } from "../../definitions/definitions";
+import { LLMProtocol, OneLoopContext } from "../../definitions/definitions";
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
 
@@ -14,6 +14,13 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return AnthropicLLM;
+    }
+    
+    protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
+        context.usage.noCachedInputTokens += response.usage.input_tokens;
+        context.usage.outputTokens += response.usage.output_tokens;
+        context.usage.cachedInputTokens += response.usage.cache_read_input_tokens || 0;
+        context.usage.cacheCreationInputTokens += response.usage.cache_creation_input_tokens || 0;
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {

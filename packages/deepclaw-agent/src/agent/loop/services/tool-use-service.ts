@@ -3,9 +3,11 @@ import { ToolUseResult } from "../../definitions/tool-definitions";
 import { OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
 import { ToolsManager } from './tools-manager';
+import { HookManager } from './hook-manager';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
+    success: boolean;
 }
 
 export type ToolUseDef = {
@@ -22,45 +24,47 @@ export class ToolUseService {
     public static async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
         const tool = ToolsManager.getToolDesc(context.isSubLoop, context.loopConfig.mode, toolUseDef.name);
         if (!tool) {
-            return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`);
+            return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`, false);
         }
         let input = toolUseDef.input || '{}';
         if (typeof input === 'string') {
             try {
                 input = JSON.parse(input);
             } catch (error) {
-                return this.toolResult(toolUseDef.id, `Parse input to JSON failed: ${input}. Error: ${error}`);
+                return this.toolResult(toolUseDef.id, `Parse input to JSON failed: ${input}. Error: ${error}`, false);
             }
         }
         if (tool.guard) {
             const guardResult = tool.guard(input, context.loopConfig.mode);
             if (guardResult.result === 'denied') {
-                return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`);
+                await HookManager.emitVisitor('toolGuardDenied', context, {toolUseDef, reason: guardResult.reason});
+                return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`, false);
             } else if (guardResult.result === 'ask') {
                 try {
                     const choice = await context.actions.agentHandler.onInteractionEvent(
                         { ...guardResult.question, clientId: context.clientId }
                     );
                     if (!guardResult.checkAnswer(choice)) {
-                        return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`)
+                        return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`, false);
                     }
                 } catch (error) {
-                    return this.toolResult(toolUseDef.id, `Error, wait for user response failed: ${error}`);
+                    return this.toolResult(toolUseDef.id, `Error, wait for user response failed: ${error}`, false);
                 }
             }
         }
         try {
             const output = await tool.invoke(input, context);
             const truncated = this.truncateLargeOutput(toolUseDef.id, output, context.sessionDir);
-            return this.toolResult(toolUseDef.id, truncated);
+            return this.toolResult(toolUseDef.id, truncated, true);
         } catch (error) {
-            return this.toolResult(toolUseDef.id, `Error: ${error}`);
+            return this.toolResult(toolUseDef.id, `Error: ${error}`, false);
         }
     }
 
-    private static toolResult(toolUseId: string, content: string): ToolUseServiceResult {
+    private static toolResult(toolUseId: string, content: string, success: boolean): ToolUseServiceResult {
         return ({
             result: {id: toolUseId, content},
+            success
         });
     }
 

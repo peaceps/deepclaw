@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import os from 'os';
 import { i18nInstance } from '@deepclaw/i18n';
 import { 
     type AgentInfoEvent,
@@ -170,7 +169,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 agentId: this.agentId,
                 projectId: this.projectId,
                 clientId: options.clientId,
-                sessionDir: this.isSubLoop() ? `${os.tmpdir()}/.deepclaw/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
+                sessionDir: this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
                 turnCount: 0,
                 system: '',
                 logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
@@ -185,6 +184,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     compactIfNeeded: () => this.compactIfNeeded(state.oneLoopContext),
                     agentHandler: this.agentHandler,
                     addStringMessage: this.addStringMessage.bind(this),
+                },
+                usage: {
+                    cachedInputTokens: 0,
+                    cacheCreationInputTokens: 0,
+                    noCachedInputTokens: 0,
+                    outputTokens: 0
                 }
             },
         };
@@ -255,6 +260,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             state.oneLoopContext.logger
         );
 
+        this.addTokenUsage(state.oneLoopContext, response);
+
         state.oneLoopContext.turnCount++;
         state.oneLoopContext.transitionReason = response.transitionReason;
 
@@ -295,6 +302,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         return state.oneLoopContext.transitionReason !== 'endLoop' && state.oneLoopContext.transitionReason !== 'error'
             && !isToolStopReason(state.oneLoopContext.transitionReason);
     }
+
+    protected abstract addTokenUsage(context: OneLoopContext, response: O): void;
 
     private getLoopSessionStatus(context: OneLoopContext): LoopSessionStatus {
         if (context.transitionReason === 'error') {
@@ -378,7 +387,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     toolStop = true;
                 }
                 results.push(toolResult.result);
-                await HookManager.emitVisitor('postEachToolUse', context);
+                await HookManager.emitVisitor('postEachToolUse', context, {toolUseDef, result: toolResult});
             }
         }
         return results;

@@ -47,6 +47,12 @@ export type OneLoopContext = {
         compactIfNeeded: () => Promise<void>;
         agentHandler: SealedAgentHandler;
         addStringMessage: (message: string) => void;
+    },
+    usage: {
+        cachedInputTokens: number;
+        cacheCreationInputTokens: number;
+        noCachedInputTokens: number;
+        outputTokens: number;
     }
 }
 

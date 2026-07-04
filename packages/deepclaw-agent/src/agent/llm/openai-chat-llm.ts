@@ -7,6 +7,9 @@ import {
     ChatCompletionAssistantMessageParam,
     ChatCompletionToolMessageParam,
  } from 'openai/resources/chat/completions.js';
+import {
+    CompletionUsage,
+ } from 'openai/resources/completions.js';
 import { LLMModel } from './llmgw';
 import { LLMTool } from '../definitions/tool-definitions';
 import { TransitionReason } from '../definitions/definitions';
@@ -22,6 +25,7 @@ export type ThinkingMessage = (
 
 export type ThinkingResponse = ChatCompletionChunk.Choice & {
     transitionReason: TransitionReason;
+    usage?: CompletionUsage,
     delta: ChatCompletionChunk.Choice.Delta & {
         reasoning_content: string;
     }
@@ -63,13 +67,21 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             tools,
             tool_choice: 'auto',
             stream: true,
+            stream_options: {include_usage: true}
         });
 
         const toolCallResults = new Map<number, ChatCompletionChunk.Choice.Delta.ToolCall>();
         let content = '';
         let reasoningContent = '';
+        let usage:  CompletionUsage | undefined = undefined;
         for await (const chunk of stream) {
+            if (chunk.usage) {
+                usage = chunk.usage;
+            }
             const response = chunk.choices[0] as ThinkingResponse;
+            if (response) {
+                response.usage = usage;
+            }
             const chunkContent = response?.delta?.content || '';
             reasoningContent += (response?.delta?.reasoning_content || '');
             if (chunkContent) {

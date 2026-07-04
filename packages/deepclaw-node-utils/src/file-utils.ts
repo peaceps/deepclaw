@@ -80,7 +80,7 @@ export class FileUtils {
     public static isPathInWorkspace(filePath: string): boolean {
         let workspacePath = this.getAbsolutePath(this.getWorkingDir());
         let targetPath = this.getAbsolutePath(filePath);
-        if (targetPath.startsWith(this.formatSlash(`${os.tmpdir()}/.deepclaw/`))) {
+        if (targetPath.startsWith(this.formatSlash(`${this.getTmpDir()}/`))) {
             return true;
         }
         if (process.platform === 'win32' || process.platform === 'darwin') {
@@ -137,5 +137,9 @@ export class FileUtils {
 
     private static getWorkingDir(): string {
         return process.env['DEEPCLAW_HOME'] || process.cwd();
+    }
+
+    public static getTmpDir(): string {
+        return `${process.env['DEEPCLAW_SUBLOOP_HOME'] || os.tmpdir()}/.deepclaw`;
     }
 }
