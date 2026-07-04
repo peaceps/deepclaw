@@ -14,7 +14,7 @@ export const banner = `
 ╚=========================================================================╝
 `;
 
-export default function Banner(): ReactElement {
+export function Banner(): ReactElement {
     const {t} = useTranslation();
 	return (
 		<Box flexDirection='column'>

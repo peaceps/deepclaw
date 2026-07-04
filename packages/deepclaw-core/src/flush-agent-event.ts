@@ -10,6 +10,8 @@ export function getInteractionId(loopId: string, clientId: string): string {
     return `${loopId}_${clientId}`;
 }
 
+export const LOOP_BUSY_ERROR = 'LOOP_BUSY';
+
 export type AgentEvent = AgentInfoEvent | AgentStreamEvent |
     AgentLoopBusyEvent | AgentInteractionEvent | AgentCancelInteractionEvent;
 

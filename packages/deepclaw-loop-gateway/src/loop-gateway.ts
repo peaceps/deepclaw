@@ -3,7 +3,7 @@ import type {
     AgentInteractionEvent,
     AgentInfoEvent
 } from "@deepclaw/core";
-import { getFlushAgentKey, getInteractionId } from "@deepclaw/core";
+import { getFlushAgentKey, getInteractionId, LOOP_BUSY_ERROR } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
@@ -14,7 +14,6 @@ export type LoopStore = Record<string, Record<string, LoopAgent<unknown, any, an
 export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
 export type SSEType = 'info' | 'loop';
 
-export const LOOP_BUSY_ERROR = 'LOOP_BUSY';
 const INTERACTION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 type InteractionResolver = {
@@ -95,7 +94,7 @@ class LoopGatewayImpl {
         this.sseSubscribers.loop.forEach(cb => cb({ eventType: 'busy', loopId, busy }));
     }
 
-    public static async invoke(agentId: string, projectId: string, clientId: string, input: string): Promise<string> {
+    public static async invoke(agentId: string, projectId: string, clientId: string, input: string): Promise<void> {
         const loopId = getFlushAgentKey(agentId, projectId);
         if (this.busyLoops.has(loopId)) {
             throw new Error(LOOP_BUSY_ERROR);
@@ -105,12 +104,10 @@ class LoopGatewayImpl {
         }
         this.busyLoops.add(loopId);
         this.broadcastLoopBusy(loopId, true);
-        try {
-            return await this.loops[agentId]![projectId]!.invoke(input, {clientId});
-        } finally {
+        this.loops[agentId]![projectId]!.invoke(input, {clientId}).catch(() => {}).finally(() => {
             this.busyLoops.delete(loopId);
             this.broadcastLoopBusy(loopId, false);
-        }
+        });
     }
 
     public static updateLoopConfig(config: DeepclawConfig) {

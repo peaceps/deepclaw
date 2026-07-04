@@ -2,7 +2,7 @@ import { AgentHandler } from '@deepclaw/core';
 import { ToolUseDef, LoopAgent, LLMConstructor, LLMProtocol, OneLoopContext, ToolUseResult } from "@deepclaw/agent";
 import { TestLLM, ThinkingMessage, ThinkingResponse } from './test-llm';
 
-
+// TODO need implement
 export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, TestLLM> {
     protected override getLLMProtocol(): LLMProtocol {
         return 'OpenAIChat';
@@ -11,13 +11,14 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
         return TestLLM;
     }
     protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
+        if (response.usage) {context.usage.noCachedInputTokens += response.usage.input_tokens;}
     }
     
     protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
-        return [];
+        return result ? [] : [];
     }
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
-        return [{role: 'user', content: []}];
+        return toolResults ? [{role: 'user', content: []}] : [];
     }
     protected override newSubLoop(agentId: string, projectId: string, subLoopAgentHandler: AgentHandler, history: ThinkingMessage[], parentSessionId: string): LoopAgent<ThinkingMessage, ThinkingResponse, TestLLM> {
         return new TestLlmAgent(agentId, subLoopAgentHandler, projectId, history, parentSessionId);

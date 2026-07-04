@@ -20,15 +20,19 @@ export type Tool = {};
 
 export class LLMClient {};
 
+// TODO need implement
 export class TestLLM extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, LLMClient> {
     protected override isInputExceedLimit(error: any): boolean {
-        return false;
+        return !error;
     }
     protected override setTransitionReason(response: ThinkingResponse): ThinkingResponse {
         return response;
     }
     protected override newResponse(content: string, transitionReason?: TransitionReason): ThinkingResponse {
-        return {transitionReason: 'endLoop', content: [], usage: {input_tokens: 0, output_tokens: 0}};
+        return {
+            transitionReason: transitionReason || 'endLoop',
+            content: [{role: 'assistant', content}], usage: {input_tokens: 0, output_tokens: 0}
+        };
     }
     protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {
         return response.content;
@@ -50,12 +54,7 @@ export class TestLLM extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, L
         return new LLMClient();
     }
 
-    protected override async _invoke(
-        system: string,
-        messages: ThinkingMessage[],
-        tools: Tool[],
-        streamer: (text: string) => void
-    ): Promise<ThinkingResponse> {
+    protected override async _invoke(): Promise<ThinkingResponse> {
         return this.newResponse('');
     }
 }

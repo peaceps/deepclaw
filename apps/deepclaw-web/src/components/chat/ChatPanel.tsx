@@ -1,8 +1,9 @@
 'use client';
 
-import { AgentEmployee } from "@deepclaw/core";
+import { AgentEmployee, LOOP_BUSY_ERROR } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { invoke } from '@/server/loop-agent';
+import { resolveInteraction } from '@/server/loop-agent';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
@@ -90,23 +91,14 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
         removeOn: ({done}) => done,
       },
     );
-    try {
-      const result = await invoke(agent.id, projectId, clientIdRef.current, trimmed);
-      if (result.status !== 'ok') {
+    invoke(agent.id, projectId, clientIdRef.current, trimmed).catch(err => {
         unsubscribeMessageStream();
-        const text = result.status === 'busy'
-          ? t('pages.chat.busy', { name: agent.name })
-          : t('pages.chat.invoke.error');
+        const busy = err instanceof Error && err.message === LOOP_BUSY_ERROR;
+        const text = busy ? t('pages.chat.busy', { name: agent.name }) : t('pages.chat.invoke.error');
         updateMessageStreamByChatKey(loopId, `\n${text}`);
         setStreaming(false);
-        setChatBusy(loopId, result.status === 'busy');
-      }
-    } catch {
-      unsubscribeMessageStream();
-      updateMessageStreamByChatKey(loopId, `\n${t('pages.chat.invoke.error')}`);
-      setStreaming(false);
-      setChatBusy(loopId, false);
-    }
+        setChatBusy(loopId, busy);
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -160,11 +152,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           if (data.loopId !== loopId || data.clientId !== clientIdRef.current) return;
           showModal(loopId, data.content).then((answer) => {
             if (answer === null) return;
-            fetch('/api/interact', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ loopId, clientId: clientIdRef.current, answer }),
-            }).catch((err) => {
+            resolveInteraction(loopId, clientIdRef.current, answer).catch((err) => {
               logger.error('Failed to resolve interaction:', err);
             });
           });

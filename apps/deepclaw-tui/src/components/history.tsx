@@ -1,6 +1,6 @@
 import {ReactElement, useContext} from 'react';
 import {Box, Text} from 'ink';
-import Banner from './banner';
+import {Banner} from './banner';
 import {useWidth} from '../hooks/use-width';
 import {StaticContext} from '../hooks/static-context';
 
