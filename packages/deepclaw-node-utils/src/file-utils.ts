@@ -78,7 +78,7 @@ export class FileUtils {
     }
 
     public static isPathInWorkspace(filePath: string): boolean {
-        let workspacePath = this.getAbsolutePath(process.cwd());
+        let workspacePath = this.getAbsolutePath(this.getWorkingDir());
         let targetPath = this.getAbsolutePath(filePath);
         if (targetPath.startsWith(this.formatSlash(`${os.tmpdir()}/.deepclaw/`))) {
             return true;
@@ -92,7 +92,7 @@ export class FileUtils {
     }
 
     public static copyResource(fromDir: string, fileName: string): void {
-        const destination = path.resolve(process.cwd(), fileName);
+        const destination = path.resolve(this.getWorkingDir(), fileName);
         if (!fs.existsSync(destination)) {
             let source = path.join(fromDir, 'resources', fileName);
             if (!fs.existsSync(source)) {
@@ -105,7 +105,7 @@ export class FileUtils {
     }
 
     private static getAbsolutePath(relativePath: string): string {
-        return this.formatSlash(path.isAbsolute(relativePath) ? relativePath : path.resolve(relativePath));
+        return this.formatSlash(path.isAbsolute(relativePath) ? relativePath : path.resolve(this.getWorkingDir(), relativePath));
     }
 
     public static ensureFileExist(filePath: string, content: string = ''): void {
@@ -133,5 +133,9 @@ export class FileUtils {
         const suffix = index !== -1 ? fileName.slice(index + 1) : fileName;
         const reg = allowFolder ? /[\*?<>&|:'"%^@`~]/g : /[\*?<>&|:'"%^@`~/\.]/g;
         return prefix + this.formatSlash(suffix).replace(reg, '_');
+    }
+
+    private static getWorkingDir(): string {
+        return process.env['DEEPCLAW_HOME'] || process.cwd();
     }
 }
