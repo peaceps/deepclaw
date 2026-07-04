@@ -3,6 +3,7 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { invoke } from '@/server/loop-agent';
+import { resolveInteraction } from '@/server/interact';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
@@ -160,11 +161,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           if (data.loopId !== loopId || data.clientId !== clientIdRef.current) return;
           showModal(loopId, data.content).then((answer) => {
             if (answer === null) return;
-            fetch('/api/interact', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ loopId, clientId: clientIdRef.current, answer }),
-            }).catch((err) => {
+            resolveInteraction(loopId, clientIdRef.current, answer).catch((err) => {
               logger.error('Failed to resolve interaction:', err);
             });
           });
