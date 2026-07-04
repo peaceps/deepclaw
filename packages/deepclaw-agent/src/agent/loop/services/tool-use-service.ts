@@ -1,5 +1,5 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { ToolUseResult } from "../../definitions/tool-definitions";
+import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
 import { ToolsManager } from './tools-manager';
@@ -8,12 +8,6 @@ import { HookManager } from './hook-manager';
 export type ToolUseServiceResult = {
     result: ToolUseResult;
     success: boolean;
-}
-
-export type ToolUseDef = {
-    id: string;
-    name: string;
-    input: unknown;
 }
 
 const TRUNCATE_THRESHOLD = 20000;

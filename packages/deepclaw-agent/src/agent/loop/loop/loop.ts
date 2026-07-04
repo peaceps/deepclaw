@@ -8,12 +8,12 @@ import {
     type AgentToolResultEvent,
     AgentInvokeOptions,
 } from '@deepclaw/core';
-import { ToolUseResult } from '../../definitions/tool-definitions';
+import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
     FootPrint, LLMProtocol, LoopState, OneLoopContext, TransitionReason,
     isToolStopReason, LoopSessionStatus, SessionMetadata
 } from '../../definitions/definitions';
-import { ToolUseService, ToolUseDef } from '../services/tool-use-service';
+import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
 import { FileUtils, getLoopLogger } from '@deepclaw/node-utils';

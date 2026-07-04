@@ -1,6 +1,5 @@
-import { LoopAgent } from './loop'
-import { ToolUseDef } from '../services/tool-use-service';
-import { ToolUseResult } from '../../definitions/tool-definitions';
+import { LoopAgent } from './loop';
+import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';

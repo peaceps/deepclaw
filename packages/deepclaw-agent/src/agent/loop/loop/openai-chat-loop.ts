@@ -1,7 +1,6 @@
 import { OpenAIChatLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-chat-llm';
 import { LoopAgent } from './loop';
-import { ToolUseDef } from '../services/tool-use-service';
-import { ToolUseResult } from '../../definitions/tool-definitions';
+import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
 import { LLMProtocol, OneLoopContext } from '../../definitions/definitions';

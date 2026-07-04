@@ -1,8 +1,29 @@
-import { FlushAgent } from '@deepclaw/core';
+import { AgentHandler } from '@deepclaw/core';
+import { ToolUseDef, LoopAgent, LLMConstructor, LLMProtocol, OneLoopContext, ToolUseResult } from "@deepclaw/agent";
+import { TestLLM, ThinkingMessage, ThinkingResponse } from './test-llm';
 
-export class TestLlmAgent extends FlushAgent {
 
-    protected async _invoke(): Promise<string> {
+export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, TestLLM> {
+    protected override getLLMProtocol(): LLMProtocol {
+        return 'OpenAIChat';
+    }
+    protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
+        return TestLLM;
+    }
+    protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
+    }
+    
+    protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
+        return [];
+    }
+    protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
+        return [{role: 'user', content: []}];
+    }
+    protected override newSubLoop(agentId: string, projectId: string, subLoopAgentHandler: AgentHandler, history: ThinkingMessage[], parentSessionId: string): LoopAgent<ThinkingMessage, ThinkingResponse, TestLLM> {
+        return new TestLlmAgent(agentId, subLoopAgentHandler, projectId, history, parentSessionId);
+    }
+
+    protected override async _invoke(): Promise<string> {
         const text = [
             'The pattern continues',
             'up to number 100, with a',

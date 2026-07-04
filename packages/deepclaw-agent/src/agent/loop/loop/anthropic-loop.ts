@@ -1,7 +1,6 @@
 import { AnthropicLLM, ThinkingMessage, ThinkingResponse } from "../../llm/anthropic-llm";
 import { LoopAgent } from "./loop";
-import { ToolUseResult } from "../../definitions/tool-definitions";
-import { ToolUseDef } from "../services/tool-use-service";
+import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
 import { LLMProtocol, OneLoopContext } from "../../definitions/definitions";

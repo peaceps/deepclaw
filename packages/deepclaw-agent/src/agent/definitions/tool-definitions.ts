@@ -14,6 +14,12 @@ export type LLMTool = {
     }
 }
 
+export type ToolUseDef = {
+    id: string;
+    name: string;
+    input: unknown;
+}
+
 export type ToolUseResult = {
     id: string;
     content: string;
