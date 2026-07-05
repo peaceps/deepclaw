@@ -1,4 +1,4 @@
-import { AgentEmployee } from "./agent-definitions";
+import { AgentEmployee, ChatMessage } from "./agent-definitions";
 import { Project } from "./project-definitions";
 import { DistributiveOmit } from "@deepclaw/utils";
 
@@ -12,10 +12,10 @@ export function getInteractionId(loopId: string, clientId: string): string {
 
 export const LOOP_BUSY_ERROR = 'LOOP_BUSY';
 
-export type AgentEvent = AgentInfoEvent | AgentStreamEvent |
+export type AgentEvent = AgentInfoEvent | AgentStreamEvent | AgentChatEvent |
     AgentLoopBusyEvent | AgentInteractionEvent | AgentCancelInteractionEvent;
 
-type AgentEventType = 'info' | 'stream' | 'busy' | 'interact' | 'cancelInteract' | 'toolResult';
+type AgentEventType = 'info' | 'stream' | 'busy' | 'interact' | 'chat' | 'cancelInteract' | 'toolResult';
 
 type FlushAgentEvent = {
     eventType: AgentEventType;
@@ -26,6 +26,13 @@ export type AgentStreamEvent = FlushAgentEvent & {
     loopId: string;
     text: string;
     done?: boolean;
+};
+
+export type AgentChatEvent = FlushAgentEvent & {
+    eventType: 'chat';
+    loopId: string;
+    clientId: string;
+    message: ChatMessage;
 };
 
 export type AgentToolResultEvent = FlushAgentEvent & {

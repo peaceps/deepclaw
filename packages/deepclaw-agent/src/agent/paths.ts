@@ -16,6 +16,7 @@ export const HISTORY_COMPACT_FILE = 'history_compact.jsonl';
 export const MESSAGE_SNAPSHOT_FILE = 'messages.json';
 export const SESSION_METADATA_FILE = 'session.json';
 export const MEMORY_DIR = 'memory';
+export const CHAT_FILE = 'chat.jsonl';
 
 // SubLoop temp
 export const SUB_LOOP_DIR = 'subloop';

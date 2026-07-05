@@ -1,5 +1,4 @@
-import type { Message } from "@/component-types";
-import type { Project, MissionStatus, AgentEmployee, AgentStatus} from "@deepclaw/core";
+import type { Project, MissionStatus, AgentEmployee, AgentStatus, ChatMessage} from "@deepclaw/core";
 import { getProjectStatus } from "@deepclaw/core";
 
 export const avatarBG = 'bg-gradient-to-br from-amber-300 to-sky-300';
@@ -35,17 +34,17 @@ export const priorityStyles: Record<Project['priority'], string> = {
     low: 'bg-gray-100 text-gray-700',
 };
 
-export const messageFlexStyles: Record<Message['type'], string> = {
+export const messageFlexStyles: Record<ChatMessage['type'], string> = {
     user: 'justify-end',
     agent: 'justify-start',
 };
 
-export const messageTextStyles: Record<Message['type'], string> = {
+export const messageTextStyles: Record<ChatMessage['type'], string> = {
     user: 'bg-blue-500 text-white',
     agent: 'bg-gray-100 text-gray-800',
 };
 
-export const messageTimeStyles: Record<Message['type'], string> = {
+export const messageTimeStyles: Record<ChatMessage['type'], string> = {
     user: 'text-blue-200',
     agent: 'text-gray-400',
 };

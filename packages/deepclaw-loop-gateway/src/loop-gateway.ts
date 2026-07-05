@@ -1,10 +1,11 @@
 import type {
     AgentHandler, AgentEmployee, Project, AgentEvent, Task, AgentIdentity,
     AgentInteractionEvent,
-    AgentInfoEvent
+    AgentInfoEvent,
+    ChatMessage
 } from "@deepclaw/core";
 import { getFlushAgentKey, getInteractionId, LOOP_BUSY_ERROR } from "@deepclaw/core";
-import { globalize } from "@deepclaw/utils";
+import { DistributiveOmit, globalize } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
 } from "@deepclaw/agent";
@@ -67,8 +68,12 @@ class LoopGatewayImpl {
         }
     }
 
-    private static fireInfoSSEEvent(e: Omit<AgentInfoEvent, 'eventType'>): void {
+    private static fireInfoSSEEvent(e: DistributiveOmit<AgentInfoEvent, 'eventType'>): void {
         this.sseSubscribers['info'].forEach(cb => cb({ eventType: 'info', ...e }));
+    }
+
+    public static fireChatMessageEvent(loopId: string, clientId: string, message: ChatMessage) {
+        this.fireSSEEvent('loop', {eventType: 'chat', loopId, clientId, message})
     }
 
     public static init(agentId: string, projectId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {

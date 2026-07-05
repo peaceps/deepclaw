@@ -1,17 +1,20 @@
 'use client';
 
-import { AgentEmployee, LOOP_BUSY_ERROR } from "@deepclaw/core";
+import { AgentEmployee, ChatMessage, LOOP_BUSY_ERROR } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { invoke } from '@/server/loop-agent';
-import { resolveInteraction } from '@/server/loop-agent';
+import { resolveInteraction, pullChatMessages, pushChatMessage } from '@/server/loop-agent';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
 import { useAppStore, getChatKey } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
-import { formatDate, loopSse } from '../component-utils';
+import { formatDate } from '../component-utils';
 import { getLogger } from "@/lib/logger";
-import type { SSEConnectedEvent, SSELoopStreamEvent, SSELoopBusyEvent, SSEInteractEvent, SSECancelInteractEvent } from '@/app/api/sse-server';
+import type {
+  SSEConnectedEvent, SSELoopStreamEvent, SSELoopBusyEvent, SSEInteractEvent, SSECancelInteractEvent,
+  SSEChatEvent
+} from '@/app/api/sse-server';
 import { Markdown } from "./Markdown";
 import { useSSEClient } from '@/components/layout/SSEProvider';
 import { useModalStore } from '@/lib/modal-store';
@@ -23,13 +26,30 @@ type ChatPanelProps = {
 
 const logger = getLogger('ChatPanel');
 
+function loopSse(loopId: string): { key: string; url: string } {
+  const params = new URLSearchParams({ loopId });
+  return { key: `loop:${loopId}`, url: `/api/loop?${params.toString()}` };
+}
+
+function newMessage(type: 'user' | 'agent', agentId: string, content: string): ChatMessage {
+    return {
+        id: crypto.randomUUID(),
+        agentId,
+        content,
+        type,
+        timestamp: new Date().toISOString(),
+    };
+}
+
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const chatKey = getChatKey(agent.id, projectId);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [previousChatKey, setPreviousChatKey] = useState(chatKey);
   const addMessage = useAppStore(s => s.addMessage);
-  const updateMessageStreamByChatKey = useAppStore(s => s.updateMessageStreamByChatKey);
+  const addPulledMessages = useAppStore(s => s.addPulledMessages);
+  const updateMessageStream = useAppStore(s => s.updateMessageStream);
+  const getMessageById = useAppStore(s => s.getMessageById);
   const setChatBusy = useAppStore(s => s.setChatBusy);
   const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
   const agentMessages = useAppStore(s => s.messages[chatKey]);
@@ -38,6 +58,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const closeModal = useModalStore(s => s.closeModal);
   const { t, i18n } = useTranslation();
   const clientIdRef = useRef('');
+  const initStateRef = useRef(new Set());
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -53,6 +74,17 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
     setInput('');
     setPreviousChatKey(chatKey);
   }
+
+  useEffect(() => {
+    if (!initStateRef.current.has(chatKey)) {
+      initStateRef.current.add(chatKey);
+      pullChatMessages(chatKey).then(messages => {
+        addPulledMessages(chatKey, messages);
+      }).catch(err => {
+        logger.error('Failed to pull chat messages:', err);
+      });
+    }
+  }, [chatKey, addPulledMessages]);
 
   const lastContent = agentMessages?.[agentMessages.length - 1]?.content ?? '';
   useEffect(() => {
@@ -76,15 +108,23 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
     setInput('');
     setStreaming(true);
     setChatBusy(loopId, true);
-    addMessage('user', agent.id, projectId, trimmed);
-    addMessage('agent', agent.id, projectId, '');
+    const newUserMsg = newMessage('user', agent.id, trimmed);
+    addMessage(loopId, newUserMsg);
+    pushChatMessage(loopId, clientIdRef.current, newUserMsg);
+    const newAgentMsg = newMessage('agent', agent.id, '');
+    addMessage(loopId, newAgentMsg);
     const unsubscribeMessageStream = sseClient.subscribePersistent<Extract<SSELoopStreamEvent, {sseType: 'streamText'}>>(
       sseKey,
       sseUrl,
       'streamText',
       ({loopId, content, done}) => {
         if (!done) {
-          updateMessageStreamByChatKey(loopId, content);
+          updateMessageStream(loopId, newAgentMsg.id, content);
+        } else {
+          const msg = getMessageById(loopId, newAgentMsg.id);
+          if (msg) {
+            pushChatMessage(loopId, clientIdRef.current, msg);
+          }
         }
       },
       {
@@ -95,7 +135,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
         unsubscribeMessageStream();
         const busy = err instanceof Error && err.message === LOOP_BUSY_ERROR;
         const text = busy ? t('pages.chat.busy', { name: agent.name }) : t('pages.chat.invoke.error');
-        updateMessageStreamByChatKey(loopId, `\n${text}`);
+        updateMessageStream(loopId, newAgentMsg.id, `\n${text}`);
         setStreaming(false);
         setChatBusy(loopId, busy);
     });
@@ -167,13 +207,22 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           closeModal(null);
         },
       ),
+      sseClient.subscribe<SSEChatEvent>(
+        sseKey,
+        sseUrl,
+        'chat',
+        (data) => {
+          if (data.loopId !== loopId || data.clientId === clientIdRef.current || !initStateRef.current.has(loopId)) return;
+          addMessage(loopId, data.content);
+        },
+      ),
     ];
 
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
       clientIdRef.current = '';
     };
-  }, [sseClient, setChatBusy, chatKey, showModal, closeModal]);
+  }, [sseClient, setChatBusy, chatKey, showModal, closeModal, addMessage]);
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">

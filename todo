@@ -1,4 +1,3 @@
-async invoke + server action interaction
-ui message persist + broadcast
 interaction switch lost (await interaction status)
 stop loop without clients (no clients/no interactions)
+append history messages

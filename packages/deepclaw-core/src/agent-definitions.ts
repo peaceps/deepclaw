@@ -26,3 +26,11 @@ export type AgentMood = {
 }
 
 export type AgentEmployee = AgentIdentity & AgentMood;
+
+export type ChatMessage = {
+    id: string;
+    agentId: string;
+    content: string;
+    type: 'user' | 'agent';
+    timestamp: string;
+}

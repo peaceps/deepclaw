@@ -7,3 +7,4 @@ export * from './agent/definitions/definitions';
 export * from './agent/definitions/tool-definitions';
 export * from './agent/loop/services/agent-identity-manager';
 export * from './agent/loop/services/project-manager';
+export * from './agent/paths';

@@ -41,6 +41,12 @@ export class FileUtils {
         fs.writeFileSync(absolutePath, content, 'utf8');
     }
 
+    public static appendFile(filePath: string, content: string): void {
+        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
+        this.ensureFolderExist(absolutePath);
+        fs.appendFileSync(absolutePath, content, 'utf8');
+    }
+
     public static findLatest(folder: string, subFile: string = ''): string {
         const fullFolder = this.getAbsolutePath(folder);
         if (!fs.existsSync(fullFolder)) {

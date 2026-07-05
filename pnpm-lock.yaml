@@ -308,6 +308,9 @@ importers:
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../deepclaw-i18n
+      '@deepclaw/node-utils':
+        specifier: workspace:*
+        version: link:../deepclaw-node-utils
       '@deepclaw/utils':
         specifier: workspace:*
         version: link:../deepclaw-utils

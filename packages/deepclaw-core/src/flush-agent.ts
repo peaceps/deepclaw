@@ -1,5 +1,7 @@
+import { DistributiveOmit } from '@deepclaw/utils';
 import {
-    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent, getFlushAgentKey, AgentInteractionEventPayload
+    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent,
+    getFlushAgentKey, AgentInteractionEventPayload
 } from './flush-agent-event';
 
 export type LLMGWConfig = {
@@ -56,7 +58,7 @@ export abstract class FlushAgent {
             onInteractionEvent: (e: AgentInteractionEventPayload & {clientId: string}) => handler.onInteractionEvent(
                 {eventType: 'interact', loopId: this.getId(), ...e}
             ),
-            onInfoEvent: (e: Omit<AgentInfoEvent, 'eventType'>) => handler.onInfoEvent(
+            onInfoEvent: (e: DistributiveOmit<AgentInfoEvent, 'eventType'>) => handler.onInfoEvent(
                 {eventType: 'info', ...e}
             )
         };

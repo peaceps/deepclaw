@@ -1,10 +1,10 @@
 import { LoopGateway, type SSEType } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
-import { type AgentEmployee, type Project, type AgentEvent, type AgentInteractionEvent } from "@deepclaw/core";
+import { type AgentEmployee, type Project, type AgentEvent, type AgentInteractionEvent, ChatMessage } from "@deepclaw/core";
 
 export type SSEEventType = 'connected' | 'updateProject' | 'updateAgent' | 'streamText'
-    | 'loopBusy' | 'interact' | 'cancelInteract';
+    | 'loopBusy' | 'interact' | 'cancelInteract' | 'chat';
 
 export type SSEEvent = {
     sseType: SSEEventType;
@@ -49,6 +49,13 @@ export type SSECancelInteractEvent = SSEEvent & {
     loopId: string;
     clientId: string;
     content: '';
+};
+
+export type SSEChatEvent = SSEEvent & {
+    sseType: 'chat';
+    loopId: string;
+    clientId: string;
+    content: ChatMessage;
 };
 
 type SSEClient = {
@@ -110,6 +117,9 @@ class SSEServerImpl {
         if (type === 'info') {
             return true;
         }
+        if (data.sseType === 'chat') {
+            return 'clientId' in data && client.id !== data.clientId;
+        }
         if ('clientId' in data) {
             return client.id === data.clientId;
         }
@@ -166,6 +176,14 @@ class SSEServerImpl {
                 clientId: e.clientId,
                 content: '',
             } as SSECancelInteractEvent;
+        }
+        if (e.eventType === 'chat') {
+            return {
+                sseType: 'chat',
+                loopId: e.loopId,
+                clientId: e.clientId,
+                content: e.message,
+            } as SSEChatEvent;
         }
         return {
             sseType: e.type,

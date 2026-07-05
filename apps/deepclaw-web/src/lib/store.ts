@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import type { Project, AgentEmployee, AgentStatus, AgentProjectStats, Task } from '@deepclaw/core';
+import type { Project, AgentEmployee, AgentStatus, AgentProjectStats, Task, ChatMessage } from '@deepclaw/core';
 import { getFlushAgentKey, getProjectStatus } from '@deepclaw/core';
-import type { Message } from '@/component-types';
 
 export type AgentSummary = {
   status: AgentStatus;
@@ -29,7 +28,7 @@ type AppState = {
   agents: AgentEmployee[];
   activeAgents: AgentEmployee[];
   projects: Project[];
-  messages: {[key: string]: Message[]},
+  messages: {[key: string]: ChatMessage[]},
   busyChatKeys: Record<string, boolean>;
   selectedAgentId: string | null;
 
@@ -39,8 +38,11 @@ type AppState = {
   setProjects: (projects: Project[]) => void;
   updateProject: (project: Partial<Project> & { id: string }) => void;
   updateProjectTask: (projectId: string, taskTitle: string, task: Partial<Task>) => void;
-  addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => void;
-  updateMessageStreamByChatKey: (chatKey: string, text: string) => void;
+  addPulledMessages: (chatKey: string, messages: ChatMessage[]) => void;
+  addMessage: (chatKey: string, message: ChatMessage) => void;
+  getMessageById: (chatKey: string, id: string) => ChatMessage | undefined;
+  getOldestMessageId: (chatKey: string) => string | undefined;
+  updateMessageStream: (chatKey: string, id: string, text: string) => void;
   setChatBusy: (chatKey: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
 }
@@ -93,17 +95,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       } : p) };
     });
   },
-  addMessage: (type: 'user' | 'agent', agentId: string, projectId: string, content: string) => set((state) => {
-    const chatKey = getChatKey(agentId, projectId);
-    const oldMessages = state.messages[getChatKey(agentId, projectId)] || [];
+  addPulledMessages: (chatKey: string, messages: ChatMessage[]) => set((state) => {
+    const oldMessages = state.messages[chatKey] || [];
     return {
-      messages: {...state.messages, ...{[chatKey]: [...oldMessages, newMessage(
-        type, agentId, content
-      )]}}
+      messages: {...state.messages, ...{[chatKey]: [...messages, ...oldMessages]}}
     };
   }),
-  updateMessageStreamByChatKey: (chatKey: string, text: string) => set((state) => {
-    const message = state.messages[chatKey]?.findLast(m => m.type === 'agent');
+  addMessage: (chatKey: string, message: ChatMessage) => set((state) => {
+    const oldMessages = state.messages[chatKey] || [];
+    return {
+      messages: {...state.messages, ...{[chatKey]: [...oldMessages, message]}}
+    };
+  }),
+  getOldestMessageId: (chatKey: string) =>  {
+    return get().messages[chatKey]?.[0].id;
+  },
+  getMessageById: (chatKey: string, id: string) => {
+    return get().messages[chatKey]?.findLast(m => m.id === id);
+  },
+  updateMessageStream: (chatKey: string, id: string, text: string) => set((state) => {
+    const message = state.getMessageById(chatKey, id);
     if (!message) {
         // PASS
         return {};
@@ -124,16 +135,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
 }));
-
-function newMessage(type: 'user' | 'agent', agentId: string, content: string): Message {
-    return {
-        id: crypto.randomUUID(),
-        agentId,
-        content,
-        type,
-        timestamp: new Date().toISOString(),
-    };
-}
 
 function selectFirstActiveAgent(get: () => AppState, set: (state: Partial<AppState>) => void): void {
     const { selectedAgentId, activeAgents } = get();
