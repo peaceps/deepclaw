@@ -118,7 +118,8 @@ class SSEServerImpl {
             return true;
         }
         if (data.sseType === 'chat') {
-            return 'clientId' in data && client.id !== data.clientId;
+            return 'clientId' in data && client.id !== data.clientId
+                && 'loopId' in data && client.loopId === data.loopId;
         }
         if ('clientId' in data) {
             return client.id === data.clientId;

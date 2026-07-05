@@ -11,7 +11,7 @@ import {
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
     FootPrint, LLMProtocol, LoopState, OneLoopContext, TransitionReason,
-    isToolStopReason, LoopSessionStatus, SessionMetadata
+    isToolStopReason
 } from '../../definitions/definitions';
 import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
@@ -21,13 +21,11 @@ import { HookManager } from '../services/hook-manager';
 import { AgentConfig, loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
 import {
-    AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, PROJECT_DIR,
-    SESSION_METADATA_FILE, SUB_LOOP_DIR
+    AGENT_SESSION_DIR, AGENTS_DIR, PROJECT_DIR, SUB_LOOP_DIR
 } from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
-
-const SESSION_TIMEOUT = 1000 * 60 * 60 * 24;
+import { MetaDataConfig, PersistHistoryService } from '../services/persist-history-service';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason },
     LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
@@ -35,6 +33,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
     protected parentSessionId: string;
+    private historyPersistIndex: number = 0;
     private sessionId: string;
     protected history: I[] = [];
     private footPrints: FootPrint[] = [];
@@ -52,6 +51,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         this.parentSessionId = parentSessionId;
         this.sessionId = this.initializeSessionId(history);
         this.history = this.loadPersistedHistory(history);
+        this.historyPersistIndex = this.history.length;
         this.llm = new (this.getLLMConstructor())(
             this.isSubLoop(),
             this.agentConfig.llm,
@@ -64,47 +64,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         if (this.isSubLoop() || this.projectId || history.length > 0) {
             return crypto.randomUUID();
         }
-        return this.loadLatestSessionId() || crypto.randomUUID();
+        return PersistHistoryService.loadLatestAgentSessionId(this.agentId, this.getLLMProtocol()) || crypto.randomUUID();
     }
 
-    private loadLatestSessionId(): string {
-        const sessionRoot = `${AGENTS_DIR}/${this.agentId}/${AGENT_SESSION_DIR}`;
-        const sessionId = FileUtils.findLatest(sessionRoot, MESSAGE_SNAPSHOT_FILE);
-        if (!sessionId) {
-            return '';
+    private loadPersistedHistory(history: I[]): I[] {
+        if (this.isSubLoop() || history.length > 0) {
+            return history;
         }
-        try {
-            const metaFile = FileUtils.readFile(`${sessionRoot}/${sessionId}/${SESSION_METADATA_FILE}`);
-            const meta = JSON.parse(metaFile) as SessionMetadata;
-            if (meta.llmProtocol !== this.getLLMProtocol()) {
-                return '';
-            }
-            const status = meta.status;
-            const date = new Date(meta.updatedAt);
-            if (Number.isNaN(date.getTime())) {
-                return '';
-            }
-            let timeout = SESSION_TIMEOUT;
-            switch(status) {
-                case 'running':
-                    timeout = SESSION_TIMEOUT * 2;
-                    break;
-                case 'paused':
-                    timeout = SESSION_TIMEOUT * 7;
-                    break;
-                case 'ended':
-                case 'error':
-                default:
-                    timeout = 0;
-                    break;
-            }
-            const diff = new Date().getTime() - date.getTime();
-            if (diff > timeout) {
-                return '';
-            }
-            return sessionId;
-        } catch {}
-        return '';
+        return PersistHistoryService.loadHistory(this.getSessionDir());
     }
 
     protected getSessionDir() {
@@ -112,20 +79,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             return `${PROJECT_DIR}/${this.projectId}`;
         } else {
             return `${AGENTS_DIR}/${this.agentId}/${AGENT_SESSION_DIR}/${this.sessionId}`;
-        }
-    }
-
-    private loadPersistedHistory(history: I[]): I[] {
-        if (this.isSubLoop() || history.length > 0) {
-            return history;
-        }
-
-        try {
-            const content = FileUtils.readFile(`${this.getSessionDir()}/${MESSAGE_SNAPSHOT_FILE}`);
-            const messages = JSON.parse(content);
-            return Array.isArray(messages) ? messages as I[] : history;
-        } catch {
-            return history;
         }
     }
 
@@ -178,6 +131,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     refusalState: '',
                 },
                 loopConfig: this.agentConfig,
+                historyPersistIndex: this.historyPersistIndex,
                 actions: {
                     newSubLoop: this.createSubLoop.bind(this),
                     addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
@@ -196,7 +150,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         let finalText = '';
         try {
             await HookManager.emitVisitor('preLoopStart', state.oneLoopContext);
-            this.persistLoopState(state.oneLoopContext, 'running', undefined, false);
+            this.persistHistory(state.oneLoopContext, {
+                status: 'running',
+            });
             finalText = await this.agentLoop(state);
             return finalText;
         } catch (error) {
@@ -209,8 +165,11 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             try {
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
             } finally {
-                this.persistLoopState(state.oneLoopContext, this.getInvokeEndSessionStatus(state.oneLoopContext),
-                    finalText || undefined, state.oneLoopContext.turnCount === 0);
+                this.persistHistory(state.oneLoopContext, {
+                    finalText,
+                    forceMessagesSnapshot: state.oneLoopContext.turnCount === 0
+                });
+                this.historyPersistIndex = state.oneLoopContext.historyPersistIndex;
             }
         }
     }
@@ -242,10 +201,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
         const compactor = MessageCompactor.getCompactor(this.getLLMProtocol());
-        compactor.compactOldResults(this.history);
-        await compactor.compactFullHistory(context.sessionDir, this.footPrints,
-            context.loopConfig.mode, this.llm, context.system, this.history, context.logger
-        );
+        compactor.compactOldResults(this.history, context);
+        await compactor.compactFullHistory(context, this.footPrints, this.llm, this.history);
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
@@ -297,68 +254,22 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         try {
             await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
         } finally {
-            this.persistLoopState(state.oneLoopContext, this.getLoopSessionStatus(state.oneLoopContext), undefined, false);
+            this.persistHistory(state.oneLoopContext, {});
         }
         return state.oneLoopContext.transitionReason !== 'endLoop' && state.oneLoopContext.transitionReason !== 'error'
             && !isToolStopReason(state.oneLoopContext.transitionReason);
     }
 
+    private persistHistory(context: OneLoopContext, config: Partial<MetaDataConfig>): void {
+        PersistHistoryService.saveHistory(this.history, context, {
+            ...config,
+            llmProtocol: this.getLLMProtocol(),
+            sessionId: this.sessionId,
+            parentSessionId: this.parentSessionId,
+        });
+    }
+
     protected abstract addTokenUsage(context: OneLoopContext, response: O): void;
-
-    private getLoopSessionStatus(context: OneLoopContext): LoopSessionStatus {
-        if (context.transitionReason === 'error') {
-            return 'error';
-        }
-        if (isToolStopReason(context.transitionReason)) {
-            return 'paused';
-        }
-        if (context.transitionReason === 'endLoop') {
-            return 'ended';
-        }
-        return 'running';
-    }
-
-    private getInvokeEndSessionStatus(context: OneLoopContext): LoopSessionStatus {
-        if (!context.transitionReason) {
-            return 'ended';
-        }
-        return this.getLoopSessionStatus(context);
-    }
-
-    private persistLoopState(context: OneLoopContext, status: LoopSessionStatus, finalText?: string, forceMessagesSnapshot: boolean = false): void {
-        // Sub-loop context is intentionally not durably persisted; only parent/main loop state is durable.
-        if (context.isSubLoop) {
-            return;
-        }
-        try {
-            const now = new Date().toISOString();
-            const messagesPath = `${context.sessionDir}/${MESSAGE_SNAPSHOT_FILE}`;
-            if (forceMessagesSnapshot || context.turnCount > 0) {
-                FileUtils.writeFile(messagesPath, JSON.stringify(this.history));
-            }
-            const metadata: SessionMetadata = {
-                llmProtocol: this.getLLMProtocol(),
-                agentId: this.agentId,
-                projectId: this.projectId,
-                sessionId: this.sessionId,
-                parentSessionId: this.parentSessionId || undefined,
-                loopId: context.loopId,
-                isSubLoop: context.isSubLoop,
-                status,
-                transitionReason: context.transitionReason,
-                turnCount: context.turnCount,
-                messagesPath,
-                finalText,
-                updatedAt: now,
-                endedAt: status === 'running' ? undefined : now,
-            };
-            FileUtils.writeFile(
-                `${context.sessionDir}/${SESSION_METADATA_FILE}`, JSON.stringify(metadata, null, 2)
-            );
-        } catch (error) {
-            context.logger.error(error, 'Persist loop state failed');
-        }
-    }
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];

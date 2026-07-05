@@ -1,9 +1,9 @@
-import { FileUtils, type Logger } from '@deepclaw/node-utils';
+import { FileUtils } from '@deepclaw/node-utils';
 import { LLMModel } from '../../llm/llmgw';
-import { FootPrint } from '../../definitions/definitions';
+import { FootPrint, OneLoopContext } from '../../definitions/definitions';
 import { HISTORY_DIR } from '../../paths';
 import { HISTORY_COMPACT_FILE } from '../../paths';
-import { AgentMode } from '@deepclaw/config';
+import { HookManager } from '../services/hook-manager';
 
 const MAX_RECENT_TOOL_RESULT_COUNT: number = 20;
 const TOOL_RESULT_THRESHOLD: number = 1200;
@@ -13,27 +13,29 @@ const MAX_HISTORY_FILE_COUNT: number = 5;
 
 export abstract class AbstractMessagesCompactor<I, O, R, LLM extends LLMModel<I, O, unknown, unknown>> {
 
-    public compactOldResults(messages: I[]): void {
+    public compactOldResults(messages: I[], context: OneLoopContext): void {
         const toolResultMessages = this.getToolResults(messages);
         if (toolResultMessages.length > MAX_RECENT_TOOL_RESULT_COUNT) {
             const oldestResult = toolResultMessages.slice(0, toolResultMessages.length - MAX_RECENT_TOOL_RESULT_COUNT);
             for (const result of oldestResult) {
-                if (this.getContentLength(result) > TOOL_RESULT_THRESHOLD) {
+                const resultLength = this.getContentLength(result);
+                if (resultLength > TOOL_RESULT_THRESHOLD) {
                     this.compactToolResult(result, TOOL_RESULT_COMPACTED_MESSAGE);
+                    HookManager.emitVisitor('toolResultCompacted', context, resultLength);
                 }
             }
         }
     }
 
     public async compactFullHistory(
-        sessionDir: string, footPrints: FootPrint[], mode: AgentMode,
-        llm: LLM, system: string, messages: I[], logger: Logger
+        context: OneLoopContext, footPrints: FootPrint[], llm: LLM, messages: I[]
     ): Promise<void> {
         const jsonl = messages.map(message => JSON.stringify(message)).join('\n');
         if (jsonl.length > HISTORY_THRESHOLD) {
-            this.saveHistory(sessionDir, jsonl);
-            const summary = await this.summarizeHistory(mode, footPrints, llm, system, jsonl, logger);
+            this.saveHistory(context.sessionDir, jsonl);
+            const summary = await this.summarizeHistory(context, footPrints, llm, jsonl);
             messages.splice(0, messages.length, summary);
+            await HookManager.emitVisitor('historyCompacted', context, jsonl.length);
         }
     }
 
@@ -45,10 +47,9 @@ export abstract class AbstractMessagesCompactor<I, O, R, LLM extends LLMModel<I,
     }
 
     private async summarizeHistory(
-        mode: AgentMode, footPrints: FootPrint[],
-        llm: LLM, system: string, jsonl: string, logger: Logger
+        context: OneLoopContext, footPrints: FootPrint[], llm: LLM, jsonl: string
     ): Promise<I> {
-        const summary = await llm.compact(mode, system, jsonl, logger);
+        const summary = await llm.compact(context.loopConfig.mode, context.system, jsonl, context.logger);
         return llm.newInputMessage(`
 This session continues from a previous conversation that was compacted.
 This conversation was compacted so the agent can continue working.

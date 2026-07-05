@@ -6,6 +6,11 @@ export function getFlushAgentKey(agentId: string, projectId?: string): string {
     return !projectId ? agentId : `${agentId}.${projectId}`;
 }
 
+export function splitFlushAgentKey(key: string): {agentId: string; projectId?: string} {
+    const [agentId, projectId] = key.split('.');
+    return {agentId: agentId ?? '', projectId};
+}
+
 export function getInteractionId(loopId: string, clientId: string): string {
     return `${loopId}_${clientId}`;
 }

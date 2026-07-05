@@ -73,66 +73,62 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         const toolCallResults = new Map<number, ChatCompletionChunk.Choice.Delta.ToolCall>();
         let content = '';
         let reasoningContent = '';
-        let usage:  CompletionUsage | undefined = undefined;
+        let finalResponse: ThinkingResponse | undefined = undefined;
         for await (const chunk of stream) {
-            if (chunk.usage) {
-                usage = chunk.usage;
-            }
             const response = chunk.choices[0] as ThinkingResponse;
             if (response) {
-                response.usage = usage;
-            }
-            const chunkContent = response?.delta?.content || '';
-            reasoningContent += (response?.delta?.reasoning_content || '');
-            if (chunkContent) {
-                content += chunkContent;
-                streamer(chunkContent);
-            }
-            const toolCalls = response?.delta?.tool_calls || [];
-            for (const toolCall of toolCalls) {
-                const index = toolCall.index ?? 0;
-                const existing = toolCallResults.get(index) || {
-                    type: toolCall.type || 'function',
-                    index,
-                    id: toolCall.id,
-                    function: {
-                        name: '',
-                        arguments: ''
+                const chunkContent = response.delta?.content || '';
+                reasoningContent += (response.delta?.reasoning_content || '');
+                if (chunkContent) {
+                    content += chunkContent;
+                    streamer(chunkContent);
+                }
+                const toolCalls = response.delta?.tool_calls || [];
+                for (const toolCall of toolCalls) {
+                    const index = toolCall.index ?? 0;
+                    const existing = toolCallResults.get(index) || {
+                        type: toolCall.type || 'function',
+                        index,
+                        id: toolCall.id,
+                        function: { name: '', arguments: '' }
+                    };
+                    if (toolCall.id) {
+                        existing.id = toolCall.id;
                     }
-                };
+                    if (toolCall.type) {
+                        existing.type = toolCall.type;
+                    }
+                    if (toolCall.function?.name) {
+                        existing.function!.name = toolCall.function.name;
+                    }
+                    if (toolCall.function?.arguments) {
+                        existing.function!.arguments += toolCall.function.arguments;
+                    }
+                    toolCallResults.set(index, existing);
+                }
 
-                if (toolCall.id) {
-                    existing.id = toolCall.id;
+                if (!!response.finish_reason && (response.finish_reason as string) !== 'null') {
+                    if (toolCallResults.size > 0) {
+                        response.delta.tool_calls = [...toolCallResults.entries()]
+                            .sort(([a], [b]) => a - b).map(([, toolCall]) => toolCall);
+                    }
+                    if (content) {
+                        response.delta.content = content;
+                    }
+                    if (reasoningContent) {
+                        response.delta.reasoning_content = reasoningContent;
+                    }
+                    finalResponse = response;
                 }
-                if (toolCall.type) {
-                    existing.type = toolCall.type;
-                }
-                if (toolCall.function?.name) {
-                    existing.function!.name = toolCall.function.name;
-                }
-                if (toolCall.function?.arguments) {
-                    existing.function!.arguments += toolCall.function.arguments;
-                }
-                toolCallResults.set(index, existing);
             }
-
-            if (!!response?.finish_reason && (response?.finish_reason as string) !== 'null') {
-                if (toolCallResults.size > 0) {
-                    response.delta.tool_calls = [...toolCallResults.entries()]
-                        .sort(([a], [b]) => a - b)
-                        .map(([, toolCall]) => toolCall);
-                }
-                if (content) {
-                    response.delta.content = content;
-                }
-                if (reasoningContent) {
-                    response.delta.reasoning_content = reasoningContent;
-                }
-                
-                return this.setTransitionReason(response);
+            if (finalResponse && chunk.usage) {
+                finalResponse.usage = chunk.usage;
             }
         }
 
+        if (finalResponse) {
+            return this.setTransitionReason(finalResponse);
+        }
         return this.newResponse('Error: No response from LLM.');
     }
 

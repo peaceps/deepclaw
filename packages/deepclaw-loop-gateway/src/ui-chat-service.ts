@@ -1,5 +1,5 @@
 import {AGENTS_DIR, CHAT_FILE, PROJECT_DIR} from '@deepclaw/agent';
-import { ChatMessage } from '@deepclaw/core';
+import { ChatMessage, splitFlushAgentKey } from '@deepclaw/core';
 import { globalize } from '@deepclaw/utils';
 import { FileUtils } from '@deepclaw/node-utils';
 
@@ -17,7 +17,7 @@ class UIChatServiceImpl {
         this.ensureMessageLoaded(loopId);
         const messages = this.messageStore.get(loopId)!;
         messages.push(message);
-        if (messages.length - (this.persistedIndex.get(loopId) ?? 0) >= SAVE_THRESHOLD) {
+        if (messages.length < SAVE_THRESHOLD || messages.length - (this.persistedIndex.get(loopId) ?? 0) >= SAVE_THRESHOLD) {
             this.saveMessages(loopId);
         }
     }
@@ -60,8 +60,8 @@ class UIChatServiceImpl {
         this.messageStore.set(loopId, []);
         try {
             const file = FileUtils.readFile(chatFilePath);
-            for (const line of file.split('\n')) {
-                if (line.trim() === '') continue;
+            const lines = file.split('\n').filter(line => !!line.trim());
+            for (const line of lines) {
                 try {
                     const message: ChatMessage = JSON.parse(line);
                     this.messageStore.get(loopId)!.push(message);
@@ -69,13 +69,14 @@ class UIChatServiceImpl {
                     continue;
                 }
             }
+            this.persistedIndex.set(loopId, this.messageStore.get(loopId)!.length);
         } catch {
             // TODO PASS
         }
     }
 
     private static getChatFile(loopId: string): string {
-        const [agentId, projectId] = loopId.split('.');
+        const {agentId, projectId} = splitFlushAgentKey(loopId);
         if (projectId) {
             return `${PROJECT_DIR}/${projectId}/${CHAT_FILE}`;
         } else {

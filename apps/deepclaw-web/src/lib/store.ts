@@ -31,6 +31,7 @@ type AppState = {
   messages: {[key: string]: ChatMessage[]},
   busyChatKeys: Record<string, boolean>;
   selectedAgentId: string | null;
+  initializedChat: Record<string, boolean>;
 
   // Actions
   setAgents: (agents: AgentEmployee[]) => void;
@@ -45,6 +46,8 @@ type AppState = {
   updateMessageStream: (chatKey: string, id: string, text: string) => void;
   setChatBusy: (chatKey: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
+  chatInitialized: (chatKey: string) => boolean;
+  initChat: (chatKey: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -54,6 +57,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   messages: {},
   busyChatKeys: {},
   selectedAgentId: null,
+  initializedChat: {},
 
   setAgents: (agents) => {
     set({ agents, activeAgents: agents.filter(a => !a.fired) });
@@ -134,6 +138,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
   })),
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
+  chatInitialized: (chatKey: string) => !!get().initializedChat[chatKey],
+  initChat: (chatKey: string) => set((state) => ({
+    initializedChat: {...state.initializedChat, [chatKey]: true}
+  })),
 }));
 
 function selectFirstActiveAgent(get: () => AppState, set: (state: Partial<AppState>) => void): void {

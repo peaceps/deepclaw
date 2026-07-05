@@ -51,6 +51,8 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const updateMessageStream = useAppStore(s => s.updateMessageStream);
   const getMessageById = useAppStore(s => s.getMessageById);
   const setChatBusy = useAppStore(s => s.setChatBusy);
+  const chatInitialized = useAppStore(s => s.chatInitialized);
+  const initChat = useAppStore(s => s.initChat);
   const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
   const agentMessages = useAppStore(s => s.messages[chatKey]);
   const sseClient = useSSEClient();
@@ -58,7 +60,6 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const closeModal = useModalStore(s => s.closeModal);
   const { t, i18n } = useTranslation();
   const clientIdRef = useRef('');
-  const initStateRef = useRef(new Set());
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -76,15 +77,15 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   }
 
   useEffect(() => {
-    if (!initStateRef.current.has(chatKey)) {
-      initStateRef.current.add(chatKey);
+    if (!chatInitialized(chatKey)) {
+      initChat(chatKey);
       pullChatMessages(chatKey).then(messages => {
         addPulledMessages(chatKey, messages);
       }).catch(err => {
         logger.error('Failed to pull chat messages:', err);
       });
     }
-  }, [chatKey, addPulledMessages]);
+  }, [chatKey, addPulledMessages, chatInitialized, initChat]);
 
   const lastContent = agentMessages?.[agentMessages.length - 1]?.content ?? '';
   useEffect(() => {
@@ -212,7 +213,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
         sseUrl,
         'chat',
         (data) => {
-          if (data.loopId !== loopId || data.clientId === clientIdRef.current || !initStateRef.current.has(loopId)) return;
+          if (data.loopId !== loopId || data.clientId === clientIdRef.current || !chatInitialized(loopId)) return;
           addMessage(loopId, data.content);
         },
       ),
@@ -222,7 +223,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
       unsubscribers.forEach(unsubscribe => unsubscribe());
       clientIdRef.current = '';
     };
-  }, [sseClient, setChatBusy, chatKey, showModal, closeModal, addMessage]);
+  }, [sseClient, setChatBusy, chatKey, showModal, closeModal, addMessage, chatInitialized]);
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">

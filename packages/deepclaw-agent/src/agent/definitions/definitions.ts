@@ -37,6 +37,7 @@ export type OneLoopContext = {
     system: string;
     logger: Logger;
     loopConfig: AgentConfig;
+    historyPersistIndex: number;
     recoveryState: {
         maxTokenRetries: number;
         refusalState: '' // TODO: 添加拒绝状态
