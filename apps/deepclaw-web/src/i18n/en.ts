@@ -1,5 +1,11 @@
 export const en = {
-    common: {
+    server: {
+        meta: {
+            title: 'DeepClaw - Your agent is working',
+            description: 'See what your agents are doing',
+        },
+    },
+    web: {
         iam: 'I\'m {{name}}, good at {{expertises}} areas, ready to serve you!',
         all: 'All',
         toggle: {

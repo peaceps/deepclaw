@@ -104,7 +104,7 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
             <div className="flex items-start gap-2">
               <span className="text-lg">💬</span>
               <p className="text-sm text-gray-700 italic">
-                &quot;{t('common.iam', {name: agent.name, expertises: agent.expertises.join('/') || t('common.all')})}&quot;
+                &quot;{t('web.iam', {name: agent.name, expertises: agent.expertises.join('/') || t('web.all')})}&quot;
               </p>
             </div>
           </div>

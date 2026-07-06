@@ -34,7 +34,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors ${collapsed ? '' : 'mr-2'}`}
-              title={collapsed ? t('common.toggle.expand') : t('common.toggle.collapse')}
+              title={collapsed ? t('web.toggle.expand') : t('web.toggle.collapse')}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </button>

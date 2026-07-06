@@ -114,7 +114,7 @@ function ModalContent({ event, onClose, t }: {
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 rounded-lg transition-colors"
               >
                 <Send size={16} />
-                {t('common.send')}
+                {t('web.send')}
               </button>
             )}
             {isSelect && (
@@ -124,7 +124,7 @@ function ModalContent({ event, onClose, t }: {
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 rounded-lg transition-colors"
               >
                 <Check size={16} />
-                {t('common.confirm')}
+                {t('web.confirm')}
               </button>
             )}
           </div>
@@ -136,7 +136,7 @@ function ModalContent({ event, onClose, t }: {
               onClick={() => onClose('')}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
             >
-              {t('common.ok')}
+              {t('web.ok')}
             </button>
           </div>
         )}

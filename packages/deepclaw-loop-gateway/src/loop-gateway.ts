@@ -26,9 +26,9 @@ type InteractionResolver = {
 class LoopGatewayImpl {
     private static loops: LoopStore = {};
     private static busyLoops = new Set<string>();
-    private static sseSubscribers: {[key in SSEType]: Set<(e: AgentEvent) => void>} = {
-        info: new Set(),
-        loop: new Set()
+    private static sseSubscribers: {[key in SSEType]: ((e: AgentEvent) => void) | undefined} = {
+        info: undefined,
+        loop: undefined
     };
     private static waitingInteractions: Map<string, InteractionResolver> = new Map();
 
@@ -40,7 +40,7 @@ class LoopGatewayImpl {
     };
 
     private static fireSSEEvent(type: SSEType, e: AgentEvent) {
-        this.sseSubscribers[type].forEach(cb => cb(e));
+        this.sseSubscribers[type]?.(e);
     }
 
     private static async fireWaitedSSEEvent(type: SSEType, e: AgentInteractionEvent): Promise<string> {
@@ -48,7 +48,7 @@ class LoopGatewayImpl {
         const waiting = new Promise<string>((resolve, reject) => this.waitingInteractions.set(
             interactionId, {timer: null, resolve, reject}
         ));
-        this.sseSubscribers[type].forEach(cb => cb(e));
+        this.sseSubscribers[type]?.(e);
         try {
             const timeout = new Promise((res) => {
                 const timer = setTimeout(res, INTERACTION_TIMEOUT);
@@ -69,7 +69,7 @@ class LoopGatewayImpl {
     }
 
     private static fireInfoSSEEvent(e: DistributiveOmit<AgentInfoEvent, 'eventType'>): void {
-        this.sseSubscribers['info'].forEach(cb => cb({ eventType: 'info', ...e }));
+        this.sseSubscribers['info']?.({ eventType: 'info', ...e });
     }
 
     public static fireChatMessageEvent(loopId: string, clientId: string, message: ChatMessage) {
@@ -96,7 +96,7 @@ class LoopGatewayImpl {
     }
 
     private static broadcastLoopBusy(loopId: string, busy: boolean): void {
-        this.sseSubscribers.loop.forEach(cb => cb({ eventType: 'busy', loopId, busy }));
+        this.sseSubscribers.loop?.({ eventType: 'busy', loopId, busy });
     }
 
     public static async invoke(agentId: string, projectId: string, clientId: string, input: string): Promise<void> {
@@ -127,9 +127,11 @@ class LoopGatewayImpl {
     }
 
     public static subscribe(type: SSEType, cb: (e: AgentEvent) => void): () => void {
-        this.sseSubscribers[type].add(cb);
+        this.sseSubscribers[type] = cb;
         return () => {
-            this.sseSubscribers[type].delete(cb);
+            if (this.sseSubscribers[type] === cb) {
+                this.sseSubscribers[type] = undefined;
+            }
         };
     }
 

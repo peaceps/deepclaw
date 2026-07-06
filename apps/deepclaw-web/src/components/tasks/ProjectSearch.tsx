@@ -150,7 +150,7 @@ export function ProjectSearch({filters, onChange}: {
                     color={statusIcon[status].color}
                     selected={filters.status === status}
                 />}
-                {t(status === 'all' ? 'common.all' : `pages.projects.status.${status}`)} {statusCounts[status]}
+                {t(status === 'all' ? 'web.all' : `pages.projects.status.${status}`)} {statusCounts[status]}
               </button>
             ))}
           </div>
@@ -162,7 +162,7 @@ export function ProjectSearch({filters, onChange}: {
              outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-auto sm:max-w-48"
             aria-label={t('pages.projects.ownerFilter')}
           >
-            <option value="all">{t('pages.projects.ownerFilter')}: {t('common.all')}</option>
+            <option value="all">{t('pages.projects.ownerFilter')}: {t('web.all')}</option>
             {ownerOptions.map(owner => (
               <option key={owner.id} value={owner.id}>{owner.name} ({owner.count})</option>
             ))}

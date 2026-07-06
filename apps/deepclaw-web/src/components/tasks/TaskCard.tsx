@@ -45,7 +45,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
         <div className="flex items-start justify-between gap-2">
           <h4 className="font-medium text-gray-900 line-clamp-2 flex-1">{task.title}</h4>
           <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${priorityStyles[task.priority]}`}>
-            {t(`common.priority.${task.priority}`)}
+            {t(`web.priority.${task.priority}`)}
           </span>
         </div>
 

@@ -11,8 +11,12 @@ export async function resolveInteraction(loopId: string, clientId: string, answe
     return LoopGateway.resolveInteraction(loopId, clientId, answer);
 }
 
-export async function pullChatMessages(loopId: string, lastMessageId?: string): Promise<ChatMessage[]> {
-    return UIChatService.getMessages(loopId, lastMessageId);
+export async function pullOlderMessages(loopId: string, endMessageId?: string): Promise<ChatMessage[]> {
+    return UIChatService.getOlderMessages(loopId, endMessageId);
+}
+
+export async function pullNewerMessages(loopId: string, startMessageId?: string): Promise<ChatMessage[]> {
+    return UIChatService.getNewerMessages(loopId, startMessageId);
 }
 
 export async function pushChatMessage(loopId: string, clientId: string, message: ChatMessage): Promise<void> {

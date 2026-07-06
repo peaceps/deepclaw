@@ -22,14 +22,35 @@ class UIChatServiceImpl {
         }
     }
 
-    public static getMessages(loopId: string, lastMessageId?: string): ChatMessage[] {
+    public static getOlderMessages(loopId: string, endMessageId?: string): ChatMessage[] {
+        const getRange = (msgLen: number) => {
+            const end = !endMessageId ? msgLen : (this.getCachedIndex(loopId, endMessageId) ?? msgLen);
+            const start = Math.max(0, end - PAGE_SIZE);
+            return [start, end] as [number, number];
+        }
+        return this.getMessages(loopId, getRange);
+    }
+
+    public static getNewerMessages(loopId: string, startMessageId?: string): ChatMessage[] {
+        const getRange = (msgLen: number) => {
+            const start = !startMessageId ? 0 : (this.getCachedIndex(loopId, startMessageId) ?? -1) + 1;
+            const end = msgLen;
+            return [start, end] as [number, number];
+        }
+        return this.getMessages(loopId, getRange);
+    }
+
+    private static getMessages(loopId: string, getRange: (msgLen: number) => [number, number]): ChatMessage[] {
         this.ensureMessageLoaded(loopId);
-        const messages = this.messageStore.get(loopId)!;
-        const end = !lastMessageId ? messages.length : (this.getCachedIndex(loopId, lastMessageId) ?? messages.length);
-        const start = Math.max(0, end - PAGE_SIZE);
+        const messages = this.messageStore.get(loopId);
+        if (!messages) {
+            return [];
+        }
+        const [start, end] = getRange(messages.length);
         const page = messages.slice(start, end);
         if (page.length > 0) {
             this.addCachedIndex(loopId, page[0]!.id, start);
+            this.addCachedIndex(loopId, page[page.length - 1]!.id, end - 1);
         }
         return page;
     }
@@ -41,21 +62,21 @@ class UIChatServiceImpl {
         this.messageIndexCache.get(loopId)!.set(lastMessageId, index);
     }
 
-    private static getCachedIndex(loopId: string, lastMessageId: string): number | undefined {
-        const cached = this.messageIndexCache.get(loopId)?.get(lastMessageId);
+    private static getCachedIndex(loopId: string, messageId: string): number | undefined {
+        const cached = this.messageIndexCache.get(loopId)?.get(messageId);
         if (cached !== undefined) return cached;
         const arr = this.messageStore.get(loopId);
-        const idx = arr?.findIndex(m => m.id === lastMessageId);
+        const idx = arr?.findIndex(m => m.id === messageId);
         return idx !== undefined && idx > -1 ? idx : undefined;
     }
 
     private static ensureMessageLoaded(loopId: string) {
         if (!this.messageStore.has(loopId)) {
-            this.loadMessages(loopId);
+            this.loadPersistedMessages(loopId);
         }
     }
 
-    private static loadMessages(loopId: string): void {
+    private static loadPersistedMessages(loopId: string): void {
         const chatFilePath = this.getChatFile(loopId);
         this.messageStore.set(loopId, []);
         try {

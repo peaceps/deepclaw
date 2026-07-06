@@ -11,10 +11,22 @@ const locales: Record<SupportedLanguage, {translation: Record<string, string>}> 
 export function mergeResourcesFn(resources: Record<string, any>): void {
     Object.keys(resources).forEach((lang: string) => {
         Object.assign(locales[lang as keyof typeof locales].translation, resources[lang]);
+        if (i18n.isInitialized) {
+            i18n.addResourceBundle(lang, 'translation', resources[lang], true, true);
+        }
     });
 }
 
 export function initFn(lng: string, middleware?: Module) {
+    if (i18n.isInitialized) {
+        if (middleware && typeof (middleware as { init?: unknown }).init === 'function') {
+            (middleware as unknown as { init: (instance: typeof i18n) => void }).init(i18n);
+        }
+        if (lng && i18n.language !== lng) {
+            i18n.changeLanguage(lng);
+        }
+        return;
+    }
     const mid = middleware ? i18n.use(middleware) : i18n;
     mid.init({
         debug: false,

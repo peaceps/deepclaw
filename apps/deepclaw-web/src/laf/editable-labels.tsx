@@ -103,7 +103,7 @@ export function EditableLabels({
                      transition-colors cursor-pointer`}
         >
           <Plus size={14} />
-          {t('common.add')}
+          {t('web.add')}
         </button> : null
       )}
     </div>

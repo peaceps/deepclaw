@@ -8,8 +8,8 @@ import '@/i18n-server';
 import { LoopGateway } from "@deepclaw/loop-gateway";
 
 export const metadata: Metadata = {
-  title: i18nInstance.t('meta.title'),
-  description: i18nInstance.t('meta.description'),
+  title: i18nInstance.t('server.meta.title'),
+  description: i18nInstance.t('server.meta.description'),
 };
 
 export default async function Layout({

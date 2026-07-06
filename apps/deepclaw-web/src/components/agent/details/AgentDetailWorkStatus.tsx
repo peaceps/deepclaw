@@ -40,7 +40,7 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   priorityStyles[currentProject.priority]
                 }`}>
-                  {t(`common.priority.${currentProject.priority}`)}
+                  {t(`web.priority.${currentProject.priority}`)}
                 </span>
               </div>
               <p className="text-sm text-gray-600 line-clamp-2">{currentProject.description}</p>

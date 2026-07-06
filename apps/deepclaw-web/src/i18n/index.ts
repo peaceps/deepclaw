@@ -5,7 +5,6 @@ import { zh } from './zh';
 
 mergeResources({en, zh});
 
-export function initI18n(lang: string, ...resources: Record<string, any>[]) {
-    resources.forEach(resource => mergeResources(resource));
+export function initI18n(lang: string) {
     init(lang, initReactI18next);
 }

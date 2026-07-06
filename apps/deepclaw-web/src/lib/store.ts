@@ -39,15 +39,14 @@ type AppState = {
   setProjects: (projects: Project[]) => void;
   updateProject: (project: Partial<Project> & { id: string }) => void;
   updateProjectTask: (projectId: string, taskTitle: string, task: Partial<Task>) => void;
-  addPulledMessages: (chatKey: string, messages: ChatMessage[]) => void;
+  addPulledMessages: (chatKey: string, messages: ChatMessage[], head?: boolean) => void;
   addMessage: (chatKey: string, message: ChatMessage) => void;
   getMessageById: (chatKey: string, id: string) => ChatMessage | undefined;
   getOldestMessageId: (chatKey: string) => string | undefined;
+  getNewestMessageId: (chatKey: string) => string | undefined;
   updateMessageStream: (chatKey: string, id: string, text: string) => void;
   setChatBusy: (chatKey: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
-  chatInitialized: (chatKey: string) => boolean;
-  initChat: (chatKey: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -99,10 +98,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       } : p) };
     });
   },
-  addPulledMessages: (chatKey: string, messages: ChatMessage[]) => set((state) => {
+  addPulledMessages: (chatKey: string, messages: ChatMessage[], head: boolean = false) => set((state) => {
     const oldMessages = state.messages[chatKey] || [];
     return {
-      messages: {...state.messages, ...{[chatKey]: [...messages, ...oldMessages]}}
+      messages: {...state.messages, ...{[chatKey]: head ? [...messages, ...oldMessages] : [...oldMessages, ...messages]}}
     };
   }),
   addMessage: (chatKey: string, message: ChatMessage) => set((state) => {
@@ -112,7 +111,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
   getOldestMessageId: (chatKey: string) =>  {
-    return get().messages[chatKey]?.[0].id;
+    return get().messages[chatKey]?.[0]?.id;
+  },
+  getNewestMessageId: (chatKey: string) =>  {
+    const messages = get().messages[chatKey];
+    return messages?.[messages.length - 1]?.id;
   },
   getMessageById: (chatKey: string, id: string) => {
     return get().messages[chatKey]?.findLast(m => m.id === id);
@@ -138,10 +141,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
   })),
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
-  chatInitialized: (chatKey: string) => !!get().initializedChat[chatKey],
-  initChat: (chatKey: string) => set((state) => ({
-    initializedChat: {...state.initializedChat, [chatKey]: true}
-  })),
 }));
 
 function selectFirstActiveAgent(get: () => AppState, set: (state: Partial<AppState>) => void): void {

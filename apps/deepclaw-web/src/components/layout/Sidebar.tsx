@@ -145,7 +145,7 @@ export function Sidebar({manager}: SidebarProps) {
             onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded-lg hover:bg-gray-100
                 text-gray-400 hover:text-gray-600 transition-colors"
-            title={t('common.toggle.collapse')}
+            title={t('web.toggle.collapse')}
           >
             <ChevronLeft size={18} />
           </button>
@@ -159,7 +159,7 @@ export function Sidebar({manager}: SidebarProps) {
             onClick={() => setCollapsed(!collapsed)}
             className="p-2 rounded-lg hover:bg-gray-100
                 text-gray-400 hover:text-gray-600 transition-colors"
-            title={t('common.toggle.expand')}
+            title={t('web.toggle.expand')}
           >
             <ChevronRight size={20} />
           </button>

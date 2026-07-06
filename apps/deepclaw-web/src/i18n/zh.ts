@@ -1,5 +1,11 @@
 export const zh = {
-    common: {
+    server: {
+        meta: {
+            title: 'DeepClaw - 让AI为你发光',
+            description: '看见你的AI在做什么',
+        },
+    },
+    web: {
         iam: '我是{{name}}，擅长{{expertises}}领域的工作，随时准备为您服务！',
         all: '所有',
         toggle: {
