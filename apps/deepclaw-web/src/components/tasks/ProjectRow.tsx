@@ -89,7 +89,7 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
                       size="small"
                       maxLabelCount={PROJECT_CONFIG.maxTagCount}
                       maxLabelTextLength={PROJECT_CONFIG.maxTagTextLength}
-                      placeholder={t('pages.projects.project.labels.save')}
+                      placeholder={t('web.pages.projects.project.labels.save')}
                     />
                   </div>
                 </div>

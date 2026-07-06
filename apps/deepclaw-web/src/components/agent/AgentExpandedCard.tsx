@@ -51,7 +51,7 @@ export function AgentExpandedCard({
             <div className="mt-3 flex items-end justify-between text-xs">
               <span className={`px-2 py-1 rounded-full
                 ${statusColors[agentStatus].replace('bg-', 'bg-opacity-20 bg-')} text-white`}>
-                {t(`pages.agents.status.${agentStatus}`)}
+                {t(`web.pages.agents.status.${agentStatus}`)}
               </span>
               <div className="text-gray-400 flex justify-between gap-2">
                 <span className="text-gray-400"><AlarmClock size={14} className="inline mr-1 mb-1"/>{projectStats.todo}</span>

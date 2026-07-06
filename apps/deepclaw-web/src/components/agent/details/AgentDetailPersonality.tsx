@@ -20,7 +20,7 @@ export function AgentDetailPersonality({ agent, onUpdate }: {
     }, [onUpdate, agent.id]);
 
     return (
-      <InfoCard title="pages.agents.details.personality.title" icon={<Heart size={20} />} color="purple">
+      <InfoCard title="web.pages.agents.details.personality.title" icon={<Heart size={20} />} color="purple">
         <div className="space-y-4">
           {/* 性格特征 */}
           <div>
@@ -33,7 +33,7 @@ export function AgentDetailPersonality({ agent, onUpdate }: {
   
           {/* 情感表达 */}
           <DeepSwitch 
-            label="pages.agents.details.personality.emotionExpression"
+            label="web.pages.agents.details.personality.emotionExpression"
             labelFont="text-gray-500"
             color="purple"
             value={agent.emotion}

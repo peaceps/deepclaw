@@ -88,7 +88,7 @@ export function EditableLabels({
           onChange={(e) => setInputVal(e.target.value.slice(0, maxLabelTextLength))}
           onKeyDown={handleKeyDown}
           onBlur={addLabel}
-          placeholder={placeholder || t('pages.agents.details.labels.save')}
+          placeholder={placeholder || t('web.pages.agents.details.labels.save')}
           className={`px-3 ${labelPy} rounded-full text-sm border border-gray-300 bg-white
                      focus:ring-1 ${classes.ringFocus} ${classes.borderFocus} outline-none
                      min-w-[80px] max-w-[160px]`}
@@ -103,7 +103,7 @@ export function EditableLabels({
                      transition-colors cursor-pointer`}
         >
           <Plus size={14} />
-          {t('web.add')}
+          {t('web.common.add')}
         </button> : null
       )}
     </div>

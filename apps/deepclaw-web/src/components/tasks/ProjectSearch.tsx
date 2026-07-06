@@ -116,7 +116,7 @@ export function ProjectSearch({filters, onChange}: {
             <input
               value={filters.query}
               onChange={handleSearchQueryChange}
-              placeholder={t('pages.projects.search.placeholder')}
+              placeholder={t('web.pages.projects.search.placeholder')}
               className="w-full rounded-lg border border-gray-200 py-1.5 pl-8 pr-8 text-sm text-gray-900
               outline-none transition-colors placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
@@ -126,7 +126,7 @@ export function ProjectSearch({filters, onChange}: {
                 onClick={handleSearchQueryRemove}
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400
                 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                aria-label={t('pages.projects.search.clear')}
+                aria-label={t('web.pages.projects.search.clear')}
               >
                 <X size={14} />
               </button>
@@ -150,7 +150,7 @@ export function ProjectSearch({filters, onChange}: {
                     color={statusIcon[status].color}
                     selected={filters.status === status}
                 />}
-                {t(status === 'all' ? 'web.all' : `pages.projects.status.${status}`)} {statusCounts[status]}
+                {t(status === 'all' ? 'web.common.all' : `web.pages.projects.status.${status}`)} {statusCounts[status]}
               </button>
             ))}
           </div>
@@ -160,9 +160,9 @@ export function ProjectSearch({filters, onChange}: {
             onChange={handleOwnerFilterChange}
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700
              outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-auto sm:max-w-48"
-            aria-label={t('pages.projects.ownerFilter')}
+            aria-label={t('web.pages.projects.ownerFilter')}
           >
-            <option value="all">{t('pages.projects.ownerFilter')}: {t('web.all')}</option>
+            <option value="all">{t('web.pages.projects.ownerFilter')}: {t('web.common.all')}</option>
             {ownerOptions.map(owner => (
               <option key={owner.id} value={owner.id}>{owner.name} ({owner.count})</option>
             ))}

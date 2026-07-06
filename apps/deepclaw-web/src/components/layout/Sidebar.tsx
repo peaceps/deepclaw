@@ -13,11 +13,11 @@ import { EmojiPicker } from '@/laf/emoji-picker';
 import { updateManagerAvatar } from '@/server/configs';
 
 const navItems = [
-  { href: '/agents', label: 'sidebar.links.agents', icon: Users },
-  { href: '/projects', label: 'sidebar.links.projects', icon: ClipboardList },
-  { href: '/chat', label: 'sidebar.links.chat', icon: MessageSquare },
-  { href: '/org', label: 'sidebar.links.org', icon: LayoutDashboard },
-  { href: '/settings', label: 'sidebar.links.settings', icon: Settings },
+  { href: '/agents', label: 'web.sidebar.links.agents', icon: Users },
+  { href: '/projects', label: 'web.sidebar.links.projects', icon: ClipboardList },
+  { href: '/chat', label: 'web.sidebar.links.chat', icon: MessageSquare },
+  { href: '/org', label: 'web.sidebar.links.org', icon: LayoutDashboard },
+  { href: '/settings', label: 'web.sidebar.links.settings', icon: Settings },
 ];
 
 interface SidebarProps {
@@ -130,7 +130,7 @@ export function Sidebar({manager}: SidebarProps) {
             </div>
             <div>
               <h1 className="font-bold text-gray-900">DeepClaw</h1>
-              <p className="text-xs text-gray-500">{t('sidebar.subtitle')}</p>
+              <p className="text-xs text-gray-500">{t('web.sidebar.subtitle')}</p>
             </div>
           </Link>
         )}
@@ -145,7 +145,7 @@ export function Sidebar({manager}: SidebarProps) {
             onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded-lg hover:bg-gray-100
                 text-gray-400 hover:text-gray-600 transition-colors"
-            title={t('web.toggle.collapse')}
+            title={t('web.common.toggle.collapse')}
           >
             <ChevronLeft size={18} />
           </button>
@@ -159,7 +159,7 @@ export function Sidebar({manager}: SidebarProps) {
             onClick={() => setCollapsed(!collapsed)}
             className="p-2 rounded-lg hover:bg-gray-100
                 text-gray-400 hover:text-gray-600 transition-colors"
-            title={t('web.toggle.expand')}
+            title={t('web.common.toggle.expand')}
           >
             <ChevronRight size={20} />
           </button>
@@ -203,7 +203,7 @@ export function Sidebar({manager}: SidebarProps) {
             <EmojiPicker
               value={avatar}
               onSelect={onAvatarSelect}
-              title={t('sidebar.manager.changeAvatar')}
+              title={t('web.sidebar.manager.changeAvatar')}
               placement="top"
               className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-cyan-500
                 flex items-center justify-center text-xl leading-none"
@@ -218,7 +218,7 @@ export function Sidebar({manager}: SidebarProps) {
             <EmojiPicker
               value={avatar}
               onSelect={onAvatarSelect}
-              title={t('sidebar.manager.changeAvatar')}
+              title={t('web.sidebar.manager.changeAvatar')}
               placement="top"
               className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-cyan-500
                 flex items-center justify-center text-xl leading-none"

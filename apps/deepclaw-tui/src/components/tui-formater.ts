@@ -20,7 +20,7 @@ function getTaskSteps(context: TaskStepsContext, t: TFunction<"translation", und
         const marker = MARKERS[i < currentStep ? 'completed' : (i === currentStep ? 'inProgress' : 'pending')];
         return `${marker} ${item}`;
     });
-    lines.push(t('tools.updateTaskSteps.completed', {completed: currentStep, total: context.steps.length}));
+    lines.push(t('tui.tools.updateTaskSteps.completed', {completed: currentStep, total: context.steps.length}));
     const steps = lines.join('\n');
-    return t('tools.updateTaskSteps.current', {steps});
+    return t('tui.tools.updateTaskSteps.current', {steps});
 }

@@ -57,7 +57,7 @@ export function AgentHeader({ agent, onUpdate }: {
             <EmojiPicker
               value={agent.avatar}
               onSelect={onAvatarSelect}
-              title={t('pages.agents.details.header.changeAvatar')}
+              title={t('web.pages.agents.details.header.changeAvatar')}
               className={`hidden sm:flex w-24 h-24 rounded-2xl ${avatarBG} items-center
                   justify-center text-5xl shadow-lg`}
             />
@@ -73,7 +73,7 @@ export function AgentHeader({ agent, onUpdate }: {
               <span className="text-xl sm:text-2xl">{moodEmojis[agent.mood]}</span>
               <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium
                 text-white ${statusColors[agentStatus]}`}>
-                {t(`pages.agents.status.${agentStatus}`)}
+                {t(`web.pages.agents.status.${agentStatus}`)}
               </span>
             </div>
   
@@ -99,7 +99,7 @@ export function AgentHeader({ agent, onUpdate }: {
                     <button
                       type="button"
                       onClick={startEditRole}
-                      title={t('pages.agents.details.header.editRole')}
+                      title={t('web.pages.agents.details.header.editRole')}
                       className="hidden sm:inline-flex text-gray-400 hover:text-gray-600
                         transition-colors cursor-pointer"
                     >
@@ -114,25 +114,25 @@ export function AgentHeader({ agent, onUpdate }: {
             <div className="flex gap-4 sm:gap-6">
               <div className="flex items-center gap-3">
                 <div
-                  title={t('pages.projects.status.todo')}
+                  title={t('web.pages.projects.status.todo')}
                   className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-gray-50 text-gray-500
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
-                  <span>{t('pages.projects.status.todo')}&nbsp;{projectStats.todo}</span>
+                  <span>{t('web.pages.projects.status.todo')}&nbsp;{projectStats.todo}</span>
                 </div>
                 <div
-                  title={t('pages.projects.status.ongoing')}
+                  title={t('web.pages.projects.status.ongoing')}
                   className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-sky-50 text-sky-500
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
-                  <span>{t('pages.projects.status.ongoing')}&nbsp;{projectStats.ongoing}</span>
+                  <span>{t('web.pages.projects.status.ongoing')}&nbsp;{projectStats.ongoing}</span>
                 </div>
                 <div
-                  title={t('pages.projects.status.done')}
+                  title={t('web.pages.projects.status.done')}
                   className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-green-50 text-green-600
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
-                  <span>{t('pages.projects.status.done')}&nbsp;{projectStats.done}</span>
+                  <span>{t('web.pages.projects.status.done')}&nbsp;{projectStats.done}</span>
                 </div>
               </div>
             </div>

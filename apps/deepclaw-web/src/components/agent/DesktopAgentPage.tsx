@@ -41,7 +41,7 @@ export function DesktopAgentPage({selectedAgent}: {
               className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600
                 transition-colors cursor-pointer ${detailCollapsed ? '' : 'mr-2'}`
               }
-              title={detailCollapsed ? t('web.toggle.expand') : t('web.toggle.collapse')}
+              title={detailCollapsed ? t('web.common.toggle.expand') : t('web.common.toggle.collapse')}
             >
               {detailCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </button>

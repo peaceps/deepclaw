@@ -46,7 +46,7 @@ export function AgentDetailDescription({ agent, onUpdate }: AgentDetailDescripti
   );
 
   return (
-    <InfoCard title="pages.agents.details.description.title" icon={<User size={20}/>} color='orange'>
+    <InfoCard title="web.pages.agents.details.description.title" icon={<User size={20}/>} color='orange'>
       {editing ? (
         <textarea
           autoFocus
@@ -62,13 +62,13 @@ export function AgentDetailDescription({ agent, onUpdate }: AgentDetailDescripti
       ) : (
         <div className="flex items-start gap-2">
           <p className="flex-1 text-sm text-gray-700 min-h-[20px]">
-            {agent.description || <span className="text-gray-400">{t('pages.agents.details.description.noContent')}</span>}
+            {agent.description || <span className="text-gray-400">{t('web.pages.agents.details.description.noContent')}</span>}
           </p>
           <button
             type="button"
             onClick={startEditing}
             className="shrink-0 p-1.5 rounded-md text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors cursor-pointer"
-            aria-label={t('web.edit')}
+            aria-label={t('web.common.edit')}
           >
             <Pencil size={14} />
           </button>

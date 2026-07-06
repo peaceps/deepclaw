@@ -23,7 +23,7 @@ export function ChatSidebar({
       <div className={`flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3`}>
           <div className="flex items-center gap-2">
             {<MessageSquare size={18} className="text-gray-600" />}
-            <span className="font-medium text-gray-700">{t(`pages.chat.type.${!projectId ? 'agent' : 'project'}.title`)}</span>
+            <span className="font-medium text-gray-700">{t(`web.pages.chat.type.${!projectId ? 'agent' : 'project'}.title`)}</span>
           </div>
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">

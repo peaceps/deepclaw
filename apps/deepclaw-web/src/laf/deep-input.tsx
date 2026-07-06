@@ -41,7 +41,7 @@ export function DeepInput({
             }`}
         />
         {error && (
-            <p className="mt-1 text-xs text-red-600">{t('config.error.input', {name: t(uiInfo.content)})}</p>
+            <p className="mt-1 text-xs text-red-600">{t('web.config.error.input', {name: t(uiInfo.content)})}</p>
         )}
         </div>
     )

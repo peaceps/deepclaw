@@ -19,7 +19,7 @@ export function MobileAgentHeader({mobileView, setMobileView}: {
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft size={20} />
-          <span>{t('pages.agents.mobile.returnToList')}</span>
+          <span>{t('web.pages.agents.mobile.returnToList')}</span>
         </button>
       )}
       {mobileView === 'chat' && (
@@ -28,7 +28,7 @@ export function MobileAgentHeader({mobileView, setMobileView}: {
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft size={20} />
-          <span>{t('pages.agents.mobile.returnToDetail')}</span>
+          <span>{t('web.pages.agents.mobile.returnToDetail')}</span>
         </button>
       )}
       
@@ -38,7 +38,7 @@ export function MobileAgentHeader({mobileView, setMobileView}: {
           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium"
         >
           <MessageSquare size={16} />
-          <span>{t('pages.chat.type.agent.title')}</span>
+          <span>{t('web.pages.chat.type.agent.title')}</span>
         </button>
       )}
     </div>

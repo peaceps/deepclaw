@@ -42,7 +42,7 @@ export function DeepSelect({
                     return <option key={v} value={v}>{t(l)}</option>
                 })}
             </select>
-            {error && <p className="mt-1 text-xs text-red-600">{t('config.error.select', {name: t(uiInfo.content)})}</p>}
+            {error && <p className="mt-1 text-xs text-red-600">{t('web.config.error.select', {name: t(uiInfo.content)})}</p>}
         </div>
     )
 }

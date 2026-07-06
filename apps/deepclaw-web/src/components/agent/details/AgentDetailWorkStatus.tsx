@@ -18,12 +18,12 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
     : [];
 
   return (
-    <InfoCard title="pages.agents.details.workStatus.title" icon={<Target size={20} />} color="lime">
+    <InfoCard title="web.pages.agents.details.workStatus.title" icon={<Target size={20} />} color="lime">
       <div className="space-y-4">
         {/* 当前项目 */}
         <div>
           <label className="text-sm text-gray-500 mb-2 block">
-            {t('pages.agents.details.workStatus.currentProject')}
+            {t('web.pages.agents.details.workStatus.currentProject')}
           </label>
           {currentProjects.length > 0 ? (currentProjects.map(currentProject => {
             const progress = getProjectProgress(currentProject);
@@ -33,14 +33,14 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
                 hover:bg-gray-100 focus:outline-none
                 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
               key={currentProject.id}
-              aria-label={`${t('pages.projects.projectList')}: ${currentProject.title}`}
+              aria-label={`${t('web.pages.projects.projectList')}: ${currentProject.title}`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium text-gray-900">{currentProject.title}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   priorityStyles[currentProject.priority]
                 }`}>
-                  {t(`web.priority.${currentProject.priority}`)}
+                  {t(`web.common.priority.${currentProject.priority}`)}
                 </span>
               </div>
               <p className="text-sm text-gray-600 line-clamp-2">{currentProject.description}</p>
@@ -50,14 +50,14 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
               </div>
               {progress !== null && <>
               <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                <span>{t('pages.projects.project.progress')}: {progress}%</span>
+                <span>{t('web.pages.projects.project.progress')}: {progress}%</span>
               </div>
               <ProgressBar value={progress} size="sm" showLabel={false} className="mt-2" />
               </>}
             </Link>})
           ) : (
             <div className="text-sm text-gray-400 italic">
-              {t('pages.agents.details.workStatus.noProject')}
+              {t('web.pages.agents.details.workStatus.noProject')}
             </div>
           )}
         </div>

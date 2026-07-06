@@ -37,7 +37,7 @@ export function ProjectOwner({ ownerAgent, fallbackName, onInteract }: ProjectOw
         }`}
       >
         <User size={16} className="text-violet-500" />
-        <span className="text-gray-500">{t('pages.projects.project.owner')}:</span>
+        <span className="text-gray-500">{t('web.pages.projects.project.owner')}:</span>
         <span className="font-medium text-violet-500">{ownerAgent?.name ?? fallbackName}</span>
       </div>
       {ownerAgent && <TaskOwnerTooltip

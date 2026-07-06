@@ -12,7 +12,7 @@ export function SettingsError({validationResult}: {validationResult: ValidationR
             </div>
             <div className="flex-1">
                 <h3 className="font-semibold text-red-800 text-sm">
-                {validationErrors.length} {t('pages.settings.errors.total')}
+                {validationErrors.length} {t('web.pages.settings.errors.total')}
                 </h3>
                 <div className="mt-2 space-y-1">
                 {(() => {
@@ -20,11 +20,11 @@ export function SettingsError({validationResult}: {validationResult: ValidationR
                     return (
                     <>
                         {summary.uiErrorCount > 0 && (
-                            <p className="text-red-700 text-xs">• {t('pages.settings.errors.ui', {count: summary.uiErrorCount})}</p>
+                            <p className="text-red-700 text-xs">• {t('web.pages.settings.errors.ui', {count: summary.uiErrorCount})}</p>
                         )}
                         {summary.agentErrorCount > 0 && (
                             <p className="text-red-700 text-xs">
-                                • {t('pages.settings.errors.agents', {agentCount: summary.affectedAgents, errorCount: summary.agentErrorCount})}
+                                • {t('web.pages.settings.errors.agents', {agentCount: summary.affectedAgents, errorCount: summary.agentErrorCount})}
                             </p>
                         )}
                     </>

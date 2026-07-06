@@ -72,7 +72,7 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
   
         {/* 个性特征 */}
         <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">{t('pages.agents.details.personality.title')}</p>
+            <p className="text-xs text-gray-500 mb-1">{t('web.pages.agents.details.personality.title')}</p>
             <div className="flex flex-wrap gap-1">
             {agent.personalities.map((personality) => (
                 <span
@@ -86,7 +86,7 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
         </div>
   
           <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">{t('pages.agents.details.expertises.title')}</p>
+            <p className="text-xs text-gray-500 mb-1">{t('web.pages.agents.details.expertises.title')}</p>
             <div className="flex flex-wrap gap-1">
               {agent.expertises?.slice(0, 4).map((expertise) => (
                 <span
@@ -104,7 +104,7 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
             <div className="flex items-start gap-2">
               <span className="text-lg">💬</span>
               <p className="text-sm text-gray-700 italic">
-                &quot;{t('web.iam', {name: agent.name, expertises: agent.expertises.join('/') || t('web.all')})}&quot;
+                &quot;{t('web.common.iam', {name: agent.name, expertises: agent.expertises.join('/') || t('web.common.all')})}&quot;
               </p>
             </div>
           </div>

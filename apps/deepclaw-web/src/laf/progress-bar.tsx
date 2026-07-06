@@ -27,7 +27,7 @@ export function ProgressBar({
     <div className={className}>
       {showLabel && (
         <div className="flex items-center justify-between text-xs mb-1">
-          <span className="text-gray-500">{t('pages.projects.project.progress')}</span>
+          <span className="text-gray-500">{t('web.pages.projects.project.progress')}</span>
           <span className="font-medium text-gray-700">{safeValue}%</span>
         </div>
       )}

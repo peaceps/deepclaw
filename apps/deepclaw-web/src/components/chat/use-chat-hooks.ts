@@ -210,7 +210,7 @@ export function useSend(
         invoke(agent.id, projectId, clientIdRef.current, trimmed).catch(err => {
             unsubscribeMessageStream();
             const busy = err instanceof Error && err.message === LOOP_BUSY_ERROR;
-            const text = busy ? t('pages.chat.busy', { name: agent.name }) : t('pages.chat.invoke.error');
+            const text = busy ? t('web.pages.chat.busy', { name: agent.name }) : t('web.pages.chat.invoke.error');
             updateMessageStream(loopId, newAgentMsg.id, `\n${text}`);
             setStreaming(false);
             setChatBusy(loopId, busy);

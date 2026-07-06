@@ -20,7 +20,7 @@ export function Banner(): ReactElement {
 		<Box flexDirection='column'>
 			<Text color="#98C379">{banner}</Text>
 			<Text color="yellow">
-				✨ {t('banner.prefix')} <Text color="cyan">Enter</Text> {t('banner.suffix')}{'\n'}
+				✨ {t('tui.banner.prefix')} <Text color="cyan">Enter</Text> {t('tui.banner.suffix')}{'\n'}
 			</Text>
 		</Box>
 	);

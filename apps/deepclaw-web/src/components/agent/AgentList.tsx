@@ -21,14 +21,14 @@ export function AgentList({ onSelect, collapsed = false, onToggleCollapse }: Age
         ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}
       >
         {!collapsed && <h2 className="text-lg font-semibold text-gray-900">
-          {t('pages.agents.list.title')}
+          {t('web.pages.agents.list.title')}
         </h2>}
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
             className="p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600
               transition-colors cursor-pointer"
-            title={collapsed ? t('web.toggle.expand') : t('web.toggle.collapse')}
+            title={collapsed ? t('web.common.toggle.expand') : t('web.common.toggle.collapse')}
           >
             {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>

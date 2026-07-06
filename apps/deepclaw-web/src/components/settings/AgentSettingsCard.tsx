@@ -62,7 +62,7 @@ export function AgentSettingsCard({
       }}
     >
       <div className="p-6 border-t border-gray-200 space-y-6">
-        <AgentSettingsSection title="pages.settings.panels.agents.sections.basic">
+        <AgentSettingsSection title="web.pages.settings.panels.agents.sections.basic">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <DeepInput
               uiInfo={configEvents['agents.name'] as Extract<AgentInteractionEvent, {type: 'input'}>}
@@ -82,7 +82,7 @@ export function AgentSettingsCard({
         {/* IM 配置 */}
         <div className="space-y-4 pt-4 border-t border-gray-100">
           <DeepSwitch
-            label="pages.settings.panels.agents.sections.im"
+            label="web.pages.settings.panels.agents.sections.im"
             value={!!agent.im}
             onSwitch={(e) => {
               if (e.target.checked) {
@@ -122,7 +122,7 @@ export function AgentSettingsCard({
         </div>
 
         {/* LLM 配置 */}
-        <AgentSettingsSection title="pages.settings.panels.agents.sections.llm">
+        <AgentSettingsSection title="web.pages.settings.panels.agents.sections.llm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <DeepInput
               uiInfo={configEvents['agents.llm.baseURL'] as Extract<AgentInteractionEvent, {type: 'input'}>}
@@ -131,7 +131,7 @@ export function AgentSettingsCard({
               placeholder="https://api.openai.com/v1"
               error={hasFieldError('llm.baseURL')}
               Icon={CircleAlert}
-              iconTitle='pages.settings.panels.agents.sections.llmBaseURLNotif'
+              iconTitle='web.pages.settings.panels.agents.sections.llmBaseURLNotif'
             />
             <DeepInput
               uiInfo={configEvents['agents.llm.apiKey'] as Extract<AgentInteractionEvent, {type: 'input'}>}

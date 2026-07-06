@@ -70,7 +70,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
       <div className="px-2 py-1 lg:pb-4 bg-white border-b border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 lg:gap-3">
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">{t('pages.projects.projectList')}</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">{t('web.pages.projects.projectList')}</h1>
           </div>
         </div>
         <ProjectSearch filters={filters} onChange={setFilters}/>
@@ -89,7 +89,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
           </div>
         )) : (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white py-12 text-center text-gray-400">
-            <p className="text-sm">{t('pages.projects.search.noResults')}</p>
+            <p className="text-sm">{t('web.pages.projects.search.noResults')}</p>
           </div>
         )}
       </div>

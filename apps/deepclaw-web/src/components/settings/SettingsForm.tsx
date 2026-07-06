@@ -124,19 +124,19 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
           return;
       }
       await onSave(cfg);
-      setSavedMessage('pages.settings.saved');
+      setSavedMessage('web.pages.settings.saved');
       setEdited(false);
     } catch (e) {
       // TODO change to logger
       console.error(e);
-      setSavedMessage('pages.settings.saveFailed');
+      setSavedMessage('web.pages.settings.saveFailed');
     } finally {
       setSaving(false);
       setTimeout(() => setSavedMessage(''), 5000);
     }
   }, [onSave, saving, validate]);
 
-  const savedMessageClass = savedMessage === 'pages.settings.saved' ? 'text-green-600' : 'text-red-600';
+  const savedMessageClass = savedMessage === 'web.pages.settings.saved' ? 'text-green-600' : 'text-red-600';
   const saveButtonDisabled = !edited || saving;
   const saveButtonClass = `flex items-center gap-2 px-6 py-3 rounded-lg transition-colors font-medium ${
     saveButtonDisabled
@@ -151,8 +151,8 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">{t('pages.settings.title')}</h1>
-        <p className="text-gray-500 mt-1">{t('pages.settings.description')}</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('web.pages.settings.title')}</h1>
+        <p className="text-gray-500 mt-1">{t('web.pages.settings.description')}</p>
       </div>
 
       <SettingsError validationResult={validationResult}/>
@@ -161,7 +161,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
         <button onClick={() => handleSave(config)} disabled={saveButtonDisabled}
           className={saveButtonClass}>
           <Save size={20} />
-          {t('pages.settings.saveButton')}
+          {t('web.pages.settings.saveButton')}
         </button>
         {savedMessage && <span className={`${savedMessageClass} text-sm`}>{t(savedMessage)}</span>}
       </div>
@@ -171,8 +171,8 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
           name="ui"
           expanded={!!panelToggleStatus['ui']}
           onToggle={togglePanel}
-          title="pages.settings.panels.ui.title"
-          description="pages.settings.panels.ui.description"
+          title="web.pages.settings.panels.ui.title"
+          description="web.pages.settings.panels.ui.description"
           Icon={Globe}
         >
           <div className="p-6 border-t border-gray-200">
@@ -205,10 +205,10 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
           name="agents"
           expanded={!!panelToggleStatus['agents']}
           onToggle={togglePanel}
-          title="pages.settings.panels.agents.title"
-          description="pages.settings.panels.agents.description"
+          title="web.pages.settings.panels.agents.title"
+          description="web.pages.settings.panels.agents.description"
           Icon={Bot}
-          error={validationResult.errors.some(e => e === 'agents') ? 'config.agents.error' : ''}
+          error={validationResult.errors.some(e => e === 'agents') ? 'web.config.agents.error' : ''}
         >
           <div className="p-6 border-t border-gray-200">
             <div className="space-y-4">
@@ -231,7 +231,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
               ))}
               <button onClick={addAgent} disabled={maxAgentReached} className={newAgentClass}>
                 <Plus size={20} />
-                {t('pages.settings.panels.agents.addButton')}
+                {t('web.pages.settings.panels.agents.addButton')}
               </button>
             </div>
           </div>
@@ -242,7 +242,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
         <button onClick={() => handleSave(config)} disabled={saveButtonDisabled}
           className={saveButtonClass}>
           <Save size={20} />
-          {t('pages.settings.saveButton')}
+          {t('web.pages.settings.saveButton')}
         </button>
         {savedMessage && <span className={`${savedMessageClass} text-sm`}>{t(savedMessage)}</span>}
       </div>

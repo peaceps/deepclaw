@@ -1,14 +1,10 @@
 import crypto from 'crypto';
 import { DEFAULT_LANG, SUPPORTED_LANGUAGES, SupportedLanguage } from '@deepclaw/i18n';
-import { FileUtils, globalize } from '@deepclaw/node-utils';
+import { clone, FileUtils, globalize } from '@deepclaw/node-utils';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 
 export const MAX_AGENT_COUNT = 30;
-
-type AgentConfigSingleValue = string | number | boolean;
-type AgentConfigValue = AgentConfigSingleValue | AgentConfigSingleValue[] | undefined;
-type ConfigObject = {[key: string]: AgentConfigValue | ConfigObject | ConfigObject[]};
 
 export type DeepclawConfig = {
     manager: {
@@ -92,25 +88,6 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
     }
 }
 
-function mergeAbsence(target: ConfigObject, source: ConfigObject): ConfigObject {
-    Object.keys(source).forEach(key => {
-        if (Array.isArray(source[key])) {
-            if (!target[key]) {
-                target[key] = source[key];
-            }
-        }
-        if (typeof source[key] === 'object') {
-            if (typeof target[key] !== 'object') {
-                target[key] = {};
-            }
-            mergeAbsence(target[key] as ConfigObject, source[key] as ConfigObject);
-        } else {
-            target[key] = target[key] ?? source[key];
-        }
-    });
-    return target;
-}
-
 export function validateCurrentAppConfig(headless: boolean): {config: DeepclawConfig, lacks: MissingAppConfig} {
     return validateAppConfig(headless, globalDeepclawConfig.config);
 }
@@ -119,7 +96,7 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
     config: DeepclawConfig, lacks: MissingAppConfig
 } {
     const lacks: MissingAppConfig = [];
-    const cloned: DeepclawConfig = mergeAbsence({}, configToValidate) as DeepclawConfig;
+    const cloned: DeepclawConfig = clone<DeepclawConfig>(configToValidate as DeepclawConfig);
     if (cloned.ui.lang && !SUPPORTED_LANGUAGES.includes(cloned.ui.lang)) {
         cloned.ui.lang = undefined as any;
     }

@@ -45,7 +45,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
         <div className="flex items-start justify-between gap-2">
           <h4 className="font-medium text-gray-900 line-clamp-2 flex-1">{task.title}</h4>
           <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${priorityStyles[task.priority]}`}>
-            {t(`web.priority.${task.priority}`)}
+            {t(`web.common.priority.${task.priority}`)}
           </span>
         </div>
 
@@ -68,11 +68,11 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           {task.status !== 'done' && <button
               onClick={handlePauseClick}
               className='mr-1 flex-shrink-0'
-              title={t(`pages.projects.task.pause.title.${task.pause ? 'on' : 'off'}`)}>
+              title={t(`web.pages.projects.task.pause.title.${task.pause ? 'on' : 'off'}`)}>
             <CirclePause size={18} className={`${task.pause ? 'text-yellow-500' : 'text-gray-200'}`} />
           </button>}
           {blockedByTitles && blockedByTitles.length > 0 && (
-            <span title={t('pages.projects.project.blockedBy', { titles: blockedByTitles.join('/') })} className="flex-shrink-0">
+            <span title={t('web.pages.projects.project.blockedBy', { titles: blockedByTitles.join('/') })} className="flex-shrink-0">
               <Ban size={16} className="mr-1 text-gray-500" />
             </span>
           )}

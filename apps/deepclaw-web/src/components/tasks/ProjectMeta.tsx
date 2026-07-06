@@ -27,7 +27,7 @@ export function ProjectMeta({ project }: { project: Project }) {
       <span className={
         `px-3 py-1 rounded-full text-xs font-medium flex-shrink-0 ${getProjectStatusStyles(project)}`
       }>
-        {t(`pages.projects.status.${getProjectStatus(project)}`)}
+        {t(`web.pages.projects.status.${getProjectStatus(project)}`)}
       </span>
     </>
   );

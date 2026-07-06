@@ -8,9 +8,9 @@ import { TaskCard } from './TaskCard';
 import { useAppStore } from '@/lib/store';
 
 const columns = [
-  { id: 'todo', icon: '📋', title: 'pages.projects.status.todo', color: 'bg-blue-50' },
-  { id: 'ongoing', icon: '🔄', title: 'pages.projects.status.ongoing', color: 'bg-yellow-50' },
-  { id: 'done', icon: '✅', title: 'pages.projects.status.done', color: 'bg-green-50' },
+  { id: 'todo', icon: '📋', title: 'web.pages.projects.status.todo', color: 'bg-blue-50' },
+  { id: 'ongoing', icon: '🔄', title: 'web.pages.projects.status.ongoing', color: 'bg-yellow-50' },
+  { id: 'done', icon: '✅', title: 'web.pages.projects.status.done', color: 'bg-green-50' },
 ];
 
 type ProjectTasksProps = {
@@ -34,7 +34,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors ${collapsed ? '' : 'mr-2'}`}
-              title={collapsed ? t('web.toggle.expand') : t('web.toggle.collapse')}
+              title={collapsed ? t('web.common.toggle.expand') : t('web.common.toggle.collapse')}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </button>
@@ -46,7 +46,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
             ) : (
                 <div className="flex-1 p-4 bg-gray-50/50 w-full">
                     {Object.keys(project.tasks).length === 0 ? (
-                    <div className="py-8 text-center text-gray-400"><p>{t('pages.projects.project.noTasks')}</p></div>
+                    <div className="py-8 text-center text-gray-400"><p>{t('web.pages.projects.project.noTasks')}</p></div>
                     ) : (
                     <div className="flex flex-col lg:flex-row gap-4 max-sm:max-h-[600px] max-sm:overflow-y-auto">
                         {columns.map(column => {
@@ -64,7 +64,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                                     blockedByTitles={task.blockedBy.filter(bt => project.tasks[bt] && project.tasks[bt].status !== 'done')}
                                 />)}
                             </div>
-                            {columnTasks.length === 0 && <div className="text-center py-6 text-gray-400 text-xs">{t('pages.projects.project.noTasksAtStatus')}</div>}
+                            {columnTasks.length === 0 && <div className="text-center py-6 text-gray-400 text-xs">{t('web.pages.projects.project.noTasksAtStatus')}</div>}
                             </div>
                         );
                         })}

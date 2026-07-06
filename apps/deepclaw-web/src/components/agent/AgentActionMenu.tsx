@@ -25,8 +25,8 @@ export function AgentActionMenu({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const menuActions = actions ?? [
-    { label: t('pages.agents.actions.praise'), onClick: noop },
-    { label: t('pages.agents.actions.criticize'), onClick: noop },
+    { label: t('web.pages.agents.actions.praise'), onClick: noop },
+    { label: t('web.pages.agents.actions.criticize'), onClick: noop },
   ];
 
   useEffect(() => {
@@ -57,9 +57,9 @@ export function AgentActionMenu({
     <div ref={menuRef} className={`inline-flex absolute ${className}`} onClick={(event) => event.stopPropagation()}>
       <button
         type="button"
-        title={t('pages.agents.actions.more')}
+        title={t('web.pages.agents.actions.more')}
         aria-haspopup="menu"
-        aria-label={t('pages.agents.actions.more')}
+        aria-label={t('web.pages.agents.actions.more')}
         aria-expanded={open}
         onClick={handleButtonClick}
         className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"

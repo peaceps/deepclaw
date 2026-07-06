@@ -14,7 +14,7 @@ export function AgentDetailExpertise({ agent, onUpdate }: {
   }, [onUpdate, agent.id]);
 
   return (
-    <InfoCard title="pages.agents.details.expertises.title" icon={<Zap size={20} />} color="blue">
+    <InfoCard title="web.pages.agents.details.expertises.title" icon={<Zap size={20} />} color="blue">
       <div className="space-y-4">
         <div>
           <EditableLabels

@@ -33,9 +33,9 @@ export function AgentDetail({agent}: {
         <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-6">
           <Users size={48} className="text-gray-300" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">{t('pages.agents.noSelection.title')}</h2>
+        <h2 className="text-xl font-semibold text-gray-700 mb-2">{t('web.pages.agents.noSelection.title')}</h2>
         <p className="text-sm text-gray-500 text-center max-w-xs">
-          {t('pages.agents.noSelection.description')}
+          {t('web.pages.agents.noSelection.description')}
         </p>
       </div>
     );
