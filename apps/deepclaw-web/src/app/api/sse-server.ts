@@ -51,6 +51,9 @@ class SSEServerImpl {
         if (client && client.loopId) {
             LoopGateway.cancelInteraction(client.loopId, client.id, `Client ${id} disconnected`);
         }
+        if (type === 'info') {
+            LoopGateway.disconnectBrowser(id);
+        }
         store.clients.delete(id);
         if (store.clients.size === 0) {
             store.unsubscriber?.();

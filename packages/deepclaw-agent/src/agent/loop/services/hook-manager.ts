@@ -1,4 +1,4 @@
-import type { OneLoopContext } from '../../definitions/definitions';
+import type { ExternalStopReason, OneLoopContext } from '../../definitions/definitions';
 import type { ToolUseDef } from '../../definitions/tool-definitions';
 import type { ToolUseServiceResult } from './tool-use-service';
 
@@ -18,7 +18,8 @@ type VisitorHook =
     'toolGuardDenied' |
     'toolResultCompacted' |
     'historyCompacted' |
-    'postEachToolUse';
+    'postEachToolUse' |
+    'turnExternalStop';
 type Hook = InterceptorHook | VisitorHook;
 
 type HookContent = {
@@ -32,6 +33,7 @@ type HookContent = {
     toolGuardDenied: { toolUseDef: ToolUseDef; reason: string };
     toolResultCompacted: number;
     historyCompacted: number;
+    turnExternalStop: ExternalStopReason;
 };
 type HookContentMap = { [K in Hook]: HookContent[K] };
 

@@ -10,7 +10,9 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
+    ExternalStopReason,
     FootPrint, LLMProtocol, LoopState, OneLoopContext, TransitionReason,
+    isExternalStopReason,
     isToolStopReason
 } from '../../definitions/definitions';
 import { ToolUseService } from '../services/tool-use-service';
@@ -38,6 +40,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     protected history: I[] = [];
     private footPrints: FootPrint[] = [];
     private agentConfig: AgentConfig;
+    private externalFlag: ExternalStopReason | undefined;
 
     constructor(
         agentId: string,
@@ -112,8 +115,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
+    public isClientLost(): boolean {
+        return this.externalFlag === 'clientLost';
+    }
+
     protected async _invoke(input: string, options: AgentInvokeOptions): Promise<string> {
         this.addStringMessage(input);
+        this.externalFlag = undefined;
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
@@ -167,7 +175,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             } finally {
                 this.persistHistory(state.oneLoopContext, {
                     finalText,
-                    forceMessagesSnapshot: state.oneLoopContext.turnCount === 0
+                    forceMessagesSnapshot: true
                 });
                 this.historyPersistIndex = state.oneLoopContext.historyPersistIndex;
             }
@@ -179,7 +187,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             if (state.oneLoopContext.turnCount >= this.turnLimit) {
                 state.oneLoopContext.transitionReason = 'endLoop';
                 const finalText = i18nInstance.t('agent.maxTurnReached', {
-                    finalText: this.extractFinalText(state)
+                    finalText: this.extractFinalText(state.messages)
                 });
                 this.agentHandler.onStreamText({
                     clientId: state.oneLoopContext.clientId,
@@ -193,16 +201,23 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
-                const finalText = this.extractFinalText(state);
+                let finalText = this.extractFinalText(state.messages);
                 if (finalText && state.oneLoopContext.transitionReason === 'error') {
                     this.agentHandler.onStreamText({
                         clientId: state.oneLoopContext.clientId,
                         text: finalText
                     });
                 }
+                if (state.oneLoopContext.transitionReason === 'clientLost') {
+                    finalText = this.wrapExternalFlagMessage(finalText, 'clientLost');
+                }
                 return finalText;
             }
         }
+    }
+
+    private wrapExternalFlagMessage(text: string, flag: string) {
+        return `${text || ''}\n\n${i18nInstance.t(`agent.externalStop.${flag}`)}`;
     }
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
@@ -255,15 +270,20 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 // TODO: Handle refused 输入侧意图识别分类/模式匹配 -> 询问用户
                 break;
         }
-        if (state.oneLoopContext.transitionReason === 'error') {
-            await HookManager.emitVisitor('turnError', state.oneLoopContext);
-        }
         try {
+            if (state.oneLoopContext.transitionReason === 'error') {
+                await HookManager.emitVisitor('turnError', state.oneLoopContext);
+            } else if (this.externalFlag) {
+                state.oneLoopContext.transitionReason = this.externalFlag;
+                await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, this.externalFlag);
+            }
             await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
         } finally {
             this.persistHistory(state.oneLoopContext, {});
         }
-        return state.oneLoopContext.transitionReason !== 'endLoop' && state.oneLoopContext.transitionReason !== 'error'
+        return state.oneLoopContext.transitionReason !== 'endLoop'
+            && state.oneLoopContext.transitionReason !== 'error'
+            && !isExternalStopReason(state.oneLoopContext.transitionReason)
             && !isToolStopReason(state.oneLoopContext.transitionReason);
     }
 
@@ -315,9 +335,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         this.history.push(this.llm.newInputMessage(message, user));
     }
         
-    protected extractFinalText(state: LoopState<I>): string {
-        return state.messages.length === 0 ? '' :
-            this.llm.getTextFromInputMessage(state.messages[state.messages.length - 1]!);
+    protected extractFinalText(messages: I[]): string {
+        return messages.length === 0 ? '' :
+            this.llm.getTextFromInputMessage(messages[messages.length - 1]!);
+    }
+
+    public setExternalFlag(flag?: ExternalStopReason): void {
+        this.externalFlag = flag;
     }
 
     protected abstract extractToolUseFromResponse(result: O): ToolUseDef[];

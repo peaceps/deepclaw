@@ -20,6 +20,5 @@ export async function pullNewerMessages(loopId: string, startMessageId?: string)
 }
 
 export async function pushChatMessage(loopId: string, clientId: string, message: ChatMessage): Promise<void> {
-    UIChatService.addMessage(loopId, message);
-    LoopGateway.fireChatMessageEvent(loopId, clientId, message);
+    LoopGateway.addMessage(loopId, clientId, message);
 }

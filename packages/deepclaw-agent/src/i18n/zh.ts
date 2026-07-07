@@ -8,7 +8,11 @@ export const zh = {
                 expertises: '网络搜索,代码生成',
             }
         },
-        maxTurnReached: '超过最大迭代次数，运行中止。\n{{finalText}}',
+        maxTurnReached: '超过最大迭代次数，运行中止！\n{{finalText}}',
+        externalStop: {
+            clientLost: '客户端断开连接，运行中止！',
+            afk: '客户端离开，等待返回。',
+        },
         llm: {
             openai: {
                 response: {

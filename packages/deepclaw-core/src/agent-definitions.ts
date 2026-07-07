@@ -34,3 +34,13 @@ export type ChatMessage = {
     type: 'user' | 'agent';
     timestamp: string;
 }
+
+export function newMessage(type: 'user' | 'agent', agentId: string, content: string): ChatMessage {
+    return {
+        id: crypto.randomUUID(),
+        agentId,
+        content,
+        type,
+        timestamp: new Date().toISOString(),
+    };
+}

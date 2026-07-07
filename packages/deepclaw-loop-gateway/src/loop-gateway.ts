@@ -4,14 +4,22 @@ import type {
     AgentInfoEvent,
     ChatMessage
 } from "@deepclaw/core";
-import { getFlushAgentKey, getInteractionId, LOOP_BUSY_ERROR } from "@deepclaw/core";
+import {
+    getFlushAgentKey, getInteractionId, LOOP_BUSY_ERROR, newMessage, splitFlushAgentKey
+} from "@deepclaw/core";
 import { DistributiveOmit, globalize } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
+import { UIChatService } from "./ui-chat-service";
 
-export type LoopStore = Record<string, Record<string, LoopAgent<unknown, any, any>>>;
+type LoopState = {
+    loop: LoopAgent<unknown, any, any>;
+    running: boolean;
+    clientId?: string;
+};
+type LoopStore = Record<string, LoopState>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
 export type SSEType = 'info' | 'loop';
 
@@ -25,7 +33,6 @@ type InteractionResolver = {
 
 class LoopGatewayImpl {
     private static loops: LoopStore = {};
-    private static busyLoops = new Set<string>();
     private static sseSubscribers: {[key in SSEType]: ((e: AgentEvent) => void) | undefined} = {
         info: undefined,
         loop: undefined
@@ -41,6 +48,18 @@ class LoopGatewayImpl {
 
     private static fireSSEEvent(type: SSEType, e: AgentEvent) {
         this.sseSubscribers[type]?.(e);
+    }
+
+    private static fireInfoSSEEvent(e: DistributiveOmit<AgentInfoEvent, 'eventType'>): void {
+        this.fireSSEEvent('info', { eventType: 'info', ...e });
+    }
+
+    public static fireChatMessageEvent(loopId: string, clientId: string, message: ChatMessage): void {
+        this.fireSSEEvent('loop', {eventType: 'chat', loopId, clientId, message})
+    }
+
+    private static fireBusyEvent(loopId: string, busy: boolean): void {
+        this.fireSSEEvent('loop', { eventType: 'busy', loopId, busy });
     }
 
     private static async fireWaitedSSEEvent(type: SSEType, e: AgentInteractionEvent): Promise<string> {
@@ -68,60 +87,62 @@ class LoopGatewayImpl {
         }
     }
 
-    private static fireInfoSSEEvent(e: DistributiveOmit<AgentInfoEvent, 'eventType'>): void {
-        this.sseSubscribers['info']?.({ eventType: 'info', ...e });
-    }
-
-    public static fireChatMessageEvent(loopId: string, clientId: string, message: ChatMessage) {
-        this.fireSSEEvent('loop', {eventType: 'chat', loopId, clientId, message})
-    }
-
-    public static init(agentId: string, projectId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>): void {
-        if (!this.loops[agentId]) {
-            this.loops[agentId] = {};
-        }
+    public static init(loopId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}): void {
         // TODO LRU
-        if (!this.loops[agentId][projectId]) {
-            this.loops[agentId][projectId] = LoopInitializer.getLoop(agentId, projectId, {
-                onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
-                onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
-                onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
-                onInfoEvent: this.defaultHandler.onInfoEvent
-            });
+        const {agentId, projectId = ''} = splitFlushAgentKey(loopId);
+        if (!this.loops[loopId]) {
+            this.loops[loopId] = {
+                loop: LoopInitializer.getLoop(agentId, projectId, {
+                    onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
+                    onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
+                    onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
+                    onInfoEvent: this.defaultHandler.onInfoEvent
+                }),
+                running: false,
+            }
         }
     }
 
     public static isLoopBusy(loopId: string): boolean {
-        return this.busyLoops.has(loopId);
-    }
-
-    private static broadcastLoopBusy(loopId: string, busy: boolean): void {
-        this.sseSubscribers.loop?.({ eventType: 'busy', loopId, busy });
+        return this.loops[loopId]?.running ?? false;
     }
 
     public static async invoke(agentId: string, projectId: string, clientId: string, input: string): Promise<void> {
         const loopId = getFlushAgentKey(agentId, projectId);
-        if (this.busyLoops.has(loopId)) {
+        if (!this.loops[loopId]) {
+            this.init(loopId);
+        }
+        if (this.isLoopBusy(loopId)) {
             throw new Error(LOOP_BUSY_ERROR);
         }
-        if (!this.loops[agentId]?.[projectId]) {
-            this.init(agentId, projectId, {});
-        }
-        this.busyLoops.add(loopId);
-        this.broadcastLoopBusy(loopId, true);
-        this.loops[agentId]![projectId]!.invoke(input, {clientId}).catch(() => {}).finally(() => {
-            this.busyLoops.delete(loopId);
-            this.broadcastLoopBusy(loopId, false);
+        const loopState = this.loops[loopId]!;
+        loopState.running = true;
+        loopState.clientId = clientId;
+        this.fireBusyEvent(loopId, true);
+        loopState.loop.invoke(input, {clientId}).then((text) => {
+            if (loopState.loop.isClientLost()) {
+                this.addMessage(loopId, clientId, newMessage('agent', agentId, text));
+                loopState.loop.setExternalFlag(undefined);
+            }
+        }).catch(() => {}).finally(() => {
+            loopState.running = false;
+            loopState.clientId = undefined;
+            this.fireBusyEvent(loopId, false);
         });
+    }
+
+    public static addMessage(loopId: string, clientId: string, message: ChatMessage) {
+        UIChatService.addMessage(loopId, message);
+        this.fireChatMessageEvent(loopId, clientId, message);
     }
 
     public static updateLoopConfig(config: DeepclawConfig) {
         for (const agentConfig of config.agents) {
-            if (!this.loops[agentConfig.id]) {
-                continue;
-            }
-            for (const projectId of Object.keys(this.loops[agentConfig.id]!)) {
-                this.loops[agentConfig.id]![projectId]!.updateConfig(agentConfig);
+            for (const loopId of Object.keys(this.loops)) {
+                const {agentId} = splitFlushAgentKey(loopId);
+                if (agentId === agentConfig.id) {
+                    this.loops[loopId]!.loop.updateConfig(agentConfig);
+                }
             }
         }
     }
@@ -133,6 +154,16 @@ class LoopGatewayImpl {
                 this.sseSubscribers[type] = undefined;
             }
         };
+    }
+
+    public static disconnectBrowser(clientId: string) {
+        for (const loopId of Object.keys(this.loops)) {
+            const loopState = this.loops[loopId];
+            if (loopState && loopState.running && loopState.clientId === clientId) {
+                loopState.loop.setExternalFlag('clientLost');
+                this.cancelInteraction(loopId, clientId, `Client ${clientId} disconnected.`);
+            }
+        }
     }
 
     public static newAgentIdentity(id: string): AgentEmployee {

@@ -9,15 +9,20 @@ export type FootPrint = {
     content: string;
 }
 
-export const TOOL_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
+export const EXTERNAL_STOP_REASONS = ['clientLost', 'afk'] as const;
+export type ExternalStopReason = typeof EXTERNAL_STOP_REASONS[number];
+export function isExternalStopReason(reason?: TransitionReason): reason is ExternalStopReason {
+    return (EXTERNAL_STOP_REASONS as readonly string[]).includes(reason ?? '');
+}
 
+export const TOOL_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
+export type ToolStopReason = typeof TOOL_STOP_REASONS[number];
 export function isToolStopReason(reason?: TransitionReason): reason is ToolStopReason {
     return (TOOL_STOP_REASONS as readonly string[]).includes(reason ?? '');
 }
 
-export type ToolStopReason = typeof TOOL_STOP_REASONS[number];
-
-export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens' | 'refused' | 'error' | ToolStopReason;
+export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens'
+    | 'refused' | 'error' | ToolStopReason | ExternalStopReason;
 
 export type LoopState<I> = {
     messages: I[];

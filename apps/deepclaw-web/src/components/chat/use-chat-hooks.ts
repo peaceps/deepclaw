@@ -6,23 +6,13 @@ import { useModalStore } from '@/lib/modal-store';
 import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import { useTranslation } from 'react-i18next';
-import { AgentEmployee, ChatMessage, LOOP_BUSY_ERROR } from "@deepclaw/core";
+import { AgentEmployee, ChatMessage, LOOP_BUSY_ERROR, newMessage } from "@deepclaw/core";
 
 const logger = getLogger('useChatHooks');
 
 function loopSSEConnection(browserId: string, loopId: string): string {
     const params = new URLSearchParams({ loopId, browserId });
     return `/api/loop?${params.toString()}`;
-}
-
-function newMessage(type: 'user' | 'agent', agentId: string, content: string): ChatMessage {
-    return {
-        id: crypto.randomUUID(),
-        agentId,
-        content,
-        type,
-        timestamp: new Date().toISOString(),
-    };
 }
 
 export function useInitChat(chatKey: string, chatKeyChanged: boolean,
