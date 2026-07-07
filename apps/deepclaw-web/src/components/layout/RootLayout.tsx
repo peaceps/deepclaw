@@ -9,6 +9,7 @@ import { useAppStore } from '@/lib/store';
 import { InfoClient } from './InfoClient';
 import { SSEProvider } from './SSEProvider';
 import { InteractionModal } from '@/laf/interaction-modal';
+import { ToastContainer } from './ToastContainer';
 
 type RootLayoutProps = {
   lang: string;
@@ -40,6 +41,7 @@ export function RootLayout({ manager, lang, loopInfo, children }: RootLayoutProp
       />
       <main className="flex-1 overflow-hidden w-full h-full pt-[57px] lg:pt-0">{children}</main>
       <InteractionModal />
+      <ToastContainer />
     </SSEProvider>
   );
 }
