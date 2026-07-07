@@ -25,6 +25,7 @@ export function deriveAgentSummary(agent: AgentEmployee | undefined, projects: P
 }
 
 type AppState = {
+  browserId: string;
   agents: AgentEmployee[];
   activeAgents: AgentEmployee[];
   projects: Project[];
@@ -50,6 +51,7 @@ type AppState = {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
+  browserId: crypto.randomUUID(),
   agents: [],
   activeAgents: [],
   projects: [],

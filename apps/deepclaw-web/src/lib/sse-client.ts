@@ -1,6 +1,6 @@
 'use client';
 
-import { SSEEventType } from '@/app/api/sse-server';
+import { SSEEventType } from '@/app/api/sse-types';
 import { getLogger } from '@/lib/logger';
 
 const logger = getLogger('SSEClient');
@@ -25,7 +25,6 @@ type SSEPersistentListener = {
 };
 
 type SSEConnection = {
-  url: string;
   source: EventSource;
   refCount: number;
   persistentListeners: Map<string, SSEPersistentListener>;
@@ -35,12 +34,11 @@ export class SSEClient {
   private connections = new Map<string, SSEConnection>();
 
   public subscribe<T>(
-    key: string,
     url: string,
     eventName: SSEEventType,
     handler: SSEHandler<T>,
   ): () => void {
-    const connection = this.getOrCreateConnection(key, url);
+    const connection = this.getOrCreateConnection(url);
     let active = true;
 
     const listener: EventListener = (event) => {
@@ -57,18 +55,17 @@ export class SSEClient {
 
       connection.source.removeEventListener(eventName, listener);
       connection.refCount -= 1;
-      this.closeIfUnused(key, connection);
+      this.closeIfUnused(url, connection);
     };
   }
 
   public subscribePersistent<T>(
-    key: string,
     url: string,
     eventName: SSEEventType,
     handler: SSEHandler<T>,
     options: SSEPersistentOptions<T> = {},
   ): () => void {
-    const connection = this.getOrCreateConnection(key, url);
+    const connection = this.getOrCreateConnection(url);
 
     if (connection.persistentListeners.has(eventName)) {
       return () => {};
@@ -81,7 +78,7 @@ export class SSEClient {
 
       connection.source.removeEventListener(eventName, listener);
       connection.persistentListeners.delete(eventName);
-      this.closeIfUnused(key, connection);
+      this.closeIfUnused(url, connection);
     };
 
     const listener: EventListener = (event) => {
@@ -100,56 +97,50 @@ export class SSEClient {
     return unsubscribe;
   }
 
-  public close(key: string): void {
-    const connection = this.connections.get(key);
+  public close(url: string): void {
+    const connection = this.connections.get(url);
     if (!connection) return;
 
     connection.source.close();
-    this.connections.delete(key);
+    this.connections.delete(url);
   }
 
   public closeAll(): void {
-    for (const key of this.connections.keys()) {
-      this.close(key);
+    for (const url of this.connections.keys()) {
+      this.close(url);
     }
   }
 
-  private closeIfUnused(key: string, connection: SSEConnection): void {
+  private closeIfUnused(url: string, connection: SSEConnection): void {
     if (
       connection.refCount <= 0 &&
       connection.persistentListeners.size === 0 &&
-      this.connections.get(key) === connection
+      this.connections.get(url) === connection
     ) {
-      this.close(key);
+      this.close(url);
     }
   }
 
-  private getOrCreateConnection(key: string, url: string): SSEConnection {
-    const existing = this.connections.get(key);
+  private getOrCreateConnection(url: string): SSEConnection {
+    const existing = this.connections.get(url);
     if (existing) {
-      if (existing.url !== url) {
-        throw new Error(`SSE connection key "${key}" is already bound to "${existing.url}", got "${url}".`);
-      }
-
       if (existing.source.readyState !== EventSource.CLOSED) {
         return existing;
       }
-
-      this.connections.delete(key);
+      this.connections.delete(url);
     }
 
     const source = new EventSource(url);
     source.onerror = (event) => {
-      logger.error({ key, url, event }, 'SSE connection error');
+      logger.error({ url, event }, 'SSE connection error');
     };
 
     const connection: SSEConnection = {
-      url,
       source,
       refCount: 0,
       persistentListeners: new Map(),
     };
-    this.connections.set(key, connection);
+    this.connections.set(url, connection);
 
     return connection;
   }

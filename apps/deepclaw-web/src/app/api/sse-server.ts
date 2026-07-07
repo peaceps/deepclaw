@@ -1,75 +1,20 @@
 import { LoopGateway, type SSEType } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
-import { type AgentEmployee, type Project, type AgentEvent, type AgentInteractionEvent, ChatMessage } from "@deepclaw/core";
-
-export type SSEEventType = 'connected' | 'updateProject' | 'updateAgent' | 'streamText'
-    | 'loopBusy' | 'interact' | 'cancelInteract' | 'chat';
-
-export type SSEEvent = {
-    sseType: SSEEventType;
-    content: unknown;
-}
-
-export type SSEConnectedEvent = SSEEvent & {
-    sseType: 'connected';
-    content: string;
-};
-
-export type SSEInfoEvent = SSEEvent & ({
-    sseType: 'updateProject'
-    content: Partial<Project> & { id: string }
-} | {
-    sseType: 'updateAgent'
-    content: Partial<AgentEmployee> & {id: string}
-});
-
-export type SSELoopStreamEvent = SSEEvent & ({
-    sseType: 'streamText';
-    loopId: string;
-    content: string;
-    done: boolean;
-});
-
-export type SSELoopBusyEvent = SSEEvent & ({
-    sseType: 'loopBusy';
-    loopId: string;
-    busy: boolean;
-});
-
-export type SSEInteractEvent = SSEEvent & {
-    sseType: 'interact';
-    loopId: string;
-    clientId: string;
-    content: AgentInteractionEvent;
-};
-
-export type SSECancelInteractEvent = SSEEvent & {
-    sseType: 'cancelInteract';
-    loopId: string;
-    clientId: string;
-    content: '';
-};
-
-export type SSEChatEvent = SSEEvent & {
-    sseType: 'chat';
-    loopId: string;
-    clientId: string;
-    content: ChatMessage;
-};
-
-type SSEClient = {
-    id: string;
-    loopId?: string;
-    controller: ReadableStreamDefaultController;
-    encoder: TextEncoder;
-}
-type SSEStore = {
-    [key in SSEType]: {
-        clients: Map<string, SSEClient>;
-        unsubscriber?: () => void | undefined;
-    }
-};
+import { type AgentEvent } from "@deepclaw/core";
+import {
+    type SSEStore,
+    type SSEClient,
+    type SSEInfoEventType,
+    type SSEEvent,
+    type SSELoopStreamEvent,
+    type SSELoopBusyEvent,
+    type SSEInteractEvent,
+    type SSECancelInteractEvent,
+    type SSEChatEvent,
+    INFO_SSE_TYPES,
+    SSEEventType 
+} from "./sse-types";
 
 class SSEServerImpl {
     // TODO
@@ -113,18 +58,21 @@ class SSEServerImpl {
         }
     }
 
-    private static shouldBroadcast(type: SSEType, client: SSEClient, data: SSEEvent) {
-        if (type === 'info') {
+    private static shouldBroadcast(type: SSEType, client: SSEClient, data: SSEEvent): boolean {
+        if (type === 'info' && INFO_SSE_TYPES.includes(data.sseType as SSEInfoEventType)) {
             return true;
         }
-        if (data.sseType === 'chat') {
+        if (data.sseType === 'loopBusy') {
+            return 'loopId' in data && client.loopId === data.loopId;
+        } else if (data.sseType === 'chat') {
             return 'clientId' in data && client.id !== data.clientId
                 && 'loopId' in data && client.loopId === data.loopId;
+        } else if (data.sseType === 'streamText' || data.sseType === 'interact'
+            || data.sseType === 'cancelInteract') {
+            return 'clientId' in data && client.id === data.clientId
+                && 'loopId' in data && client.loopId === data.loopId;
         }
-        if ('clientId' in data) {
-            return client.id === data.clientId;
-        }
-        return 'loopId' in data && client.loopId === data.loopId;
+        return false;
     }
 
     private static broadcastEvent(type: SSEType, event: SSEEventType, data: SSEEvent): void {
@@ -158,6 +106,7 @@ class SSEServerImpl {
             return {
                 sseType: 'streamText',
                 loopId: e.loopId,
+                clientId: e.clientId,
                 content: e.text,
                 done: !!e.done
             } as SSELoopStreamEvent;
@@ -189,7 +138,7 @@ class SSEServerImpl {
         return {
             sseType: e.type,
             content: e.content
-        } as SSEInfoEvent;
+        } as SSEEvent;
     }
 }
 

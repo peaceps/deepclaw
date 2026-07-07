@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useSSEClient } from '@/components/layout/SSEProvider';
-import { SSECancelInteractEvent, SSEChatEvent, SSEConnectedEvent, SSEInteractEvent, SSELoopBusyEvent, SSELoopStreamEvent } from "@/app/api/sse-server";
+import { SSECancelInteractEvent, SSEChatEvent, SSEConnectedEvent, SSEInteractEvent, SSELoopBusyEvent, SSELoopStreamEvent } from "@/app/api/sse-types";
 import { getLogger } from "@/lib/logger";
 import { useModalStore } from '@/lib/modal-store';
 import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction } from "@/server/loop-agent";
@@ -10,9 +10,9 @@ import { AgentEmployee, ChatMessage, LOOP_BUSY_ERROR } from "@deepclaw/core";
 
 const logger = getLogger('useChatHooks');
 
-function loopSSEConnection(loopId: string): { key: string; url: string } {
-    const params = new URLSearchParams({ loopId });
-    return { key: `loop:${loopId}`, url: `/api/loop?${params.toString()}` };
+function loopSSEConnection(browserId: string, loopId: string): string {
+    const params = new URLSearchParams({ loopId, browserId });
+    return `/api/loop?${params.toString()}`;
 }
 
 function newMessage(type: 'user' | 'agent', agentId: string, content: string): ChatMessage {
@@ -49,9 +49,8 @@ export function useInitChat(chatKey: string, chatKeyChanged: boolean,
 export function useSSEConnection(
     chatInited: boolean,
     loopId: string,
-    clientIdRef: React.RefObject<string>,
-    setStreaming: React.Dispatch<React.SetStateAction<boolean>>,
 ) {
+    const browserId = useAppStore(s => s.browserId);
     const sseClient = useSSEClient();
     const showModal = useModalStore(s => s.showModal);
     const closeModal = useModalStore(s => s.closeModal);
@@ -60,64 +59,50 @@ export function useSSEConnection(
 
     useEffect(() => {
         if (!chatInited) return;
-        const { key: sseKey, url: sseUrl } = loopSSEConnection(loopId);
+        const sseUrl = loopSSEConnection(browserId, loopId);
         const unsubscribers = [
-          sseClient.subscribe<Extract<SSEConnectedEvent, {sseType: 'connected'}>>(
-            sseKey,
+          sseClient.subscribe<SSEConnectedEvent>(
             sseUrl,
             'connected',
             ({content}) => {
-              clientIdRef.current = content;
+              if (content !== browserId) return;
               logger.info(`Connected for ${content}.`);
             },
           ),
-          sseClient.subscribe<Extract<SSELoopStreamEvent, {sseType: 'streamText'}>>(
-            sseKey,
-            sseUrl,
-            'streamText',
-            ({done}) => {
-              if (done) {
-                setStreaming(false);
-              }
-            },
-          ),
-          sseClient.subscribe<Extract<SSELoopBusyEvent, {sseType: 'loopBusy'}>>(
-            sseKey,
+          sseClient.subscribe<SSELoopBusyEvent>(
             sseUrl,
             'loopBusy',
-            ({loopId, busy}) => {
-              setChatBusy(loopId, busy);
+            (data) => {
+              if (data.loopId !== loopId) return;
+              setChatBusy(loopId, data.busy);
             },
           ),
           sseClient.subscribe<SSEInteractEvent>(
-            sseKey,
             sseUrl,
             'interact',
             (data) => {
-              if (data.loopId !== loopId || data.clientId !== clientIdRef.current) return;
+              if (data.loopId !== loopId || data.clientId !== browserId) return;
               showModal(loopId, data.content).then((answer) => {
                 if (answer === null) return;
-                resolveInteraction(loopId, clientIdRef.current, answer).catch((err) => {
+                resolveInteraction(loopId, browserId, answer).catch((err) => {
                   logger.error('Failed to resolve interaction:', err);
                 });
               });
             },
           ),
           sseClient.subscribe<SSECancelInteractEvent>(
-            sseKey,
             sseUrl,
             'cancelInteract',
             (data) => {
-              if (data.loopId !== loopId || data.clientId !== clientIdRef.current) return;
+              if (data.loopId !== loopId || data.clientId !== browserId) return;
               closeModal(null);
             },
           ),
           sseClient.subscribe<SSEChatEvent>(
-            sseKey,
             sseUrl,
             'chat',
             (data) => {
-              if (data.loopId !== loopId || data.clientId === clientIdRef.current) return;
+              if (data.loopId !== loopId || data.clientId === browserId) return;
               addMessage(loopId, data.content);
             },
           ),
@@ -125,9 +110,8 @@ export function useSSEConnection(
     
         return () => {
           unsubscribers.forEach(unsubscribe => unsubscribe());
-          clientIdRef.current = '';
         };
-    }, [chatInited, loopId, sseClient, setChatBusy, showModal, closeModal, addMessage, setStreaming, clientIdRef]);
+    }, [chatInited, loopId, sseClient, setChatBusy, showModal, closeModal, addMessage, browserId]);
 }
 
 export function useScroll(agentMessages: ChatMessage[], scrollRef: React.RefObject<HTMLDivElement | null>) {
@@ -156,12 +140,12 @@ export function useSend(
     chatKey: string,
     agent: AgentEmployee,
     projectId: string,
-    clientIdRef: React.RefObject<string>,
     input: string,
     setInput: React.Dispatch<React.SetStateAction<string>>,
     streaming: boolean,
     setStreaming: React.Dispatch<React.SetStateAction<boolean>>,
 ) {
+    const browserId = useAppStore(s => s.browserId);
     const addMessage = useAppStore(s => s.addMessage);
     const updateMessageStream = useAppStore(s => s.updateMessageStream);
     const getMessageById = useAppStore(s => s.getMessageById);
@@ -171,21 +155,22 @@ export function useSend(
     const { t } = useTranslation();
     
     const loopId = chatKey;
-    const { key: sseKey, url: sseUrl } = loopSSEConnection(loopId);
+    const sseUrl = loopSSEConnection(browserId, loopId);
 
     function persistLoopSSE(msgId: string) {
-        return sseClient.subscribePersistent<Extract<SSELoopStreamEvent, {sseType: 'streamText'}>>(
-          sseKey,
+        return sseClient.subscribePersistent<SSELoopStreamEvent>(
           sseUrl,
           'streamText',
-          ({loopId, content, done}) => {
-            if (!done) {
-              updateMessageStream(loopId, msgId, content);
+          (data) => {
+            if (data.loopId !== loopId || data.clientId !== browserId) return;
+            if (!data.done) {
+              updateMessageStream(data.loopId, msgId, data.content);
             } else {
-              const msg = getMessageById(loopId, msgId);
+              const msg = getMessageById(data.loopId, msgId);
               if (msg) {
-                pushChatMessage(loopId, clientIdRef.current, msg);
+                pushChatMessage(data.loopId, browserId, msg);
               }
+              setStreaming(false);
             }
           },
           {
@@ -203,11 +188,11 @@ export function useSend(
         setChatBusy(loopId, true);
         const newUserMsg = newMessage('user', agent.id, trimmed);
         addMessage(loopId, newUserMsg);
-        pushChatMessage(loopId, clientIdRef.current, newUserMsg);
+        pushChatMessage(loopId, browserId, newUserMsg);
         const newAgentMsg = newMessage('agent', agent.id, '');
         addMessage(loopId, newAgentMsg);
         const unsubscribeMessageStream = persistLoopSSE(newAgentMsg.id);
-        invoke(agent.id, projectId, clientIdRef.current, trimmed).catch(err => {
+        invoke(agent.id, projectId, browserId, trimmed).catch(err => {
             unsubscribeMessageStream();
             const busy = err instanceof Error && err.message === LOOP_BUSY_ERROR;
             const text = busy ? t('web.pages.chat.busy', { name: agent.name }) : t('web.pages.chat.invoke.error');

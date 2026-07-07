@@ -181,7 +181,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 const finalText = i18nInstance.t('agent.maxTurnReached', {
                     finalText: this.extractFinalText(state)
                 });
-                this.agentHandler.onStreamText({text: finalText});
+                this.agentHandler.onStreamText({
+                    clientId: state.oneLoopContext.clientId,
+                    text: finalText
+                });
                 return finalText;
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
@@ -192,7 +195,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             if (!goAround) {
                 const finalText = this.extractFinalText(state);
                 if (finalText && state.oneLoopContext.transitionReason === 'error') {
-                    this.agentHandler.onStreamText({text: finalText});
+                    this.agentHandler.onStreamText({
+                        clientId: state.oneLoopContext.clientId,
+                        text: finalText
+                    });
                 }
                 return finalText;
             }
@@ -212,6 +218,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             state.oneLoopContext.system,
             state.messages,
             (text: string) => this.agentHandler.onStreamText({
+                clientId: state.oneLoopContext.clientId,
                 text
             }),
             state.oneLoopContext.logger

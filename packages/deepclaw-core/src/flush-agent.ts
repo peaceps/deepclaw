@@ -45,12 +45,13 @@ export abstract class FlushAgent {
         this.flusher = (e: Omit<AgentStreamEvent, 'done'|'loopId'> & {done: boolean}) => handler.onStreamText({
             eventType: 'stream',
             loopId: this.getId(),
+            clientId: e.clientId,
             text: this.formatLLMText(e.text, e.done),
             done: e.done
         });
         this.agentHandler = {
             onStreamText: (e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>) => this.flusher({
-                eventType: 'stream', text: e.text, done: false
+                eventType: 'stream', clientId: e.clientId, text: e.text, done: false
             }),
             onToolText: (e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>) => handler.onToolText(
                 {eventType: 'toolResult', loopId: this.getId(), ...e}
@@ -73,16 +74,16 @@ export abstract class FlushAgent {
     async invoke(input: string, options: AgentInvokeOptions): Promise<string> {
         try {
             const res = await this._invoke(input, options);
-            return this.finishInvoke(res);
+            return this.finishInvoke(options.clientId, res);
         } catch (e: any) {
-            return this.finishInvoke(e?.message || '');
+            return this.finishInvoke(options.clientId, e?.message || '');
         }
     }
 
-    private finishInvoke(content: string): Promise<string> {
+    private finishInvoke(clientId: string, content: string): Promise<string> {
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.flusher({eventType: 'stream', text: content, done: true});
+                this.flusher({eventType: 'stream', clientId, text: content, done: true});
                 resolve(content);
             }, 100);
         });

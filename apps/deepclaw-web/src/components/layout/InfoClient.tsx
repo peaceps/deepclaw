@@ -3,39 +3,36 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getLogger } from '@/lib/logger';
-import type { SSEConnectedEvent, SSEInfoEvent } from '@/app/api/sse-server';
+import type { SSEAgentInfoEvent, SSEConnectedEvent, SSEProjectInfoEvent } from '@/app/api/sse-types';
 import { useSSEClient } from './SSEProvider';
 
 const logger = getLogger('InfoClient');
 
-const INFO_SSE_KEY = 'info';
-const INFO_SSE_URL = '/api/info?secret=info';
-
 export function InfoClient() {
   const sseClient = useSSEClient();
+  const browserId = useAppStore(s => s.browserId);
   const updateProject = useAppStore(s => s.updateProject);
   const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
 
   useEffect(() => {
+    const INFO_SSE_URL = `/api/info?browserId=${browserId}`;
     const unsubscribers = [
-      sseClient.subscribe<Extract<SSEConnectedEvent, {sseType: 'connected'}>>(
-        INFO_SSE_KEY,
+      sseClient.subscribe<SSEConnectedEvent>(
         INFO_SSE_URL,
         'connected',
         ({content}) => {
+          if (content !== browserId) return;
           logger.info(`Connected for ${content}.`);
         },
       ),
-      sseClient.subscribe<Extract<SSEInfoEvent, {sseType: 'updateProject'}>>(
-        INFO_SSE_KEY,
+      sseClient.subscribe<SSEProjectInfoEvent>(
         INFO_SSE_URL,
         'updateProject',
         ({content}) => {
           updateProject(content);
         },
       ),
-      sseClient.subscribe<Extract<SSEInfoEvent, {sseType: 'updateAgent'}>>(
-        INFO_SSE_KEY,
+      sseClient.subscribe<SSEAgentInfoEvent>(
         INFO_SSE_URL,
         'updateAgent',
         ({content}) => {
@@ -47,7 +44,7 @@ export function InfoClient() {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [sseClient, updateProject, updateAgentEmployee]);
+  }, [sseClient, updateProject, updateAgentEmployee, browserId]);
 
   return <></>;
 }

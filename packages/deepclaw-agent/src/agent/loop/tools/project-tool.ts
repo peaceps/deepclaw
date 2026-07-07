@@ -108,7 +108,10 @@ All steps should be done when task is going to be marked as done.`,
         const stopText = i18nInstance.t('agent.tools.project.stop.projectCreated');
         context.transitionReason = 'projectCreated';
         context.toolStopText = stopText;
-        context.actions.agentHandler.onStreamText({text: `\n${stopText}`});
+        context.actions.agentHandler.onStreamText({
+            clientId: context.clientId,
+            text: `\n${stopText}`
+        });
         return `Project created successfully.
 Here's the project info:
 ${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
@@ -178,7 +181,10 @@ All steps should be done when task is going to be marked as done.`,
         const stopText = i18nInstance.t('agent.tools.project.stop.projectCreated');
         context.transitionReason = 'projectCreated';
         context.toolStopText = stopText;
-        context.actions.agentHandler.onStreamText({text: `\n${stopText}`});
+        context.actions.agentHandler.onStreamText({
+            clientId: context.clientId,
+            text: `\n${stopText}`
+        });
         return `Task created successfully.
 Here's the wrapper project info:
 ${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
@@ -346,7 +352,10 @@ They shoudl be short descriptions of each step, should not be too long for user 
             const stopText = i18nInstance.t('agent.tools.project.stop.taskPause', {name: input.taskTitle});
             context.transitionReason = 'taskPause';
             context.toolStopText = stopText;
-            context.actions.agentHandler.onStreamText({text: `\n${stopText}`});
+            context.actions.agentHandler.onStreamText({
+                clientId: context.clientId,
+                text: `\n${stopText}`
+            });
         }
 
         return `Task updated successfully.

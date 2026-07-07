@@ -25,7 +25,6 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const [streaming, setStreaming] = useState(false);
   const [chatInited, setChatInited] = useState(false);
   const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
-  const clientIdRef = useRef('');
 
   const chatKeyChanged = chatKey !== previousChatKey;
 
@@ -42,10 +41,10 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const handleScroll = useScroll(agentMessages, scrollRef);
 
   const { handleSend, handleKeyDown } = useSend(
-    chatKey, agent, projectId, clientIdRef, input, setInput, streaming, setStreaming
+    chatKey, agent, projectId, input, setInput, streaming, setStreaming
   );
 
-  useSSEConnection(chatInited, chatKey, clientIdRef, setStreaming);
+  useSSEConnection(chatInited, chatKey);
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">

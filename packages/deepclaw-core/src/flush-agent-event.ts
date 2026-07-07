@@ -29,6 +29,7 @@ type FlushAgentEvent = {
 export type AgentStreamEvent = FlushAgentEvent & {
     eventType: 'stream';
     loopId: string;
+    clientId: string;
     text: string;
     done?: boolean;
 };

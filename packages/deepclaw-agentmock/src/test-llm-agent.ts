@@ -50,7 +50,7 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
         let i = 0;
         return new Promise((resolve) => {
             const interval = setInterval(() => {
-                this.agentHandler.onStreamText({text: lines[i++]!});
+                this.agentHandler.onStreamText({clientId: 'test', text: lines[i++]!});
                 if (i >= lines.length) {
                     clearInterval(interval);
                     resolve('its done.');
