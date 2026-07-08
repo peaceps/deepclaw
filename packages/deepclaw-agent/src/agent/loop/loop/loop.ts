@@ -128,7 +128,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 isSubLoop: this.isSubLoop(),
                 agentId: this.agentId,
                 projectId: this.projectId,
-                clientId: options.clientId,
+                browserId: options.browserId,
                 sessionDir: this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
                 turnCount: 0,
                 system: '',
@@ -189,7 +189,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     finalText: this.extractFinalText(state.messages)
                 });
                 this.agentHandler.onStreamText({
-                    clientId: state.oneLoopContext.clientId,
+                    browserId: state.oneLoopContext.browserId,
                     text: finalText
                 });
                 return finalText;
@@ -203,7 +203,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 let finalText = this.extractFinalText(state.messages);
                 if (finalText && state.oneLoopContext.transitionReason === 'error') {
                     this.agentHandler.onStreamText({
-                        clientId: state.oneLoopContext.clientId,
+                        browserId: state.oneLoopContext.browserId,
                         text: finalText
                     });
                 }
@@ -232,7 +232,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             state.oneLoopContext.system,
             state.messages,
             (text: string) => this.agentHandler.onStreamText({
-                clientId: state.oneLoopContext.clientId,
+                browserId: state.oneLoopContext.browserId,
                 text
             }),
             state.oneLoopContext.logger

@@ -1,25 +1,25 @@
 import { SSEServer } from "./sse-server";
 import type { SSEType } from "@deepclaw/loop-gateway";
 
-export function newInfoSSEEndpoint(id: string): Response {
-    return newSSEEndpoint('info', id);
+export function newInfoSSEEndpoint(browserId: string): Response {
+    return newSSEEndpoint('info', browserId);
 }
-export function newLoopSSEEndpoint(id: string, loopId: string): Response {
-    return newSSEEndpoint('loop', id, loopId);
+export function newLoopSSEEndpoint(browserId: string, loopId: string): Response {
+    return newSSEEndpoint('loop', browserId, loopId);
 }
 
-function newSSEEndpoint(type: SSEType, id: string, loopId?: string): Response {
+function newSSEEndpoint(type: SSEType, browserId: string, loopId?: string): Response {
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
         start(controller) {
-            SSEServer.addClient(type, id, loopId, controller, encoder);
+            SSEServer.addClient(type, browserId, loopId, controller, encoder);
             controller.enqueue(encoder.encode(
-                `event: connected\ndata: ${JSON.stringify({ content: id })}\n\n`
+                `event: connected\ndata: ${JSON.stringify({ content: browserId })}\n\n`
             ));
         },
         cancel() {
-            SSEServer.removeClient(type, id);
+            SSEServer.removeClient(type, browserId, loopId);
         },
     });
 

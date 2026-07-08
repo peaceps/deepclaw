@@ -17,7 +17,7 @@ import { UIChatService } from "./ui-chat-service";
 type LoopState = {
     loop: LoopAgent<unknown, any, any>;
     running: boolean;
-    clientId?: string;
+    browserId?: string;
 };
 type LoopStore = Record<string, LoopState>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
@@ -54,8 +54,8 @@ class LoopGatewayImpl {
         this.fireSSEEvent('info', { eventType: 'info', ...e });
     }
 
-    public static fireChatMessageEvent(loopId: string, clientId: string, update: boolean, message: ChatMessage): void {
-        this.fireSSEEvent('loop', {eventType: 'chat', loopId, clientId, update, message})
+    public static fireChatMessageEvent(loopId: string, browserId: string, update: boolean, message: ChatMessage): void {
+        this.fireSSEEvent('loop', {eventType: 'chat', loopId, browserId, update, message})
     }
 
     private static fireBusyEvent(loopId: string): void {
@@ -63,7 +63,7 @@ class LoopGatewayImpl {
     }
 
     private static async fireWaitedSSEEvent(type: SSEType, e: AgentInteractionEvent): Promise<string> {
-        const interactionId = getInteractionId(e.loopId, e.clientId);
+        const interactionId = getInteractionId(e.loopId, e.browserId);
         const waiting = new Promise<string>((resolve, reject) => this.waitingInteractions.set(
             interactionId, {timer: null, resolve, reject}
         ));
@@ -73,8 +73,8 @@ class LoopGatewayImpl {
                 const timer = setTimeout(res, INTERACTION_TIMEOUT);
                 this.waitingInteractions.get(interactionId)!.timer = timer;
             }).then(() => {
-                this.fireSSEEvent('loop', { eventType: 'cancelInteract', loopId: e.loopId, clientId: e.clientId });
-                this.cancelInteraction(e.loopId, e.clientId, 'Interaction timed out');
+                this.fireSSEEvent('loop', { eventType: 'cancelInteract', loopId: e.loopId, browserId: e.browserId });
+                this.cancelInteraction(e.loopId, e.browserId, 'Interaction timed out');
             });
             const result = await Promise.race([waiting, timeout]);
             return result || '';
@@ -107,7 +107,7 @@ class LoopGatewayImpl {
         return this.loops[loopId]?.running ?? false;
     }
 
-    public static async invoke(agentId: string, projectId: string, clientId: string, input: string): Promise<void> {
+    public static async invoke(agentId: string, projectId: string, browserId: string, input: string): Promise<void> {
         const loopId = getFlushAgentKey(agentId, projectId);
         if (!this.loops[loopId]) {
             this.init(loopId);
@@ -117,31 +117,31 @@ class LoopGatewayImpl {
         }
         const loopState = this.loops[loopId]!;
         loopState.running = true;
-        loopState.clientId = clientId;
+        loopState.browserId = browserId;
         this.fireBusyEvent(loopId);
-        loopState.loop.invoke(input, {clientId}).then(({text, state}) => {
+        loopState.loop.invoke(input, {browserId}).then(({text, state}) => {
             if (!isPauseInLoopReason(state)) {
                 loopState.running = false;
                 if (isExternalStopReason(state)) {
-                    this.addMessage(loopId, clientId, newMessage('agent', agentId, text));
+                    this.addMessage(loopId, browserId, newMessage('agent', agentId, text));
                     loopState.loop.setExternalStopReason(undefined);
                 }
-                loopState.clientId = undefined;
+                loopState.browserId = undefined;
             }
         }).catch(() => {}).finally(() => {
             this.fireBusyEvent(loopId);
         });
     }
 
-    public static addMessage(loopId: string, clientId: string, message: ChatMessage): void {
+    public static addMessage(loopId: string, browserId: string, message: ChatMessage): void {
         UIChatService.addMessage(loopId, message);
-        this.fireChatMessageEvent(loopId, clientId, false, message);
+        this.fireChatMessageEvent(loopId, browserId, false, message);
     }
 
-    public static updateMessage(loopId: string, clientId: string, id: string, text: string): void {
+    public static updateMessage(loopId: string, browserId: string, id: string, text: string): void {
         const message = UIChatService.replaceMessage(loopId, id, text);
         if (message) {
-            this.fireChatMessageEvent(loopId, clientId, true, message);
+            this.fireChatMessageEvent(loopId, browserId, true, message);
         }
     }
 
@@ -165,12 +165,12 @@ class LoopGatewayImpl {
         };
     }
 
-    public static disconnectBrowser(clientId: string) {
+    public static disconnectBrowser(browserId: string) {
         for (const loopId of Object.keys(this.loops)) {
             const loopState = this.loops[loopId];
-            if (loopState && loopState.running && loopState.clientId === clientId) {
+            if (loopState && loopState.running && loopState.browserId === browserId) {
                 loopState.loop.setExternalStopReason('clientLost');
-                this.cancelInteraction(loopId, clientId, `Client ${clientId} disconnected.`);
+                this.cancelInteraction(loopId, browserId, `Client ${browserId} disconnected.`);
             }
         }
     }
@@ -207,8 +207,8 @@ class LoopGatewayImpl {
         }});
     }
 
-    public static resolveInteraction(loopId: string, clientId: string, answer: string): boolean {
-        const interactionId = getInteractionId(loopId, clientId);
+    public static resolveInteraction(loopId: string, browserId: string, answer: string): boolean {
+        const interactionId = getInteractionId(loopId, browserId);
         const resolver = this.waitingInteractions.get(interactionId);
         if (resolver) {
             resolver.resolve(answer);
@@ -217,8 +217,8 @@ class LoopGatewayImpl {
         return false;
     }
 
-    public static cancelInteraction(loopId: string, clientId: string, reason: string): void {
-        const interactionId = getInteractionId(loopId, clientId);
+    public static cancelInteraction(loopId: string, browserId: string, reason: string): void {
+        const interactionId = getInteractionId(loopId, browserId);
         const resolver = this.waitingInteractions.get(interactionId);
         if (resolver) {
             resolver.reject(reason);

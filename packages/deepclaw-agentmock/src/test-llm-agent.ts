@@ -1,5 +1,7 @@
-import { AgentHandler } from '@deepclaw/core';
-import { ToolUseDef, LoopAgent, LLMConstructor, LLMProtocol, OneLoopContext, ToolUseResult } from "@deepclaw/agent";
+import { AgentHandler, AgentInvokeResponse } from '@deepclaw/core';
+import {
+    ToolUseDef, LoopAgent, LLMConstructor, LLMProtocol, OneLoopContext, ToolUseResult,
+} from "@deepclaw/agent";
 import { TestLLM, ThinkingMessage, ThinkingResponse } from './test-llm';
 
 // TODO need implement
@@ -24,7 +26,7 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
         return new TestLlmAgent(agentId, subLoopAgentHandler, projectId, history, parentSessionId);
     }
 
-    protected override async _invoke(): Promise<string> {
+    protected override async _invoke(): Promise<AgentInvokeResponse> {
         const text = [
             'The pattern continues',
             'up to number 100, with a',
@@ -50,10 +52,10 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
         let i = 0;
         return new Promise((resolve) => {
             const interval = setInterval(() => {
-                this.agentHandler.onStreamText({clientId: 'test', text: lines[i++]!});
+                this.agentHandler.onStreamText({browserId: 'test', text: lines[i++]!});
                 if (i >= lines.length) {
                     clearInterval(interval);
-                    resolve('its done.');
+                    resolve({text: 'its done.', state: 'endLoop'});
                 }
             }, 100);
         });

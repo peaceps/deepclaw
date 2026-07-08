@@ -35,7 +35,7 @@ type SSELoopEvent = SSEEvent & ({
 });
 export type SSELoopStreamEvent = SSELoopEvent & ({
     sseType: 'streamText';
-    clientId: string;
+    browserId: string;
     content: string;
     done: boolean;
 });
@@ -45,24 +45,25 @@ export type SSELoopBusyEvent = SSELoopEvent & ({
 });
 export type SSEInteractEvent = SSELoopEvent & {
     sseType: 'interact';
-    clientId: string;
+    browserId: string;
     content: AgentInteractionEvent;
 };
 export type SSECancelInteractEvent = SSELoopEvent & {
     sseType: 'cancelInteract';
-    clientId: string;
+    browserId: string;
     content: '';
 };
 export type SSEChatEvent = SSELoopEvent & {
     sseType: 'chat';
-    clientId: string;
+    browserId: string;
     update: boolean;
     content: ChatMessage;
 };
 
 export type SSEClient = {
-    id: string;
+    browserId: string;
     loopId?: string;
+    active: boolean;
     controller: ReadableStreamDefaultController;
     encoder: TextEncoder;
 }

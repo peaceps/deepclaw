@@ -109,7 +109,7 @@ All steps should be done when task is going to be marked as done.`,
         context.transitionReason = 'projectCreated';
         context.toolStopText = stopText;
         context.actions.agentHandler.onStreamText({
-            clientId: context.clientId,
+            browserId: context.browserId,
             text: `\n${stopText}`
         });
         return `Project created successfully.
@@ -182,7 +182,7 @@ All steps should be done when task is going to be marked as done.`,
         context.transitionReason = 'projectCreated';
         context.toolStopText = stopText;
         context.actions.agentHandler.onStreamText({
-            clientId: context.clientId,
+            browserId: context.browserId,
             text: `\n${stopText}`
         });
         return `Task created successfully.
@@ -353,7 +353,7 @@ They shoudl be short descriptions of each step, should not be too long for user 
             context.transitionReason = 'taskPause';
             context.toolStopText = stopText;
             context.actions.agentHandler.onStreamText({
-                clientId: context.clientId,
+                browserId: context.browserId,
                 text: `\n${stopText}`
             });
         }

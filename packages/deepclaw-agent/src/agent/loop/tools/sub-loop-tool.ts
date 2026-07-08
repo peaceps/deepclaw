@@ -22,8 +22,8 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
     exclusiveInSubLoop: true,
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
         const subLoop = context.actions.newSubLoop(false);
-        const result = await subLoop.invoke(input.prompt, { clientId: context.clientId });
-        return result;
+        const result = await subLoop.invoke(input.prompt, { browserId: context.browserId });
+        return result.text;
     },
 }
 
@@ -46,7 +46,7 @@ export const subLoopWithHistoryTool: ToolDesc<SubLoopInput> = {
     exclusiveInSubLoop: true,
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
         const subLoop = context.actions.newSubLoop(true);
-        const result = await subLoop.invoke(input.prompt, { clientId: context.clientId });
-        return result;
+        const result = await subLoop.invoke(input.prompt, { browserId: context.browserId });
+        return result.text;
     },
 }

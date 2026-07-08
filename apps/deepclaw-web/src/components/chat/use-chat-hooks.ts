@@ -72,7 +72,7 @@ export function useSSEConnection(
             sseUrl,
             'interact',
             (data) => {
-              if (data.loopId !== loopId || data.clientId !== browserId) return;
+              if (data.loopId !== loopId || data.browserId !== browserId) return;
               showModal(loopId, data.content).then((answer) => {
                 if (answer === null) return;
                 resolveInteraction(loopId, browserId, answer).catch((err) => {
@@ -85,7 +85,7 @@ export function useSSEConnection(
             sseUrl,
             'cancelInteract',
             (data) => {
-              if (data.loopId !== loopId || data.clientId !== browserId) return;
+              if (data.loopId !== loopId || data.browserId !== browserId) return;
               closeModal(null);
             },
           ),
@@ -93,7 +93,7 @@ export function useSSEConnection(
             sseUrl,
             'chat',
             (data) => {
-              if (data.loopId !== loopId || data.clientId === browserId) return;
+              if (data.loopId !== loopId || data.browserId === browserId) return;
               if (data.update) {
                 updateMessage(loopId, data.content.id, data.content.content);
               } else {
@@ -106,7 +106,7 @@ export function useSSEConnection(
         return () => {
           unsubscribers.forEach(unsubscribe => unsubscribe());
         };
-    }, [chatInited, loopId, sseClient, setChatBusy, showModal, closeModal, addMessage, browserId]);
+    }, [chatInited, loopId, sseClient, setChatBusy, showModal, closeModal, addMessage, browserId, updateMessage]);
 }
 
 export function useScroll(agentMessages: ChatMessage[], scrollRef: React.RefObject<HTMLDivElement | null>) {
@@ -162,7 +162,7 @@ export function useSend(
           sseUrl,
           'streamText',
           (data) => {
-            if (data.loopId !== loopId || data.clientId !== browserId) return;
+            if (data.loopId !== loopId || data.browserId !== browserId) return;
             if (!data.done) {
               updateMessage(data.loopId, msgId, data.content);
             } else {

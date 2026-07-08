@@ -24,18 +24,18 @@ export abstract class FlushAgent {
         this.flusher = (e: Omit<AgentStreamEvent, 'done'|'loopId'> & {done: boolean}) => handler.onStreamText({
             eventType: 'stream',
             loopId: this.getId(),
-            clientId: e.clientId,
+            browserId: e.browserId,
             text: this.formatLLMText(e.text, e.done),
             done: e.done
         });
         this.agentHandler = {
             onStreamText: (e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>) => this.flusher({
-                eventType: 'stream', clientId: e.clientId, text: e.text, done: false
+                eventType: 'stream', browserId: e.browserId, text: e.text, done: false
             }),
             onToolText: (e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>) => handler.onToolText(
                 {eventType: 'toolResult', loopId: this.getId(), ...e}
             ),
-            onInteractionEvent: (e: AgentInteractionEventPayload & {clientId: string}) => handler.onInteractionEvent(
+            onInteractionEvent: (e: AgentInteractionEventPayload & {browserId: string}) => handler.onInteractionEvent(
                 {eventType: 'interact', loopId: this.getId(), ...e}
             ),
             onInfoEvent: (e: DistributiveOmit<AgentInfoEvent, 'eventType'>) => handler.onInfoEvent(
@@ -53,16 +53,16 @@ export abstract class FlushAgent {
     async invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         try {
             const res = await this._invoke(input, options);
-            return this.finishInvoke(options.clientId, res.text, res.state);
+            return this.finishInvoke(options.browserId, res.text, res.state);
         } catch (e: any) {
-            return this.finishInvoke(options.clientId, e?.message || '', 'error');
+            return this.finishInvoke(options.browserId, e?.message || '', 'error');
         }
     }
 
-    private finishInvoke(clientId: string, content: string, state: TransitionReason): Promise<AgentInvokeResponse> {
+    private finishInvoke(browserId: string, content: string, state: TransitionReason): Promise<AgentInvokeResponse> {
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.flusher({eventType: 'stream', clientId, text: content, done: true});
+                this.flusher({eventType: 'stream', browserId, text: content, done: true});
                 resolve({text: content, state});
             }, 100);
         });

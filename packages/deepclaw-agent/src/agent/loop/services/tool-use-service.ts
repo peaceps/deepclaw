@@ -4,7 +4,7 @@ import { OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
 import { ToolsManager } from './tools-manager';
 import { HookManager } from './hook-manager';
-import { isPauseInLoopReason, PauseInLoopReason, TransitionReason } from '@deepclaw/core';
+import { isPauseInLoopReason, TransitionReason } from '@deepclaw/core';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
@@ -37,7 +37,7 @@ export class ToolUseService {
             } else if (guardResult.result === 'ask') {
                 try {
                     const choice = await context.actions.agentHandler.onInteractionEvent(
-                        { ...guardResult.question, clientId: context.clientId }
+                        { ...guardResult.question, browserId: context.browserId }
                     );
                     if (!guardResult.checkAnswer(choice)) {
                         return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`, false);

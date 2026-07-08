@@ -1,4 +1,5 @@
-import { LLMModel, LLMTool, TransitionReason } from "@deepclaw/agent";
+import { LLMModel, LLMTool } from "@deepclaw/agent";
+import { TransitionReason } from "@deepclaw/core";
 
 export type ThinkingMessage = {
     role: 'system' | 'user' | 'assistant' | 'tool_result';

@@ -25,7 +25,7 @@ class SSEServerImpl {
     }
 
     public static addClient(
-        type: SSEType, id: string, loopId: string | undefined,
+        type: SSEType, browserId: string, loopId: string | undefined,
         controller: ReadableStreamDefaultController, encoder: TextEncoder
     ): void {
         const store = this.sseStore[type];
@@ -35,24 +35,32 @@ class SSEServerImpl {
                 this.broadcastEvent(type, sseEvent.sseType, sseEvent);
             });
         }
-        const client = { id, loopId, controller, encoder };
-        store.clients.set(id, client);
+        const client: SSEClient = { browserId, loopId, controller, encoder, active: true };
+        store.clients.set(this.getClientKey(type, browserId, loopId), client);
 
         if (type === 'loop' && loopId) {
             this.sendEvent(type, client, 'loopBusy', {
                 sseType: 'loopBusy', loopId, content: '', busy: LoopGateway.isLoopBusy(loopId)
             } as SSELoopBusyEvent);
+            for (const c of store.clients.values()) {
+                if (c.browserId === browserId && c.loopId !== loopId) {
+                    c.active = false;
+                }
+            }
         }
     }
 
     private static broadcastEvent(type: SSEType, event: SSEEventType, data: SSEEvent): void {
-        for (const client of this.sseStore[type].clients.values()) {
-            if (this.shouldBroadcast(type, client, data)) {
-                this.sendEvent(type, client, event, data);
-            } else if (event === 'interact' && client.id === (data as SSEInteractEvent).clientId) {
-                // loopId triggered interaction missing infers user left page
+        const allClients = Array.from(this.sseStore[type].clients.values());
+        const clients = allClients.filter(client => this.shouldBroadcast(type, client, data));
+        for (const client of clients) {
+            this.sendEvent(type, client, event, data);
+        }
+        if (event === 'interact') {
+            const browserOpen = allClients.some(client => client.browserId === (data as SSEInteractEvent).browserId);
+            if (browserOpen && !clients.length) {
                 const interactionData = data as SSEInteractEvent;
-                LoopGateway.cancelInteraction(interactionData.loopId, interactionData.clientId, 'afk');
+                LoopGateway.cancelInteraction(interactionData.loopId, interactionData.browserId, 'afk');
             }
         }
     }
@@ -64,14 +72,19 @@ class SSEServerImpl {
         if (data.sseType === 'loopBusy') {
             return 'loopId' in data && client.loopId === data.loopId;
         } else if (data.sseType === 'chat') {
-            return 'clientId' in data && client.id !== data.clientId
+            return 'browserId' in data && client.browserId !== data.browserId
                 && 'loopId' in data && client.loopId === data.loopId;
-        } else if (data.sseType === 'streamText' || data.sseType === 'interact'
-            || data.sseType === 'cancelInteract') {
-            return 'clientId' in data && client.id === data.clientId
-                && 'loopId' in data && client.loopId === data.loopId;
+        } else if (data.sseType === 'streamText') {
+            return this.matchClient(data, client);
+        } else if (data.sseType === 'interact' || data.sseType === 'cancelInteract') {
+            return client.active && this.matchClient(data, client);
         }
         return false;
+    }
+
+    private static matchClient(data: SSEEvent, client: SSEClient): boolean {
+        return 'browserId' in data && client.browserId === data.browserId
+            && 'loopId' in data && client.loopId === data.loopId;
     }
 
     private static sendEvent(type: SSEType, client: SSEClient, event: SSEEventType, data: SSEEvent): void {
@@ -79,11 +92,11 @@ class SSEServerImpl {
         try {
             client.controller.enqueue(client.encoder.encode(message));
         } catch (err) {
-            this.removeClient(type, client.id);
+            this.removeClient(type, client.browserId, client.loopId);
             if (client && client.loopId) {
-                LoopGateway.cancelInteraction(client.loopId, client.id, `Client ${client.id} has error.`);
+                LoopGateway.cancelInteraction(client.loopId, client.browserId, `Client ${client.browserId} has error.`);
             }
-            this.logger.error(`Failed to send to client ${client.id} for ${type}: ${err}`);
+            this.logger.error(`Failed to send to client ${client.browserId} for ${type}: ${err}`);
         }
     }
 
@@ -100,7 +113,7 @@ class SSEServerImpl {
             return {
                 sseType: 'streamText',
                 loopId: e.loopId,
-                clientId: e.clientId,
+                browserId: e.browserId,
                 content: e.text,
                 done: !!e.done
             } as SSELoopStreamEvent;
@@ -109,7 +122,7 @@ class SSEServerImpl {
             return {
                 sseType: 'interact',
                 loopId: e.loopId,
-                clientId: e.clientId,
+                browserId: e.browserId,
                 content: e,
             } as SSEInteractEvent;
         }
@@ -117,7 +130,7 @@ class SSEServerImpl {
             return {
                 sseType: 'cancelInteract',
                 loopId: e.loopId,
-                clientId: e.clientId,
+                browserId: e.browserId,
                 content: '',
             } as SSECancelInteractEvent;
         }
@@ -125,7 +138,7 @@ class SSEServerImpl {
             return {
                 sseType: 'chat',
                 loopId: e.loopId,
-                clientId: e.clientId,
+                browserId: e.browserId,
                 update: e.update,
                 content: e.message,
             } as SSEChatEvent;
@@ -136,17 +149,20 @@ class SSEServerImpl {
         } as SSEEvent;
     }
 
-    public static removeClient(type: SSEType, id: string): void {
+    public static removeClient(type: SSEType, browserId: string, loopId?: string): void {
         const store = this.sseStore[type];
-        const client = store.clients.get(id);
         if (type === 'info') {
-            LoopGateway.disconnectBrowser(id);
+            LoopGateway.disconnectBrowser(browserId);
         }
-        store.clients.delete(id);
+        store.clients.delete(this.getClientKey(type, browserId, loopId));
         if (store.clients.size === 0) {
             store.unsubscriber?.();
             store.unsubscriber = undefined;
         }
+    }
+
+    private static getClientKey(type: SSEType, browserId: string, loopId?: string): string {
+        return type === 'info' ? browserId : `${browserId}::${loopId}`;
     }
 }
 
