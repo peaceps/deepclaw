@@ -6,5 +6,5 @@ HookManager.onVisitor('preLoopStart', (oneLoopContext: OneLoopContext) => {
 });
 
 HookManager.onVisitor('preTurnStart', (oneLoopContext: OneLoopContext) => {
-    oneLoopContext.logger.info(`Starting turn ${oneLoopContext.turnCount + 1}`);
+    oneLoopContext.logger.info(`Starting turn ${oneLoopContext.runtime.turnCount + 1}`);
 });

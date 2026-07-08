@@ -16,10 +16,10 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
     }
     
     protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
-        context.usage.noCachedInputTokens += response.usage.input_tokens;
-        context.usage.outputTokens += response.usage.output_tokens;
-        context.usage.cachedInputTokens += response.usage.cache_read_input_tokens || 0;
-        context.usage.cacheCreationInputTokens += response.usage.cache_creation_input_tokens || 0;
+        context.runtime.usage.noCachedInputTokens += response.usage.input_tokens;
+        context.runtime.usage.outputTokens += response.usage.output_tokens;
+        context.runtime.usage.cachedInputTokens += response.usage.cache_read_input_tokens || 0;
+        context.runtime.usage.cacheCreationInputTokens += response.usage.cache_creation_input_tokens || 0;
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {

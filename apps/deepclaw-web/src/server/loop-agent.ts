@@ -1,14 +1,19 @@
 'use server';
 
+import { SSEServer } from '@/app/api/sse-server';
 import { ChatMessage } from '@deepclaw/core';
 import { LoopGateway, UIChatService } from '@deepclaw/loop-gateway';
 
-export async function invoke(agentId: string, projectId: string, browserId: string, input: string): Promise<void> {
-    return LoopGateway.invoke(agentId, projectId, browserId, input);
+export async function invoke(browserId: string, agentId: string, projectId: string, input: string): Promise<void> {
+    return LoopGateway.invoke(browserId, agentId, projectId, input);
 }
 
-export async function resolveInteraction(loopId: string, browserId: string, answer: string): Promise<boolean> {
-    return LoopGateway.resolveInteraction(loopId, browserId, answer);
+export async function resumeLoop(browserId: string, loopId: string): Promise<void> {
+    SSEServer.resetClient(browserId, loopId);
+}
+
+export async function resolveInteraction(browserId: string, loopId: string, answer: string): Promise<boolean> {
+    return LoopGateway.resolveInteraction(browserId, loopId, answer);
 }
 
 export async function pullOlderMessages(loopId: string, endMessageId?: string): Promise<ChatMessage[]> {
@@ -19,10 +24,10 @@ export async function pullNewerMessages(loopId: string, startMessageId?: string)
     return UIChatService.getNewerMessages(loopId, startMessageId);
 }
 
-export async function pushChatMessage(loopId: string, browserId: string, message: ChatMessage): Promise<void> {
-    LoopGateway.addMessage(loopId, browserId, message);
+export async function pushChatMessage(browserId: string, loopId: string, message: ChatMessage): Promise<void> {
+    LoopGateway.addMessage(browserId, loopId, message);
 }
 
-export async function updateChatMessage(loopId: string, browserId: string, id: string, text: string): Promise<void> {
-    LoopGateway.updateMessage(loopId, browserId, id, text);
+export async function updateChatMessage(browserId: string, loopId: string, id: string, text: string): Promise<void> {
+    LoopGateway.updateMessage(browserId, loopId, id, text);
 }

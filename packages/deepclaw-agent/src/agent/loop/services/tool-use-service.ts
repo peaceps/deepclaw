@@ -4,7 +4,7 @@ import { OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
 import { ToolsManager } from './tools-manager';
 import { HookManager } from './hook-manager';
-import { isPauseInLoopReason, TransitionReason } from '@deepclaw/core';
+import { isPauseInLoopReason } from '@deepclaw/core';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
@@ -42,10 +42,9 @@ export class ToolUseService {
                     if (!guardResult.checkAnswer(choice)) {
                         return this.toolResult(toolUseDef.id, `Execution of tool ${tool.tool.name} is rejected by user.`, false);
                     }
-                } catch (error) {
-                    const reason = error as TransitionReason;
-                    if (isPauseInLoopReason(reason)) {
-                        context.transitionReason = reason;
+                } catch (error: any) {
+                    if (isPauseInLoopReason(error)) {
+                        context.runtime.transitionReason = error;
                         return this.toolResult(toolUseDef.id, `User left page and not possible to interact. Need rerun this tool`, false);
                     }
                     return this.toolResult(toolUseDef.id, `Error, wait for user response failed: ${error}`, false);

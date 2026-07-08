@@ -2,7 +2,9 @@ import type {
     AgentHandler, AgentEmployee, Project, AgentEvent, Task, AgentIdentity,
     AgentInteractionEvent,
     AgentInfoEvent,
-    ChatMessage
+    ChatMessage,
+    InvalidInteractionReason,
+    PauseInLoopReason
 } from "@deepclaw/core";
 import {
     getFlushAgentKey, getInteractionId, isExternalStopReason, isPauseInLoopReason, LOOP_BUSY_ERROR, newMessage, splitFlushAgentKey
@@ -54,7 +56,7 @@ class LoopGatewayImpl {
         this.fireSSEEvent('info', { eventType: 'info', ...e });
     }
 
-    public static fireChatMessageEvent(loopId: string, browserId: string, update: boolean, message: ChatMessage): void {
+    public static fireChatMessageEvent(browserId: string, loopId: string, update: boolean, message: ChatMessage): void {
         this.fireSSEEvent('loop', {eventType: 'chat', loopId, browserId, update, message})
     }
 
@@ -63,7 +65,7 @@ class LoopGatewayImpl {
     }
 
     private static async fireWaitedSSEEvent(type: SSEType, e: AgentInteractionEvent): Promise<string> {
-        const interactionId = getInteractionId(e.loopId, e.browserId);
+        const interactionId = getInteractionId(e.browserId, e.loopId);
         const waiting = new Promise<string>((resolve, reject) => this.waitingInteractions.set(
             interactionId, {timer: null, resolve, reject}
         ));
@@ -74,7 +76,7 @@ class LoopGatewayImpl {
                 this.waitingInteractions.get(interactionId)!.timer = timer;
             }).then(() => {
                 this.fireSSEEvent('loop', { eventType: 'cancelInteract', loopId: e.loopId, browserId: e.browserId });
-                this.cancelInteraction(e.loopId, e.browserId, 'Interaction timed out');
+                this.cancelInteraction(e.browserId, e.loopId, 'timeout');
             });
             const result = await Promise.race([waiting, timeout]);
             return result || '';
@@ -107,7 +109,7 @@ class LoopGatewayImpl {
         return this.loops[loopId]?.running ?? false;
     }
 
-    public static async invoke(agentId: string, projectId: string, browserId: string, input: string): Promise<void> {
+    public static async invoke(browserId: string, agentId: string, projectId: string, input: string): Promise<void> {
         const loopId = getFlushAgentKey(agentId, projectId);
         if (!this.loops[loopId]) {
             this.init(loopId);
@@ -119,11 +121,12 @@ class LoopGatewayImpl {
         loopState.running = true;
         loopState.browserId = browserId;
         this.fireBusyEvent(loopId);
-        loopState.loop.invoke(input, {browserId}).then(({text, state}) => {
+        loopState.loop.invoke(input, {browserId}).then(({text, runtime}) => {
+            const state = runtime.transitionReason;
             if (!isPauseInLoopReason(state)) {
                 loopState.running = false;
                 if (isExternalStopReason(state)) {
-                    this.addMessage(loopId, browserId, newMessage('agent', agentId, text));
+                    this.addMessage(browserId, loopId, newMessage('agent', agentId, text));
                     loopState.loop.setExternalStopReason(undefined);
                 }
                 loopState.browserId = undefined;
@@ -133,15 +136,15 @@ class LoopGatewayImpl {
         });
     }
 
-    public static addMessage(loopId: string, browserId: string, message: ChatMessage): void {
+    public static addMessage(browserId: string, loopId: string, message: ChatMessage): void {
         UIChatService.addMessage(loopId, message);
-        this.fireChatMessageEvent(loopId, browserId, false, message);
+        this.fireChatMessageEvent(browserId, loopId, false, message);
     }
 
-    public static updateMessage(loopId: string, browserId: string, id: string, text: string): void {
+    public static updateMessage(browserId: string, loopId: string, id: string, text: string): void {
         const message = UIChatService.replaceMessage(loopId, id, text);
         if (message) {
-            this.fireChatMessageEvent(loopId, browserId, true, message);
+            this.fireChatMessageEvent(browserId, loopId, true, message);
         }
     }
 
@@ -170,7 +173,7 @@ class LoopGatewayImpl {
             const loopState = this.loops[loopId];
             if (loopState && loopState.running && loopState.browserId === browserId) {
                 loopState.loop.setExternalStopReason('clientLost');
-                this.cancelInteraction(loopId, browserId, `Client ${browserId} disconnected.`);
+                this.cancelInteraction(browserId, loopId, 'disconnected');
             }
         }
     }
@@ -207,8 +210,8 @@ class LoopGatewayImpl {
         }});
     }
 
-    public static resolveInteraction(loopId: string, browserId: string, answer: string): boolean {
-        const interactionId = getInteractionId(loopId, browserId);
+    public static resolveInteraction(browserId: string, loopId: string, answer: string): boolean {
+        const interactionId = getInteractionId(browserId, loopId);
         const resolver = this.waitingInteractions.get(interactionId);
         if (resolver) {
             resolver.resolve(answer);
@@ -217,8 +220,8 @@ class LoopGatewayImpl {
         return false;
     }
 
-    public static cancelInteraction(loopId: string, browserId: string, reason: string): void {
-        const interactionId = getInteractionId(loopId, browserId);
+    public static cancelInteraction(browserId: string, loopId: string, reason: InvalidInteractionReason | PauseInLoopReason): void {
+        const interactionId = getInteractionId(browserId, loopId);
         const resolver = this.waitingInteractions.get(interactionId);
         if (resolver) {
             resolver.reject(reason);

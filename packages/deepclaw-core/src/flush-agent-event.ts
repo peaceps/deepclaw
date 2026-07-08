@@ -11,8 +11,8 @@ export function splitFlushAgentKey(key: string): {agentId: string; projectId?: s
     return {agentId: agentId ?? '', projectId};
 }
 
-export function getInteractionId(loopId: string, browserId: string): string {
-    return `${loopId}_${browserId}`;
+export function getInteractionId(browserId: string, loopId: string): string {
+    return `${browserId}_${loopId}`;
 }
 
 export const LOOP_BUSY_ERROR = 'LOOP_BUSY';

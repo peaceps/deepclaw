@@ -4,8 +4,9 @@ import {
     getFlushAgentKey, AgentInteractionEventPayload
 } from './flush-agent-event';
 import {
-    AgentHandler, SealedAgentHandler, TransitionReason,
-    AgentInvokeOptions, AgentInvokeResponse
+    AgentHandler, SealedAgentHandler,
+    AgentInvokeOptions, AgentInvokeResponse,
+    AgentRuntime
 } from './flush-agent-types';
 
 export abstract class FlushAgent {
@@ -53,17 +54,34 @@ export abstract class FlushAgent {
     async invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         try {
             const res = await this._invoke(input, options);
-            return this.finishInvoke(options.browserId, res.text, res.state);
+            return this.finishInvoke(options.browserId, res.text, res.runtime);
         } catch (e: any) {
-            return this.finishInvoke(options.browserId, e?.message || '', 'error');
+            return this.finishInvoke(options.browserId, e?.message || '', this.emptyRuntime());
         }
     }
 
-    private finishInvoke(browserId: string, content: string, state: TransitionReason): Promise<AgentInvokeResponse> {
+    protected emptyRuntime(): AgentRuntime {
+        return {
+            turnCount: 0,
+            historyPersistIndex: 0,
+            recoveryState: {
+                maxTokenRetries: 0,
+                refusalState: '' // TODO: 添加拒绝状态
+            },
+            usage: {
+                cachedInputTokens: 0,
+                cacheCreationInputTokens: 0,
+                noCachedInputTokens: 0,
+                outputTokens: 0
+            }
+        }
+    }
+
+    private finishInvoke(browserId: string, content: string, runtime: AgentRuntime): Promise<AgentInvokeResponse> {
         return new Promise((resolve) => {
             setTimeout(() => {
                 this.flusher({eventType: 'stream', browserId, text: content, done: true});
-                resolve({text: content, state});
+                resolve({text: content, runtime});
             }, 100);
         });
     }

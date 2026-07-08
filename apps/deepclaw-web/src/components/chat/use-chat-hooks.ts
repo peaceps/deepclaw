@@ -3,7 +3,7 @@ import { useSSEClient } from '@/components/layout/SSEProvider';
 import { SSECancelInteractEvent, SSEChatEvent, SSEConnectedEvent, SSEInteractEvent, SSELoopBusyEvent, SSELoopStreamEvent } from "@/app/api/sse-types";
 import { getLogger } from "@/lib/logger";
 import { useModalStore } from '@/lib/modal-store';
-import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction, updateChatMessage } from "@/server/loop-agent";
+import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction, updateChatMessage, resumeLoop } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import { useTranslation } from 'react-i18next';
 import { AgentEmployee, ChatMessage, LOOP_BUSY_ERROR, newMessage } from "@deepclaw/core";
@@ -20,6 +20,7 @@ export function useInitChat(chatKey: string, chatKeyChanged: boolean,
 ) {
     const addPulledMessages = useAppStore(s => s.addPulledMessages);
     const getNewestMessageId = useAppStore(s => s.getNewestMessageId);
+    const browserId = useAppStore(s => s.browserId);
     const messagePullingRef = useRef(false);
 
     useEffect(() => {
@@ -27,13 +28,15 @@ export function useInitChat(chatKey: string, chatKeyChanged: boolean,
       messagePullingRef.current = true;
       pullNewerMessages(chatKey, getNewestMessageId(chatKey)).then(messages => {
           addPulledMessages(chatKey, messages);
+      }).then(() => {
+        return resumeLoop(browserId, chatKey);
       }).catch(err => {
           logger.error('Failed to pull chat messages:', err);
       }).finally(() => {
           setChatInited(true);
           messagePullingRef.current = false;
       });
-    }, [chatKey, chatKeyChanged, addPulledMessages, getNewestMessageId, setChatInited]);
+    }, [chatKey, chatKeyChanged, addPulledMessages, getNewestMessageId, setChatInited, browserId]);
 }
 
 export function useSSEConnection(
@@ -75,7 +78,7 @@ export function useSSEConnection(
               if (data.loopId !== loopId || data.browserId !== browserId) return;
               showModal(loopId, data.content).then((answer) => {
                 if (answer === null) return;
-                resolveInteraction(loopId, browserId, answer).catch((err) => {
+                resolveInteraction(browserId, loopId, answer).catch((err) => {
                   logger.error('Failed to resolve interaction:', err);
                 });
               });
@@ -154,7 +157,7 @@ export function useSend(
 
     function addAndFireMessage(msg: ChatMessage) {
         addMessage(loopId, msg);
-        pushChatMessage(loopId, browserId, msg);
+        pushChatMessage(browserId, loopId, msg);
     }
 
     function persistLoopSSE(msgId: string) {
@@ -168,7 +171,7 @@ export function useSend(
             } else {
               const msg = getMessageById(data.loopId, msgId);
               if (msg) {
-                updateChatMessage(data.loopId, browserId, msg.id, msg.content);
+                updateChatMessage(browserId, data.loopId, msg.id, msg.content);
               }
               setStreaming(false);
             }
@@ -190,12 +193,12 @@ export function useSend(
         const newAgentMsg = newMessage('agent', agent.id, '');
         addAndFireMessage(newAgentMsg);
         const unsubscribeMessageStream = persistLoopSSE(newAgentMsg.id);
-        invoke(agent.id, projectId, browserId, trimmed).catch(err => {
+        invoke(browserId, agent.id, projectId, trimmed).catch(err => {
             unsubscribeMessageStream();
             const busy = err instanceof Error && err.message === LOOP_BUSY_ERROR;
             const text = busy ? t('web.pages.chat.busy', { name: agent.name }) : t('web.pages.chat.invoke.error');
             updateMessage(loopId, newAgentMsg.id, `\n${text}`);
-            updateChatMessage(loopId, browserId, newAgentMsg.id, `\n${text}`);
+            updateChatMessage(browserId, loopId, newAgentMsg.id, `\n${text}`);
             setStreaming(false);
             setChatBusy(loopId, busy);
         });

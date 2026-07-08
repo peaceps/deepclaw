@@ -18,9 +18,9 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
     protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
         if (response.usage) {
             const cachedTokens = response.usage.input_tokens_details?.cached_tokens || 0;
-            context.usage.cachedInputTokens += cachedTokens;
-            context.usage.noCachedInputTokens += response.usage.input_tokens - cachedTokens;
-            context.usage.outputTokens += response.usage.output_tokens;
+            context.runtime.usage.cachedInputTokens += cachedTokens;
+            context.runtime.usage.noCachedInputTokens += response.usage.input_tokens - cachedTokens;
+            context.runtime.usage.outputTokens += response.usage.output_tokens;
         }
     }
 

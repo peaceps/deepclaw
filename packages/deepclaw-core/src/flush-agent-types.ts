@@ -25,6 +25,9 @@ export function isPauseInLoopReason(reason?: TransitionReason): reason is PauseI
     return (PAUSE_IN_LOOP_REASONS as readonly string[]).includes(reason ?? '');
 }
 
+export const INVALID_INTERACTION_REASONS = ['timeout', 'disconnected', 'error'] as const;
+export type InvalidInteractionReason = typeof INVALID_INTERACTION_REASONS[number];
+
 export const TOOL_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
 export type ToolStopReason = typeof TOOL_STOP_REASONS[number];
 export function isToolStopReason(reason?: TransitionReason): reason is ToolStopReason {
@@ -51,5 +54,21 @@ export type AgentInvokeOptions = {
 
 export type AgentInvokeResponse = {
     text: string;
-    state: TransitionReason;
+    runtime: AgentRuntime;
 };
+
+export type AgentRuntime = {
+    turnCount: number;
+    transitionReason?: TransitionReason;
+    historyPersistIndex: number;
+    recoveryState: {
+        maxTokenRetries: number;
+        refusalState: '' // TODO: 添加拒绝状态
+    },
+    usage: {
+        cachedInputTokens: number;
+        cacheCreationInputTokens: number;
+        noCachedInputTokens: number;
+        outputTokens: number;
+    }
+}

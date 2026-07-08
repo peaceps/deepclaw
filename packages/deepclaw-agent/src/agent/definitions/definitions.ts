@@ -1,5 +1,5 @@
 import type { Logger } from '@deepclaw/node-utils';
-import { SealedAgentHandler, TransitionReason, type FlushAgent } from '@deepclaw/core';
+import { SealedAgentHandler, TransitionReason, type FlushAgent, type AgentRuntime } from '@deepclaw/core';
 import { AgentConfig } from '@deepclaw/config';
 
 export type LLMProtocol = 'Anthropic' | 'OpenAIChat' | 'OpenAIResponse';
@@ -21,30 +21,17 @@ export type OneLoopContext = {
     browserId: string;
     sessionDir: string;
     isSubLoop: boolean;
-    turnCount: number;
-    transitionReason?: TransitionReason;
-    toolStopText?: string;
+    loopConfig: AgentConfig;
     system: string;
     logger: Logger;
-    loopConfig: AgentConfig;
-    historyPersistIndex: number;
-    recoveryState: {
-        maxTokenRetries: number;
-        refusalState: '' // TODO: 添加拒绝状态
-    },
     actions: {
         newSubLoop: (fork?: boolean) => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
-        compactIfNeeded: () => Promise<void>;
+        compactIfNeeded: (context: OneLoopContext) => Promise<void>;
         agentHandler: SealedAgentHandler;
         addStringMessage: (message: string) => void;
     },
-    usage: {
-        cachedInputTokens: number;
-        cacheCreationInputTokens: number;
-        noCachedInputTokens: number;
-        outputTokens: number;
-    }
+    runtime: AgentRuntime
 }
 
 export type LoopSessionStatus = 'running' | 'paused' | 'ended' | 'error';

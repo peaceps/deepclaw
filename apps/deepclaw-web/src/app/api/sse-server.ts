@@ -42,11 +42,6 @@ class SSEServerImpl {
             this.sendEvent(type, client, 'loopBusy', {
                 sseType: 'loopBusy', loopId, content: '', busy: LoopGateway.isLoopBusy(loopId)
             } as SSELoopBusyEvent);
-            for (const c of store.clients.values()) {
-                if (c.browserId === browserId && c.loopId !== loopId) {
-                    c.active = false;
-                }
-            }
         }
     }
 
@@ -60,7 +55,7 @@ class SSEServerImpl {
             const browserOpen = allClients.some(client => client.browserId === (data as SSEInteractEvent).browserId);
             if (browserOpen && !clients.length) {
                 const interactionData = data as SSEInteractEvent;
-                LoopGateway.cancelInteraction(interactionData.loopId, interactionData.browserId, 'afk');
+                LoopGateway.cancelInteraction(interactionData.browserId, interactionData.loopId, 'afk');
             }
         }
     }
@@ -94,7 +89,7 @@ class SSEServerImpl {
         } catch (err) {
             this.removeClient(type, client.browserId, client.loopId);
             if (client && client.loopId) {
-                LoopGateway.cancelInteraction(client.loopId, client.browserId, `Client ${client.browserId} has error.`);
+                LoopGateway.cancelInteraction(client.browserId, client.loopId, 'error');
             }
             this.logger.error(`Failed to send to client ${client.browserId} for ${type}: ${err}`);
         }
@@ -158,6 +153,15 @@ class SSEServerImpl {
         if (store.clients.size === 0) {
             store.unsubscriber?.();
             store.unsubscriber = undefined;
+        }
+    }
+
+    public static resetClient(browserId: string, loopId: string): void {
+        const store = this.sseStore.loop;
+        for (const client of store.clients.values()) {
+            if (client.browserId === browserId) {
+                client.active = client.loopId === loopId;
+            }
         }
     }
 

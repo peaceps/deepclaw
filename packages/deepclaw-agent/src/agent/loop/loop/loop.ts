@@ -12,7 +12,8 @@ import {
     isToolStopReason,
     AgentInvokeResponse,
     isPauseInLoopReason,
-    ExternalStopReason
+    ExternalStopReason,
+    AgentRuntime
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -123,36 +124,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         this.externalStopReason = undefined;
         const state: LoopState<I> = {
             messages: this.history,
-            oneLoopContext: {
-                loopId: this.getId(),
-                isSubLoop: this.isSubLoop(),
-                agentId: this.agentId,
-                projectId: this.projectId,
-                browserId: options.browserId,
-                sessionDir: this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
-                turnCount: 0,
-                system: '',
-                logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
-                recoveryState: {
-                    maxTokenRetries: 0,
-                    refusalState: '',
-                },
-                loopConfig: this.agentConfig,
-                historyPersistIndex: this.historyPersistIndex,
-                actions: {
-                    newSubLoop: this.createSubLoop.bind(this),
-                    addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
-                    compactIfNeeded: () => this.compactIfNeeded(state.oneLoopContext),
-                    agentHandler: this.agentHandler,
-                    addStringMessage: this.addStringMessage.bind(this),
-                },
-                usage: {
-                    cachedInputTokens: 0,
-                    cacheCreationInputTokens: 0,
-                    noCachedInputTokens: 0,
-                    outputTokens: 0
-                }
-            },
+            oneLoopContext: this.initContext(options.browserId)
         };
         let finalText = '';
         try {
@@ -161,13 +133,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 status: 'running',
             });
             finalText = await this.agentLoop(state);
-            return {text: finalText, state: state.oneLoopContext.transitionReason || 'endLoop'};
+            return {text: finalText, runtime: state.oneLoopContext.runtime};
         } catch (error) {
             const msg = `Error in loop, ${error instanceof Error ? error.message : 'Unknown error.'}`;
-            state.oneLoopContext.transitionReason = 'error';
+            state.oneLoopContext.runtime.transitionReason = 'error';
             state.oneLoopContext.logger.error(error, msg);
             finalText = msg;
-            return {text: msg, state: 'error'};
+            return {text: msg, runtime: state.oneLoopContext.runtime};
         } finally {
             try {
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
@@ -176,15 +148,40 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                     finalText,
                     forceMessagesSnapshot: true
                 });
-                this.historyPersistIndex = state.oneLoopContext.historyPersistIndex;
+                this.historyPersistIndex = state.oneLoopContext.runtime.historyPersistIndex;
+            }
+        }
+    }
+
+    private initContext(browserId: string, runtime?: AgentRuntime): OneLoopContext {
+        return {
+            loopId: this.getId(),
+            isSubLoop: this.isSubLoop(),
+            agentId: this.agentId,
+            projectId: this.projectId,
+            loopConfig: this.agentConfig,
+            browserId,
+            sessionDir: this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
+            system: '',
+            logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
+            actions: {
+                newSubLoop: this.createSubLoop.bind(this),
+                addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
+                compactIfNeeded: (context: OneLoopContext) => this.compactIfNeeded(context),
+                agentHandler: this.agentHandler,
+                addStringMessage: this.addStringMessage.bind(this),
+            },
+            runtime: runtime ?? {
+                ...this.emptyRuntime(),
+                historyPersistIndex: this.historyPersistIndex,
             }
         }
     }
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
-            if (state.oneLoopContext.turnCount >= this.turnLimit) {
-                state.oneLoopContext.transitionReason = 'endLoop';
+            if (state.oneLoopContext.runtime.turnCount >= this.turnLimit) {
+                state.oneLoopContext.runtime.transitionReason = 'endLoop';
                 const finalText = i18nInstance.t('agent.maxTurnReached', {
                     finalText: this.extractFinalText(state.messages)
                 });
@@ -201,14 +198,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 let finalText = this.extractFinalText(state.messages);
-                if (finalText && state.oneLoopContext.transitionReason === 'error') {
+                if (finalText && state.oneLoopContext.runtime.transitionReason === 'error') {
                     this.agentHandler.onStreamText({
                         browserId: state.oneLoopContext.browserId,
                         text: finalText
                     });
                 }
-                if (isExternalStopReason(state.oneLoopContext.transitionReason)) {
-                    finalText = this.wrapExternalFlagMessage(finalText, state.oneLoopContext.transitionReason);
+                if (isExternalStopReason(state.oneLoopContext.runtime.transitionReason)) {
+                    finalText = this.wrapExternalFlagMessage(finalText, state.oneLoopContext.runtime.transitionReason);
                 }
                 return finalText;
             }
@@ -240,25 +237,26 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
         this.addTokenUsage(state.oneLoopContext, response);
 
-        state.oneLoopContext.turnCount++;
-        state.oneLoopContext.transitionReason = response.transitionReason;
+        state.oneLoopContext.runtime.turnCount++;
+        state.oneLoopContext.runtime.transitionReason = response.transitionReason;
 
-        switch (state.oneLoopContext.transitionReason) {
+        switch (state.oneLoopContext.runtime.transitionReason) {
             case 'toolUse':
                 const toolUseDefs = this.extractToolUseFromResponse(response);
                 const results = await this.runTools(toolUseDefs, state.oneLoopContext);
                 this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-                if (isToolStopReason(state.oneLoopContext.transitionReason)) {
-                    this.addStringMessage(state.oneLoopContext.toolStopText || `Loop paused: ${state.oneLoopContext.transitionReason}`, false);
+                if (isToolStopReason(state.oneLoopContext.runtime.transitionReason)) {
+                    const stopText = i18nInstance.t(`agent.tools.project.stop.${state.oneLoopContext.runtime.transitionReason as string}`);
+                    this.addStringMessage(stopText || `Loop paused: ${state.oneLoopContext.runtime.transitionReason}`, false);
                 }
                 break;
             case 'inputMaxTokens':
                 await this.compactIfNeeded(state.oneLoopContext);
                 break;
             case 'maxTokens':
-                state.oneLoopContext.recoveryState.maxTokenRetries++;
-                if (state.oneLoopContext.recoveryState.maxTokenRetries >= this.maxTokenRetries) {
-                    state.oneLoopContext.transitionReason = 'error';
+                state.oneLoopContext.runtime.recoveryState.maxTokenRetries++;
+                if (state.oneLoopContext.runtime.recoveryState.maxTokenRetries >= this.maxTokenRetries) {
+                    state.oneLoopContext.runtime.transitionReason = 'error';
                     break;
                 }
                 // TODO: Handle max tokens/输入测token管理
@@ -270,26 +268,26 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 break;
         }
         try {
-            if (state.oneLoopContext.transitionReason === 'error') {
+            if (state.oneLoopContext.runtime.transitionReason === 'error') {
                 await HookManager.emitVisitor('turnError', state.oneLoopContext);
             } else if (this.externalStopReason) {
-                state.oneLoopContext.transitionReason = this.externalStopReason;
+                state.oneLoopContext.runtime.transitionReason = this.externalStopReason;
             }
-            if (isExternalStopReason(state.oneLoopContext.transitionReason)) {
-                await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, state.oneLoopContext.transitionReason);
+            if (isExternalStopReason(state.oneLoopContext.runtime.transitionReason)) {
+                await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, state.oneLoopContext.runtime.transitionReason);
             }
-            if (isPauseInLoopReason(state.oneLoopContext.transitionReason)) {
-                await HookManager.emitVisitor('turnPauseInLoop', state.oneLoopContext, state.oneLoopContext.transitionReason);
+            if (isPauseInLoopReason(state.oneLoopContext.runtime.transitionReason)) {
+                await HookManager.emitVisitor('turnPauseInLoop', state.oneLoopContext, state.oneLoopContext.runtime.transitionReason);
             }
             await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
         } finally {
             this.persistHistory(state.oneLoopContext, {});
         }
-        return state.oneLoopContext.transitionReason !== 'endLoop'
-            && state.oneLoopContext.transitionReason !== 'error'
-            && !isExternalStopReason(state.oneLoopContext.transitionReason)
-            && !isPauseInLoopReason(state.oneLoopContext.transitionReason)
-            && !isToolStopReason(state.oneLoopContext.transitionReason);
+        return state.oneLoopContext.runtime.transitionReason !== 'endLoop'
+            && state.oneLoopContext.runtime.transitionReason !== 'error'
+            && !isExternalStopReason(state.oneLoopContext.runtime.transitionReason)
+            && !isPauseInLoopReason(state.oneLoopContext.runtime.transitionReason)
+            && !isToolStopReason(state.oneLoopContext.runtime.transitionReason);
     }
 
     private persistHistory(context: OneLoopContext, config: Partial<MetaDataConfig>): void {
@@ -306,20 +304,21 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
         for (const toolUseDef of toolUseDefs) {
-            if (isToolStopReason(context.transitionReason)) {
+            if (isToolStopReason(context.runtime.transitionReason)) {
+                const stopText = i18nInstance.t(`agent.tools.project.stop.${context.runtime.transitionReason}`);
                 const toolResult = {
                     result: {
                         id: toolUseDef.id,
-                        content: `Tool call execution skipped because loop paused for user review: ${context.toolStopText}`
+                        content: `Tool call execution skipped because loop paused for user review: ${stopText}`
                     }
                 };
                 results.push(toolResult.result);
                 continue;
-            } else if (isPauseInLoopReason(context.transitionReason)) {
+            } else if (isPauseInLoopReason(context.runtime.transitionReason)) {
                 const toolResult = {
                     result: {
                         id: toolUseDef.id,
-                        content: `Tool call execution skipped because loop paused due to ${context.transitionReason}`
+                        content: `Tool call execution skipped because loop paused due to ${context.runtime.transitionReason}`
                     }
                 };
                 results.push(toolResult.result);

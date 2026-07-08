@@ -75,17 +75,17 @@ export class PersistHistoryService {
         try {
             const now = new Date().toISOString();
             const messagesPath = `${context.sessionDir}/${MESSAGE_SNAPSHOT_FILE}`;
-            if (config.forceMessagesSnapshot || context.turnCount > 0) {
+            if (config.forceMessagesSnapshot || context.runtime.turnCount > 0) {
                 try {
-                    if (context.historyPersistIndex === 0) {
+                    if (context.runtime.historyPersistIndex === 0) {
                         FileUtils.writeFile(messagesPath, this.createJsonl(history));
-                        context.historyPersistIndex = history.length;
+                        context.runtime.historyPersistIndex = history.length;
                     } else {
-                        const gap = history.length - context.historyPersistIndex;
+                        const gap = history.length - context.runtime.historyPersistIndex;
                         if (config.forceMessagesSnapshot || history.length < SAVE_THRESHOLD || gap >= SAVE_THRESHOLD) {
                             FileUtils.appendFile(messagesPath,
-                                 this.createJsonl(history.slice(context.historyPersistIndex, history.length)));
-                            context.historyPersistIndex = history.length;
+                                 this.createJsonl(history.slice(context.runtime.historyPersistIndex, history.length)));
+                            context.runtime.historyPersistIndex = history.length;
                         }
                     }
                 } catch {
@@ -102,8 +102,8 @@ export class PersistHistoryService {
                 loopId: context.loopId,
                 isSubLoop: context.isSubLoop,
                 status,
-                transitionReason: context.transitionReason,
-                turnCount: context.turnCount,
+                transitionReason: context.runtime.transitionReason,
+                turnCount: context.runtime.turnCount,
                 messagesPath,
                 finalText: config.finalText,
                 updatedAt: now,
@@ -122,20 +122,20 @@ export class PersistHistoryService {
     }
 
     private static getLoopSessionStatus(context: OneLoopContext): LoopSessionStatus {
-        if (context.transitionReason === 'error') {
+        if (context.runtime.transitionReason === 'error') {
             return 'error';
         }
-        if (isToolStopReason(context.transitionReason)) {
+        if (isToolStopReason(context.runtime.transitionReason)) {
             return 'paused';
         }
-        if (context.transitionReason === 'endLoop') {
+        if (context.runtime.transitionReason === 'endLoop') {
             return 'ended';
         }
         return 'running';
     }
 
     private static getInvokeEndSessionStatus(context: OneLoopContext): LoopSessionStatus {
-        if (!context.transitionReason) {
+        if (!context.runtime.transitionReason) {
             return 'ended';
         }
         return this.getLoopSessionStatus(context);

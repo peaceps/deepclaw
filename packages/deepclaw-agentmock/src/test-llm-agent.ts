@@ -13,7 +13,7 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
         return TestLLM;
     }
     protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
-        if (response.usage) {context.usage.noCachedInputTokens += response.usage.input_tokens;}
+        if (response.usage) {context.runtime.usage.noCachedInputTokens += response.usage.input_tokens;}
     }
     
     protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
@@ -55,7 +55,7 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
                 this.agentHandler.onStreamText({browserId: 'test', text: lines[i++]!});
                 if (i >= lines.length) {
                     clearInterval(interval);
-                    resolve({text: 'its done.', state: 'endLoop'});
+                    resolve({text: 'its done.', runtime: this.emptyRuntime()});
                 }
             }, 100);
         });

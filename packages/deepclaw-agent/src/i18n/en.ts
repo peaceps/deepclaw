@@ -53,7 +53,7 @@ export const en = {
                 },
                 stop: {
                     projectCreated: 'Project is created, please continue to adjust the plan.',
-                    taskPause: 'Task {{name}} is done, please verify.'
+                    taskPause: 'Task is done, please verify.'
                 }
             },
         },
