@@ -7,13 +7,16 @@ import {
     type AgentHandler,
     type AgentToolResultEvent,
     AgentInvokeOptions,
+    type TransitionReason,
+    isExternalStopReason,
+    isToolStopReason,
+    AgentInvokeResponse,
+    isPauseInLoopReason,
+    ExternalStopReason
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
-    ExternalStopReason,
-    FootPrint, LLMProtocol, LoopState, OneLoopContext, TransitionReason,
-    isExternalStopReason,
-    isToolStopReason
+    FootPrint, LLMProtocol, LoopState, OneLoopContext,
 } from '../../definitions/definitions';
 import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
@@ -40,7 +43,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     protected history: I[] = [];
     private footPrints: FootPrint[] = [];
     private agentConfig: AgentConfig;
-    private externalFlag: ExternalStopReason | undefined;
+    private externalStopReason: ExternalStopReason | undefined;
 
     constructor(
         agentId: string,
@@ -115,13 +118,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
-    public isClientLost(): boolean {
-        return this.externalFlag === 'clientLost';
-    }
-
-    protected async _invoke(input: string, options: AgentInvokeOptions): Promise<string> {
+    protected async _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         this.addStringMessage(input);
-        this.externalFlag = undefined;
+        this.externalStopReason = undefined;
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: {
@@ -162,13 +161,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 status: 'running',
             });
             finalText = await this.agentLoop(state);
-            return finalText;
+            return {text: finalText, state: state.oneLoopContext.transitionReason || 'endLoop'};
         } catch (error) {
             const msg = `Error in loop, ${error instanceof Error ? error.message : 'Unknown error.'}`;
             state.oneLoopContext.transitionReason = 'error';
             state.oneLoopContext.logger.error(error, msg);
             finalText = msg;
-            return msg;
+            return {text: msg, state: 'error'};
         } finally {
             try {
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
@@ -208,8 +207,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                         text: finalText
                     });
                 }
-                if (state.oneLoopContext.transitionReason === 'clientLost') {
-                    finalText = this.wrapExternalFlagMessage(finalText, 'clientLost');
+                if (isExternalStopReason(state.oneLoopContext.transitionReason)) {
+                    finalText = this.wrapExternalFlagMessage(finalText, state.oneLoopContext.transitionReason);
                 }
                 return finalText;
             }
@@ -273,9 +272,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         try {
             if (state.oneLoopContext.transitionReason === 'error') {
                 await HookManager.emitVisitor('turnError', state.oneLoopContext);
-            } else if (this.externalFlag) {
-                state.oneLoopContext.transitionReason = this.externalFlag;
-                await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, this.externalFlag);
+            } else if (this.externalStopReason) {
+                state.oneLoopContext.transitionReason = this.externalStopReason;
+            }
+            if (isExternalStopReason(state.oneLoopContext.transitionReason)) {
+                await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, state.oneLoopContext.transitionReason);
+            }
+            if (isPauseInLoopReason(state.oneLoopContext.transitionReason)) {
+                await HookManager.emitVisitor('turnPauseInLoop', state.oneLoopContext, state.oneLoopContext.transitionReason);
             }
             await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
         } finally {
@@ -284,6 +288,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         return state.oneLoopContext.transitionReason !== 'endLoop'
             && state.oneLoopContext.transitionReason !== 'error'
             && !isExternalStopReason(state.oneLoopContext.transitionReason)
+            && !isPauseInLoopReason(state.oneLoopContext.transitionReason)
             && !isToolStopReason(state.oneLoopContext.transitionReason);
     }
 
@@ -300,13 +305,21 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
-        let toolStop = false;
         for (const toolUseDef of toolUseDefs) {
-            if (toolStop) {
+            if (isToolStopReason(context.transitionReason)) {
                 const toolResult = {
                     result: {
                         id: toolUseDef.id,
                         content: `Tool call execution skipped because loop paused for user review: ${context.toolStopText}`
+                    }
+                };
+                results.push(toolResult.result);
+                continue;
+            } else if (isPauseInLoopReason(context.transitionReason)) {
+                const toolResult = {
+                    result: {
+                        id: toolUseDef.id,
+                        content: `Tool call execution skipped because loop paused due to ${context.transitionReason}`
                     }
                 };
                 results.push(toolResult.result);
@@ -321,9 +334,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 });
             } else {
                 const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
-                if (!toolStop && isToolStopReason(context.transitionReason)) {
-                    toolStop = true;
-                }
                 results.push(toolResult.result);
                 await HookManager.emitVisitor('postEachToolUse', context, {toolUseDef, result: toolResult});
             }
@@ -340,8 +350,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             this.llm.getTextFromInputMessage(messages[messages.length - 1]!);
     }
 
-    public setExternalFlag(flag?: ExternalStopReason): void {
-        this.externalFlag = flag;
+    public setExternalStopReason(reason: ExternalStopReason | undefined): void {
+        this.externalStopReason = reason;
     }
 
     protected abstract extractToolUseFromResponse(result: O): ToolUseDef[];

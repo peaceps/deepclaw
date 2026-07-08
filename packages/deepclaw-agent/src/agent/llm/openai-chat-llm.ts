@@ -12,7 +12,7 @@ import {
  } from 'openai/resources/completions.js';
 import { LLMModel } from './llmgw';
 import { LLMTool } from '../definitions/tool-definitions';
-import { TransitionReason } from '../definitions/definitions';
+import { TransitionReason } from '@deepclaw/core';
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |

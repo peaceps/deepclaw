@@ -1,33 +1,12 @@
 import { DistributiveOmit } from '@deepclaw/utils';
 import {
-    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent,
+    AgentInfoEvent, AgentStreamEvent, AgentToolResultEvent,
     getFlushAgentKey, AgentInteractionEventPayload
 } from './flush-agent-event';
-
-export type LLMGWConfig = {
-    model: string,
-    timeoutMs: number, // JSON: seconds → client: ms
-    temperature: number,
-    maxTokens: number
-}
-
-export type AgentHandler = {
-    onStreamText(e: AgentStreamEvent): void;
-    onToolText(e: AgentToolResultEvent): void;
-    onInteractionEvent(event: AgentInteractionEvent): Promise<string>;
-    onInfoEvent(event: AgentInfoEvent): void;
-}
-
-export type SealedAgentHandler = {
-    onStreamText(e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>): void;
-    onToolText(e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>): void;
-    onInteractionEvent(event: AgentInteractionEventPayload & {clientId: string}): Promise<string>;
-    onInfoEvent(event: Omit<AgentInfoEvent, 'eventType'>): void;
-}
-
-export type AgentInvokeOptions = {
-    clientId: string;
-}
+import {
+    AgentHandler, SealedAgentHandler, TransitionReason,
+    AgentInvokeOptions, AgentInvokeResponse
+} from './flush-agent-types';
 
 export abstract class FlushAgent {
     protected agentId: string;
@@ -65,26 +44,26 @@ export abstract class FlushAgent {
         };
     }
 
-    protected abstract _invoke(input: string, options?: AgentInvokeOptions): Promise<string>;
+    protected abstract _invoke(input: string, options?: AgentInvokeOptions): Promise<AgentInvokeResponse>;
 
     protected getId() {
         return getFlushAgentKey(this.agentId, this.projectId);
     }
 
-    async invoke(input: string, options: AgentInvokeOptions): Promise<string> {
+    async invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         try {
             const res = await this._invoke(input, options);
-            return this.finishInvoke(options.clientId, res);
+            return this.finishInvoke(options.clientId, res.text, res.state);
         } catch (e: any) {
-            return this.finishInvoke(options.clientId, e?.message || '');
+            return this.finishInvoke(options.clientId, e?.message || '', 'error');
         }
     }
 
-    private finishInvoke(clientId: string, content: string): Promise<string> {
+    private finishInvoke(clientId: string, content: string, state: TransitionReason): Promise<AgentInvokeResponse> {
         return new Promise((resolve) => {
             setTimeout(() => {
                 this.flusher({eventType: 'stream', clientId, text: content, done: true});
-                resolve(content);
+                resolve({text: content, state});
             }, 100);
         });
     }

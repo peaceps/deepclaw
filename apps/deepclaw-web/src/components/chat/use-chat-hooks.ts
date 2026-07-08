@@ -3,7 +3,7 @@ import { useSSEClient } from '@/components/layout/SSEProvider';
 import { SSECancelInteractEvent, SSEChatEvent, SSEConnectedEvent, SSEInteractEvent, SSELoopBusyEvent, SSELoopStreamEvent } from "@/app/api/sse-types";
 import { getLogger } from "@/lib/logger";
 import { useModalStore } from '@/lib/modal-store';
-import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction } from "@/server/loop-agent";
+import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction, updateChatMessage } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import { useTranslation } from 'react-i18next';
 import { AgentEmployee, ChatMessage, LOOP_BUSY_ERROR, newMessage } from "@deepclaw/core";
@@ -45,6 +45,7 @@ export function useSSEConnection(
     const showModal = useModalStore(s => s.showModal);
     const closeModal = useModalStore(s => s.closeModal);
     const addMessage = useAppStore(s => s.addMessage);
+    const updateMessage = useAppStore(s => s.updateMessage);
     const setChatBusy = useAppStore(s => s.setChatBusy);
 
     useEffect(() => {
@@ -93,7 +94,11 @@ export function useSSEConnection(
             'chat',
             (data) => {
               if (data.loopId !== loopId || data.clientId === browserId) return;
-              addMessage(loopId, data.content);
+              if (data.update) {
+                updateMessage(loopId, data.content.id, data.content.content);
+              } else {
+                addMessage(loopId, data.content);
+              }
             },
           ),
         ];
@@ -137,7 +142,7 @@ export function useSend(
 ) {
     const browserId = useAppStore(s => s.browserId);
     const addMessage = useAppStore(s => s.addMessage);
-    const updateMessageStream = useAppStore(s => s.updateMessageStream);
+    const updateMessage = useAppStore(s => s.updateMessage);
     const getMessageById = useAppStore(s => s.getMessageById);
     const setChatBusy = useAppStore(s => s.setChatBusy);
     const sseClient = useSSEClient();
@@ -147,6 +152,11 @@ export function useSend(
     const loopId = chatKey;
     const sseUrl = loopSSEConnection(browserId, loopId);
 
+    function addAndFireMessage(msg: ChatMessage) {
+        addMessage(loopId, msg);
+        pushChatMessage(loopId, browserId, msg);
+    }
+
     function persistLoopSSE(msgId: string) {
         return sseClient.subscribePersistent<SSELoopStreamEvent>(
           sseUrl,
@@ -154,11 +164,11 @@ export function useSend(
           (data) => {
             if (data.loopId !== loopId || data.clientId !== browserId) return;
             if (!data.done) {
-              updateMessageStream(data.loopId, msgId, data.content);
+              updateMessage(data.loopId, msgId, data.content);
             } else {
               const msg = getMessageById(data.loopId, msgId);
               if (msg) {
-                pushChatMessage(data.loopId, browserId, msg);
+                updateChatMessage(data.loopId, browserId, msg.id, msg.content);
               }
               setStreaming(false);
             }
@@ -176,17 +186,16 @@ export function useSend(
         setInput('');
         setStreaming(true);
         setChatBusy(loopId, true);
-        const newUserMsg = newMessage('user', agent.id, trimmed);
-        addMessage(loopId, newUserMsg);
-        pushChatMessage(loopId, browserId, newUserMsg);
+        addAndFireMessage(newMessage('user', agent.id, trimmed));
         const newAgentMsg = newMessage('agent', agent.id, '');
-        addMessage(loopId, newAgentMsg);
+        addAndFireMessage(newAgentMsg);
         const unsubscribeMessageStream = persistLoopSSE(newAgentMsg.id);
         invoke(agent.id, projectId, browserId, trimmed).catch(err => {
             unsubscribeMessageStream();
             const busy = err instanceof Error && err.message === LOOP_BUSY_ERROR;
             const text = busy ? t('web.pages.chat.busy', { name: agent.name }) : t('web.pages.chat.invoke.error');
-            updateMessageStream(loopId, newAgentMsg.id, `\n${text}`);
+            updateMessage(loopId, newAgentMsg.id, `\n${text}`);
+            updateChatMessage(loopId, browserId, newAgentMsg.id, `\n${text}`);
             setStreaming(false);
             setChatBusy(loopId, busy);
         });

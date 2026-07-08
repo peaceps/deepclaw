@@ -13,13 +13,22 @@ class UIChatServiceImpl {
     private static persistedIndex: Map<string, number> = new Map();
     private static messageStore: Map<string, ChatMessage[]> = new Map();
 
-    public static addMessage(loopId: string, message: ChatMessage): void{
+    public static addMessage(loopId: string, message: ChatMessage): void {
         this.ensureMessageLoaded(loopId);
         const messages = this.messageStore.get(loopId)!;
         messages.push(message);
-        if (messages.length < SAVE_THRESHOLD || messages.length - (this.persistedIndex.get(loopId) ?? 0) >= SAVE_THRESHOLD) {
-            this.saveMessages(loopId);
+        this.saveMessagesIfNeeded(loopId);
+    }
+
+    public static replaceMessage(loopId: string, id: string, text: string): ChatMessage | undefined {
+        this.ensureMessageLoaded(loopId);
+        const messages = this.messageStore.get(loopId)!;
+        const message = messages.find(m => m.id === id);
+        if (message) {
+            message.content = text;
+            this.saveMessagesIfNeeded(loopId);
         }
+        return message;
     }
 
     public static getOlderMessages(loopId: string, endMessageId?: string): ChatMessage[] {
@@ -105,17 +114,19 @@ class UIChatServiceImpl {
         }
     }
 
-    public static saveMessages(loopId: string): void {
-        const chatFilePath = this.getChatFile(loopId);
-        const messages = this.messageStore.get(loopId) || [];
-        const from = this.persistedIndex.get(loopId) ?? 0;
-        const newMessages = messages.slice(from);
-        this.persistedIndex.set(loopId, messages.length);
-        const content = newMessages.map(m => JSON.stringify(m)).join('\n') + (newMessages.length > 0 ? '\n' : '');
-        try {
-            FileUtils.appendFile(chatFilePath, content);
-        } catch {
-            // TODO pass
+    public static saveMessagesIfNeeded(loopId: string): void {
+        const messages = this.messageStore.get(loopId)! || [];
+        if (messages.length < SAVE_THRESHOLD || messages.length - (this.persistedIndex.get(loopId) ?? 0) >= SAVE_THRESHOLD) {
+            const chatFilePath = this.getChatFile(loopId);
+            const from = this.persistedIndex.get(loopId) ?? 0;
+            const newMessages = messages.slice(from);
+            this.persistedIndex.set(loopId, messages.length);
+            const content = newMessages.map(m => JSON.stringify(m)).join('\n') + (newMessages.length > 0 ? '\n' : '');
+            try {
+                FileUtils.appendFile(chatFilePath, content);
+            } catch {
+                // TODO pass
+            }
         }
     }
 

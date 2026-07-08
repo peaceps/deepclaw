@@ -56,6 +56,7 @@ export type SSECancelInteractEvent = SSELoopEvent & {
 export type SSEChatEvent = SSELoopEvent & {
     sseType: 'chat';
     clientId: string;
+    update: boolean;
     content: ChatMessage;
 };
 

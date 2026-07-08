@@ -11,7 +11,7 @@ export const en = {
         maxTurnReached: 'Reached maximum turn count. Ending session.\n{{finalText}}',
         externalStop: {
             clientLost: 'Client lost connection. Ending session.',
-            afk: 'Client is AFK. Wait for back.',
+            afk: 'Client is navigation other pages. Wait for back to confirm.',
         },
         llm: {
             openai: {

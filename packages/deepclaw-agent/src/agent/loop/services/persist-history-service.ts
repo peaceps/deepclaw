@@ -1,6 +1,7 @@
 import { FileUtils } from "@deepclaw/node-utils";
 import { AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, SESSION_METADATA_FILE } from "../../paths";
-import { isToolStopReason, LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetadata } from "../../definitions/definitions";
+import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetadata } from "../../definitions/definitions";
+import { isToolStopReason } from "@deepclaw/core";
 
 const SESSION_TIMEOUT = 1000 * 60 * 60 * 24;
 const SAVE_THRESHOLD = 10;

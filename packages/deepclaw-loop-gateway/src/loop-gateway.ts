@@ -5,7 +5,7 @@ import type {
     ChatMessage
 } from "@deepclaw/core";
 import {
-    getFlushAgentKey, getInteractionId, LOOP_BUSY_ERROR, newMessage, splitFlushAgentKey
+    getFlushAgentKey, getInteractionId, isExternalStopReason, isPauseInLoopReason, LOOP_BUSY_ERROR, newMessage, splitFlushAgentKey
 } from "@deepclaw/core";
 import { DistributiveOmit, globalize } from "@deepclaw/utils";
 import {
@@ -54,12 +54,12 @@ class LoopGatewayImpl {
         this.fireSSEEvent('info', { eventType: 'info', ...e });
     }
 
-    public static fireChatMessageEvent(loopId: string, clientId: string, message: ChatMessage): void {
-        this.fireSSEEvent('loop', {eventType: 'chat', loopId, clientId, message})
+    public static fireChatMessageEvent(loopId: string, clientId: string, update: boolean, message: ChatMessage): void {
+        this.fireSSEEvent('loop', {eventType: 'chat', loopId, clientId, update, message})
     }
 
-    private static fireBusyEvent(loopId: string, busy: boolean): void {
-        this.fireSSEEvent('loop', { eventType: 'busy', loopId, busy });
+    private static fireBusyEvent(loopId: string): void {
+        this.fireSSEEvent('loop', { eventType: 'busy', loopId, busy: this.isLoopBusy(loopId) });
     }
 
     private static async fireWaitedSSEEvent(type: SSEType, e: AgentInteractionEvent): Promise<string> {
@@ -118,22 +118,31 @@ class LoopGatewayImpl {
         const loopState = this.loops[loopId]!;
         loopState.running = true;
         loopState.clientId = clientId;
-        this.fireBusyEvent(loopId, true);
-        loopState.loop.invoke(input, {clientId}).then((text) => {
-            if (loopState.loop.isClientLost()) {
-                this.addMessage(loopId, clientId, newMessage('agent', agentId, text));
-                loopState.loop.setExternalFlag(undefined);
+        this.fireBusyEvent(loopId);
+        loopState.loop.invoke(input, {clientId}).then(({text, state}) => {
+            if (!isPauseInLoopReason(state)) {
+                loopState.running = false;
+                if (isExternalStopReason(state)) {
+                    this.addMessage(loopId, clientId, newMessage('agent', agentId, text));
+                    loopState.loop.setExternalStopReason(undefined);
+                }
+                loopState.clientId = undefined;
             }
         }).catch(() => {}).finally(() => {
-            loopState.running = false;
-            loopState.clientId = undefined;
-            this.fireBusyEvent(loopId, false);
+            this.fireBusyEvent(loopId);
         });
     }
 
-    public static addMessage(loopId: string, clientId: string, message: ChatMessage) {
+    public static addMessage(loopId: string, clientId: string, message: ChatMessage): void {
         UIChatService.addMessage(loopId, message);
-        this.fireChatMessageEvent(loopId, clientId, message);
+        this.fireChatMessageEvent(loopId, clientId, false, message);
+    }
+
+    public static updateMessage(loopId: string, clientId: string, id: string, text: string): void {
+        const message = UIChatService.replaceMessage(loopId, id, text);
+        if (message) {
+            this.fireChatMessageEvent(loopId, clientId, true, message);
+        }
     }
 
     public static updateLoopConfig(config: DeepclawConfig) {
@@ -160,7 +169,7 @@ class LoopGatewayImpl {
         for (const loopId of Object.keys(this.loops)) {
             const loopState = this.loops[loopId];
             if (loopState && loopState.running && loopState.clientId === clientId) {
-                loopState.loop.setExternalFlag('clientLost');
+                loopState.loop.setExternalStopReason('clientLost');
                 this.cancelInteraction(loopId, clientId, `Client ${clientId} disconnected.`);
             }
         }

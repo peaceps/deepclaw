@@ -11,7 +11,7 @@ import {
     ResponseFunctionToolCall,
     ResponseOutputMessage,
 } from "openai/resources/responses/responses.js";
-import { TransitionReason } from "../definitions/definitions";
+import { TransitionReason } from "@deepclaw/core";
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
 

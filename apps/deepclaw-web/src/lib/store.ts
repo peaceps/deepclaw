@@ -45,7 +45,7 @@ type AppState = {
   getMessageById: (chatKey: string, id: string) => ChatMessage | undefined;
   getOldestMessageId: (chatKey: string) => string | undefined;
   getNewestMessageId: (chatKey: string) => string | undefined;
-  updateMessageStream: (chatKey: string, id: string, text: string) => void;
+  updateMessage: (chatKey: string, id: string, text: string) => void;
   setChatBusy: (chatKey: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
 }
@@ -122,7 +122,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   getMessageById: (chatKey: string, id: string) => {
     return get().messages[chatKey]?.findLast(m => m.id === id);
   },
-  updateMessageStream: (chatKey: string, id: string, text: string) => set((state) => {
+  updateMessage: (chatKey: string, id: string, text: string) => set((state) => {
     const message = state.getMessageById(chatKey, id);
     if (!message) {
         // PASS

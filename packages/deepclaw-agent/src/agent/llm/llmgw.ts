@@ -1,8 +1,7 @@
 import {AgentMode, LLMConfig} from '@deepclaw/config';
 import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
-import { TransitionReason } from '../definitions/definitions';
-import { LLMGWConfig } from '@deepclaw/core';
+import { LLMGWConfig, TransitionReason } from '@deepclaw/core';
 import { ToolsManager } from '../loop/services/tools-manager';
 
 const llmRetry = 3;

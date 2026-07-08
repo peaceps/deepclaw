@@ -1,5 +1,5 @@
 import type { Logger } from '@deepclaw/node-utils';
-import { SealedAgentHandler, type FlushAgent } from '@deepclaw/core';
+import { SealedAgentHandler, TransitionReason, type FlushAgent } from '@deepclaw/core';
 import { AgentConfig } from '@deepclaw/config';
 
 export type LLMProtocol = 'Anthropic' | 'OpenAIChat' | 'OpenAIResponse';
@@ -8,21 +8,6 @@ export type FootPrint = {
     type: string;
     content: string;
 }
-
-export const EXTERNAL_STOP_REASONS = ['clientLost', 'afk'] as const;
-export type ExternalStopReason = typeof EXTERNAL_STOP_REASONS[number];
-export function isExternalStopReason(reason?: TransitionReason): reason is ExternalStopReason {
-    return (EXTERNAL_STOP_REASONS as readonly string[]).includes(reason ?? '');
-}
-
-export const TOOL_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
-export type ToolStopReason = typeof TOOL_STOP_REASONS[number];
-export function isToolStopReason(reason?: TransitionReason): reason is ToolStopReason {
-    return (TOOL_STOP_REASONS as readonly string[]).includes(reason ?? '');
-}
-
-export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens'
-    | 'refused' | 'error' | ToolStopReason | ExternalStopReason;
 
 export type LoopState<I> = {
     messages: I[];

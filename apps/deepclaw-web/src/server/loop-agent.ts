@@ -22,3 +22,7 @@ export async function pullNewerMessages(loopId: string, startMessageId?: string)
 export async function pushChatMessage(loopId: string, clientId: string, message: ChatMessage): Promise<void> {
     LoopGateway.addMessage(loopId, clientId, message);
 }
+
+export async function updateChatMessage(loopId: string, clientId: string, id: string, text: string): Promise<void> {
+    LoopGateway.updateMessage(loopId, clientId, id, text);
+}

@@ -38,6 +38,7 @@ export type AgentChatEvent = FlushAgentEvent & {
     eventType: 'chat';
     loopId: string;
     clientId: string;
+    update: boolean;
     message: ChatMessage;
 };
 
