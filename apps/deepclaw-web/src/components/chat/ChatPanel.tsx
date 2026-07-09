@@ -22,7 +22,6 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const [previousChatKey, setPreviousChatKey] = useState(chatKey);
   const agentMessages = useAppStore(s => s.messages[chatKey]);
   const [input, setInput] = useState('');
-  const [streaming, setStreaming] = useState(false);
   const [chatInited, setChatInited] = useState(false);
   const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
 
@@ -30,7 +29,6 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
 
   if (chatKeyChanged) {
     setChatInited(false);
-    setStreaming(false);
     setInput('');
     setPreviousChatKey(chatKey);
   }
@@ -41,7 +39,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const handleScroll = useScroll(agentMessages, scrollRef);
 
   const { handleSend, handleKeyDown } = useSend(
-    chatKey, agent, projectId, input, setInput, streaming, setStreaming
+    chatKey, agent, projectId, input, setInput
   );
 
   useSSEConnection(chatInited, chatKey);
@@ -72,11 +70,11 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
                     messageTextStyles[message.type]
                 }`}
                 >
-                {(message.type === 'user' || (i === agentMessages.length - 1 && streaming)) && 
+                {(message.type === 'user' || (i === agentMessages.length - 1 && locked)) && 
                     <p className="text-sm whitespace-pre-wrap">
                         {message.content || t('web.pages.chat.loading')}
                     </p>}
-                {message.type === 'agent' && !(i === agentMessages.length - 1 && streaming) &&
+                {message.type === 'agent' && !(i === agentMessages.length - 1 && locked) &&
                     <Markdown content={message.content || t('web.pages.chat.loading')} />}
                 <p className={`text-xs mt-1 ${messageTimeStyles[message.type]}`}>
                   {formatDate(i18n.language, message.timestamp)}
@@ -91,10 +89,10 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           <input
             type="text"
             value={input}
-            disabled={streaming || locked}
+            disabled={locked}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={locked && !streaming
+            placeholder={locked
               ? t('web.pages.chat.busy', { name: agent.name })
               : t('web.pages.chat.send', { name: agent.name })}
             className="flex-1 px-4 py-2 border border-gray-200 rounded-lg disabled:bg-gray-50
@@ -102,9 +100,9 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           />
           <button
             onClick={handleSend}
-            disabled={!chatInited || streaming || locked}
+            disabled={!chatInited || locked}
             className={`px-4 py-2 bg-blue-500 text-white rounded-lg
-              ${streaming || locked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}
+              ${locked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}
               transition-colors flex items-center gap-2`}
           >
             <Send size={18} />

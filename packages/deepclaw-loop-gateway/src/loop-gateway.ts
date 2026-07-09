@@ -4,10 +4,12 @@ import type {
     AgentInfoEvent,
     ChatMessage,
     InvalidInteractionReason,
-    PauseInLoopReason
+    PauseInLoopReason,
+    AgentRuntime,
+    AgentInvokeResponse
 } from "@deepclaw/core";
 import {
-    getFlushAgentKey, getInteractionId, isExternalStopReason, isPauseInLoopReason, LOOP_BUSY_ERROR, newMessage, splitFlushAgentKey
+    getFlushAgentKey, getInteractionId, isExternalStopReason, isPauseInLoopReason, newMessage, splitFlushAgentKey
 } from "@deepclaw/core";
 import { DistributiveOmit, globalize } from "@deepclaw/utils";
 import {
@@ -17,9 +19,12 @@ import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
 
 type LoopState = {
+    agentId: string;
+    projectId: string;
     loop: LoopAgent<unknown, any, any>;
     running: boolean;
     browserId?: string;
+    runtime?: AgentRuntime;
 };
 type LoopStore = Record<string, LoopState>;
 export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
@@ -94,6 +99,8 @@ class LoopGatewayImpl {
         const {agentId, projectId = ''} = splitFlushAgentKey(loopId);
         if (!this.loops[loopId]) {
             this.loops[loopId] = {
+                agentId,
+                projectId,
                 loop: LoopInitializer.getLoop(agentId, projectId, {
                     onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
                     onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
@@ -109,27 +116,57 @@ class LoopGatewayImpl {
         return this.loops[loopId]?.running ?? false;
     }
 
-    public static async invoke(browserId: string, agentId: string, projectId: string, input: string): Promise<void> {
+    public static invoke(browserId: string, agentId: string, projectId: string, input: string): void {
         const loopId = getFlushAgentKey(agentId, projectId);
         if (!this.loops[loopId]) {
             this.init(loopId);
         }
         if (this.isLoopBusy(loopId)) {
-            throw new Error(LOOP_BUSY_ERROR);
+            return;
         }
         const loopState = this.loops[loopId]!;
+        loopState.runtime = undefined;
         loopState.running = true;
         loopState.browserId = browserId;
         this.fireBusyEvent(loopId);
-        loopState.loop.invoke(input, {browserId}).then(({text, runtime}) => {
+        this.invokeAndReturn(
+            loopId, loopState,
+            () => loopState.loop.invoke(input, {browserId: loopState.browserId!})
+        );
+    }
+
+    public static resume(browserId: string, loopId: string): boolean {
+        if (!this.loops[loopId]) {
+            return false;
+        }
+        const loopState = this.loops[loopId]!;
+        if (loopState.browserId !== browserId || !loopState.runtime) {
+            return false;
+        }
+        const runtime = loopState.runtime!
+        loopState.runtime = undefined;
+        this.invokeAndReturn(
+            loopId, loopState,
+            () => loopState.loop.resume({browserId: loopState.browserId!, runtime})
+        );
+        return true;
+    }
+
+    private static invokeAndReturn(
+        loopId: string, loopState: LoopState, invoke: () => Promise<AgentInvokeResponse>
+    ): void {
+        invoke().then(({text, runtime}) => {
             const state = runtime.transitionReason;
             if (!isPauseInLoopReason(state)) {
-                loopState.running = false;
                 if (isExternalStopReason(state)) {
-                    this.addMessage(browserId, loopId, newMessage('agent', agentId, text));
+                    this.addMessage(loopState.browserId!, loopId, newMessage('agent', loopState.agentId!, text));
                     loopState.loop.setExternalStopReason(undefined);
                 }
+                loopState.running = false;
                 loopState.browserId = undefined;
+                loopState.runtime = undefined;
+            } else {
+                loopState.runtime = runtime;
             }
         }).catch(() => {}).finally(() => {
             this.fireBusyEvent(loopId);

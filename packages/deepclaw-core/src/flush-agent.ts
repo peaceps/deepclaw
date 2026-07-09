@@ -47,8 +47,19 @@ export abstract class FlushAgent {
 
     protected abstract _invoke(input: string, options?: AgentInvokeOptions): Promise<AgentInvokeResponse>;
 
+    protected abstract _resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse>;
+
     protected getId() {
         return getFlushAgentKey(this.agentId, this.projectId);
+    }
+
+    async resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse> {
+        try {
+            const res = await this._resume(options);
+            return this.finishInvoke(options.browserId, res.text, res.runtime);
+        } catch (e: any) {
+            return this.finishInvoke(options.browserId, e?.message || '', this.emptyRuntime());
+        }
     }
 
     async invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {

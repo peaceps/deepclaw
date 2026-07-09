@@ -5,11 +5,12 @@ import { ChatMessage } from '@deepclaw/core';
 import { LoopGateway, UIChatService } from '@deepclaw/loop-gateway';
 
 export async function invoke(browserId: string, agentId: string, projectId: string, input: string): Promise<void> {
-    return LoopGateway.invoke(browserId, agentId, projectId, input);
+    LoopGateway.invoke(browserId, agentId, projectId, input);
 }
 
-export async function resumeLoop(browserId: string, loopId: string): Promise<void> {
+export async function resumeLoop(browserId: string, loopId: string): Promise<boolean> {
     SSEServer.resetClient(browserId, loopId);
+    return LoopGateway.resume(browserId, loopId);
 }
 
 export async function resolveInteraction(browserId: string, loopId: string, answer: string): Promise<boolean> {

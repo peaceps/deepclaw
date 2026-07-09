@@ -40,12 +40,14 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const invokeLlm = useCallback((userInput: string) => {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
-        LoopGateway.invoke(agentIdRef.current!, '', '', userInput).catch(err => {
+        try {
+            LoopGateway.invoke(agentIdRef.current!, '', '', userInput);
+        } catch (err: any) {
             setTimeout(() => {
-                handleLlmDone(`${t('common.error')} ${err.message?.trim() || t('common.unexpected')}`);
+                handleLlmDone(`${t('common.error')} ${err?.message?.trim() || t('common.unexpected')}`);
             }, 0);
-        });
-    }, [t, handleLlmDone]);
+        }
+    }, []);
 
     const handleAgentEvent = useCallback((event: AgentInteractionEventPayload): Promise<string> => {
         setAgentEvent(event);

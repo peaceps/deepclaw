@@ -50,6 +50,7 @@ export type SealedAgentHandler = {
 
 export type AgentInvokeOptions = {
     browserId: string;
+    runtime?: AgentRuntime;
 }
 
 export type AgentInvokeResponse = {

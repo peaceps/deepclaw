@@ -13,7 +13,7 @@ import {
     AgentInvokeResponse,
     isPauseInLoopReason,
     ExternalStopReason,
-    AgentRuntime
+    AgentRuntime,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -119,16 +119,30 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
+    protected override async _resume(
+        options: AgentInvokeOptions & {runtime: AgentRuntime}
+    ): Promise<AgentInvokeResponse> {
+        const state: LoopState<I> = {
+            messages: this.history,
+            oneLoopContext: this.initContext(options)
+        };
+        return this._invokeLoopAndReturn(state);
+    }
+
     protected async _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         this.addStringMessage(input);
         this.externalStopReason = undefined;
         const state: LoopState<I> = {
             messages: this.history,
-            oneLoopContext: this.initContext(options.browserId)
+            oneLoopContext: this.initContext(options)
         };
+        await HookManager.emitVisitor('preLoopStart', state.oneLoopContext);
+        return this._invokeLoopAndReturn(state);
+    }
+
+    private async _invokeLoopAndReturn(state: LoopState<I>): Promise<AgentInvokeResponse> {
         let finalText = '';
         try {
-            await HookManager.emitVisitor('preLoopStart', state.oneLoopContext);
             this.persistHistory(state.oneLoopContext, {
                 status: 'running',
             });
@@ -153,14 +167,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         }
     }
 
-    private initContext(browserId: string, runtime?: AgentRuntime): OneLoopContext {
+    private initContext(options: AgentInvokeOptions): OneLoopContext {
         return {
             loopId: this.getId(),
             isSubLoop: this.isSubLoop(),
             agentId: this.agentId,
             projectId: this.projectId,
             loopConfig: this.agentConfig,
-            browserId,
+            browserId: options.browserId,
             sessionDir: this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
             system: '',
             logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
@@ -171,7 +185,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 agentHandler: this.agentHandler,
                 addStringMessage: this.addStringMessage.bind(this),
             },
-            runtime: runtime ?? {
+            runtime: options.runtime ?? {
                 ...this.emptyRuntime(),
                 historyPersistIndex: this.historyPersistIndex,
             }
