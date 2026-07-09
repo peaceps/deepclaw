@@ -1,36 +1,38 @@
 import { FileUtils } from "@deepclaw/node-utils";
-import { AGENT_SESSION_DIR, AGENTS_DIR, MESSAGE_SNAPSHOT_FILE, SESSION_METADATA_FILE } from "../../paths";
-import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetadata } from "../../definitions/definitions";
-import { isToolStopReason } from "@deepclaw/core";
+import { AGENT_SESSION_DIR, AGENTS_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE } from "../../paths";
+import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetaData } from "../../definitions/definitions";
+import { isExternalStopReason, isPauseInLoopReason, isToolStopReason } from "@deepclaw/core";
 
 const SESSION_TIMEOUT = 1000 * 60 * 60 * 24;
 const SAVE_THRESHOLD = 10;
 
 export type MetaDataConfig = {
-    llmProtocol: LLMProtocol;
+    sessionDir: string,
     sessionId: string;
+    agentId: string,
+    projectId: string,
+    loopId: string,
+    isSubLoop: boolean,
+    llmProtocol: LLMProtocol;
     parentSessionId: string;
-    status?: LoopSessionStatus;
-    finalText?: string;
-    forceMessagesSnapshot?: boolean;
 }
 
 export class PersistHistoryService {
 
     public static loadLatestAgentSessionId(agentId: string, protocol: LLMProtocol): string {
         const sessionRoot = `${AGENTS_DIR}/${agentId}/${AGENT_SESSION_DIR}`;
-        const sessionId = FileUtils.findLatest(sessionRoot, MESSAGE_SNAPSHOT_FILE);
+        const sessionId = FileUtils.findLatest(sessionRoot, SESSION_HISTORY_FILE);
         if (!sessionId) {
             return '';
         }
         try {
             const metaFile = FileUtils.readFile(`${sessionRoot}/${sessionId}/${SESSION_METADATA_FILE}`);
-            const meta = JSON.parse(metaFile) as SessionMetadata;
+            const meta = JSON.parse(metaFile) as SessionMetaData;
             if (meta.llmProtocol !== protocol) {
                 return '';
             }
-            const status = meta.status;
-            const date = new Date(meta.updatedAt);
+            const status = meta.runtime.status;
+            const date = new Date(meta.runtime.updatedAt);
             if (Number.isNaN(date.getTime())) {
                 return '';
             }
@@ -42,7 +44,7 @@ export class PersistHistoryService {
                 case 'paused':
                     timeout = SESSION_TIMEOUT * 7;
                     break;
-                case 'ended':
+                case 'idle':
                 case 'error':
                 default:
                     timeout = 0;
@@ -59,31 +61,55 @@ export class PersistHistoryService {
 
     public static loadHistory<I>(sessionDir: string): I[] {
         try {
-            const content = FileUtils.readFile(`${sessionDir}/${MESSAGE_SNAPSHOT_FILE}`);
-            const messages = content.split('\n').filter(line => !!line.trim()).map(line => JSON.parse(line) as I);
-            return messages;
+            const historyFile = `${sessionDir}/${SESSION_HISTORY_FILE}`;
+            const content = FileUtils.readFile(historyFile);
+            return content.split('\n').filter(line => !!line.trim()).map(line => JSON.parse(line) as I);
         } catch {
             return [];
         }
     }
+
+    public static ensureSessionFilesExist(config: MetaDataConfig): void {
+        const sessionDir = config.sessionDir;
+        const historyFile = `${sessionDir}/${SESSION_HISTORY_FILE}`;
+        const metaFile = `${sessionDir}/${SESSION_METADATA_FILE}`;
+        FileUtils.ensureFileExist(historyFile);
+        const now = new Date().toISOString();
+        const metaData: SessionMetaData = {
+            llmProtocol: config.llmProtocol,
+            agentId: config.agentId,
+            projectId: config.projectId,
+            sessionId: config.sessionId,
+            parentSessionId: config.parentSessionId || undefined,
+            loopId: config.loopId,
+            isSubLoop: config.isSubLoop,
+            messagesPath: historyFile,
+            runtime: {
+                status: 'idle',
+                turnCount: 0,
+                finalText: '',
+                updatedAt: now,
+            }
+        }
+        FileUtils.ensureFileExist(metaFile, JSON.stringify(metaData, null, 2));
+    }
     
-    public static saveHistory<I>(history: I[], context: OneLoopContext, config: MetaDataConfig): void {
+    public static saveHistory<I>(history: I[], context: OneLoopContext, runtime: Partial<SessionMetaData['runtime']> = {}, force: boolean = false): void {
         // Sub-loop context is intentionally not durably persisted; only parent/main loop state is durable.
         if (context.isSubLoop) {
             return;
         }
         try {
-            const now = new Date().toISOString();
-            const messagesPath = `${context.sessionDir}/${MESSAGE_SNAPSHOT_FILE}`;
-            if (config.forceMessagesSnapshot || context.runtime.turnCount > 0) {
+            const historyPath = `${context.sessionDir}/${SESSION_HISTORY_FILE}`;
+            if (force || context.runtime.turnCount > 0) {
                 try {
                     if (context.runtime.historyPersistIndex === 0) {
-                        FileUtils.writeFile(messagesPath, this.createJsonl(history));
+                        FileUtils.writeFile(historyPath, this.createJsonl(history));
                         context.runtime.historyPersistIndex = history.length;
                     } else {
                         const gap = history.length - context.runtime.historyPersistIndex;
-                        if (config.forceMessagesSnapshot || history.length < SAVE_THRESHOLD || gap >= SAVE_THRESHOLD) {
-                            FileUtils.appendFile(messagesPath,
+                        if (force || history.length < SAVE_THRESHOLD || gap >= SAVE_THRESHOLD) {
+                            FileUtils.appendFile(historyPath,
                                  this.createJsonl(history.slice(context.runtime.historyPersistIndex, history.length)));
                             context.runtime.historyPersistIndex = history.length;
                         }
@@ -92,29 +118,23 @@ export class PersistHistoryService {
                     // TODO ERROR HANDLE
                 }
             }
-            const status = config.status || this.getInvokeEndSessionStatus(context);
-            const metadata: SessionMetadata = {
-                llmProtocol: config.llmProtocol,
-                agentId: context.agentId,
-                projectId: context.projectId,
-                sessionId: config.sessionId,
-                parentSessionId: config.parentSessionId || undefined,
-                loopId: context.loopId,
-                isSubLoop: context.isSubLoop,
-                status,
-                transitionReason: context.runtime.transitionReason,
-                turnCount: context.runtime.turnCount,
-                messagesPath,
-                finalText: config.finalText,
-                updatedAt: now,
-                endedAt: status === 'running' ? undefined : now,
-            };
-            FileUtils.writeFile(
-                `${context.sessionDir}/${SESSION_METADATA_FILE}`, JSON.stringify(metadata, null, 2)
-            );
+            this.updateSessionRuntime(context.sessionDir, {...runtime, status: runtime.status ?? this.getLoopSessionStatus(context)})
         } catch (error) {
             context.logger.error(error, 'Persist loop state failed');
         }
+    }
+
+    public static updateSessionRuntime(sessionDir: string, runtime: Partial<SessionMetaData['runtime']>) {
+        const path = `${sessionDir}/${SESSION_METADATA_FILE}`;
+        const metaFile = FileUtils.readFile(path);
+        const meta = JSON.parse(metaFile) as SessionMetaData;
+        const now = new Date().toISOString();
+        Object.assign(meta.runtime, {
+            ...runtime,
+            updatedAt: now,
+            endedAt: runtime.status === 'idle' || runtime.status === 'error' ? now : undefined
+        });
+        FileUtils.writeFile(path, JSON.stringify(meta, null, 2));
     }
 
     private static createJsonl<I>(history: I[]): string {
@@ -122,23 +142,17 @@ export class PersistHistoryService {
     }
 
     private static getLoopSessionStatus(context: OneLoopContext): LoopSessionStatus {
-        if (context.runtime.transitionReason === 'error') {
+        const reason = context.runtime.transitionReason;
+        if (!context.runtime.transitionReason || reason === 'endLoop' || isExternalStopReason(reason)) {
+            return 'idle';
+        }
+        if (reason === 'error') {
             return 'error';
         }
-        if (isToolStopReason(context.runtime.transitionReason)) {
+        if (isToolStopReason(reason) || isPauseInLoopReason(reason)) {
             return 'paused';
         }
-        if (context.runtime.transitionReason === 'endLoop') {
-            return 'ended';
-        }
         return 'running';
-    }
-
-    private static getInvokeEndSessionStatus(context: OneLoopContext): LoopSessionStatus {
-        if (!context.runtime.transitionReason) {
-            return 'ended';
-        }
-        return this.getLoopSessionStatus(context);
     }
 
 }

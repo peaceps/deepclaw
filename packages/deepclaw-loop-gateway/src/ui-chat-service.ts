@@ -4,7 +4,6 @@ import { globalize } from '@deepclaw/utils';
 import { FileUtils } from '@deepclaw/node-utils';
 
 const PAGE_SIZE = 10;
-const SAVE_THRESHOLD = 5;
 
 // TODO FULL MEMORY
 class UIChatServiceImpl {
@@ -17,7 +16,9 @@ class UIChatServiceImpl {
         this.ensureMessageLoaded(loopId);
         const messages = this.messageStore.get(loopId)!;
         messages.push(message);
-        this.saveMessagesIfNeeded(loopId);
+        if (message.content) {
+            this.saveMessages(loopId);
+        }
     }
 
     public static replaceMessage(loopId: string, id: string, text: string): ChatMessage | undefined {
@@ -26,7 +27,7 @@ class UIChatServiceImpl {
         const message = messages.find(m => m.id === id);
         if (message) {
             message.content = text;
-            this.saveMessagesIfNeeded(loopId);
+            this.saveMessages(loopId);
         }
         return message;
     }
@@ -114,19 +115,17 @@ class UIChatServiceImpl {
         }
     }
 
-    public static saveMessagesIfNeeded(loopId: string): void {
+    private static saveMessages(loopId: string): void {
         const messages = this.messageStore.get(loopId)! || [];
-        if (messages.length < SAVE_THRESHOLD || messages.length - (this.persistedIndex.get(loopId) ?? 0) >= SAVE_THRESHOLD) {
-            const chatFilePath = this.getChatFile(loopId);
-            const from = this.persistedIndex.get(loopId) ?? 0;
-            const newMessages = messages.slice(from);
-            this.persistedIndex.set(loopId, messages.length);
-            const content = newMessages.map(m => JSON.stringify(m)).join('\n') + (newMessages.length > 0 ? '\n' : '');
-            try {
-                FileUtils.appendFile(chatFilePath, content);
-            } catch {
-                // TODO pass
-            }
+        const chatFilePath = this.getChatFile(loopId);
+        const from = this.persistedIndex.get(loopId) ?? 0;
+        const newMessages = messages.slice(from);
+        this.persistedIndex.set(loopId, messages.length);
+        const content = newMessages.map(m => JSON.stringify(m)).join('\n') + (newMessages.length > 0 ? '\n' : '');
+        try {
+            FileUtils.appendFile(chatFilePath, content);
+        } catch {
+            // TODO pass
         }
     }
 

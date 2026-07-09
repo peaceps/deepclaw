@@ -34,9 +34,9 @@ export type OneLoopContext = {
     runtime: AgentRuntime
 }
 
-export type LoopSessionStatus = 'running' | 'paused' | 'ended' | 'error';
+export type LoopSessionStatus = 'running' | 'paused' | 'idle' | 'error';
 
-export type SessionMetadata = {
+export type SessionMetaData = {
     llmProtocol: LLMProtocol;
     agentId: string;
     projectId: string;
@@ -44,11 +44,13 @@ export type SessionMetadata = {
     parentSessionId?: string;
     loopId: string;
     isSubLoop: boolean;
-    status: LoopSessionStatus;
-    transitionReason?: TransitionReason;
-    turnCount: number;
     messagesPath: string;
-    finalText?: string;
-    updatedAt: string;
-    endedAt?: string;
+    runtime: {
+        status: LoopSessionStatus;
+        transitionReason?: TransitionReason;
+        turnCount: number;
+        finalText?: string;
+        updatedAt: string;
+        endedAt?: string;
+    }
 }

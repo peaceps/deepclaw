@@ -31,7 +31,7 @@ import {
 } from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
-import { MetaDataConfig, PersistHistoryService } from '../services/persist-history-service';
+import { PersistHistoryService } from '../services/persist-history-service';
 
 export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason },
     LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
@@ -78,7 +78,18 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         if (this.isSubLoop() || history.length > 0) {
             return history;
         }
-        return PersistHistoryService.loadHistory(this.getSessionDir());
+        const sessionDir = this.getSessionDir();
+        PersistHistoryService.ensureSessionFilesExist({
+            sessionDir,
+            sessionId: this.sessionId,
+            parentSessionId: this.parentSessionId,
+            agentId: this.agentId,
+            projectId: this.projectId,
+            loopId: this.getId(),
+            isSubLoop: this.isSubLoop(),
+            llmProtocol: this.getLLMProtocol()
+        });
+        return PersistHistoryService.loadHistory(sessionDir);
     }
 
     protected getSessionDir() {
@@ -143,9 +154,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     private async _invokeLoopAndReturn(state: LoopState<I>): Promise<AgentInvokeResponse> {
         let finalText = '';
         try {
-            this.persistHistory(state.oneLoopContext, {
-                status: 'running',
-            });
+            PersistHistoryService.updateSessionRuntime(state.oneLoopContext.sessionDir, {status: 'running'});
             finalText = await this.agentLoop(state);
             return {text: finalText, runtime: state.oneLoopContext.runtime};
         } catch (error) {
@@ -158,10 +167,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             try {
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
             } finally {
-                this.persistHistory(state.oneLoopContext, {
-                    finalText,
-                    forceMessagesSnapshot: true
-                });
+                PersistHistoryService.saveHistory(this.history, state.oneLoopContext, {finalText}, true);
                 this.historyPersistIndex = state.oneLoopContext.runtime.historyPersistIndex;
             }
         }
@@ -295,22 +301,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             }
             await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
         } finally {
-            this.persistHistory(state.oneLoopContext, {});
+            PersistHistoryService.saveHistory(this.history, state.oneLoopContext);
         }
         return state.oneLoopContext.runtime.transitionReason !== 'endLoop'
             && state.oneLoopContext.runtime.transitionReason !== 'error'
             && !isExternalStopReason(state.oneLoopContext.runtime.transitionReason)
             && !isPauseInLoopReason(state.oneLoopContext.runtime.transitionReason)
             && !isToolStopReason(state.oneLoopContext.runtime.transitionReason);
-    }
-
-    private persistHistory(context: OneLoopContext, config: Partial<MetaDataConfig>): void {
-        PersistHistoryService.saveHistory(this.history, context, {
-            ...config,
-            llmProtocol: this.getLLMProtocol(),
-            sessionId: this.sessionId,
-            parentSessionId: this.parentSessionId,
-        });
     }
 
     protected abstract addTokenUsage(context: OneLoopContext, response: O): void;

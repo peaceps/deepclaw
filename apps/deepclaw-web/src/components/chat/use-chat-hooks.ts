@@ -6,6 +6,7 @@ import { useModalStore } from '@/lib/modal-store';
 import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction, updateChatMessage, resumeLoop } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import { AgentEmployee, ChatMessage, newMessage } from "@deepclaw/core";
+import { useTranslation } from "react-i18next";
 
 const logger = getLogger('useChatHooks');
 
@@ -128,9 +129,10 @@ export function useSend(
     const browserId = useAppStore(s => s.browserId);
     const addMessage = useAppStore(s => s.addMessage);
     const setChatBusy = useAppStore(s => s.setChatBusy);
-    const updateMessage = useAppStore(s => s.updateMessage);
     const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
     const subscribeStream = usePersistStream(browserId, loopId);
+    const { t } = useTranslation();
+    const invokeError = useInvokeError(browserId, loopId);
 
     function addAndFireMessage(msg: ChatMessage) {
         addMessage(loopId, msg);
@@ -147,12 +149,13 @@ export function useSend(
         const newAgentMsg = newMessage('agent', agent.id, '');
         addAndFireMessage(newAgentMsg);
         const unsubscribe = subscribeStream(newAgentMsg.id);
-        invoke(browserId, agent.id, projectId, trimmed).catch((e: any) => {
-          unsubscribe();
-          const text = e?.message?.trim();
-          updateMessage(loopId, newAgentMsg.id, text);
-          updateChatMessage(browserId, loopId, newAgentMsg.id, text);
-          setChatBusy(loopId, false);
+        invoke(browserId, agent.id, projectId, trimmed).then((busy: boolean) => {
+            if (busy) {
+                invokeError(newAgentMsg.id, t('web.pages.chat.busy', { name: agent.name }), true, unsubscribe);
+            }
+        }).catch((e: any) => {
+            logger.error(`Failed to invoke ${loopId}:`, e);
+            invokeError(newAgentMsg.id, t('web.pages.chat.invoke.error'), false, unsubscribe);
         });
       };
     
@@ -171,6 +174,20 @@ export function useSend(
       handleSend,
       handleKeyDown,
     };
+}
+
+function useInvokeError(browserId: string, loopId: string): (
+    msgId: string, text: string, busy: boolean, unsubscribe: () => void
+) => void {
+    const setChatBusy = useAppStore(s => s.setChatBusy);
+    const updateMessage = useAppStore(s => s.updateMessage);
+
+    return useCallback((msgId: string, text: string, busy: boolean, unsubscribe: () => void) => {
+        unsubscribe();
+        updateMessage(loopId, msgId, text);
+        updateChatMessage(browserId, loopId, msgId, text);
+        setChatBusy(loopId, busy);
+    }, [browserId, loopId, updateMessage, updateChatMessage, setChatBusy]);
 }
 
 function usePersistStream(

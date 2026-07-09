@@ -116,13 +116,13 @@ class LoopGatewayImpl {
         return this.loops[loopId]?.running ?? false;
     }
 
-    public static invoke(browserId: string, agentId: string, projectId: string, input: string): void {
+    public static invoke(browserId: string, agentId: string, projectId: string, input: string): boolean {
         const loopId = getFlushAgentKey(agentId, projectId);
         if (!this.loops[loopId]) {
             this.init(loopId);
         }
         if (this.isLoopBusy(loopId)) {
-            return;
+            return true;
         }
         const loopState = this.loops[loopId]!;
         loopState.runtime = undefined;
@@ -133,6 +133,7 @@ class LoopGatewayImpl {
             loopId, loopState,
             () => loopState.loop.invoke(input, {browserId: loopState.browserId!})
         );
+        return false;
     }
 
     public static resume(browserId: string, loopId: string): boolean {

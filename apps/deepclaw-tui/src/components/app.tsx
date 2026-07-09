@@ -47,7 +47,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
                 handleLlmDone(`${t('common.error')} ${err?.message?.trim() || t('common.unexpected')}`);
             }, 0);
         }
-    }, []);
+    }, [t, handleLlmDone]);
 
     const handleAgentEvent = useCallback((event: AgentInteractionEventPayload): Promise<string> => {
         setAgentEvent(event);
