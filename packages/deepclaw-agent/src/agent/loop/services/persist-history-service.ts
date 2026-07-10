@@ -1,7 +1,7 @@
 import { FileUtils } from "@deepclaw/node-utils";
 import { AGENT_SESSION_DIR, AGENTS_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE } from "../../paths";
 import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetaData } from "../../definitions/definitions";
-import { isExternalStopReason, isPauseInLoopReason, isToolStopReason } from "@deepclaw/core";
+import { isExternalStopReason, isToolStopReason, isToolInteractionPauseReason } from "@deepclaw/core";
 
 const SESSION_TIMEOUT = 1000 * 60 * 60 * 24;
 const SAVE_THRESHOLD = 10;
@@ -149,7 +149,7 @@ export class PersistHistoryService {
         if (reason === 'error') {
             return 'error';
         }
-        if (isToolStopReason(reason) || isPauseInLoopReason(reason)) {
+        if (isToolStopReason(reason) || isToolInteractionPauseReason(reason)) {
             return 'paused';
         }
         return 'running';

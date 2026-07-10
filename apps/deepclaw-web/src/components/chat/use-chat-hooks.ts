@@ -15,39 +15,44 @@ function loopSSEConnection(browserId: string, loopId: string): string {
     return `/api/loop?${params.toString()}`;
 }
 
-export function useInitChat(chatKey: string, chatKeyChanged: boolean,
+export function useInitChat(chatKey: string,
     setChatInited: React.Dispatch<React.SetStateAction<boolean>>,
+    setInput: React.Dispatch<React.SetStateAction<string>>,
 ) {
     const loopId = chatKey;
     const addPulledMessages = useAppStore(s => s.addPulledMessages);
     const getNewestMessageId = useAppStore(s => s.getNewestMessageId);
     const browserId = useAppStore(s => s.browserId);
-    const messagePullingRef = useRef(false);
-    const subscribeStream = usePersistStream(browserId, loopId);
 
     useEffect(() => {
-      if (!chatKeyChanged && messagePullingRef.current) return;
-      messagePullingRef.current = true;
+      setInput('');
+      let cancelled = false;
       const newestMessageId = getNewestMessageId(chatKey);
       pullNewerMessages(chatKey, newestMessageId).then(messages => {
+          if (cancelled) return;
           addPulledMessages(chatKey, messages);
-      }).then(() =>  resumeLoop(browserId, chatKey))
-      .then((resume: boolean) => {
-        if (newestMessageId && resume) {
-            subscribeStream(newestMessageId)
-        }
       }).catch(err => {
+          if (cancelled) return;
           logger.error('Failed to pull chat messages:', err);
       }).finally(() => {
+          if (cancelled) return;
           setChatInited(true);
-          messagePullingRef.current = false;
       });
-    }, [browserId, chatKey, chatKeyChanged, addPulledMessages, getNewestMessageId, setChatInited, subscribeStream]);
+
+      return () => {
+        cancelled = true;
+        setChatInited(false);
+      }
+    }, [
+        browserId, chatKey, setInput, addPulledMessages,
+        getNewestMessageId, setChatInited
+    ]);
 }
 
 export function useSSEConnection(
     chatInited: boolean,
     loopId: string,
+    setListening: React.Dispatch<React.SetStateAction<boolean>>,
 ) {
     const browserId = useAppStore(s => s.browserId);
     const sseClient = useSSEClient();
@@ -111,11 +116,39 @@ export function useSSEConnection(
             },
           ),
         ];
+
+        setListening(true);
     
         return () => {
           unsubscribers.forEach(unsubscribe => unsubscribe());
+          setListening(false);
         };
-    }, [chatInited, loopId, sseClient, setChatBusy, showModal, closeModal, addMessage, browserId, updateMessage]);
+    }, [
+        chatInited, loopId, sseClient, setChatBusy,
+        showModal, closeModal, addMessage,
+        setListening, browserId, updateMessage
+    ]);
+}
+
+export function useLoopResume(listening: boolean, loopId: string) {
+    const browserId = useAppStore(s => s.browserId);
+    const getNewestMessageId = useAppStore(s => s.getNewestMessageId);
+    const subscribeStream = usePersistStream(browserId, loopId);
+
+    useEffect(() => {
+        if (!listening) return;
+        const newestMessageId = getNewestMessageId(loopId);
+        let unsubscribe: (() => void) | null = null;
+
+        let cancelled = false;
+        resumeLoop(browserId, loopId).then((resume) => {
+          if (cancelled) return;
+          if (newestMessageId && resume) unsubscribe = subscribeStream(newestMessageId);
+        });
+
+        return () => { cancelled = true; unsubscribe?.(); };
+
+    }, [listening, browserId, loopId, getNewestMessageId, subscribeStream])
 }
 
 export function useSend(
@@ -187,7 +220,7 @@ function useInvokeError(browserId: string, loopId: string): (
         updateMessage(loopId, msgId, text);
         updateChatMessage(browserId, loopId, msgId, text);
         setChatBusy(loopId, busy);
-    }, [browserId, loopId, updateMessage, updateChatMessage, setChatBusy]);
+    }, [browserId, loopId, updateMessage, setChatBusy]);
 }
 
 function usePersistStream(

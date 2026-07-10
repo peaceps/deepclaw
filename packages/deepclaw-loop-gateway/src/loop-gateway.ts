@@ -4,12 +4,13 @@ import type {
     AgentInfoEvent,
     ChatMessage,
     InvalidInteractionReason,
-    PauseInLoopReason,
+    ToolInteractionPauseReason,
     AgentRuntime,
     AgentInvokeResponse
 } from "@deepclaw/core";
 import {
-    getFlushAgentKey, getInteractionId, isExternalStopReason, isPauseInLoopReason, newMessage, splitFlushAgentKey
+    getFlushAgentKey, getInteractionId, isExternalStopReason, isToolInteractionPauseReason,
+    newMessage, splitFlushAgentKey
 } from "@deepclaw/core";
 import { DistributiveOmit, globalize } from "@deepclaw/utils";
 import {
@@ -158,7 +159,7 @@ class LoopGatewayImpl {
     ): void {
         invoke().then(({text, runtime}) => {
             const state = runtime.transitionReason;
-            if (!isPauseInLoopReason(state)) {
+            if (!isToolInteractionPauseReason(state)) {
                 if (isExternalStopReason(state)) {
                     this.addMessage(loopState.browserId!, loopId, newMessage('agent', loopState.agentId!, text));
                     loopState.loop.setExternalStopReason(undefined);
@@ -258,7 +259,9 @@ class LoopGatewayImpl {
         return false;
     }
 
-    public static cancelInteraction(browserId: string, loopId: string, reason: InvalidInteractionReason | PauseInLoopReason): void {
+    public static cancelInteraction(
+        browserId: string, loopId: string, reason: InvalidInteractionReason | ToolInteractionPauseReason
+    ): void {
         const interactionId = getInteractionId(browserId, loopId);
         const resolver = this.waitingInteractions.get(interactionId);
         if (resolver) {

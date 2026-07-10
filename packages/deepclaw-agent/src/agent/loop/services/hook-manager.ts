@@ -1,4 +1,4 @@
-import { ExternalStopReason, PauseInLoopReason } from '@deepclaw/core';
+import { ExternalStopReason, ToolInteractionPauseReason } from '@deepclaw/core';
 import type { OneLoopContext } from '../../definitions/definitions';
 import type { ToolUseDef } from '../../definitions/tool-definitions';
 import type { ToolUseServiceResult } from './tool-use-service';
@@ -21,7 +21,7 @@ type VisitorHook =
     'historyCompacted' |
     'postEachToolUse' |
     'turnExternalStop' |
-    'turnPauseInLoop';
+    'toolInteractionPause';
 type Hook = InterceptorHook | VisitorHook;
 
 type HookContent = {
@@ -36,7 +36,7 @@ type HookContent = {
     toolResultCompacted: number;
     historyCompacted: number;
     turnExternalStop: ExternalStopReason;
-    turnPauseInLoop: PauseInLoopReason;
+    toolInteractionPause: ToolInteractionPauseReason;
 };
 type HookContentMap = { [K in Hook]: HookContent[K] };
 

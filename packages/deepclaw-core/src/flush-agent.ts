@@ -6,7 +6,8 @@ import {
 import {
     AgentHandler, SealedAgentHandler,
     AgentInvokeOptions, AgentInvokeResponse,
-    AgentRuntime
+    AgentRuntime,
+    BREAK_POINTS
 } from './flush-agent-types';
 
 export abstract class FlushAgent {
@@ -75,6 +76,7 @@ export abstract class FlushAgent {
         return {
             turnCount: 0,
             historyPersistIndex: 0,
+            breakPoint: {point: BREAK_POINTS.none},
             recoveryState: {
                 maxTokenRetries: 0,
                 refusalState: '' // TODO: 添加拒绝状态

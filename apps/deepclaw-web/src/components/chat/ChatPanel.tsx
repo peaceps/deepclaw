@@ -9,7 +9,7 @@ import { useAppStore, getChatKey } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { Markdown } from "./Markdown";
-import { useInitChat, useSSEConnection, useScroll, useSend } from "./use-chat-hooks";
+import { useInitChat, useSSEConnection, useScroll, useSend, useLoopResume } from "./use-chat-hooks";
 
 type ChatPanelProps = {
   agent: AgentEmployee;
@@ -19,21 +19,15 @@ type ChatPanelProps = {
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const { t, i18n } = useTranslation();
   const chatKey = getChatKey(agent.id, projectId);
-  const [previousChatKey, setPreviousChatKey] = useState(chatKey);
   const agentMessages = useAppStore(s => s.messages[chatKey]);
   const [input, setInput] = useState('');
   const [chatInited, setChatInited] = useState(false);
+  const [listening, setListening] = useState(false);
   const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
 
-  const chatKeyChanged = chatKey !== previousChatKey;
-
-  if (chatKeyChanged) {
-    setChatInited(false);
-    setInput('');
-    setPreviousChatKey(chatKey);
-  }
-
-  useInitChat(chatKey, chatKeyChanged, setChatInited);
+  useInitChat(chatKey, setChatInited, setInput);
+  useSSEConnection(chatInited, chatKey, setListening);
+  useLoopResume(listening, chatKey);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleScroll = useScroll(agentMessages, scrollRef);
@@ -41,8 +35,6 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const { handleSend, handleKeyDown } = useSend(
     chatKey, agent, projectId, input, setInput
   );
-
-  useSSEConnection(chatInited, chatKey);
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">

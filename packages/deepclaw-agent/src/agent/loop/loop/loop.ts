@@ -11,9 +11,10 @@ import {
     isExternalStopReason,
     isToolStopReason,
     AgentInvokeResponse,
-    isPauseInLoopReason,
+    isToolInteractionPauseReason,
     ExternalStopReason,
     AgentRuntime,
+    BREAK_POINTS,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -137,6 +138,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             messages: this.history,
             oneLoopContext: this.initContext(options)
         };
+        if (options.runtime.breakPoint.point === BREAK_POINTS.toolUse) {
+            state.oneLoopContext.runtime.transitionReason = 'toolUse';
+        }
         return this._invokeLoopAndReturn(state);
     }
 
@@ -165,6 +169,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             return {text: msg, runtime: state.oneLoopContext.runtime};
         } finally {
             try {
+                // clear to remove breakpoint guard
+                state.oneLoopContext.runtime.breakPoint.break = undefined;
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
             } finally {
                 PersistHistoryService.saveHistory(this.history, state.oneLoopContext, {finalText}, true);
@@ -200,32 +206,36 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
-            if (state.oneLoopContext.runtime.turnCount >= this.turnLimit) {
-                state.oneLoopContext.runtime.transitionReason = 'endLoop';
-                const finalText = i18nInstance.t('agent.maxTurnReached', {
-                    finalText: this.extractFinalText(state.messages)
-                });
-                this.agentHandler.onStreamText({
-                    browserId: state.oneLoopContext.browserId,
-                    text: finalText
-                });
-                return finalText;
+            const runtime = state.oneLoopContext.runtime;
+            if (runtime.breakPoint.point <= BREAK_POINTS.loopStart) {
+                runtime.breakPoint.point = BREAK_POINTS.none;
+                if (runtime.turnCount >= this.turnLimit) {
+                    runtime.transitionReason = 'endLoop';
+                    const finalText = i18nInstance.t('agent.maxTurnReached', {
+                        finalText: this.extractFinalText(state.messages)
+                    });
+                    this.agentHandler.onStreamText({
+                        browserId: state.oneLoopContext.browserId,
+                        text: finalText
+                    });
+                    return finalText;
+                }
+                state.oneLoopContext.system = PromptService.provideSystemPrompt(
+                    this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
+                    this.projectId, this.isSubLoop()
+                );
             }
-            state.oneLoopContext.system = PromptService.provideSystemPrompt(
-                this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
-                this.projectId, this.isSubLoop()
-            );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 let finalText = this.extractFinalText(state.messages);
-                if (finalText && state.oneLoopContext.runtime.transitionReason === 'error') {
+                if (finalText && runtime.transitionReason === 'error') {
                     this.agentHandler.onStreamText({
                         browserId: state.oneLoopContext.browserId,
                         text: finalText
                     });
                 }
-                if (isExternalStopReason(state.oneLoopContext.runtime.transitionReason)) {
-                    finalText = this.wrapExternalFlagMessage(finalText, state.oneLoopContext.runtime.transitionReason);
+                if (isExternalStopReason(runtime.transitionReason)) {
+                    finalText = this.wrapExternalFlagMessage(finalText, runtime.transitionReason);
                 }
                 return finalText;
             }
@@ -243,40 +253,52 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
-        await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
-        const response = await this.llm.invoke(
-            state.oneLoopContext.loopConfig.mode,
-            state.oneLoopContext.system,
-            state.messages,
-            (text: string) => this.agentHandler.onStreamText({
-                browserId: state.oneLoopContext.browserId,
-                text
-            }),
-            state.oneLoopContext.logger
-        );
+        const runtime = state.oneLoopContext.runtime;
+        let response: O | undefined = undefined;
+        if (!runtime.breakPoint.break && runtime.breakPoint.point <= BREAK_POINTS.callLLM) {
+            runtime.breakPoint.point = BREAK_POINTS.none;
+            await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
+            response = await this.llm.invoke(
+                state.oneLoopContext.loopConfig.mode,
+                state.oneLoopContext.system,
+                state.messages,
+                (text: string) => this.agentHandler.onStreamText({
+                    browserId: state.oneLoopContext.browserId,
+                    text
+                }),
+                state.oneLoopContext.logger
+            );
 
-        this.addTokenUsage(state.oneLoopContext, response);
+            this.addTokenUsage(state.oneLoopContext, response);
 
-        state.oneLoopContext.runtime.turnCount++;
-        state.oneLoopContext.runtime.transitionReason = response.transitionReason;
+            state.oneLoopContext.runtime.turnCount++;
+            state.oneLoopContext.runtime.transitionReason = response.transitionReason;
+        }
 
-        switch (state.oneLoopContext.runtime.transitionReason) {
+        switch (runtime.transitionReason) {
             case 'toolUse':
-                const toolUseDefs = this.extractToolUseFromResponse(response);
-                const results = await this.runTools(toolUseDefs, state.oneLoopContext);
-                this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-                if (isToolStopReason(state.oneLoopContext.runtime.transitionReason)) {
-                    const stopText = i18nInstance.t(`agent.tools.project.stop.${state.oneLoopContext.runtime.transitionReason as string}`);
-                    this.addStringMessage(stopText || `Loop paused: ${state.oneLoopContext.runtime.transitionReason}`, false);
+                if (!runtime.breakPoint.break && runtime.breakPoint.point <= BREAK_POINTS.toolUse) {
+                    const toolUseDefs = runtime.breakPoint.point === BREAK_POINTS.toolUse ?
+                        runtime.breakPoint.input as ToolUseDef[] : this.extractToolUseFromResponse(response!);
+                    runtime.breakPoint.point = BREAK_POINTS.none;
+
+                    const results = await this.runTools(toolUseDefs, state.oneLoopContext);
+                    this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
+                    if (isToolStopReason(runtime.transitionReason)) {
+                        const stopText = i18nInstance.t(`agent.tools.project.stop.${runtime.transitionReason as string}`);
+                        this.addStringMessage(stopText || `Loop paused: ${runtime.transitionReason}`, false);
+                    } else if (isToolInteractionPauseReason(runtime.transitionReason)) {
+                        await HookManager.emitVisitor('toolInteractionPause', state.oneLoopContext, runtime.transitionReason);
+                    }
                 }
                 break;
             case 'inputMaxTokens':
                 await this.compactIfNeeded(state.oneLoopContext);
                 break;
             case 'maxTokens':
-                state.oneLoopContext.runtime.recoveryState.maxTokenRetries++;
-                if (state.oneLoopContext.runtime.recoveryState.maxTokenRetries >= this.maxTokenRetries) {
-                    state.oneLoopContext.runtime.transitionReason = 'error';
+                runtime.recoveryState.maxTokenRetries++;
+                if (runtime.recoveryState.maxTokenRetries >= this.maxTokenRetries) {
+                    runtime.transitionReason = 'error';
                     break;
                 }
                 // TODO: Handle max tokens/输入测token管理
@@ -287,49 +309,41 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 // TODO: Handle refused 输入侧意图识别分类/模式匹配 -> 询问用户
                 break;
         }
-        try {
-            if (state.oneLoopContext.runtime.transitionReason === 'error') {
-                await HookManager.emitVisitor('turnError', state.oneLoopContext);
-            } else if (this.externalStopReason) {
-                state.oneLoopContext.runtime.transitionReason = this.externalStopReason;
+        if (!runtime.breakPoint.break && runtime.breakPoint.point <= BREAK_POINTS.postTurn) {
+            runtime.breakPoint.point = BREAK_POINTS.none;
+            try {
+                if (runtime.transitionReason === 'error') {
+                    await HookManager.emitVisitor('turnError', state.oneLoopContext);
+                } else if (this.externalStopReason) {
+                    runtime.transitionReason = this.externalStopReason;
+                }
+                if (isExternalStopReason(runtime.transitionReason)) {
+                    await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, runtime.transitionReason);
+                }
+                await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
+            } finally {
+                PersistHistoryService.saveHistory(this.history, state.oneLoopContext);
             }
-            if (isExternalStopReason(state.oneLoopContext.runtime.transitionReason)) {
-                await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, state.oneLoopContext.runtime.transitionReason);
-            }
-            if (isPauseInLoopReason(state.oneLoopContext.runtime.transitionReason)) {
-                await HookManager.emitVisitor('turnPauseInLoop', state.oneLoopContext, state.oneLoopContext.runtime.transitionReason);
-            }
-            await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
-        } finally {
-            PersistHistoryService.saveHistory(this.history, state.oneLoopContext);
         }
-        return state.oneLoopContext.runtime.transitionReason !== 'endLoop'
-            && state.oneLoopContext.runtime.transitionReason !== 'error'
-            && !isExternalStopReason(state.oneLoopContext.runtime.transitionReason)
-            && !isPauseInLoopReason(state.oneLoopContext.runtime.transitionReason)
-            && !isToolStopReason(state.oneLoopContext.runtime.transitionReason);
+        return !runtime.breakPoint.break && runtime.transitionReason !== 'endLoop'
+            && runtime.transitionReason !== 'error'
+            && !isExternalStopReason(runtime.transitionReason)
+            && !isToolInteractionPauseReason(runtime.transitionReason)
+            && !isToolStopReason(runtime.transitionReason);
     }
 
     protected abstract addTokenUsage(context: OneLoopContext, response: O): void;
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
-        for (const toolUseDef of toolUseDefs) {
+        for (let i = 0; i < toolUseDefs.length; i++) {
+            const toolUseDef = toolUseDefs[i]!;
             if (isToolStopReason(context.runtime.transitionReason)) {
                 const stopText = i18nInstance.t(`agent.tools.project.stop.${context.runtime.transitionReason}`);
                 const toolResult = {
                     result: {
                         id: toolUseDef.id,
                         content: `Tool call execution skipped because loop paused for user review: ${stopText}`
-                    }
-                };
-                results.push(toolResult.result);
-                continue;
-            } else if (isPauseInLoopReason(context.runtime.transitionReason)) {
-                const toolResult = {
-                    result: {
-                        id: toolUseDef.id,
-                        content: `Tool call execution skipped because loop paused due to ${context.runtime.transitionReason}`
                     }
                 };
                 results.push(toolResult.result);
@@ -344,6 +358,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 });
             } else {
                 const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
+                if (isToolInteractionPauseReason(context.runtime.transitionReason)) {
+                    context.runtime.breakPoint = {
+                        point: BREAK_POINTS.toolUse,
+                        input: toolUseDefs.slice(i),
+                        break: true
+                    }
+                    return results;
+                }
                 results.push(toolResult.result);
                 await HookManager.emitVisitor('postEachToolUse', context, {toolUseDef, result: toolResult});
             }

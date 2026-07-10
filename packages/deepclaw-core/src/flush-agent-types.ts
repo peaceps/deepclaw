@@ -11,7 +11,7 @@ export type LLMGWConfig = {
 }
 
 export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens'
-    | 'refused' | 'error' | ToolStopReason | ExternalStopReason | PauseInLoopReason;
+    | 'refused' | 'error' | ToolStopReason | ExternalStopReason | ToolInteractionPauseReason;
 
 export const EXTERNAL_STOP_REASONS = ['clientLost'] as const;
 export type ExternalStopReason = typeof EXTERNAL_STOP_REASONS[number];
@@ -19,10 +19,10 @@ export function isExternalStopReason(reason?: TransitionReason): reason is Exter
     return (EXTERNAL_STOP_REASONS as readonly string[]).includes(reason ?? '');
 }
 
-export const PAUSE_IN_LOOP_REASONS = ['afk'] as const;
-export type PauseInLoopReason = typeof PAUSE_IN_LOOP_REASONS[number];
-export function isPauseInLoopReason(reason?: TransitionReason): reason is PauseInLoopReason {
-    return (PAUSE_IN_LOOP_REASONS as readonly string[]).includes(reason ?? '');
+export const TOOL_INTERACTION_PAUSE_REASONS = ['afk'] as const;
+export type ToolInteractionPauseReason = typeof TOOL_INTERACTION_PAUSE_REASONS[number];
+export function isToolInteractionPauseReason(reason?: TransitionReason): reason is ToolInteractionPauseReason {
+    return (TOOL_INTERACTION_PAUSE_REASONS as readonly string[]).includes(reason ?? '');
 }
 
 export const INVALID_INTERACTION_REASONS = ['timeout', 'disconnected', 'error'] as const;
@@ -58,10 +58,18 @@ export type AgentInvokeResponse = {
     runtime: AgentRuntime;
 };
 
+export const BREAK_POINTS = {none: 0, loopStart: 1, callLLM: 2, toolUse: 3, postTurn: 4} as const;
+export type BreakPoint = keyof typeof BREAK_POINTS;
+
 export type AgentRuntime = {
     turnCount: number;
     transitionReason?: TransitionReason;
     historyPersistIndex: number;
+    breakPoint: {
+        point: typeof BREAK_POINTS[BreakPoint];
+        input?: unknown;
+        break?: boolean;
+    }
     recoveryState: {
         maxTokenRetries: number;
         refusalState: '' // TODO: 添加拒绝状态
