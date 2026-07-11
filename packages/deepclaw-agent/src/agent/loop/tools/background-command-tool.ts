@@ -104,3 +104,37 @@ ${JSON.stringify(commands)}`;
     }
 
 }
+
+type RemoveBackgroundCommandInput = {
+    commandId: string;
+};
+
+export const removeBackgroundCommand: ToolDesc<RemoveBackgroundCommandInput> = {
+    tool: {
+        name: 'remove_background_command',
+        description: 'Remove the background task record after it is done and output consumed.',
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                commandId: {
+                    type: 'string',
+                    description: 'The ID of the background command to remove.',
+                }
+            },
+            required: ['commandId'],
+        },
+    },
+    agentMode: ['agent'],
+    parallelSafe: true,
+    exclusiveInSubLoop: false,
+    invoke: async function(input: RemoveBackgroundCommandInput): Promise<string> {
+        const { commandId } = input;
+        const command = BackgroundCommandManager.getCommandStatus(commandId);
+        if (command.status === 'running') {
+            return `Command ${commandId} is running, cannot remove.`;
+        }
+        BackgroundCommandManager.removeCommand(commandId);
+        return `Command "${commandId}" is removed`;
+    }
+}

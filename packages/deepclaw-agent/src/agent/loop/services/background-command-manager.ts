@@ -53,6 +53,15 @@ export class BackgroundCommandManager {
         };
     }
 
+    public static removeCommand(commandId: string): void {
+        const command = this.commands.get(commandId);
+        this.completedCommands.delete(commandId);
+        this.commands.delete(commandId);
+        if (command?.outputPath) {
+            FileUtils.deleteFile(command.outputPath);
+        }
+    }
+
     public static getAllCommandsStatus(): BackGroundCommandInfo[] {
         const allCommands: BackGroundCommandInfo[] = [];
         for (const command of this.commands.values()) {

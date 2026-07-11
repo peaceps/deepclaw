@@ -42,9 +42,16 @@ export class FileUtils {
     }
 
     public static appendFile(filePath: string, content: string): void {
-        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
+        const absolutePath = this.getAbsolutePath(filePath);
         this.ensureFolderExist(absolutePath);
         fs.appendFileSync(absolutePath, content, 'utf8');
+    }
+
+    public static deleteFile(filePath: string): void {
+        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
+        if (fs.existsSync(absolutePath)) {
+            fs.rmSync(absolutePath, {force: true});
+        }
     }
 
     public static findLatest(folder: string, subFile: string = ''): string {

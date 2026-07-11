@@ -5,6 +5,7 @@ import {loadSkillTool} from '../tools/skill-tool';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool';
 import {
     runBackgroundCommandTool,
+    removeBackgroundCommand,
     checkAllBackgroundCommandStatusTool,
     checkBackgroundCommandStatusTool
 } from '../tools/background-command-tool';
@@ -30,6 +31,7 @@ const tools: ToolDesc<any>[] = [
     getProjectListTool,
     createSimpleTaskTool,
     runBackgroundCommandTool,
+    removeBackgroundCommand,
     checkAllBackgroundCommandStatusTool,
     checkBackgroundCommandStatusTool
 ];
