@@ -27,6 +27,16 @@ export const en = {
             send: 'Send',
             ok: 'OK',
         },
+        toast: {
+            interactionPause: {
+                role: {
+                    agent: 'Agent',
+                    project: 'Project'
+                },
+                title: 'Interaction request',
+                message: '{{role}} ({{name}}) has an interaction request.'
+            }
+        },
         sidebar: {
             subtitle: 'You are not alone',
             links: {

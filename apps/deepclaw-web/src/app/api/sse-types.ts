@@ -1,7 +1,7 @@
 import { AgentEmployee, AgentInteractionEvent, ChatMessage, Project } from "@deepclaw/core";
 import { SSEType } from "@deepclaw/loop-gateway";
 
-export const INFO_SSE_TYPES = ['updateProject', 'updateAgent'] as const;
+export const INFO_SSE_TYPES = ['updateProject', 'updateAgent', 'toast'] as const;
 export const LOOP_SSE_TYPES = ['streamText', 'loopBusy', 'interact', 'cancelInteract', 'chat'] as const;
 export type SSEInfoEventType = typeof INFO_SSE_TYPES[number];
 export type SSELoopEventType = typeof LOOP_SSE_TYPES[number];
@@ -28,6 +28,10 @@ export type SSEAgentInfoEvent = SSEInfoEvent & ({
     sseType: 'updateAgent'
     content: Partial<AgentEmployee> & {id: string}
 });
+export type SSEToastEvent = SSEInfoEvent & {
+    sseType: 'toast';
+    content: {key: string, data: unknown};
+}
 
 type SSELoopEvent = SSEEvent & ({
     sseType: SSELoopEventType;

@@ -3,7 +3,7 @@ import { useSSEClient } from '@/components/layout/SSEProvider';
 import { SSECancelInteractEvent, SSEChatEvent, SSEConnectedEvent, SSEInteractEvent, SSELoopBusyEvent, SSELoopStreamEvent } from "@/app/api/sse-types";
 import { getLogger } from "@/lib/logger";
 import { useModalStore } from '@/lib/modal-store';
-import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction, updateChatMessage, resumeLoop } from "@/server/loop-agent";
+import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction, updateChatMessage, resumeLoop, inactiveLoop } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import { AgentEmployee, ChatMessage, newMessage } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
@@ -15,11 +15,10 @@ function loopSSEConnection(browserId: string, loopId: string): string {
     return `/api/loop?${params.toString()}`;
 }
 
-export function useInitChat(chatKey: string,
+export function useInitChat(loopId: string,
     setChatInited: React.Dispatch<React.SetStateAction<boolean>>,
     setInput: React.Dispatch<React.SetStateAction<string>>,
 ) {
-    const loopId = chatKey;
     const addPulledMessages = useAppStore(s => s.addPulledMessages);
     const getNewestMessageId = useAppStore(s => s.getNewestMessageId);
     const browserId = useAppStore(s => s.browserId);
@@ -27,10 +26,10 @@ export function useInitChat(chatKey: string,
     useEffect(() => {
       setInput('');
       let cancelled = false;
-      const newestMessageId = getNewestMessageId(chatKey);
-      pullNewerMessages(chatKey, newestMessageId).then(messages => {
+      const newestMessageId = getNewestMessageId(loopId);
+      pullNewerMessages(loopId, newestMessageId).then(messages => {
           if (cancelled) return;
-          addPulledMessages(chatKey, messages);
+          addPulledMessages(loopId, messages);
       }).catch(err => {
           if (cancelled) return;
           logger.error('Failed to pull chat messages:', err);
@@ -42,9 +41,10 @@ export function useInitChat(chatKey: string,
       return () => {
         cancelled = true;
         setChatInited(false);
+        inactiveLoop(browserId, loopId);
       }
     }, [
-        browserId, chatKey, setInput, addPulledMessages,
+        browserId, loopId, setInput, addPulledMessages,
         getNewestMessageId, setChatInited
     ]);
 }
@@ -152,17 +152,16 @@ export function useLoopResume(listening: boolean, loopId: string) {
 }
 
 export function useSend(
-    chatKey: string,
+    loopId: string,
     agent: AgentEmployee,
     projectId: string,
     input: string,
     setInput: React.Dispatch<React.SetStateAction<string>>,
 ) {
-    const loopId = chatKey;
     const browserId = useAppStore(s => s.browserId);
     const addMessage = useAppStore(s => s.addMessage);
     const setChatBusy = useAppStore(s => s.setChatBusy);
-    const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
+    const locked = useAppStore(s => !!s.busyChatKeys[loopId]);
     const subscribeStream = usePersistStream(browserId, loopId);
     const { t } = useTranslation();
     const invokeError = useInvokeError(browserId, loopId);

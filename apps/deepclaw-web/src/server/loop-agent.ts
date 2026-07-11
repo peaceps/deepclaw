@@ -9,8 +9,12 @@ export async function invoke(browserId: string, agentId: string, projectId: stri
 }
 
 export async function resumeLoop(browserId: string, loopId: string): Promise<boolean> {
-    SSEServer.resetClient(browserId, loopId);
+    SSEServer.activeClient(browserId, loopId, true);
     return LoopGateway.resume(browserId, loopId);
+}
+
+export async function inactiveLoop(browserId: string, loopId: string): Promise<void> {
+    SSEServer.activeClient(browserId, loopId, false);
 }
 
 export async function resolveInteraction(browserId: string, loopId: string, answer: string): Promise<boolean> {

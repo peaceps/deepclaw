@@ -3,8 +3,10 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getLogger } from '@/lib/logger';
-import type { SSEAgentInfoEvent, SSEConnectedEvent, SSEProjectInfoEvent } from '@/app/api/sse-types';
+import type { SSEAgentInfoEvent, SSEConnectedEvent, SSEProjectInfoEvent, SSEToastEvent } from '@/app/api/sse-types';
 import { useSSEClient } from './SSEProvider';
+import { useToastStore } from '@/lib/toast-store';
+import { ToastService } from '@/lib/toast-service';
 
 const logger = getLogger('InfoClient');
 
@@ -12,7 +14,10 @@ export function InfoClient() {
   const sseClient = useSSEClient();
   const browserId = useAppStore(s => s.browserId);
   const updateProject = useAppStore(s => s.updateProject);
+  const getAgents = useAppStore(s => s.getAgents);
+  const getProjects = useAppStore(s => s.getProjects);
   const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
+  const show = useToastStore(t => t.show);
 
   useEffect(() => {
     const INFO_SSE_URL = `/api/info?browserId=${browserId}`;
@@ -39,12 +44,22 @@ export function InfoClient() {
           updateAgentEmployee(content.id, content);
         },
       ),
+      sseClient.subscribe<SSEToastEvent>(
+        INFO_SSE_URL,
+        'toast',
+        ({content}) => {
+          const {title, message} = ToastService.parseToastEvent(content, getProjects() , getAgents());
+          if (message) {
+            show({type: 'info', title, message});
+          }
+        },
+      ),
     ];
 
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [sseClient, updateProject, updateAgentEmployee, browserId]);
+  }, [sseClient, updateProject, updateAgentEmployee, browserId, getAgents, getProjects, show]);
 
   return <></>;
 }

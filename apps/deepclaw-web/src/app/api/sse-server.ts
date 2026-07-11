@@ -13,7 +13,8 @@ import {
     type SSECancelInteractEvent,
     type SSEChatEvent,
     INFO_SSE_TYPES,
-    SSEEventType 
+    SSEEventType, 
+    SSEToastEvent
 } from "./sse-types";
 
 class SSEServerImpl {
@@ -51,12 +52,20 @@ class SSEServerImpl {
         for (const client of clients) {
             this.sendEvent(type, client, event, data);
         }
-        if (event === 'interact') {
-            const browserOpen = allClients.some(client => client.browserId === (data as SSEInteractEvent).browserId);
-            if (browserOpen && !clients.length) {
-                const interactionData = data as SSEInteractEvent;
-                LoopGateway.cancelInteraction(interactionData.browserId, interactionData.loopId, 'afk');
-            }
+        if (event === 'interact' && !clients.length) {
+            this.handleInteractionPause(data as SSEInteractEvent);
+        }
+    }
+
+    private static handleInteractionPause(data: SSEInteractEvent) {
+        const infoClient = this.sseStore['info'].clients.get(data.browserId);
+        if (infoClient) {
+            const interactionData = data as SSEInteractEvent;
+            LoopGateway.cancelInteraction(interactionData.browserId, interactionData.loopId, 'afk');
+
+            this.sendEvent('info', infoClient, 'toast', {
+                sseType: 'toast', content: {key: 'interactionPause', data: data.loopId}
+            } as SSEToastEvent);
         }
     }
 
@@ -156,11 +165,11 @@ class SSEServerImpl {
         }
     }
 
-    public static resetClient(browserId: string, loopId: string): void {
+    public static activeClient(browserId: string, loopId: string, active: boolean): void {
         const store = this.sseStore.loop;
         for (const client of store.clients.values()) {
-            if (client.browserId === browserId) {
-                client.active = client.loopId === loopId;
+            if (client.browserId === browserId && client.loopId === loopId) {
+                client.active = active;
             }
         }
     }

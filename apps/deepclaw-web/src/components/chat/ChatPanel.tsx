@@ -1,11 +1,11 @@
 'use client';
 
-import { AgentEmployee } from "@deepclaw/core";
+import { AgentEmployee, getFlushAgentKey } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
-import { useAppStore, getChatKey } from '@/lib/store';
+import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { Markdown } from "./Markdown";
@@ -18,22 +18,22 @@ type ChatPanelProps = {
 
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const { t, i18n } = useTranslation();
-  const chatKey = getChatKey(agent.id, projectId);
-  const agentMessages = useAppStore(s => s.messages[chatKey]);
+  const loopId = getFlushAgentKey(agent.id, projectId);
+  const agentMessages = useAppStore(s => s.messages[loopId]);
   const [input, setInput] = useState('');
   const [chatInited, setChatInited] = useState(false);
   const [listening, setListening] = useState(false);
-  const locked = useAppStore(s => !!s.busyChatKeys[chatKey]);
+  const locked = useAppStore(s => !!s.busyChatKeys[loopId]);
 
-  useInitChat(chatKey, setChatInited, setInput);
-  useSSEConnection(chatInited, chatKey, setListening);
-  useLoopResume(listening, chatKey);
+  useInitChat(loopId, setChatInited, setInput);
+  useSSEConnection(chatInited, loopId, setListening);
+  useLoopResume(listening, loopId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleScroll = useScroll(agentMessages, scrollRef);
 
   const { handleSend, handleKeyDown } = useSend(
-    chatKey, agent, projectId, input, setInput
+    loopId, agent, projectId, input, setInput
   );
 
   if (agent.fired) {

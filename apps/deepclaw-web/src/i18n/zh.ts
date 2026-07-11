@@ -27,6 +27,16 @@ export const zh = {
             send: '发送',
             ok: '确定',
         },
+        toast: {
+            interactionPause: {
+                role: {
+                    agent: '员工',
+                    project: '项目'
+                },
+                title: '互动请求',
+                message: '{{role}}（{{name}}）有一个互动请求'
+            }
+        },
         sidebar: {
             subtitle: '一个人也可以很热闹',
             links: {

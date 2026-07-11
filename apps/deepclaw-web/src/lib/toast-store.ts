@@ -59,15 +59,3 @@ export const useToastStore = create<ToastState>((set, get) => ({
 
   clear: () => set({ toasts: [] }),
 }));
-
-// Convenience helpers (can be called outside React components)
-export const toast = {
-  success: (message: string, opts?: Partial<Pick<ToastItem, 'title' | 'duration'>>) =>
-    useToastStore.getState().show({ type: 'success', message, ...opts }),
-  error: (message: string, opts?: Partial<Pick<ToastItem, 'title' | 'duration'>>) =>
-    useToastStore.getState().show({ type: 'error', message, duration: 6000, ...opts }),
-  warning: (message: string, opts?: Partial<Pick<ToastItem, 'title' | 'duration'>>) =>
-    useToastStore.getState().show({ type: 'warning', message, ...opts }),
-  info: (message: string, opts?: Partial<Pick<ToastItem, 'title' | 'duration'>>) =>
-    useToastStore.getState().show({ type: 'info', message, ...opts }),
-};
