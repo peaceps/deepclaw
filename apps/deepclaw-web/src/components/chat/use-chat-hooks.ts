@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useSSEClient } from '@/components/layout/SSEProvider';
-import { SSECancelInteractEvent, SSEChatEvent, SSEConnectedEvent, SSEInteractEvent, SSELoopBusyEvent, SSELoopStreamEvent } from "@/app/api/sse-types";
+import { SSEConnectedEvent } from "@/app/api/sse-types";
 import { getLogger } from "@/lib/logger";
 import { useModalStore } from '@/lib/modal-store';
 import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction, updateChatMessage, resumeLoop, inactiveLoop } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
-import { AgentEmployee, ChatMessage, newMessage } from "@deepclaw/core";
+import { AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, newMessage } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
+import { AgentCancelInteractionEvent, AgentChatEvent, AgentLoopBusyEvent } from "@deepclaw/loop-gateway";
 
 const logger = getLogger('useChatHooks');
 
@@ -74,20 +75,20 @@ export function useSSEConnection(
               logger.info(`Connected for ${content}.`);
             },
           ),
-          sseClient.subscribe<SSELoopBusyEvent>(
+          sseClient.subscribe<AgentLoopBusyEvent>(
             sseUrl,
-            'loopBusy',
-            (data) => {
-              if (data.loopId !== loopId) return;
-              setChatBusy(loopId, data.busy);
+            'busy',
+            (event) => {
+              if (event.loopId !== loopId) return;
+              setChatBusy(loopId, event.busy);
             },
           ),
-          sseClient.subscribe<SSEInteractEvent>(
+          sseClient.subscribe<AgentInteractionEvent>(
             sseUrl,
-            'interact',
-            (data) => {
-              if (data.loopId !== loopId || data.browserId !== browserId) return;
-              showModal(loopId, data.content).then((answer) => {
+            'interaction',
+            (event) => {
+              if (event.loopId !== loopId || event.browserId !== browserId) return;
+              showModal(loopId, event).then((answer) => {
                 if (answer === null) return;
                 resolveInteraction(browserId, loopId, answer).catch((err) => {
                   logger.error('Failed to resolve interaction:', err);
@@ -95,23 +96,23 @@ export function useSSEConnection(
               });
             },
           ),
-          sseClient.subscribe<SSECancelInteractEvent>(
+          sseClient.subscribe<AgentCancelInteractionEvent>(
             sseUrl,
-            'cancelInteract',
-            (data) => {
-              if (data.loopId !== loopId || data.browserId !== browserId) return;
+            'cancelInteraction',
+            (event) => {
+              if (event.loopId !== loopId || event.browserId !== browserId) return;
               closeModal(null);
             },
           ),
-          sseClient.subscribe<SSEChatEvent>(
+          sseClient.subscribe<AgentChatEvent>(
             sseUrl,
             'chat',
-            (data) => {
-              if (data.loopId !== loopId || data.browserId === browserId) return;
-              if (data.update) {
-                updateMessage(loopId, data.content.id, data.content.content);
+            (event) => {
+              if (event.loopId !== loopId || event.browserId === browserId) return;
+              if (event.update) {
+                updateMessage(loopId, event.message.id, event.message.content);
               } else {
-                addMessage(loopId, data.content);
+                addMessage(loopId, event.message);
               }
             },
           ),
@@ -229,22 +230,22 @@ function usePersistStream(
     const updateMessage = useAppStore(s => s.updateMessage);
     const sseClient = useSSEClient();
 
-    const stream = useCallback((msgId: string) => sseClient.subscribePersistent<SSELoopStreamEvent>(
+    const stream = useCallback((msgId: string) => sseClient.subscribePersistent<AgentStreamEvent>(
       loopSSEConnection(browserId, loopId),
-      'streamText',
-      (data) => {
-        if (data.loopId !== loopId || data.browserId !== browserId) return;
-        if (!data.done) {
-          updateMessage(data.loopId, msgId, data.content);
+      'stream',
+      (event) => {
+        if (event.loopId !== loopId || event.browserId !== browserId) return;
+        if (!event.done) {
+          updateMessage(event.loopId, msgId, event.text);
         } else {
-          const msg = getMessageById(data.loopId, msgId);
+          const msg = getMessageById(event.loopId, msgId);
           if (msg) {
-            updateChatMessage(browserId, data.loopId, msg.id, msg.content);
+            updateChatMessage(browserId, event.loopId, msg.id, msg.content);
           }
         }
       },
       {
-        removeOn: ({done}) => done,
+        removeOn: ({done}) => !!done,
       },
     ), [browserId, loopId, getMessageById, sseClient, updateMessage]);
 

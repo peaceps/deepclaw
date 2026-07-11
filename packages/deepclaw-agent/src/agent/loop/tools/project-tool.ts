@@ -453,7 +453,7 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
 function fireProjectInfoEvent(projectId: string, context: OneLoopContext) {
     const project = ProjectManager.getProjectDetail(projectId);
     context.actions.agentHandler.onInfoEvent({
-        type: 'updateProject',
+        eventType: 'updateProject',
         content: project
     });
 }

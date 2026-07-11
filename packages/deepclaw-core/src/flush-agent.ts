@@ -1,4 +1,3 @@
-import { DistributiveOmit } from '@deepclaw/utils';
 import {
     AgentInfoEvent, AgentStreamEvent, AgentToolResultEvent,
     getFlushAgentKey, AgentInteractionEventPayload
@@ -38,11 +37,9 @@ export abstract class FlushAgent {
                 {eventType: 'toolResult', loopId: this.getId(), ...e}
             ),
             onInteractionEvent: (e: AgentInteractionEventPayload & {browserId: string}) => handler.onInteractionEvent(
-                {eventType: 'interact', loopId: this.getId(), ...e}
+                {eventType: 'interaction', loopId: this.getId(), ...e}
             ),
-            onInfoEvent: (e: DistributiveOmit<AgentInfoEvent, 'eventType'>) => handler.onInfoEvent(
-                {eventType: 'info', ...e}
-            )
+            onInfoEvent: (e: AgentInfoEvent) => handler.onInfoEvent(e)
         };
     }
 

@@ -3,10 +3,11 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getLogger } from '@/lib/logger';
-import type { SSEAgentInfoEvent, SSEConnectedEvent, SSEProjectInfoEvent, SSEToastEvent } from '@/app/api/sse-types';
+import type { SSEConnectedEvent, SSEToastEvent } from '@/app/api/sse-types';
 import { useSSEClient } from './SSEProvider';
 import { useToastStore } from '@/lib/toast-store';
 import { ToastService } from '@/lib/toast-service';
+import { AgentAgentInfoEvent, AgentProjectInfoEvent } from '@deepclaw/core';
 
 const logger = getLogger('InfoClient');
 
@@ -30,14 +31,14 @@ export function InfoClient() {
           logger.info(`Connected for ${content}.`);
         },
       ),
-      sseClient.subscribe<SSEProjectInfoEvent>(
+      sseClient.subscribe<AgentProjectInfoEvent>(
         INFO_SSE_URL,
         'updateProject',
         ({content}) => {
           updateProject(content);
         },
       ),
-      sseClient.subscribe<SSEAgentInfoEvent>(
+      sseClient.subscribe<AgentAgentInfoEvent>(
         INFO_SSE_URL,
         'updateAgent',
         ({content}) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { SSEEventType } from '@/app/api/sse-types';
+import { SSEEvent } from '@/app/api/sse-types';
 import { getLogger } from '@/lib/logger';
 
 const logger = getLogger('SSEClient');
@@ -35,7 +35,7 @@ export class SSEClient {
 
   public subscribe<T>(
     url: string,
-    eventName: SSEEventType,
+    eventName: SSEEvent['eventType'],
     handler: SSEHandler<T>,
   ): () => void {
     const connection = this.getOrCreateConnection(url);
@@ -61,7 +61,7 @@ export class SSEClient {
 
   public subscribePersistent<T>(
     url: string,
-    eventName: SSEEventType,
+    eventName: SSEEvent['eventType'],
     handler: SSEHandler<T>,
     options: SSEPersistentOptions<T> = {},
   ): () => void {

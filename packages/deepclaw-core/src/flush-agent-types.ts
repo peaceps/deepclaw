@@ -45,7 +45,7 @@ export type SealedAgentHandler = {
     onStreamText(e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>): void;
     onToolText(e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>): void;
     onInteractionEvent(event: AgentInteractionEventPayload & {browserId: string}): Promise<string>;
-    onInfoEvent(event: Omit<AgentInfoEvent, 'eventType'>): void;
+    onInfoEvent(event: AgentInfoEvent): void;
 }
 
 export type AgentInvokeOptions = {

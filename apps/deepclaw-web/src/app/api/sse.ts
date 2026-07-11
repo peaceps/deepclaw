@@ -1,5 +1,5 @@
 import { SSEServer } from "./sse-server";
-import type { SSEType } from "@deepclaw/loop-gateway";
+import { SSEType } from "./sse-types";
 
 export function newInfoSSEEndpoint(browserId: string): Response {
     return newSSEEndpoint('info', browserId);

@@ -1,4 +1,4 @@
-import { AgentEmployee, ChatMessage } from "./agent-definitions";
+import { AgentEmployee } from "./agent-definitions";
 import { Project } from "./project-definitions";
 import { DistributiveOmit } from "@deepclaw/utils";
 
@@ -17,49 +17,34 @@ export function getInteractionId(browserId: string, loopId: string): string {
 
 export const LOOP_BUSY_ERROR = 'LOOP_BUSY';
 
-export type AgentEvent = AgentInfoEvent | AgentStreamEvent | AgentChatEvent |
-    AgentLoopBusyEvent | AgentInteractionEvent | AgentCancelInteractionEvent;
+export type AgentEvent = AgentInfoEvent | AgentLoopEvent;
 
-type AgentEventType = 'info' | 'stream' | 'busy' | 'interact' | 'chat' | 'cancelInteract' | 'toolResult';
 
 type FlushAgentEvent = {
-    eventType: AgentEventType;
+    eventType: string;
 }
 
-export type AgentStreamEvent = FlushAgentEvent & {
-    eventType: 'stream';
+export type AgentLoopEvent = FlushAgentEvent & {
     loopId: string;
+}
+
+export type AgentStreamEvent = AgentLoopEvent & {
+    eventType: 'stream';
     browserId: string;
     text: string;
     done?: boolean;
 };
 
-export type AgentChatEvent = FlushAgentEvent & {
-    eventType: 'chat';
-    loopId: string;
-    browserId: string;
-    update: boolean;
-    message: ChatMessage;
-};
-
-export type AgentToolResultEvent = FlushAgentEvent & {
+export type AgentToolResultEvent = AgentLoopEvent & {
     eventType: 'toolResult';
-    loopId: string;
     toolName: string;
     data: any;
 };
 
-export type AgentLoopBusyEvent = FlushAgentEvent & {
-    eventType: 'busy';
-    loopId: string;
-    busy: boolean;
-};
-
 export type AgentInteractionEventOption = string | {label: string; value: string};
 
-export type AgentInteractionEvent = FlushAgentEvent & {
-    eventType: 'interact';
-    loopId: string;
+export type AgentInteractionEvent = AgentLoopEvent & {
+    eventType: 'interaction';
     browserId: string;
     content: string;
     i18nParam?: Record<string, string | number>;
@@ -75,16 +60,16 @@ export type AgentInteractionEvent = FlushAgentEvent & {
 
 export type AgentInteractionEventPayload = DistributiveOmit<AgentInteractionEvent, 'eventType' | 'loopId' | 'browserId'>;
 
-export type AgentCancelInteractionEvent = FlushAgentEvent & {
-    eventType: 'cancelInteract';
-    loopId: string;
-    browserId: string;
+export type AgentInfoEvent = FlushAgentEvent & {
+    content: unknown
+}
+
+export type AgentProjectInfoEvent = AgentInfoEvent & {
+    eventType: 'updateProject',
+    content: Partial<Project> & {id: string}
 };
 
-export type AgentInfoEvent = FlushAgentEvent & {eventType: 'info'} & ({
-    type: 'updateProject',
-    content: Partial<Project> & {id: string}
-} | {
-    type: 'updateAgent',
+export type AgentAgentInfoEvent = AgentInfoEvent & {
+    eventType: 'updateAgent',
     content: Partial<AgentEmployee> & {id: string}
-});
+}
