@@ -150,7 +150,7 @@ class LoopGatewayImpl {
         loopId: string, loopState: LoopState, invoke: () => Promise<AgentInvokeResponse>
     ): void {
         invoke().then(({text, runtime}) => {
-            const state = runtime.transitionReason;
+            const state = runtime.interruptReason;
             if (!isToolInteractionPauseReason(state)) {
                 if (isExternalStopReason(state)) {
                     this.addMessage(loopState.browserId!, loopId, newMessage('agent', loopState.agentId!, text));

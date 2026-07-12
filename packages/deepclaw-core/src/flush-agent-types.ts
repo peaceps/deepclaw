@@ -11,17 +11,19 @@ export type LLMGWConfig = {
 }
 
 export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens'
-    | 'refused' | 'error' | ToolStopReason | ExternalStopReason | ToolInteractionPauseReason;
+    | 'refused' | 'error';
+
+export type InterruptReason = ToolStopReason | ExternalStopReason | ToolInteractionPauseReason;
 
 export const EXTERNAL_STOP_REASONS = ['clientLost'] as const;
 export type ExternalStopReason = typeof EXTERNAL_STOP_REASONS[number];
-export function isExternalStopReason(reason?: TransitionReason): reason is ExternalStopReason {
+export function isExternalStopReason(reason?: InterruptReason): reason is ExternalStopReason {
     return (EXTERNAL_STOP_REASONS as readonly string[]).includes(reason ?? '');
 }
 
 export const TOOL_INTERACTION_PAUSE_REASONS = ['afk'] as const;
 export type ToolInteractionPauseReason = typeof TOOL_INTERACTION_PAUSE_REASONS[number];
-export function isToolInteractionPauseReason(reason?: TransitionReason): reason is ToolInteractionPauseReason {
+export function isToolInteractionPauseReason(reason?: InterruptReason): reason is ToolInteractionPauseReason {
     return (TOOL_INTERACTION_PAUSE_REASONS as readonly string[]).includes(reason ?? '');
 }
 
@@ -30,7 +32,7 @@ export type InvalidInteractionReason = typeof INVALID_INTERACTION_REASONS[number
 
 export const TOOL_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
 export type ToolStopReason = typeof TOOL_STOP_REASONS[number];
-export function isToolStopReason(reason?: TransitionReason): reason is ToolStopReason {
+export function isToolStopReason(reason?: InterruptReason): reason is ToolStopReason {
     return (TOOL_STOP_REASONS as readonly string[]).includes(reason ?? '');
 }
 
@@ -64,6 +66,7 @@ export type BreakPoint = keyof typeof BREAK_POINTS;
 export type AgentRuntime = {
     turnCount: number;
     transitionReason?: TransitionReason;
+    interruptReason?: InterruptReason;
     historyPersistIndex: number;
     breakPoint: {
         point: typeof BREAK_POINTS[BreakPoint];

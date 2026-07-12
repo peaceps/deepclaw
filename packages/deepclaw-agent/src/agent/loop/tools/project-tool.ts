@@ -105,10 +105,10 @@ All steps should be done when task is going to be marked as done.`,
         }, tasks);
         
         fireProjectInfoEvent(project.id, context);
-        context.runtime.transitionReason = 'projectCreated';
+        context.runtime.interruptReason = 'projectCreated';
         context.actions.agentHandler.onStreamText({
             browserId: context.browserId,
-            text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.transitionReason}`)} (${project.title})`
+            text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.interruptReason}`)} (${project.title})`
         });
         return `Project created successfully.
 Here's the project info:
@@ -176,10 +176,10 @@ All steps should be done when task is going to be marked as done.`,
             priority: task.priority,
         }, [task]);
         fireProjectInfoEvent(project.id, context);
-        context.runtime.transitionReason = 'projectCreated';
+        context.runtime.interruptReason = 'projectCreated';
         context.actions.agentHandler.onStreamText({
             browserId: context.browserId,
-            text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.transitionReason}`)} (${project.title})`
+            text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.interruptReason}`)} (${project.title})`
         });
         return `Task created successfully.
 Here's the wrapper project info:
@@ -345,10 +345,10 @@ They shoudl be short descriptions of each step, should not be too long for user 
         fireProjectInfoEvent(input.projectId, context);
 
         if (!!task.pause && oldStatus !== 'done' && input.status === 'done') {
-            context.runtime.transitionReason = 'taskPause';
+            context.runtime.interruptReason = 'taskPause';
             context.actions.agentHandler.onStreamText({
                 browserId: context.browserId,
-                text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.transitionReason}`)} (${task.title})`
+                text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.interruptReason}`)} (${task.title})`
             });
         }
 

@@ -44,7 +44,7 @@ export class ToolUseService {
                     }
                 } catch (error: any) {
                     if (isToolInteractionPauseReason(error)) {
-                        context.runtime.transitionReason = error;
+                        context.runtime.interruptReason = error;
                         return this.toolResult(toolUseDef.id, `User left page and not possible to interact. Need rerun this tool`, false);
                     }
                     return this.toolResult(toolUseDef.id, `Error, wait for user response failed: ${error}`, false);

@@ -15,6 +15,7 @@ import {
     ExternalStopReason,
     AgentRuntime,
     BREAK_POINTS,
+    InterruptReason,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -138,9 +139,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             messages: this.history,
             oneLoopContext: this.initContext(options)
         };
-        if (options.runtime.breakPoint.point === BREAK_POINTS.toolUse) {
-            state.oneLoopContext.runtime.transitionReason = 'toolUse';
-        }
+        state.oneLoopContext.runtime.interruptReason = undefined;
         return this._invokeLoopAndReturn(state);
     }
 
@@ -228,21 +227,20 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 let finalText = this.extractFinalText(state.messages);
-                if (finalText && runtime.transitionReason === 'error') {
+                if (runtime.transitionReason === 'error') {
                     this.agentHandler.onStreamText({
                         browserId: state.oneLoopContext.browserId,
-                        text: finalText
+                        text: finalText || i18nInstance.t('common.unexpected')
                     });
-                }
-                if (isExternalStopReason(runtime.transitionReason)) {
-                    finalText = this.wrapExternalFlagMessage(finalText, runtime.transitionReason);
+                } else if (isExternalStopReason(runtime.interruptReason)) {
+                    finalText = this.wrapExternalFlagMessage(finalText, runtime.interruptReason);
                 }
                 return finalText;
             }
         }
     }
 
-    private wrapExternalFlagMessage(text: string, flag: string) {
+    private wrapExternalFlagMessage(text: string, flag: InterruptReason) {
         return `${text || ''}\n\n${i18nInstance.t(`agent.externalStop.${flag}`)}`;
     }
 
@@ -284,11 +282,11 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
                     const results = await this.runTools(toolUseDefs, state.oneLoopContext);
                     this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-                    if (isToolStopReason(runtime.transitionReason)) {
-                        const stopText = i18nInstance.t(`agent.tools.project.stop.${runtime.transitionReason as string}`);
-                        this.addStringMessage(stopText || `Loop paused: ${runtime.transitionReason}`, false);
-                    } else if (isToolInteractionPauseReason(runtime.transitionReason)) {
-                        await HookManager.emitVisitor('toolInteractionPause', state.oneLoopContext, runtime.transitionReason);
+                    if (isToolStopReason(runtime.interruptReason)) {
+                        const stopText = i18nInstance.t(`agent.tools.project.stop.${runtime.interruptReason as string}`);
+                        this.addStringMessage(stopText || `Loop paused: ${runtime.interruptReason}`, false);
+                    } else if (isToolInteractionPauseReason(runtime.interruptReason)) {
+                        await HookManager.emitVisitor('toolInteractionPause', state.oneLoopContext, runtime.interruptReason);
                     }
                 }
                 break;
@@ -315,10 +313,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 if (runtime.transitionReason === 'error') {
                     await HookManager.emitVisitor('turnError', state.oneLoopContext);
                 } else if (this.externalStopReason) {
-                    runtime.transitionReason = this.externalStopReason;
+                    runtime.interruptReason = this.externalStopReason;
                 }
-                if (isExternalStopReason(runtime.transitionReason)) {
-                    await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, runtime.transitionReason);
+                if (isExternalStopReason(runtime.interruptReason)) {
+                    await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, runtime.interruptReason);
                 }
                 await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
             } finally {
@@ -327,9 +325,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         }
         return !runtime.breakPoint.break && runtime.transitionReason !== 'endLoop'
             && runtime.transitionReason !== 'error'
-            && !isExternalStopReason(runtime.transitionReason)
-            && !isToolInteractionPauseReason(runtime.transitionReason)
-            && !isToolStopReason(runtime.transitionReason);
+            && !runtime.interruptReason;
     }
 
     protected abstract addTokenUsage(context: OneLoopContext, response: O): void;
@@ -338,8 +334,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         const results: ToolUseResult[] = [];
         for (let i = 0; i < toolUseDefs.length; i++) {
             const toolUseDef = toolUseDefs[i]!;
-            if (isToolStopReason(context.runtime.transitionReason)) {
-                const stopText = i18nInstance.t(`agent.tools.project.stop.${context.runtime.transitionReason}`);
+            if (isToolStopReason(context.runtime.interruptReason)) {
+                const stopText = i18nInstance.t(`agent.tools.project.stop.${context.runtime.interruptReason}`);
                 const toolResult = {
                     result: {
                         id: toolUseDef.id,
@@ -358,7 +354,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 });
             } else {
                 const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
-                if (isToolInteractionPauseReason(context.runtime.transitionReason)) {
+                if (isToolInteractionPauseReason(context.runtime.interruptReason)) {
                     context.runtime.breakPoint = {
                         point: BREAK_POINTS.toolUse,
                         input: toolUseDefs.slice(i),

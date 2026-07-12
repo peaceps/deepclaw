@@ -142,14 +142,15 @@ export class PersistHistoryService {
     }
 
     private static getLoopSessionStatus(context: OneLoopContext): LoopSessionStatus {
-        const reason = context.runtime.transitionReason;
-        if (!context.runtime.transitionReason || reason === 'endLoop' || isExternalStopReason(reason)) {
+        const transitionReason = context.runtime.transitionReason;
+        const interruptReason = context.runtime.interruptReason;
+        if ((!transitionReason && !interruptReason) || transitionReason === 'endLoop' || isExternalStopReason(interruptReason)) {
             return 'idle';
         }
-        if (reason === 'error') {
+        if (transitionReason === 'error') {
             return 'error';
         }
-        if (isToolStopReason(reason) || isToolInteractionPauseReason(reason)) {
+        if (isToolStopReason(interruptReason) || isToolInteractionPauseReason(interruptReason)) {
             return 'paused';
         }
         return 'running';
