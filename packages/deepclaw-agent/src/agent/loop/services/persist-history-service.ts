@@ -1,7 +1,7 @@
 import { FileUtils } from "@deepclaw/node-utils";
 import { AGENT_SESSION_DIR, AGENTS_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE } from "../../paths";
 import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetaData } from "../../definitions/definitions";
-import { isExternalStopReason, isToolStopReason, isToolInteractionPauseReason } from "@deepclaw/core";
+import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason } from "@deepclaw/core";
 
 const SESSION_TIMEOUT = 1000 * 60 * 60 * 24;
 const SAVE_THRESHOLD = 10;
@@ -143,14 +143,14 @@ export class PersistHistoryService {
 
     private static getLoopSessionStatus(context: OneLoopContext): LoopSessionStatus {
         const transitionReason = context.runtime.transitionReason;
-        const interruptReason = context.runtime.interruptReason;
-        if ((!transitionReason && !interruptReason) || transitionReason === 'endLoop' || isExternalStopReason(interruptReason)) {
+        const agentBreakReason = context.runtime.agentBreakReason;
+        if ((!transitionReason && !agentBreakReason) || transitionReason === 'endLoop' || isExternalInterruptReason(agentBreakReason)) {
             return 'idle';
         }
         if (transitionReason === 'error') {
             return 'error';
         }
-        if (isToolStopReason(interruptReason) || isToolInteractionPauseReason(interruptReason)) {
+        if (isAgentStopReason(agentBreakReason) || isInternalInterruptReason(agentBreakReason)) {
             return 'paused';
         }
         return 'running';

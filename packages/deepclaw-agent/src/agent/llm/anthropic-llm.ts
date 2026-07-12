@@ -12,7 +12,7 @@ import {
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw';
 import { LLMTool } from '../definitions/tool-definitions';
-import { TransitionReason } from '@deepclaw/core';
+import { LLMTransitionReason } from '@deepclaw/core';
 
 export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
 
@@ -22,7 +22,7 @@ export type ThinkingMessage = Omit<MessageParam, 'content'> & {
 
 export type ThinkingResponse = Omit<Message, 'content'> & {
     content: (TextBlock | ToolUseBlock)[];
-    transitionReason: TransitionReason;
+    transitionReason: LLMTransitionReason;
 };
 
 export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, ToolUnion, Anthropic> {
@@ -68,7 +68,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
         return error.status === 400 && error.type === 'invalid_request_error' && error.message.toLowerCase().includes('large');
     }
 
-    protected override newResponse(content: string, transitionReason: TransitionReason = 'endLoop'): ThinkingResponse {
+    protected override newResponse(content: string, transitionReason: LLMTransitionReason = 'endLoop'): ThinkingResponse {
         return {
             transitionReason,
             id: randomUUID(),

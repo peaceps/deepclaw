@@ -53,7 +53,7 @@ class SSEServerImpl {
     private static handleInteractionPause(event: AgentInteractionEvent) {
         const infoClient = this.sseStore['info'].get(event.browserId);
         if (infoClient) {
-            LoopGateway.cancelInteraction(event.browserId, event.loopId, 'afk');
+            LoopGateway.cancelInteraction(event.browserId, event.loopId, 'interactionAfk');
 
             this.sendEvent('info', infoClient, {
                 eventType: 'toast', content: {key: 'interactionPause', data: event.loopId}

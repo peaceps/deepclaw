@@ -9,9 +9,14 @@ export const zh = {
             }
         },
         maxTurnReached: '超过最大迭代次数，运行中止！\n{{finalText}}',
-        externalStop: {
-            clientLost: '客户端断开连接，运行中止！',
-            afk: '用户离开页面，等待返回确认。',
+        agentBreak: {
+            agentStop: {
+                projectCreated: '项目创建好了，你可以继续让我调整建好的计划。',
+                taskPause: '任务已经完成，请验收成果。'
+            },
+            externalInterrupt: {
+                clientLost: '客户端断开连接，运行中止！',
+            },
         },
         llm: {
             openai: {
@@ -51,10 +56,6 @@ export const zh = {
                     current: '\n当前步骤：\n{{steps}}\n',
                     completed: '({{completed}}/{{total}} 已完成)',
                 },
-                stop: {
-                    projectCreated: '项目创建好了，你可以继续让我调整建好的计划。',
-                    taskPause: '任务已经完成，请验收成果。'
-                }
             }
         },
     },

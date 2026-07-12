@@ -9,9 +9,14 @@ export const en = {
             }
         },
         maxTurnReached: 'Reached maximum turn count. Ending session.\n{{finalText}}',
-        externalStop: {
-            clientLost: 'Client lost connection. Ending session.',
-            afk: 'Client is navigation other pages. Wait for back to confirm.',
+        agentBreak: {
+            agentStop: {
+                projectCreated: 'Project is created, please continue to adjust the plan.',
+                taskPause: 'Task is done, please verify.'
+            },
+            externalInterrupt: {
+                clientLost: 'Client lost connection. Ending session.',
+            },
         },
         llm: {
             openai: {
@@ -51,10 +56,6 @@ export const en = {
                     current: '\nCurrent step:\n{{steps}}\n',
                     completed: '({{completed}}/{{total}} completed)'
                 },
-                stop: {
-                    projectCreated: 'Project is created, please continue to adjust the plan.',
-                    taskPause: 'Task is done, please verify.'
-                }
             },
         },
     },

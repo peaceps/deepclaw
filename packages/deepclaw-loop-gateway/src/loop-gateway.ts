@@ -3,12 +3,12 @@ import type {
     AgentInteractionEvent,
     ChatMessage,
     InvalidInteractionReason,
-    ToolInteractionPauseReason,
+    InternalInterruptReason,
     AgentRuntime,
     AgentInvokeResponse
 } from "@deepclaw/core";
 import {
-    getFlushAgentKey, getInteractionId, isExternalStopReason, isToolInteractionPauseReason,
+    getFlushAgentKey, getInteractionId, isAgentStopReason, isExternalInterruptReason, isInternalInterruptReason,
     newMessage, splitFlushAgentKey
 } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
@@ -150,15 +150,15 @@ class LoopGatewayImpl {
         loopId: string, loopState: LoopState, invoke: () => Promise<AgentInvokeResponse>
     ): void {
         invoke().then(({text, runtime}) => {
-            const state = runtime.interruptReason;
-            if (!isToolInteractionPauseReason(state)) {
-                if (isExternalStopReason(state)) {
+            const state = runtime.agentBreakReason;
+            if (!isInternalInterruptReason(state)) {
+                if (isExternalInterruptReason(state) || isAgentStopReason(state)) {
                     this.addMessage(loopState.browserId!, loopId, newMessage('agent', loopState.agentId!, text));
-                    loopState.loop.setExternalStopReason(undefined);
                 }
                 this.clearLoopState(loopState);
             } else {
                 loopState.runtime = runtime;
+                loopState.runtime.agentBreakReason = undefined;
             }
         }).catch(() => {
             this.clearLoopState(loopState);
@@ -209,7 +209,7 @@ class LoopGatewayImpl {
         for (const loopId of Object.keys(this.loops)) {
             const loopState = this.loops[loopId];
             if (loopState && loopState.running && loopState.browserId === browserId) {
-                loopState.loop.setExternalStopReason('clientLost');
+                loopState.loop.setExternalInterruptReason('clientLost');
                 this.cancelInteraction(browserId, loopId, 'disconnected');
                 if (loopState.runtime) {
                     this.resume(loopState.browserId, loopId);
@@ -261,7 +261,7 @@ class LoopGatewayImpl {
     }
 
     public static cancelInteraction(
-        browserId: string, loopId: string, reason: InvalidInteractionReason | ToolInteractionPauseReason
+        browserId: string, loopId: string, reason: InvalidInteractionReason | InternalInterruptReason
     ): void {
         const interactionId = getInteractionId(browserId, loopId);
         const resolver = this.waitingInteractions.get(interactionId);

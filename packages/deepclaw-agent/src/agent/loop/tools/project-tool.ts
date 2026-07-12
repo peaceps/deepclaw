@@ -2,7 +2,6 @@ import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
 import { PROJECT_CONFIG, type Project, type Task } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
-import {i18nInstance} from '@deepclaw/i18n';
 
 type CreateProjectInput = {
     title: string;
@@ -105,11 +104,7 @@ All steps should be done when task is going to be marked as done.`,
         }, tasks);
         
         fireProjectInfoEvent(project.id, context);
-        context.runtime.interruptReason = 'projectCreated';
-        context.actions.agentHandler.onStreamText({
-            browserId: context.browserId,
-            text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.interruptReason}`)} (${project.title})`
-        });
+        context.runtime.agentBreakReason = 'projectCreated';
         return `Project created successfully.
 Here's the project info:
 ${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
@@ -176,11 +171,7 @@ All steps should be done when task is going to be marked as done.`,
             priority: task.priority,
         }, [task]);
         fireProjectInfoEvent(project.id, context);
-        context.runtime.interruptReason = 'projectCreated';
-        context.actions.agentHandler.onStreamText({
-            browserId: context.browserId,
-            text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.interruptReason}`)} (${project.title})`
-        });
+        context.runtime.agentBreakReason = 'projectCreated';
         return `Task created successfully.
 Here's the wrapper project info:
 ${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
@@ -345,11 +336,7 @@ They shoudl be short descriptions of each step, should not be too long for user 
         fireProjectInfoEvent(input.projectId, context);
 
         if (!!task.pause && oldStatus !== 'done' && input.status === 'done') {
-            context.runtime.interruptReason = 'taskPause';
-            context.actions.agentHandler.onStreamText({
-                browserId: context.browserId,
-                text: `\n${i18nInstance.t(`agent.tools.project.stop.${context.runtime.interruptReason}`)} (${task.title})`
-            });
+            context.runtime.agentBreakReason = 'taskPause';
         }
 
         return `Task updated successfully.

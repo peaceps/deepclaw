@@ -1,7 +1,7 @@
 import {AgentMode, LLMConfig} from '@deepclaw/config';
 import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMGWConfig, TransitionReason } from '@deepclaw/core';
+import { LLMGWConfig, LLMTransitionReason } from '@deepclaw/core';
 import { ToolsManager } from '../loop/services/tools-manager';
 
 const llmRetry = 3;
@@ -125,7 +125,7 @@ ${content}`;
 
     protected abstract setTransitionReason(response: O): O;
 
-    protected abstract newResponse(content: string, transitionReason?: TransitionReason): O;
+    protected abstract newResponse(content: string, transitionReason?: LLMTransitionReason): O;
 
     protected abstract convertResponseToMessages(response: O): I[];
 

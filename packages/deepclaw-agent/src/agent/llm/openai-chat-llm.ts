@@ -12,7 +12,7 @@ import {
  } from 'openai/resources/completions.js';
 import { LLMModel } from './llmgw';
 import { LLMTool } from '../definitions/tool-definitions';
-import { TransitionReason } from '@deepclaw/core';
+import { LLMTransitionReason } from '@deepclaw/core';
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |
@@ -24,7 +24,7 @@ export type ThinkingMessage = (
 }
 
 export type ThinkingResponse = ChatCompletionChunk.Choice & {
-    transitionReason: TransitionReason;
+    transitionReason: LLMTransitionReason;
     usage?: CompletionUsage,
     delta: ChatCompletionChunk.Choice.Delta & {
         reasoning_content: string;
@@ -132,7 +132,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         return this.newResponse('Error: No response from LLM.');
     }
 
-    protected override newResponse(content: string, transitionReason: TransitionReason = 'endLoop'): ThinkingResponse {
+    protected override newResponse(content: string, transitionReason: LLMTransitionReason = 'endLoop'): ThinkingResponse {
         return {
             transitionReason,
             finish_reason: 'stop',

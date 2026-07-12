@@ -1,5 +1,5 @@
 import { LLMModel, LLMTool } from "@deepclaw/agent";
-import { TransitionReason } from "@deepclaw/core";
+import { LLMTransitionReason } from "@deepclaw/core";
 
 export type ThinkingMessage = {
     role: 'system' | 'user' | 'assistant' | 'tool_result';
@@ -7,7 +7,7 @@ export type ThinkingMessage = {
 }
 
 export type ThinkingResponse = {
-    transitionReason: TransitionReason;
+    transitionReason: LLMTransitionReason;
     content: ThinkingMessage[];
     usage: {
         input_tokens: number;
@@ -29,7 +29,7 @@ export class TestLLM extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, L
     protected override setTransitionReason(response: ThinkingResponse): ThinkingResponse {
         return response;
     }
-    protected override newResponse(content: string, transitionReason?: TransitionReason): ThinkingResponse {
+    protected override newResponse(content: string, transitionReason?: LLMTransitionReason): ThinkingResponse {
         return {
             transitionReason: transitionReason || 'endLoop',
             content: [{role: 'assistant', content}], usage: {input_tokens: 0, output_tokens: 0}

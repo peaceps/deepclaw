@@ -10,30 +10,38 @@ export type LLMGWConfig = {
     maxTokens: number
 }
 
-export type TransitionReason = 'endLoop' | 'toolUse' | 'maxTokens' | 'inputMaxTokens'
-    | 'refused' | 'error';
-
-export type InterruptReason = ToolStopReason | ExternalStopReason | ToolInteractionPauseReason;
-
-export const EXTERNAL_STOP_REASONS = ['clientLost'] as const;
-export type ExternalStopReason = typeof EXTERNAL_STOP_REASONS[number];
-export function isExternalStopReason(reason?: InterruptReason): reason is ExternalStopReason {
-    return (EXTERNAL_STOP_REASONS as readonly string[]).includes(reason ?? '');
+const STOP_TRANSITION_REASONS = ['endLoop', 'error',  'refused'] as const;
+export type StopTransitionReason = typeof STOP_TRANSITION_REASONS[number];
+export function isStopTransitionReason(reason?: LLMTransitionReason): reason is StopTransitionReason {
+    return (STOP_TRANSITION_REASONS as readonly string[]).includes(reason ?? '');
+}
+const CONTINUE_TRANSITION_REASONS = ['toolUse', 'maxTokens', 'inputMaxTokens'] as const;
+export type ContinueTransitionReason = typeof CONTINUE_TRANSITION_REASONS[number];
+export function isContinueTransitionReason(reason?: LLMTransitionReason): reason is ContinueTransitionReason {
+    return (CONTINUE_TRANSITION_REASONS as readonly string[]).includes(reason ?? '');
 }
 
-export const TOOL_INTERACTION_PAUSE_REASONS = ['afk'] as const;
-export type ToolInteractionPauseReason = typeof TOOL_INTERACTION_PAUSE_REASONS[number];
-export function isToolInteractionPauseReason(reason?: InterruptReason): reason is ToolInteractionPauseReason {
-    return (TOOL_INTERACTION_PAUSE_REASONS as readonly string[]).includes(reason ?? '');
+export type LLMTransitionReason = StopTransitionReason | ContinueTransitionReason;
+
+export type AgentBreakReason = AgentStopReason | ExternalInterruptReason | InternalInterruptReason;
+
+const EXTERNAL_INTERRUPT_REASONS = ['clientLost'] as const;
+export type ExternalInterruptReason = typeof EXTERNAL_INTERRUPT_REASONS[number];
+export function isExternalInterruptReason(reason?: AgentBreakReason): reason is ExternalInterruptReason {
+    return (EXTERNAL_INTERRUPT_REASONS as readonly string[]).includes(reason ?? '');
 }
 
-export const INVALID_INTERACTION_REASONS = ['timeout', 'disconnected', 'error'] as const;
-export type InvalidInteractionReason = typeof INVALID_INTERACTION_REASONS[number];
+const INTERNAL_INTERRUPT_REASONS = ['interactionAfk'] as const;
+export type InternalInterruptReason = typeof INTERNAL_INTERRUPT_REASONS[number];
+export function isInternalInterruptReason(reason?: AgentBreakReason): reason is InternalInterruptReason {
+    return (INTERNAL_INTERRUPT_REASONS as readonly string[]).includes(reason ?? '');
+}
+export type InvalidInteractionReason = 'timeout' | 'disconnected' | 'error';
 
-export const TOOL_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
-export type ToolStopReason = typeof TOOL_STOP_REASONS[number];
-export function isToolStopReason(reason?: InterruptReason): reason is ToolStopReason {
-    return (TOOL_STOP_REASONS as readonly string[]).includes(reason ?? '');
+const AGENT_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
+export type AgentStopReason = typeof AGENT_STOP_REASONS[number];
+export function isAgentStopReason(reason?: AgentBreakReason): reason is AgentStopReason {
+    return (AGENT_STOP_REASONS as readonly string[]).includes(reason ?? '');
 }
 
 export type AgentHandler = {
@@ -65,8 +73,8 @@ export type BreakPoint = keyof typeof BREAK_POINTS;
 
 export type AgentRuntime = {
     turnCount: number;
-    transitionReason?: TransitionReason;
-    interruptReason?: InterruptReason;
+    transitionReason?: LLMTransitionReason;
+    agentBreakReason?: AgentBreakReason;
     historyPersistIndex: number;
     breakPoint: {
         point: typeof BREAK_POINTS[BreakPoint];

@@ -7,15 +7,16 @@ import {
     type AgentHandler,
     type AgentToolResultEvent,
     AgentInvokeOptions,
-    type TransitionReason,
-    isExternalStopReason,
-    isToolStopReason,
+    type LLMTransitionReason,
+    isExternalInterruptReason,
+    isAgentStopReason,
     AgentInvokeResponse,
-    isToolInteractionPauseReason,
-    ExternalStopReason,
+    isInternalInterruptReason,
+    ExternalInterruptReason,
     AgentRuntime,
     BREAK_POINTS,
-    InterruptReason,
+    AgentBreakReason,
+    isStopTransitionReason,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -35,7 +36,7 @@ import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
 import { PersistHistoryService } from '../services/persist-history-service';
 
-export abstract class LoopAgent<I, O extends { transitionReason: TransitionReason },
+export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionReason },
     LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
     private turnLimit: number = 100;
@@ -46,7 +47,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
     protected history: I[] = [];
     private footPrints: FootPrint[] = [];
     private agentConfig: AgentConfig;
-    private externalStopReason: ExternalStopReason | undefined;
+    private externalInterruptReason: ExternalInterruptReason | undefined;
 
     constructor(
         agentId: string,
@@ -139,13 +140,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             messages: this.history,
             oneLoopContext: this.initContext(options)
         };
-        state.oneLoopContext.runtime.interruptReason = undefined;
         return this._invokeLoopAndReturn(state);
     }
 
     protected async _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         this.addStringMessage(input);
-        this.externalStopReason = undefined;
+        this.externalInterruptReason = undefined;
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: this.initContext(options)
@@ -228,20 +228,26 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             if (!goAround) {
                 let finalText = this.extractFinalText(state.messages);
                 if (runtime.transitionReason === 'error') {
+                    await HookManager.emitVisitor('turnError', state.oneLoopContext);
                     this.agentHandler.onStreamText({
                         browserId: state.oneLoopContext.browserId,
                         text: finalText || i18nInstance.t('common.unexpected')
                     });
-                } else if (isExternalStopReason(runtime.interruptReason)) {
-                    finalText = this.wrapExternalFlagMessage(finalText, runtime.interruptReason);
+                } else if (isAgentStopReason(runtime.agentBreakReason)) {
+                    finalText = this.wrapExternalInterruptMessage(finalText, 'agentStop', runtime.agentBreakReason);
+                } else if (isExternalInterruptReason(runtime.agentBreakReason)) {
+                    await HookManager.emitVisitor('externalInterrupt', state.oneLoopContext, runtime.agentBreakReason);
+                    finalText = this.wrapExternalInterruptMessage(finalText, 'externalInterrupt', runtime.agentBreakReason);
+                } else if (isInternalInterruptReason(runtime.agentBreakReason)) {
+                    await HookManager.emitVisitor('internalInterrupt', state.oneLoopContext, runtime.agentBreakReason);
                 }
                 return finalText;
             }
         }
     }
 
-    private wrapExternalFlagMessage(text: string, flag: InterruptReason) {
-        return `${text || ''}\n\n${i18nInstance.t(`agent.externalStop.${flag}`)}`;
+    private wrapExternalInterruptMessage(text: string, type: string, flag: AgentBreakReason) {
+        return `${text || ''}\n\n${i18nInstance.t(`agent.agentBreak.${type}.${flag}`)}`;
     }
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
@@ -282,12 +288,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
 
                     const results = await this.runTools(toolUseDefs, state.oneLoopContext);
                     this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-                    if (isToolStopReason(runtime.interruptReason)) {
-                        const stopText = i18nInstance.t(`agent.tools.project.stop.${runtime.interruptReason as string}`);
-                        this.addStringMessage(stopText || `Loop paused: ${runtime.interruptReason}`, false);
-                    } else if (isToolInteractionPauseReason(runtime.interruptReason)) {
-                        await HookManager.emitVisitor('toolInteractionPause', state.oneLoopContext, runtime.interruptReason);
-                    }
                 }
                 break;
             case 'inputMaxTokens':
@@ -310,22 +310,20 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         if (!runtime.breakPoint.break && runtime.breakPoint.point <= BREAK_POINTS.postTurn) {
             runtime.breakPoint.point = BREAK_POINTS.none;
             try {
-                if (runtime.transitionReason === 'error') {
-                    await HookManager.emitVisitor('turnError', state.oneLoopContext);
-                } else if (this.externalStopReason) {
-                    runtime.interruptReason = this.externalStopReason;
+                if (isStopTransitionReason(runtime.transitionReason) || isAgentStopReason(runtime.agentBreakReason)) {
+                    this.externalInterruptReason = undefined;
                 }
-                if (isExternalStopReason(runtime.interruptReason)) {
-                    await HookManager.emitVisitor('turnExternalStop', state.oneLoopContext, runtime.interruptReason);
+                if (this.externalInterruptReason) {
+                    runtime.agentBreakReason = this.externalInterruptReason;
+                    this.externalInterruptReason = undefined;
                 }
-                await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
             } finally {
+                await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
                 PersistHistoryService.saveHistory(this.history, state.oneLoopContext);
             }
         }
-        return !runtime.breakPoint.break && runtime.transitionReason !== 'endLoop'
-            && runtime.transitionReason !== 'error'
-            && !runtime.interruptReason;
+        return !runtime.breakPoint.break && !isStopTransitionReason(runtime.transitionReason)
+            && !runtime.agentBreakReason;
     }
 
     protected abstract addTokenUsage(context: OneLoopContext, response: O): void;
@@ -334,12 +332,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
         const results: ToolUseResult[] = [];
         for (let i = 0; i < toolUseDefs.length; i++) {
             const toolUseDef = toolUseDefs[i]!;
-            if (isToolStopReason(context.runtime.interruptReason)) {
-                const stopText = i18nInstance.t(`agent.tools.project.stop.${context.runtime.interruptReason}`);
+            const breakReason = context.runtime.agentBreakReason;
+            if (isAgentStopReason(breakReason) || isExternalInterruptReason(breakReason)) {
+                const stopType = isAgentStopReason(breakReason) ? 'agentStop' : 'externalInterrupt';
+                const stopText = i18nInstance.t(`agent.agentBreak.${stopType}.${breakReason}`);
                 const toolResult = {
                     result: {
                         id: toolUseDef.id,
-                        content: `Tool call execution skipped because loop paused for user review: ${stopText}`
+                        content: `Tool call execution skipped because loop terminated due to: ${stopText}`
                     }
                 };
                 results.push(toolResult.result);
@@ -354,7 +354,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
                 });
             } else {
                 const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
-                if (isToolInteractionPauseReason(context.runtime.interruptReason)) {
+                if (isInternalInterruptReason(context.runtime.agentBreakReason)) {
                     context.runtime.breakPoint = {
                         point: BREAK_POINTS.toolUse,
                         input: toolUseDefs.slice(i),
@@ -378,8 +378,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: TransitionReaso
             this.llm.getTextFromInputMessage(messages[messages.length - 1]!);
     }
 
-    public setExternalStopReason(reason: ExternalStopReason | undefined): void {
-        this.externalStopReason = reason;
+    public setExternalInterruptReason(reason: ExternalInterruptReason): void {
+        this.externalInterruptReason = reason;
     }
 
     protected abstract extractToolUseFromResponse(result: O): ToolUseDef[];

@@ -11,7 +11,7 @@ import {
     ResponseFunctionToolCall,
     ResponseOutputMessage,
 } from "openai/resources/responses/responses.js";
-import { TransitionReason } from "@deepclaw/core";
+import { LLMTransitionReason } from "@deepclaw/core";
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
 
@@ -19,7 +19,7 @@ type ThinkingResponseOutput = ResponseOutputMessage | ResponseFunctionToolCall;
 
 export type ThinkingResponse = Omit<Response, 'output'> & {
     output: ThinkingResponseOutput[];
-    transitionReason: TransitionReason;
+    transitionReason: LLMTransitionReason;
 };
 
 export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, OpenAI> {
@@ -106,7 +106,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         return this.newResponse(message, 'error');
     }
 
-    protected override newResponse(message: string, transitionReason: TransitionReason = 'endLoop'): ThinkingResponse {
+    protected override newResponse(message: string, transitionReason: LLMTransitionReason = 'endLoop'): ThinkingResponse {
         return {
             transitionReason,
             id: randomUUID(),

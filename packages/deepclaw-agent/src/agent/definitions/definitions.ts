@@ -1,5 +1,5 @@
 import type { Logger } from '@deepclaw/node-utils';
-import { SealedAgentHandler, TransitionReason, type FlushAgent, type AgentRuntime } from '@deepclaw/core';
+import { SealedAgentHandler, LLMTransitionReason, type FlushAgent, type AgentRuntime } from '@deepclaw/core';
 import { AgentConfig } from '@deepclaw/config';
 
 export type LLMProtocol = 'Anthropic' | 'OpenAIChat' | 'OpenAIResponse';
@@ -47,7 +47,7 @@ export type SessionMetaData = {
     messagesPath: string;
     runtime: {
         status: LoopSessionStatus;
-        transitionReason?: TransitionReason;
+        transitionReason?: LLMTransitionReason;
         turnCount: number;
         finalText?: string;
         updatedAt: string;
