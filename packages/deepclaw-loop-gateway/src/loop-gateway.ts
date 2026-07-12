@@ -156,15 +156,21 @@ class LoopGatewayImpl {
                     this.addMessage(loopState.browserId!, loopId, newMessage('agent', loopState.agentId!, text));
                     loopState.loop.setExternalStopReason(undefined);
                 }
-                loopState.running = false;
-                loopState.browserId = undefined;
-                loopState.runtime = undefined;
+                this.clearLoopState(loopState);
             } else {
                 loopState.runtime = runtime;
             }
-        }).catch(() => {}).finally(() => {
+        }).catch(() => {
+            this.clearLoopState(loopState);
+        }).finally(() => {
             this.fireBusyEvent(loopId);
         });
+    }
+
+    private static clearLoopState(loopState: LoopState): void {
+        loopState.running = false;
+        loopState.browserId = undefined;
+        loopState.runtime = undefined;
     }
 
     public static addMessage(browserId: string, loopId: string, message: ChatMessage): void {
@@ -205,6 +211,9 @@ class LoopGatewayImpl {
             if (loopState && loopState.running && loopState.browserId === browserId) {
                 loopState.loop.setExternalStopReason('clientLost');
                 this.cancelInteraction(browserId, loopId, 'disconnected');
+                if (loopState.runtime) {
+                    this.resume(loopState.browserId, loopId);
+                }
             }
         }
     }

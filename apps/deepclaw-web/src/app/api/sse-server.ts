@@ -58,12 +58,17 @@ class SSEServerImpl {
             this.sendEvent('info', infoClient, {
                 eventType: 'toast', content: {key: 'interactionPause', data: event.loopId}
             } as SSEToastEvent);
+        } else {
+          LoopGateway.cancelInteraction(event.browserId, event.loopId, 'disconnected');
         }
     }
 
     private static shouldBroadcast(client: SSEClient, event: SSEEvent): boolean {
         if (isInfoEvent(event)) {
             return true;
+        }
+        if (!this.sseStore.info.get(client.browserId)) {
+            return false;
         }
         if (isLoopBusyEvent(event)) {
             return 'loopId' in event && client.loopId === event.loopId;

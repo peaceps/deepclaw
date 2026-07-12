@@ -37,6 +37,8 @@ const rules: {deny: (string | RegExp)[], warning: (string | RegExp)[]} = {
     ],
     warning: [
         /[;&|$]/,
+        /timeout/,
+        /sleep/,
         /\bsudo\b/,
         /\brm\s+(-[a-zA-Z]*)?r/,
         /\$\(/
