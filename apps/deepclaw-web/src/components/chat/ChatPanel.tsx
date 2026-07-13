@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentEmployee, getFlushAgentKey } from "@deepclaw/core";
+import { AgentEmployee, getLoopId } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +18,7 @@ type ChatPanelProps = {
 
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const { t, i18n } = useTranslation();
-  const loopId = getFlushAgentKey(agent.id, projectId);
+  const loopId = getLoopId(agent.id, projectId);
   const agentMessages = useAppStore(s => s.messages[loopId]);
   const [input, setInput] = useState('');
   const [chatInited, setChatInited] = useState(false);

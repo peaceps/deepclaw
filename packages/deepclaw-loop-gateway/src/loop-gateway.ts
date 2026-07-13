@@ -8,8 +8,8 @@ import type {
     AgentInvokeResponse
 } from "@deepclaw/core";
 import {
-    getFlushAgentKey, getInteractionId, isAgentStopReason, isExternalInterruptReason, isInternalInterruptReason,
-    newMessage, splitFlushAgentKey
+    getLoopId, isAgentStopReason, isExternalInterruptReason, isInternalInterruptReason,
+    newMessage, splitLoopId
 } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
 import {
@@ -17,7 +17,7 @@ import {
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
-import { LoopGatewayEvent } from "./loop-gateway-types";
+import { LoopGatewayEvent, getClientKey } from "./loop-gateway-types";
 
 type LoopState = {
     agentId: string;
@@ -63,15 +63,15 @@ class LoopGatewayImpl {
     }
 
     private static async fireWaitedSSEEvent(e: AgentInteractionEvent): Promise<string> {
-        const interactionId = getInteractionId(e.browserId, e.loopId);
+        const clientKey = getClientKey(e.browserId, e.loopId);
         const waiting = new Promise<string>((resolve, reject) => this.waitingInteractions.set(
-            interactionId, {timer: null, resolve, reject}
+            clientKey, {timer: null, resolve, reject}
         ));
         this.sseSubscriber?.(e);
         try {
             const timeout = new Promise((res) => {
                 const timer = setTimeout(res, INTERACTION_TIMEOUT);
-                this.waitingInteractions.get(interactionId)!.timer = timer;
+                this.waitingInteractions.get(clientKey)!.timer = timer;
             }).then(() => {
                 this.fireSSEEvent({ eventType: 'cancelInteraction', loopId: e.loopId, browserId: e.browserId });
                 this.cancelInteraction(e.browserId, e.loopId, 'timeout');
@@ -79,17 +79,17 @@ class LoopGatewayImpl {
             const result = await Promise.race([waiting, timeout]);
             return result || '';
         } finally {
-            const timer = this.waitingInteractions.get(interactionId)?.timer;
+            const timer = this.waitingInteractions.get(clientKey)?.timer;
             if (timer) {
                 clearTimeout(timer);
             }
-            this.waitingInteractions.delete(interactionId);
+            this.waitingInteractions.delete(clientKey);
         }
     }
 
     public static init(loopId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}): void {
         // TODO LRU
-        const {agentId, projectId = ''} = splitFlushAgentKey(loopId);
+        const {agentId, projectId = ''} = splitLoopId(loopId);
         if (!this.loops[loopId]) {
             this.loops[loopId] = {
                 agentId,
@@ -110,7 +110,7 @@ class LoopGatewayImpl {
     }
 
     public static invoke(browserId: string, agentId: string, projectId: string, input: string): boolean {
-        const loopId = getFlushAgentKey(agentId, projectId);
+        const loopId = getLoopId(agentId, projectId);
         if (!this.loops[loopId]) {
             this.init(loopId);
         }
@@ -188,7 +188,7 @@ class LoopGatewayImpl {
     public static updateLoopConfig(config: DeepclawConfig) {
         for (const agentConfig of config.agents) {
             for (const loopId of Object.keys(this.loops)) {
-                const {agentId} = splitFlushAgentKey(loopId);
+                const {agentId} = splitLoopId(loopId);
                 if (agentId === agentConfig.id) {
                     this.loops[loopId]!.loop.updateConfig(agentConfig);
                 }
@@ -251,7 +251,7 @@ class LoopGatewayImpl {
     }
 
     public static resolveInteraction(browserId: string, loopId: string, answer: string): boolean {
-        const interactionId = getInteractionId(browserId, loopId);
+        const interactionId = getClientKey(browserId, loopId);
         const resolver = this.waitingInteractions.get(interactionId);
         if (resolver) {
             resolver.resolve(answer);
@@ -263,7 +263,7 @@ class LoopGatewayImpl {
     public static cancelInteraction(
         browserId: string, loopId: string, reason: InvalidInteractionReason | InternalInterruptReason
     ): void {
-        const interactionId = getInteractionId(browserId, loopId);
+        const interactionId = getClientKey(browserId, loopId);
         const resolver = this.waitingInteractions.get(interactionId);
         if (resolver) {
             resolver.reject(reason);

@@ -2,23 +2,18 @@ import { AgentEmployee } from "./agent-definitions";
 import { Project } from "./project-definitions";
 import { DistributiveOmit } from "@deepclaw/utils";
 
-export function getFlushAgentKey(agentId: string, projectId?: string): string {
+export function getLoopId(agentId: string, projectId?: string): string {
     return !projectId ? agentId : `${agentId}.${projectId}`;
 }
 
-export function splitFlushAgentKey(key: string): {agentId: string; projectId?: string} {
+export function splitLoopId(key: string): {agentId: string; projectId?: string} {
     const [agentId, projectId] = key.split('.');
     return {agentId: agentId ?? '', projectId};
-}
-
-export function getInteractionId(browserId: string, loopId: string): string {
-    return `${browserId}::${loopId}`;
 }
 
 export const LOOP_BUSY_ERROR = 'LOOP_BUSY';
 
 export type AgentEvent = AgentInfoEvent | AgentLoopEvent;
-
 
 type FlushAgentEvent = {
     eventType: string;

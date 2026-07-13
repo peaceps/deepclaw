@@ -1,4 +1,8 @@
-import { isInfoEvent, isLoopBusyEvent, isLoopCancelInteractionEvent, isLoopChatEvent, isLoopEvent, isLoopInteractionEvent, isLoopStreamEvent, LoopGateway, LoopGatewayEvent } from "@deepclaw/loop-gateway";
+import {
+    isInfoEvent, isLoopBusyEvent, isLoopCancelInteractionEvent,
+    isLoopChatEvent, isLoopEvent, isLoopInteractionEvent, isLoopStreamEvent,
+    LoopGateway, LoopGatewayEvent, getClientKey
+} from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
 import type { AgentInteractionEvent } from "@deepclaw/core";
@@ -29,7 +33,7 @@ class SSEServerImpl {
         }
         const store = this.sseStore[type];
         const client: SSEClient = { browserId, loopId, controller, encoder, active: true };
-        store.set(this.getClientKey(type, browserId, loopId), client);
+        store.set(getClientKey(browserId, loopId), client);
 
         if (type === 'loop' && loopId) {
             this.sendEvent(type, client, {
@@ -103,7 +107,7 @@ class SSEServerImpl {
 
     public static removeClient(type: SSEType, browserId: string, loopId?: string): void {
         const store = this.sseStore[type];
-        store.delete(this.getClientKey(type, browserId, loopId));
+        store.delete(getClientKey(browserId, loopId));
         if (type === 'info') {
             LoopGateway.disconnectBrowser(browserId);
             if (store.size === 0) {
@@ -120,10 +124,6 @@ class SSEServerImpl {
                 client.active = active;
             }
         }
-    }
-
-    private static getClientKey(type: SSEType, browserId: string, loopId?: string): string {
-        return type === 'info' ? browserId : `${browserId}::${loopId}`;
     }
 
     private static getSSEType(event: SSEEvent): SSEType {

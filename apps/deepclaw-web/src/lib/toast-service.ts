@@ -1,5 +1,5 @@
 import type { SSEToastEvent } from "@/app/api/sse-types";
-import { AgentEmployee, Project, splitFlushAgentKey } from "@deepclaw/core";
+import { AgentEmployee, Project, splitLoopId } from "@deepclaw/core";
 import {i18nInstance} from '@deepclaw/i18n';
 
 export class ToastService {
@@ -10,7 +10,7 @@ export class ToastService {
             message: ''
         };
         if (content.key === 'interactionPause') {
-            const {projectId, agentId} = splitFlushAgentKey(content.data as string);
+            const {projectId, agentId} = splitLoopId(content.data as string);
             let name = agentId;
             let role = 'agent';
             if (projectId) {

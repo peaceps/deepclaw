@@ -1,5 +1,5 @@
 import {AGENTS_DIR, CHAT_FILE, PROJECT_DIR} from '@deepclaw/agent';
-import { ChatMessage, splitFlushAgentKey } from '@deepclaw/core';
+import { ChatMessage, splitLoopId } from '@deepclaw/core';
 import { globalize } from '@deepclaw/utils';
 import { FileUtils } from '@deepclaw/node-utils';
 
@@ -107,7 +107,7 @@ class UIChatServiceImpl {
     }
 
     private static getChatFile(loopId: string): string {
-        const {agentId, projectId} = splitFlushAgentKey(loopId);
+        const {agentId, projectId} = splitLoopId(loopId);
         if (projectId) {
             return `${PROJECT_DIR}/${projectId}/${CHAT_FILE}`;
         } else {

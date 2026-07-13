@@ -1,6 +1,6 @@
 import {
     AgentInfoEvent, AgentStreamEvent, AgentToolResultEvent,
-    getFlushAgentKey, AgentInteractionEventPayload
+    getLoopId, AgentInteractionEventPayload
 } from './flush-agent-event';
 import {
     AgentHandler, SealedAgentHandler,
@@ -48,7 +48,7 @@ export abstract class FlushAgent {
     protected abstract _resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse>;
 
     protected getId() {
-        return getFlushAgentKey(this.agentId, this.projectId);
+        return getLoopId(this.agentId, this.projectId);
     }
 
     async resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse> {

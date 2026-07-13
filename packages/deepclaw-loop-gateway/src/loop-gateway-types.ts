@@ -1,4 +1,8 @@
-import { AgentAgentInfoEvent, AgentEvent, AgentInfoEvent, AgentInteractionEvent, AgentLoopEvent, AgentProjectInfoEvent, AgentStreamEvent, ChatMessage } from "@deepclaw/core";
+import {
+    AgentAgentInfoEvent, AgentEvent, AgentInfoEvent,
+    AgentInteractionEvent, AgentLoopEvent, AgentProjectInfoEvent,
+    AgentStreamEvent, ChatMessage
+} from "@deepclaw/core";
 
 export type AgentLoopBusyEvent = AgentLoopEvent & {
     eventType: 'busy';
@@ -46,4 +50,8 @@ export function isLoopEvent(event: AgentEvent): event is AgentLoopEvent {
 }
 export function isInfoEvent(event: AgentEvent): event is AgentInfoEvent {
     return isProjectInfoEvent(event) || isAgentInfoEvent(event);
+}
+
+export function getClientKey(browserId: string, loopId?: string): string {
+    return loopId ? `${browserId}::${loopId}` : browserId;
 }

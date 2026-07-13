@@ -35,7 +35,8 @@ export class BackgroundCommandManager {
             this.completedCommands.add(id);
             command.completedAt = new Date().toISOString();
             command.status = 'completed';
-            FileUtils.writeFile(command.outputPath!, command.output || '');
+            const outputPath = FileUtils.writeFile(command.outputPath!, command.output || '');
+            command.outputPath = outputPath;
         });
     }
 

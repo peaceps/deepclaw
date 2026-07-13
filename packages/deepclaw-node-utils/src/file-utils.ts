@@ -10,7 +10,8 @@ export class FileUtils {
     }
 
     public static readFile(filePath: string): string {
-        const absolutePath = this.getAbsolutePath(filePath);
+        const name = this.sanitizeFileName(filePath);
+        const absolutePath = this.getAbsolutePath(name);
         if (!fs.existsSync(absolutePath)) {
             throw new Error(`File ${filePath} not found.`);
         }
@@ -19,7 +20,8 @@ export class FileUtils {
 
     public static readDir(dirPath: string, fileToRead?: ((fileName: string) => string)): {[key: string]: string} {
         const files: {[key: string]: string} = {};
-        dirPath = this.getAbsolutePath(dirPath);
+        const name = this.sanitizeFileName(dirPath);
+        dirPath = this.getAbsolutePath(name);
         if (fs.existsSync(dirPath)) {
             for (const fileName of fs.readdirSync(dirPath)) {
                 const filePath = fileToRead ? fileToRead(fileName) : fileName;
@@ -35,14 +37,17 @@ export class FileUtils {
         return files;
     }
 
-    public static writeFile(filePath: string, content: string): void {
-        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
+    public static writeFile(filePath: string, content: string): string {
+        const name = this.sanitizeFileName(filePath);
+        const absolutePath = this.getAbsolutePath(name);
         this.ensureFolderExist(absolutePath);
         fs.writeFileSync(absolutePath, content, 'utf8');
+        return name;
     }
 
     public static appendFile(filePath: string, content: string): void {
-        const absolutePath = this.getAbsolutePath(filePath);
+        const name = this.sanitizeFileName(filePath);
+        const absolutePath = this.getAbsolutePath(name);
         this.ensureFolderExist(absolutePath);
         fs.appendFileSync(absolutePath, content, 'utf8');
     }
