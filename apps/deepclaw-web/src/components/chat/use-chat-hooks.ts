@@ -61,6 +61,7 @@ export function useSSEConnection(
     const closeModal = useModalStore(s => s.closeModal);
     const addMessage = useAppStore(s => s.addMessage);
     const updateMessage = useAppStore(s => s.updateMessage);
+    const replaceMessage = useAppStore(s => s.replaceMessage);
     const setChatBusy = useAppStore(s => s.setChatBusy);
 
     useEffect(() => {
@@ -110,7 +111,7 @@ export function useSSEConnection(
             (event) => {
               if (event.loopId !== loopId || event.browserId === browserId) return;
               if (event.update) {
-                updateMessage(loopId, event.message.id, event.message.content);
+                replaceMessage(loopId, event.message.id, event.message.content);
               } else {
                 addMessage(loopId, event.message);
               }
@@ -133,23 +134,21 @@ export function useSSEConnection(
 
 export function useLoopResume(listening: boolean, loopId: string) {
     const browserId = useAppStore(s => s.browserId);
-    const getNewestMessageId = useAppStore(s => s.getNewestMessageId);
     const subscribeStream = usePersistStream(browserId, loopId);
 
     useEffect(() => {
         if (!listening) return;
-        const newestMessageId = getNewestMessageId(loopId);
         let unsubscribe: (() => void) | null = null;
 
         let cancelled = false;
-        resumeLoop(browserId, loopId).then((resume) => {
+        resumeLoop(browserId, loopId).then(({resume, msgId}) => {
           if (cancelled) return;
-          if (newestMessageId && resume) unsubscribe = subscribeStream(newestMessageId);
+          if (msgId && resume) unsubscribe = subscribeStream(msgId);
         });
 
         return () => { cancelled = true; unsubscribe?.(); };
 
-    }, [listening, browserId, loopId, getNewestMessageId, subscribeStream])
+    }, [listening, browserId, loopId, subscribeStream])
 }
 
 export function useSend(
@@ -164,8 +163,7 @@ export function useSend(
     const setChatBusy = useAppStore(s => s.setChatBusy);
     const locked = useAppStore(s => !!s.busyChatKeys[loopId]);
     const subscribeStream = usePersistStream(browserId, loopId);
-    const { t } = useTranslation();
-    const invokeError = useInvokeError(browserId, loopId);
+    const {t} = useTranslation();
 
     function addAndFireMessage(msg: ChatMessage) {
         addMessage(loopId, msg);
@@ -179,16 +177,19 @@ export function useSend(
         setInput('');
         setChatBusy(loopId, true);
         addAndFireMessage(newMessage('user', agent.id, trimmed));
-        const newAgentMsg = newMessage('agent', agent.id, '');
-        addAndFireMessage(newAgentMsg);
-        const unsubscribe = subscribeStream(newAgentMsg.id);
-        invoke(browserId, agent.id, projectId, trimmed).then((busy: boolean) => {
+
+        let unsubscribe: (() => void) | undefined = undefined;
+        invoke(browserId, agent.id, projectId, trimmed).then(({busy, msgId}) => {
             if (busy) {
-                invokeError(newAgentMsg.id, t('web.pages.chat.busy', { name: agent.name }), true, unsubscribe);
+              setChatBusy(loopId, busy);
+            } else {
+              unsubscribe = subscribeStream(msgId);
             }
         }).catch((e: any) => {
             logger.error(`Failed to invoke ${loopId}:`, e);
-            invokeError(newAgentMsg.id, t('web.pages.chat.invoke.error'), false, unsubscribe);
+            unsubscribe?.();
+            setChatBusy(loopId, false);
+            addMessage(loopId, newMessage('agent', agent.id, t('web.pages.chat.invoke.error')));
         });
       };
     
@@ -207,20 +208,6 @@ export function useSend(
       handleSend,
       handleKeyDown,
     };
-}
-
-function useInvokeError(browserId: string, loopId: string): (
-    msgId: string, text: string, busy: boolean, unsubscribe: () => void
-) => void {
-    const setChatBusy = useAppStore(s => s.setChatBusy);
-    const updateMessage = useAppStore(s => s.updateMessage);
-
-    return useCallback((msgId: string, text: string, busy: boolean, unsubscribe: () => void) => {
-        unsubscribe();
-        updateMessage(loopId, msgId, text);
-        updateChatMessage(browserId, loopId, msgId, text);
-        setChatBusy(loopId, busy);
-    }, [browserId, loopId, updateMessage, setChatBusy]);
 }
 
 function usePersistStream(

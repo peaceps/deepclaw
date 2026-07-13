@@ -4,11 +4,13 @@ import { SSEServer } from '@/app/api/sse-server';
 import { ChatMessage } from '@deepclaw/core';
 import { LoopGateway, UIChatService } from '@deepclaw/loop-gateway';
 
-export async function invoke(browserId: string, agentId: string, projectId: string, input: string): Promise<boolean> {
+export async function invoke(
+    browserId: string, agentId: string, projectId: string, input: string
+): Promise<{busy: boolean, msgId: string}> {
     return LoopGateway.invoke(browserId, agentId, projectId, input);
 }
 
-export async function resumeLoop(browserId: string, loopId: string): Promise<boolean> {
+export async function resumeLoop(browserId: string, loopId: string): Promise<{resume: boolean, msgId: string}> {
     SSEServer.activeClient(browserId, loopId, true);
     return LoopGateway.resume(browserId, loopId);
 }

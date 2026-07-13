@@ -48,6 +48,7 @@ type AppState = {
   getOldestMessageId: (loopId: string) => string | undefined;
   getNewestMessageId: (loopId: string) => string | undefined;
   updateMessage: (loopId: string, id: string, text: string) => void;
+  replaceMessage: (loopId: string, id: string, text: string) => void;
   setChatBusy: (loopId: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
 }
@@ -139,6 +140,13 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
         };
     }
+  }),
+  replaceMessage: (loopId: string, id: string, text: string) => set((state) => {
+    const message = state.getMessageById(loopId, id);
+    if (!message) {
+        return {};
+    }
+    return { messages: { ...state.messages, ...{[loopId]: state.messages[loopId].map(m => m.id === id ? { ...m, content: text } : m) } } };
   }),
   setChatBusy: (loopId: string, busy: boolean) => set((state) => ({
     busyChatKeys: {

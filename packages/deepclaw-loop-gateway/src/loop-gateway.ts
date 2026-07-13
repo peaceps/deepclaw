@@ -8,8 +8,7 @@ import type {
     AgentInvokeResponse
 } from "@deepclaw/core";
 import {
-    getLoopId, isAgentStopReason, isExternalInterruptReason, isInternalInterruptReason,
-    newMessage, splitLoopId
+    getLoopId, isInternalInterruptReason, newMessage, splitLoopId
 } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
 import {
@@ -18,12 +17,14 @@ import {
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
 import { LoopGatewayEvent, getClientKey } from "./loop-gateway-types";
+import { i18nInstance } from "@deepclaw/i18n";
 
 type LoopState = {
     agentId: string;
     projectId: string;
     loop: LoopAgent<unknown, any, any>;
     running: boolean;
+    msgId?: string;
     browserId?: string;
     runtime?: AgentRuntime;
 };
@@ -109,33 +110,39 @@ class LoopGatewayImpl {
         return this.loops[loopId]?.running ?? false;
     }
 
-    public static invoke(browserId: string, agentId: string, projectId: string, input: string): boolean {
+    public static invoke(
+        browserId: string, agentId: string, projectId: string, input: string
+    ): {busy: boolean, msgId: string} {
         const loopId = getLoopId(agentId, projectId);
         if (!this.loops[loopId]) {
             this.init(loopId);
         }
+        const agentMessages = newMessage('agent', agentId, '');
+        this.addMessage('', loopId, agentMessages);
         if (this.isLoopBusy(loopId)) {
-            return true;
+            this.updateMessage('', loopId, agentMessages.id, i18nInstance.t('gateway.busy'));
+            return {busy: true, msgId: agentMessages.id};
         }
+        this.fireBusyEvent(loopId);
         const loopState = this.loops[loopId]!;
         loopState.runtime = undefined;
         loopState.running = true;
         loopState.browserId = browserId;
-        this.fireBusyEvent(loopId);
+        loopState.msgId = agentMessages.id;
         this.invokeAndReturn(
             loopId, loopState,
             () => loopState.loop.invoke(input, {browserId: loopState.browserId!})
         );
-        return false;
+        return {busy: false, msgId: agentMessages.id};
     }
 
-    public static resume(browserId: string, loopId: string): boolean {
+    public static resume(browserId: string, loopId: string): {resume: boolean, msgId: string} {
         if (!this.loops[loopId]) {
-            return false;
+            return {resume: false, msgId: ''};
         }
         const loopState = this.loops[loopId]!;
         if (loopState.browserId !== browserId || !loopState.runtime) {
-            return false;
+            return {resume: false, msgId: ''};
         }
         const runtime = loopState.runtime!
         loopState.runtime = undefined;
@@ -143,7 +150,7 @@ class LoopGatewayImpl {
             loopId, loopState,
             () => loopState.loop.resume({browserId: loopState.browserId!, runtime})
         );
-        return true;
+        return {resume: true, msgId: loopState.msgId!};
     }
 
     private static invokeAndReturn(
@@ -152,9 +159,7 @@ class LoopGatewayImpl {
         invoke().then(({text, runtime}) => {
             const state = runtime.agentBreakReason;
             if (!isInternalInterruptReason(state)) {
-                if (isExternalInterruptReason(state) || isAgentStopReason(state)) {
-                    this.addMessage(loopState.browserId!, loopId, newMessage('agent', loopState.agentId!, text));
-                }
+                this.updateMessage('', loopId, loopState.msgId!, text);
                 this.clearLoopState(loopState);
             } else {
                 loopState.runtime = runtime;
@@ -170,18 +175,21 @@ class LoopGatewayImpl {
     private static clearLoopState(loopState: LoopState): void {
         loopState.running = false;
         loopState.browserId = undefined;
+        loopState.msgId = undefined;
         loopState.runtime = undefined;
     }
 
-    public static addMessage(browserId: string, loopId: string, message: ChatMessage): void {
+    public static addMessage(
+        fromBrowserId: string, loopId: string, message: ChatMessage
+    ): void {
         UIChatService.addMessage(loopId, message);
-        this.fireChatMessageEvent(browserId, loopId, false, message);
+        this.fireChatMessageEvent(fromBrowserId, loopId, false, message);
     }
 
-    public static updateMessage(browserId: string, loopId: string, id: string, text: string): void {
+    public static updateMessage(fromBrowserId: string, loopId: string, id: string, text: string): void {
         const message = UIChatService.replaceMessage(loopId, id, text);
         if (message) {
-            this.fireChatMessageEvent(browserId, loopId, true, message);
+            this.fireChatMessageEvent(fromBrowserId, loopId, true, message);
         }
     }
 
