@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { useSSEClient } from '@/components/layout/SSEProvider';
 import { SSEConnectedEvent } from "@/app/api/sse-types";
 import { getLogger } from "@/lib/logger";
 import { useModalStore } from '@/lib/modal-store';
-import { invoke, pullNewerMessages, pushChatMessage, resolveInteraction, updateChatMessage, resumeLoop, inactiveLoop } from "@/server/loop-agent";
+import {
+    invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
+    resolveInteraction, updateChatMessage, resumeLoop, inactiveLoop
+} from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
-import { AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, newMessage } from "@deepclaw/core";
+import {
+    AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, newMessage
+} from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
 import { AgentCancelInteractionEvent, AgentChatEvent, AgentLoopBusyEvent } from "@deepclaw/loop-gateway";
 
@@ -28,7 +33,10 @@ export function useInitChat(loopId: string,
       setInput('');
       let cancelled = false;
       const newestMessageId = getNewestMessageId(loopId);
-      pullNewerMessages(loopId, newestMessageId).then(messages => {
+      const pullPromise = newestMessageId
+          ? pullNewerMessages(loopId, newestMessageId)
+          : pullOlderMessages(loopId);
+      pullPromise.then(messages => {
           if (cancelled) return;
           addPulledMessages(loopId, messages);
       }).catch(err => {
@@ -237,26 +245,4 @@ function usePersistStream(
     ), [browserId, loopId, getMessageById, sseClient, updateMessage]);
 
     return stream;
-}
-
-export function useScroll(agentMessages: ChatMessage[], scrollRef: React.RefObject<HTMLDivElement | null>) {
-    const stickToBottomRef = useRef(true);
-
-    const lastContent = agentMessages?.[agentMessages.length - 1]?.content ?? '';
-    useEffect(() => {
-        const el = scrollRef.current;
-        if (el && stickToBottomRef.current) {
-            el.scrollTop = el.scrollHeight;
-        }
-    }, [agentMessages?.length, lastContent, scrollRef]);
-
-    useEffect(() => {
-        stickToBottomRef.current = true;
-    }, [agentMessages]);
-  
-    return () => {
-      const el = scrollRef.current;
-      if (!el) return;
-      stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    };
 }

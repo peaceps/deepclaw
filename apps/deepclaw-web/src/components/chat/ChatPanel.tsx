@@ -9,7 +9,8 @@ import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { Markdown } from "./Markdown";
-import { useInitChat, useSSEConnection, useScroll, useSend, useLoopResume } from "./use-chat-hooks";
+import { useInitChat, useSSEConnection, useSend, useLoopResume } from "./use-chat-hooks";
+import { useScroll } from "./use-scroll-hooks";
 
 type ChatPanelProps = {
   agent: AgentEmployee;
@@ -30,7 +31,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   useLoopResume(listening, loopId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const handleScroll = useScroll(agentMessages, scrollRef);
+  const handleScroll = useScroll(agentMessages, scrollRef, loopId);
 
   const { handleSend, handleKeyDown } = useSend(
     loopId, agent, projectId, input, setInput
@@ -84,9 +85,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
             disabled={locked}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={locked
-              ? t('web.pages.chat.busy', { name: agent.name })
-              : t('web.pages.chat.send', { name: agent.name })}
+            placeholder={t('web.pages.chat.send', { name: agent.name })}
             className="flex-1 px-4 py-2 border border-gray-200 rounded-lg disabled:bg-gray-50
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
