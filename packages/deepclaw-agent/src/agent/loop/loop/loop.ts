@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+import { randomUUID } from 'crypto';
 import { i18nInstance } from '@deepclaw/i18n';
 import { 
     type AgentInfoEvent,
@@ -30,36 +30,34 @@ import { HookManager } from '../services/hook-manager';
 import { AgentConfig, loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
 import {
-    AGENT_SESSION_DIR, AGENTS_DIR, PROJECT_DIR, SUB_LOOP_DIR
+    AGENTS_DIR, PROJECT_DIR, SESSION_DIR, SUB_LOOP_DIR
 } from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
-import { PersistHistoryService } from '../services/persist-history-service';
+import { SessionService } from '../services/session-service';
 
 export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionReason },
     LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
-    protected parentSessionId: string;
     private historyPersistIndex: number = 0;
-    private sessionId: string;
     protected history: I[] = [];
     private footPrints: FootPrint[] = [];
     private agentConfig: AgentConfig;
     private externalInterruptReason: ExternalInterruptReason | undefined;
+    private subLoopId?: string;
 
     constructor(
         agentId: string,
         handler: AgentHandler,
         projectId: string = '',
         history: I[] = [],
-        parentSessionId: string = '',
+        subLoopId?: string,
     ) {
         super(agentId, projectId, handler);
+        this.subLoopId = subLoopId;
         this.agentConfig = loadAgentConfig(agentId);
-        this.parentSessionId = parentSessionId;
-        this.sessionId = this.initializeSessionId(history);
         this.history = this.loadPersistedHistory(history);
         this.historyPersistIndex = this.history.length;
         this.llm = new (this.getLLMConstructor())(
@@ -70,36 +68,25 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected abstract getLLMProtocol(): LLMProtocol;
 
-    private initializeSessionId(history: I[]): string {
-        if (this.isSubLoop() || this.projectId || history.length > 0) {
-            return crypto.randomUUID();
-        }
-        return PersistHistoryService.loadLatestAgentSessionId(this.agentId, this.getLLMProtocol()) || crypto.randomUUID();
-    }
-
     private loadPersistedHistory(history: I[]): I[] {
         if (this.isSubLoop() || history.length > 0) {
             return history;
         }
-        const sessionDir = this.getSessionDir();
-        PersistHistoryService.ensureSessionFilesExist({
-            sessionDir,
-            sessionId: this.sessionId,
-            parentSessionId: this.parentSessionId,
+        return SessionService.loadSession({
+            sessionDir: this.getSessionDir(),
             agentId: this.agentId,
             projectId: this.projectId,
             loopId: this.getId(),
             isSubLoop: this.isSubLoop(),
             llmProtocol: this.getLLMProtocol()
         });
-        return PersistHistoryService.loadHistory(sessionDir);
     }
 
     protected getSessionDir() {
         if (!!this.projectId) {
-            return `${PROJECT_DIR}/${this.projectId}`;
+            return `${PROJECT_DIR}/${this.projectId}/${SESSION_DIR}`;
         } else {
-            return `${AGENTS_DIR}/${this.agentId}/${AGENT_SESSION_DIR}/${this.sessionId}`;
+            return `${AGENTS_DIR}/${this.agentId}/${SESSION_DIR}`;
         }
     }
 
@@ -128,7 +115,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     }
 
     protected isSubLoop(): boolean {
-        return this.parentSessionId !== '';
+        return !!this.subLoopId;
     }
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
@@ -157,7 +144,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private async _invokeLoopAndReturn(state: LoopState<I>): Promise<AgentInvokeResponse> {
         let finalText = '';
         try {
-            PersistHistoryService.updateSessionRuntime(state.oneLoopContext.sessionDir, {status: 'running'});
+            SessionService.updateSessionRuntime(state.oneLoopContext.sessionDir, {status: 'running'});
             finalText = await this.agentLoop(state);
             return {text: finalText, runtime: state.oneLoopContext.runtime};
         } catch (error) {
@@ -172,7 +159,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 state.oneLoopContext.runtime.breakPoint.break = undefined;
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
             } finally {
-                PersistHistoryService.saveHistory(this.history, state.oneLoopContext, {finalText}, true);
+                SessionService.saveHistory(this.history, state.oneLoopContext, {
+                    finalText, usage: state.oneLoopContext.runtime.usage
+                }, true);
                 this.historyPersistIndex = state.oneLoopContext.runtime.historyPersistIndex;
             }
         }
@@ -186,13 +175,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             projectId: this.projectId,
             loopConfig: this.agentConfig,
             browserId: options.browserId,
-            sessionDir: this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.sessionId}` : this.getSessionDir(),
+            sessionDir: this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.subLoopId}`
+                : this.getSessionDir(),
             system: '',
-            logger: getLoopLogger(this.parentSessionId, this.sessionId, crypto.randomUUID().toString()),
+            logger: getLoopLogger(this.getId(), this.subLoopId),
             actions: {
                 newSubLoop: this.createSubLoop.bind(this),
                 addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
-                compactIfNeeded: (context: OneLoopContext) => this.compactIfNeeded(context),
                 agentHandler: this.agentHandler,
                 addStringMessage: this.addStringMessage.bind(this),
             },
@@ -262,6 +251,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         if (!runtime.breakPoint.break && runtime.breakPoint.point <= BREAK_POINTS.callLLM) {
             runtime.breakPoint.point = BREAK_POINTS.none;
             await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
+            
+            await this.compactIfNeeded(state.oneLoopContext);
             response = await this.llm.invoke(
                 state.oneLoopContext.loopConfig.mode,
                 state.oneLoopContext.system,
@@ -319,14 +310,19 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 }
             } finally {
                 await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
-                PersistHistoryService.saveHistory(this.history, state.oneLoopContext);
+                SessionService.saveHistory(this.history, state.oneLoopContext);
             }
         }
         return !runtime.breakPoint.break && !isStopTransitionReason(runtime.transitionReason)
             && !runtime.agentBreakReason;
     }
 
-    protected abstract addTokenUsage(context: OneLoopContext, response: O): void;
+    private addTokenUsage(context: OneLoopContext, response: O): void {
+        const tokenUsage = this.llm.getTokenUsage(response);
+        context.runtime.usage.cachedInputTokens += tokenUsage.cachedInputTokens;
+        context.runtime.usage.noCachedInputTokens += tokenUsage.noCachedInputTokens;
+        context.runtime.usage.outputTokens += tokenUsage.outputTokens;
+    }
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
@@ -395,7 +391,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             onToolText: (e: AgentToolResultEvent) => this.agentHandler.onToolText(e),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
-        }, fork ? this.history : [], this.sessionId);
+        }, fork ? this.history : [], randomUUID());
     }
 
     protected abstract newSubLoop(
@@ -403,6 +399,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         projectId: string,
         subLoopAgentHandler: AgentHandler,
         history: I[],
-        parentSessionId: string,
+        subLoopId: string,
     ): LoopAgent<I, O, LLM>;
 }

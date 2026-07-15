@@ -27,6 +27,12 @@ export type AgentMood = {
 
 export type AgentEmployee = AgentIdentity & AgentMood;
 
+export type TokenUsage = {
+    cachedInputTokens: number;
+    noCachedInputTokens: number;
+    outputTokens: number;
+}
+
 export type ChatMessage = {
     id: string;
     agentId: string;

@@ -80,7 +80,6 @@ export abstract class FlushAgent {
             },
             usage: {
                 cachedInputTokens: 0,
-                cacheCreationInputTokens: 0,
                 noCachedInputTokens: 0,
                 outputTokens: 0
             }

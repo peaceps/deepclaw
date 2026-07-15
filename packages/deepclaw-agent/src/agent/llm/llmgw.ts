@@ -1,14 +1,15 @@
 import {AgentMode, LLMConfig} from '@deepclaw/config';
 import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMGWConfig, LLMTransitionReason } from '@deepclaw/core';
+import { LLMGWConfig, LLMTransitionReason, TokenUsage } from '@deepclaw/core';
 import { ToolsManager } from '../loop/services/tools-manager';
 
 const llmRetry = 3;
 
-export type LLMConstructor<I, O, T, LLM> = new (isSubLoop: boolean, llmConfig: LLMConfig) => LLMModel<I, O, T, LLM>;
+export type LLMConstructor<I, O extends {transitionReason: LLMTransitionReason}, T, LLM> =
+    new (isSubLoop: boolean, llmConfig: LLMConfig) => LLMModel<I, O, T, LLM>;
 
-export abstract class LLMModel<I, O, T, LLM> {
+export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReason}, T, LLM> {
     protected client: LLM;
     private tools: Record<AgentMode, T[]> = {agent: [], chat: []};
     protected gw: LLMGWConfig;
@@ -69,7 +70,9 @@ export abstract class LLMModel<I, O, T, LLM> {
         if (!response) {
             response = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`, 'error');
         }
-        messages.push(...this.convertResponseToMessages(response));
+        if (response.transitionReason !== 'inputMaxTokens') {
+            messages.push(...this.convertResponseToMessages(response));
+        }
         return response;
     }
 
@@ -95,7 +98,7 @@ export abstract class LLMModel<I, O, T, LLM> {
         system: string,
         content: string,
         logger: Logger
-    ): Promise<string> {
+    ): Promise<{summary: string, tokenUsage: TokenUsage}> {
         const prompt =
 `Summarize this agent conversation so work can continue.
 Preserve:
@@ -116,7 +119,10 @@ ${content}`;
             () => {},
             logger
         );
-        return this.getTextFromResponse(response);
+        return {
+            summary: this.getTextFromResponse(response),
+            tokenUsage: this.getTokenUsage(response)
+        };
     }
     
     public newInputMessage(content: string, user: boolean = true): I {
@@ -132,5 +138,7 @@ ${content}`;
     protected abstract getTextFromResponse(response: O): string;
 
     public abstract getTextFromInputMessage(message: I): string;
+
+    public abstract getTokenUsage(response: O): TokenUsage;
 
 }

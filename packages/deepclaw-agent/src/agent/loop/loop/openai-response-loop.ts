@@ -3,7 +3,7 @@ import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { OpenAIResponseLLM, ThinkingMessage, ThinkingResponse } from '../../llm/openai-response-llm';
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
-import { LLMProtocol, OneLoopContext } from '../../definitions/definitions';
+import { LLMProtocol } from '../../definitions/definitions';
 
 export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
 
@@ -13,15 +13,6 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return OpenAIResponseLLM;
-    }
-            
-    protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
-        if (response.usage) {
-            const cachedTokens = response.usage.input_tokens_details?.cached_tokens || 0;
-            context.runtime.usage.cachedInputTokens += cachedTokens;
-            context.runtime.usage.noCachedInputTokens += response.usage.input_tokens - cachedTokens;
-            context.runtime.usage.outputTokens += response.usage.output_tokens;
-        }
     }
 
     protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
@@ -50,8 +41,8 @@ export class OpenAIResponseLoop extends LoopAgent<ThinkingMessage, ThinkingRespo
         projectId: string,
         subLoopAgentHandler: AgentHandler,
         history: ThinkingMessage[],
-        parentSessionId: string,
+        subLoopId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIResponseLLM> {
-        return new OpenAIResponseLoop(agentId, subLoopAgentHandler, projectId, history, parentSessionId);
+        return new OpenAIResponseLoop(agentId, subLoopAgentHandler, projectId, history, subLoopId);
     }
 }

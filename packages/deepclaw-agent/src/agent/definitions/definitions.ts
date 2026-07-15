@@ -1,5 +1,8 @@
 import type { Logger } from '@deepclaw/node-utils';
-import { SealedAgentHandler, LLMTransitionReason, type FlushAgent, type AgentRuntime } from '@deepclaw/core';
+import {
+    SealedAgentHandler, LLMTransitionReason, type FlushAgent,
+    type AgentRuntime, type TokenUsage
+} from '@deepclaw/core';
 import { AgentConfig } from '@deepclaw/config';
 
 export type LLMProtocol = 'Anthropic' | 'OpenAIChat' | 'OpenAIResponse';
@@ -27,7 +30,6 @@ export type OneLoopContext = {
     actions: {
         newSubLoop: (fork?: boolean) => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
-        compactIfNeeded: (context: OneLoopContext) => Promise<void>;
         agentHandler: SealedAgentHandler;
         addStringMessage: (message: string) => void;
     },
@@ -40,8 +42,6 @@ export type SessionMetaData = {
     llmProtocol: LLMProtocol;
     agentId: string;
     projectId: string;
-    sessionId: string;
-    parentSessionId?: string;
     loopId: string;
     isSubLoop: boolean;
     messagesPath: string;
@@ -52,5 +52,7 @@ export type SessionMetaData = {
         finalText?: string;
         updatedAt: string;
         endedAt?: string;
+        usage: TokenUsage;
+        outdated: boolean;
     }
 }

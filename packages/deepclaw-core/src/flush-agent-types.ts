@@ -1,3 +1,4 @@
+import { TokenUsage } from './agent-definitions';
 import {
     AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent,
     AgentInteractionEventPayload
@@ -85,10 +86,5 @@ export type AgentRuntime = {
         maxTokenRetries: number;
         refusalState: '' // TODO: 添加拒绝状态
     },
-    usage: {
-        cachedInputTokens: number;
-        cacheCreationInputTokens: number;
-        noCachedInputTokens: number;
-        outputTokens: number;
-    }
+    usage: TokenUsage;
 }

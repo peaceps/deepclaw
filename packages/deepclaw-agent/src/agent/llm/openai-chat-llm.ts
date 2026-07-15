@@ -12,7 +12,7 @@ import {
  } from 'openai/resources/completions.js';
 import { LLMModel } from './llmgw';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMTransitionReason } from '@deepclaw/core';
+import { LLMTransitionReason, TokenUsage } from '@deepclaw/core';
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |
@@ -198,5 +198,14 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                 message.content?.filter((block) => block.type === 'text').filter(block => !!block.text)
                     .map(block => block.text).join('\n')
         ) || '';
+    }
+
+    public override getTokenUsage(response: ThinkingResponse): TokenUsage {
+        const cachedTokens = response.usage?.prompt_tokens_details?.cached_tokens || 0;
+        return {
+            cachedInputTokens: cachedTokens,
+            noCachedInputTokens: (response.usage?.prompt_tokens || 0) - cachedTokens,
+            outputTokens: response.usage?.completion_tokens || 0,
+        };
     }
 }

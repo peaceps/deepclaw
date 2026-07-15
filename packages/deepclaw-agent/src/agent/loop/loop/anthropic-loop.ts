@@ -3,7 +3,7 @@ import { LoopAgent } from "./loop";
 import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
-import { LLMProtocol, OneLoopContext } from "../../definitions/definitions";
+import { LLMProtocol } from "../../definitions/definitions";
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
 
@@ -13,13 +13,6 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return AnthropicLLM;
-    }
-    
-    protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
-        context.runtime.usage.noCachedInputTokens += response.usage.input_tokens;
-        context.runtime.usage.outputTokens += response.usage.output_tokens;
-        context.runtime.usage.cachedInputTokens += response.usage.cache_read_input_tokens || 0;
-        context.runtime.usage.cacheCreationInputTokens += response.usage.cache_creation_input_tokens || 0;
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
@@ -45,9 +38,9 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
         projectId: string,
         subLoopAgentHandler: AgentHandler,
         history: ThinkingMessage[],
-        parentSessionId: string,
+        subLoopId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
-        return new AnthropicLoop(agentId, subLoopAgentHandler, projectId, history, parentSessionId);
+        return new AnthropicLoop(agentId, subLoopAgentHandler, projectId, history, subLoopId);
     }
 
 }

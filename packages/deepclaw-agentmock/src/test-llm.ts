@@ -1,5 +1,5 @@
 import { LLMModel, LLMTool } from "@deepclaw/agent";
-import { LLMTransitionReason } from "@deepclaw/core";
+import { LLMTransitionReason, TokenUsage } from "@deepclaw/core";
 
 export type ThinkingMessage = {
     role: 'system' | 'user' | 'assistant' | 'tool_result';
@@ -57,5 +57,13 @@ export class TestLLM extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, L
 
     protected override async _invoke(): Promise<ThinkingResponse> {
         return this.newResponse('');
+    }
+
+    public override getTokenUsage(): TokenUsage {
+        return {
+            cachedInputTokens: 0,
+            noCachedInputTokens: 0,
+            outputTokens: 0,
+        };
     }
 }

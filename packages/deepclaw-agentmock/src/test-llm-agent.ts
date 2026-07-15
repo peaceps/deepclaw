@@ -1,6 +1,6 @@
 import { AgentHandler, AgentInvokeResponse } from '@deepclaw/core';
 import {
-    ToolUseDef, LoopAgent, LLMConstructor, LLMProtocol, OneLoopContext, ToolUseResult,
+    ToolUseDef, LoopAgent, LLMConstructor, LLMProtocol, ToolUseResult,
 } from "@deepclaw/agent";
 import { TestLLM, ThinkingMessage, ThinkingResponse } from './test-llm';
 
@@ -12,9 +12,6 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return TestLLM;
     }
-    protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
-        if (response.usage) {context.runtime.usage.noCachedInputTokens += response.usage.input_tokens;}
-    }
     
     protected override extractToolUseFromResponse(result: ThinkingResponse): ToolUseDef[] {
         return result ? [] : [];
@@ -22,8 +19,11 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
         return toolResults ? [{role: 'user', content: []}] : [];
     }
-    protected override newSubLoop(agentId: string, projectId: string, subLoopAgentHandler: AgentHandler, history: ThinkingMessage[], parentSessionId: string): LoopAgent<ThinkingMessage, ThinkingResponse, TestLLM> {
-        return new TestLlmAgent(agentId, subLoopAgentHandler, projectId, history, parentSessionId);
+    protected override newSubLoop(
+        agentId: string, projectId: string, subLoopAgentHandler: AgentHandler,
+        history: ThinkingMessage[], subLoopId: string
+    ): LoopAgent<ThinkingMessage, ThinkingResponse, TestLLM> {
+        return new TestLlmAgent(agentId, subLoopAgentHandler, projectId, history, subLoopId);
     }
 
     protected override async _invoke(): Promise<AgentInvokeResponse> {

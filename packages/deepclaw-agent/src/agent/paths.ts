@@ -1,8 +1,9 @@
+export const SESSION_DIR = 'session';
 // Agent session
 export const AGENTS_DIR = '.agents';
 export const AGENT_MD = 'AGENT.md';
 export const AGENT_SOUL_JSON = 'SOUL.json';
-export const AGENT_SESSION_DIR = 'session';
+export const AGENT_CURRENT_SESSION_DIR = 'current';
 
 // Project session
 export const PROJECT_DIR = '.projects';

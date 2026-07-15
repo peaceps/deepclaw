@@ -3,7 +3,7 @@ import { LoopAgent } from './loop';
 import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler } from '@deepclaw/core';
-import { LLMProtocol, OneLoopContext } from '../../definitions/definitions';
+import { LLMProtocol } from '../../definitions/definitions';
 
 export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
 
@@ -13,15 +13,6 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
 
     protected override getLLMConstructor(): LLMConstructor<ThinkingMessage, ThinkingResponse, unknown, unknown> {
         return OpenAIChatLLM;
-    }
-
-    protected override addTokenUsage(context: OneLoopContext, response: ThinkingResponse): void {
-        if (response.usage) {
-            const cachedTokens = response.usage.prompt_tokens_details?.cached_tokens || 0;
-            context.runtime.usage.cachedInputTokens += cachedTokens;
-            context.runtime.usage.noCachedInputTokens += response.usage.prompt_tokens - cachedTokens;
-            context.runtime.usage.outputTokens += response.usage.completion_tokens;
-        }
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): ThinkingMessage[] {
@@ -45,8 +36,8 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
         projectId: string,
         subLoopAgentHandler: AgentHandler,
         history: ThinkingMessage[],
-        parentSessionId: string,
+        subLoopId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
-        return new OpenAIChatLoop(agentId, subLoopAgentHandler, projectId, history, parentSessionId);
+        return new OpenAIChatLoop(agentId, subLoopAgentHandler, projectId, history, subLoopId);
     }
 }

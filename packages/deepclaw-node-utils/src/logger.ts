@@ -28,10 +28,9 @@ export function getLogger(name: string) {
     });
 }
 
-export function getLoopLogger(parentSessionId: string, sessionId: string, loopId: string) {
+export function getLoopLogger(loopId: string, subLoopId?: string) {
     return geRootLogger().child({
-        parentSessionId,
-        sessionId,
-        loopId
+        loopId,
+        subLoopId
     });
 }

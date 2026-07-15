@@ -136,7 +136,7 @@ export function useSSEConnection(
     }, [
         chatInited, loopId, sseClient, setChatBusy,
         showModal, closeModal, addMessage,
-        setListening, browserId, updateMessage
+        setListening, browserId, updateMessage, replaceMessage
     ]);
 }
 

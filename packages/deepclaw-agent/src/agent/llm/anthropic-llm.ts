@@ -12,7 +12,7 @@ import {
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMTransitionReason } from '@deepclaw/core';
+import { LLMTransitionReason, TokenUsage } from '@deepclaw/core';
 
 export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
 
@@ -128,6 +128,15 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
 
     private getTextFromContent(content: ThinkingContent[]): string {
         return content.filter(block => block.type === 'text').map(block => block.text || '').join('\n');
+    }
+
+    public override getTokenUsage(response: ThinkingResponse): TokenUsage {
+        return {
+            outputTokens: response.usage.output_tokens,
+            noCachedInputTokens: (response.usage.input_tokens || 0) +
+                (response.usage.cache_creation_input_tokens || 0),
+            cachedInputTokens: response.usage.cache_read_input_tokens || 0,
+        };
     }
 
 }
