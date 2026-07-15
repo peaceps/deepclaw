@@ -164,6 +164,11 @@ export const en = {
                 noAgent: {
                     title: '😔 Sorry',
                     description: 'This Agent seems to be lost...',
+                },
+                tokenUsage: {
+                    cachedInput: 'Cached input',
+                    noCachedInput: 'No cached input',
+                    output: 'Output'
                 }
             },
             settings: {

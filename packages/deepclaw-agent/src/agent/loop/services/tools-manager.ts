@@ -1,6 +1,6 @@
 import { LLMTool, ToolDesc } from '../../definitions/tool-definitions';
 import {syncCommandTool} from '../tools/sync-command-tool';
-import {subLoopTool, subLoopWithHistoryTool} from '../tools/sub-loop-tool';
+import {subLoopTool} from '../tools/sub-loop-tool';
 import {loadSkillTool} from '../tools/skill-tool';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool';
 import {
@@ -17,7 +17,6 @@ import { AgentMode } from '@deepclaw/config';
 const tools: ToolDesc<any>[] = [
     syncCommandTool,
     subLoopTool,
-    subLoopWithHistoryTool,
     loadSkillTool,
     readFileTool,
     writeFileTool,

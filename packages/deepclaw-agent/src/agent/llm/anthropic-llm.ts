@@ -51,11 +51,11 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
     ): Promise<ThinkingResponse> {
         const stream = this.client.messages.stream({
             model: this.gw.model,
-            system,
+            system: [{type: 'text', text: system, cache_control: {type: 'ephemeral'}}],
             messages,
             tools,
             max_tokens: this.gw.maxTokens,
-            temperature: this.gw.temperature
+            temperature: this.gw.temperature,
         }).on('text', (text) => {
             streamer(text);
         });

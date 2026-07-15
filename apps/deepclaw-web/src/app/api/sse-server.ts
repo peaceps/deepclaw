@@ -1,7 +1,8 @@
 import {
     isInfoEvent, isLoopBusyEvent, isLoopCancelInteractionEvent,
     isLoopChatEvent, isLoopEvent, isLoopInteractionEvent, isLoopStreamEvent,
-    LoopGateway, LoopGatewayEvent, getClientKey
+    LoopGateway, LoopGatewayEvent, getClientKey,
+    isLoopTokenUsageEvent
 } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
@@ -74,7 +75,7 @@ class SSEServerImpl {
         if (!this.sseStore.info.get(client.browserId)) {
             return false;
         }
-        if (isLoopBusyEvent(event)) {
+        if (isLoopBusyEvent(event) || isLoopTokenUsageEvent(event)) {
             return 'loopId' in event && client.loopId === event.loopId;
         } else if (isLoopChatEvent(event)) {
             return 'browserId' in event && client.browserId !== event.browserId

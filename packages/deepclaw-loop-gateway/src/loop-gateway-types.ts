@@ -1,7 +1,8 @@
 import {
     AgentAgentInfoEvent, AgentEvent, AgentInfoEvent,
     AgentInteractionEvent, AgentLoopEvent, AgentProjectInfoEvent,
-    AgentStreamEvent, ChatMessage
+    AgentStreamEvent, ChatMessage,
+    TokenUsage
 } from "@deepclaw/core";
 
 export type AgentLoopBusyEvent = AgentLoopEvent & {
@@ -21,7 +22,12 @@ export type AgentChatEvent = AgentLoopEvent & {
     message: ChatMessage;
 };
 
-export type LoopGatewayEvent = AgentEvent | AgentLoopBusyEvent | AgentChatEvent | AgentCancelInteractionEvent;
+export type AgentTokenUsageEvent = AgentLoopEvent & {
+    eventType: 'tokenUsage';
+    usage: TokenUsage;
+};
+
+export type LoopGatewayEvent = AgentEvent | AgentLoopBusyEvent | AgentChatEvent | AgentCancelInteractionEvent | AgentTokenUsageEvent;
 
 export function isLoopBusyEvent(event: AgentEvent): event is AgentLoopBusyEvent {
     return event.eventType === 'busy';
@@ -38,6 +44,9 @@ export function isLoopCancelInteractionEvent(event: AgentEvent): event is AgentC
 export function isLoopChatEvent(event: AgentEvent): event is AgentChatEvent {
     return event.eventType === 'chat';
 }
+export function isLoopTokenUsageEvent(event: AgentEvent): event is AgentTokenUsageEvent {
+    return event.eventType === 'tokenUsage';
+}
 export function isProjectInfoEvent(event: AgentEvent): event is AgentProjectInfoEvent {
     return event.eventType === 'updateProject';
 }
@@ -46,7 +55,8 @@ export function isAgentInfoEvent(event: AgentEvent): event is AgentAgentInfoEven
 }
 
 export function isLoopEvent(event: AgentEvent): event is AgentLoopEvent {
-    return isLoopBusyEvent(event) || isLoopStreamEvent(event) || isLoopInteractionEvent(event) || isLoopCancelInteractionEvent(event) || isLoopChatEvent(event);
+    return isLoopBusyEvent(event) || isLoopStreamEvent(event) || isLoopInteractionEvent(event) || isLoopCancelInteractionEvent(event)
+        || isLoopChatEvent(event) || isLoopTokenUsageEvent(event);
 }
 export function isInfoEvent(event: AgentEvent): event is AgentInfoEvent {
     return isProjectInfoEvent(event) || isAgentInfoEvent(event);

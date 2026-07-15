@@ -26,27 +26,3 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
         return result.text;
     },
 }
-
-export const subLoopWithHistoryTool: ToolDesc<SubLoopInput> = {
-    tool: {
-        name: 'sub_loop_with_history',
-        description: `Spawn a subagent with history from the parent agent context.
-        It shares the filesystem as well as conversation history. 
-        Only when special cases that need the subagent to have the full context of the parent agent, this tool should be used. 
-        Otherwise, it's recommended to use the 'sub_loop' tool to avoid potential confusion from too much context.`,
-        schema: {
-            type: 'object',
-            properties: {
-                prompt: {type: 'string', description: 'The task prompt for the sub-agent'},
-            },
-            required: ['prompt']}
-    },
-    agentMode: ['agent'],
-    parallelSafe: true,
-    exclusiveInSubLoop: true,
-    invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
-        const subLoop = context.actions.newSubLoop(true);
-        const result = await subLoop.invoke(input.prompt, { browserId: context.browserId });
-        return result.text;
-    },
-}

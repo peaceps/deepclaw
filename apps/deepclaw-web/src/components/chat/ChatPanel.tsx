@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentEmployee, getLoopId } from "@deepclaw/core";
+import { AgentEmployee, getLoopId, TokenUsage } from "@deepclaw/core";
 import { Send } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,12 +22,13 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const loopId = getLoopId(agent.id, projectId);
   const agentMessages = useAppStore(s => s.messages[loopId]);
   const [input, setInput] = useState('');
+  const [tokenUsage, setTokenUsage] = useState<TokenUsage | undefined>(undefined);
   const [chatInited, setChatInited] = useState(false);
   const [listening, setListening] = useState(false);
   const locked = useAppStore(s => !!s.busyChatKeys[loopId]);
 
-  useInitChat(loopId, setChatInited, setInput);
-  useSSEConnection(chatInited, loopId, setListening);
+  useInitChat(loopId, setChatInited, setInput, setTokenUsage);
+  useSSEConnection(chatInited, loopId, setListening, setTokenUsage);
   useLoopResume(listening, loopId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -46,7 +47,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
 
   return (
     <div className="flex flex-col h-full bg-white min-h-140">
-      {<ChatHeader agent={agent} />}
+      {<ChatHeader agent={agent} tokenUsage={tokenUsage}/>}
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
         {!agentMessages?.length ? (
           <div className="text-center py-12 text-gray-400">

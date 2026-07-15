@@ -164,6 +164,11 @@ export const zh = {
                 noAgent: {
                     title: '😔 非常遗憾',
                     description: '这个Agent好像已经不在了...',
+                },
+                tokenUsage: {
+                    cachedInput: '输入（缓存命中）',
+                    noCachedInput: '输入（缓存未命中）',
+                    output: '输出'
                 }
             },
             settings: {

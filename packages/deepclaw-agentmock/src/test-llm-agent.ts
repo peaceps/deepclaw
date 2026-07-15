@@ -20,10 +20,9 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
         return toolResults ? [{role: 'user', content: []}] : [];
     }
     protected override newSubLoop(
-        agentId: string, projectId: string, subLoopAgentHandler: AgentHandler,
-        history: ThinkingMessage[], subLoopId: string
+        agentId: string, projectId: string, subLoopAgentHandler: AgentHandler, subLoopId: string
     ): LoopAgent<ThinkingMessage, ThinkingResponse, TestLLM> {
-        return new TestLlmAgent(agentId, subLoopAgentHandler, projectId, history, subLoopId);
+        return new TestLlmAgent(agentId, subLoopAgentHandler, projectId, subLoopId);
     }
 
     protected override async _invoke(): Promise<AgentInvokeResponse> {

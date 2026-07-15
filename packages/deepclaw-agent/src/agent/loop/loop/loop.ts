@@ -29,9 +29,7 @@ import { FileUtils, getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
 import { AgentConfig, loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
-import {
-    AGENTS_DIR, PROJECT_DIR, SESSION_DIR, SUB_LOOP_DIR
-} from '../../paths';
+import { SUB_LOOP_DIR } from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
 import { SessionService } from '../services/session-service';
@@ -52,13 +50,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         agentId: string,
         handler: AgentHandler,
         projectId: string = '',
-        history: I[] = [],
         subLoopId?: string,
     ) {
         super(agentId, projectId, handler);
         this.subLoopId = subLoopId;
         this.agentConfig = loadAgentConfig(agentId);
-        this.history = this.loadPersistedHistory(history);
+        this.history = this.loadPersistedHistory();
         this.historyPersistIndex = this.history.length;
         this.llm = new (this.getLLMConstructor())(
             this.isSubLoop(),
@@ -68,10 +65,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected abstract getLLMProtocol(): LLMProtocol;
 
-    private loadPersistedHistory(history: I[]): I[] {
-        if (this.isSubLoop() || history.length > 0) {
-            return history;
-        }
+    private loadPersistedHistory(): I[] {
         return SessionService.loadSession({
             sessionDir: this.getSessionDir(),
             agentId: this.agentId,
@@ -82,12 +76,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         });
     }
 
-    protected getSessionDir() {
-        if (!!this.projectId) {
-            return `${PROJECT_DIR}/${this.projectId}/${SESSION_DIR}`;
-        } else {
-            return `${AGENTS_DIR}/${this.agentId}/${SESSION_DIR}`;
-        }
+    protected getSessionDir(): string {
+        return this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.subLoopId}`
+            : SessionService.getSessionDir(this.agentId, this.projectId);
     }
 
     public updateConfig(config: AgentConfig): void {
@@ -142,27 +133,33 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     }
 
     private async _invokeLoopAndReturn(state: LoopState<I>): Promise<AgentInvokeResponse> {
+        const runtime = state.oneLoopContext.runtime;
         let finalText = '';
         try {
-            SessionService.updateSessionRuntime(state.oneLoopContext.sessionDir, {status: 'running'});
+            SessionService.updateSessionRuntime(state.oneLoopContext, {status: 'running'});
             finalText = await this.agentLoop(state);
-            return {text: finalText, runtime: state.oneLoopContext.runtime};
+            return {text: finalText, runtime};
         } catch (error) {
             const msg = `Error in loop, ${error instanceof Error ? error.message : 'Unknown error.'}`;
-            state.oneLoopContext.runtime.transitionReason = 'error';
+            runtime.transitionReason = 'error';
+            runtime.agentBreakReason = undefined;
             state.oneLoopContext.logger.error(error, msg);
             finalText = msg;
-            return {text: msg, runtime: state.oneLoopContext.runtime};
+            return {text: msg, runtime};
         } finally {
+            runtime.breakPoint.break = undefined;
             try {
-                // clear to remove breakpoint guard
-                state.oneLoopContext.runtime.breakPoint.break = undefined;
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
             } finally {
                 SessionService.saveHistory(this.history, state.oneLoopContext, {
-                    finalText, usage: state.oneLoopContext.runtime.usage
+                    finalText, usage: runtime.usage
                 }, true);
-                this.historyPersistIndex = state.oneLoopContext.runtime.historyPersistIndex;
+                this.historyPersistIndex = runtime.historyPersistIndex;
+                if (isInternalInterruptReason(runtime.agentBreakReason)) {
+                    runtime.usage.cachedInputTokens = 0;
+                    runtime.usage.noCachedInputTokens = 0;
+                    runtime.usage.outputTokens = 0;
+                }
             }
         }
     }
@@ -175,8 +172,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             projectId: this.projectId,
             loopConfig: this.agentConfig,
             browserId: options.browserId,
-            sessionDir: this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.subLoopId}`
-                : this.getSessionDir(),
+            sessionDir: this.getSessionDir(),
             system: '',
             logger: getLoopLogger(this.getId(), this.subLoopId),
             actions: {
@@ -382,7 +378,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
 
-    public createSubLoop(fork?: boolean): LoopAgent<I, O, LLM> {
+    public createSubLoop(): LoopAgent<I, O, LLM> {
         if (this.isSubLoop()) {
             throw new Error('Sub-loop cannot create a sub-loop');
         }
@@ -391,14 +387,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             onToolText: (e: AgentToolResultEvent) => this.agentHandler.onToolText(e),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
-        }, fork ? this.history : [], randomUUID());
+        }, randomUUID());
     }
 
     protected abstract newSubLoop(
         agentId: string,
         projectId: string,
         subLoopAgentHandler: AgentHandler,
-        history: I[],
         subLoopId: string,
     ): LoopAgent<I, O, LLM>;
 }

@@ -37,10 +37,9 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
         agentId: string,
         projectId: string,
         subLoopAgentHandler: AgentHandler,
-        history: ThinkingMessage[],
         subLoopId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
-        return new AnthropicLoop(agentId, subLoopAgentHandler, projectId, history, subLoopId);
+        return new AnthropicLoop(agentId, subLoopAgentHandler, projectId, subLoopId);
     }
 
 }

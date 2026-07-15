@@ -5,7 +5,8 @@ import type {
     InvalidInteractionReason,
     InternalInterruptReason,
     AgentRuntime,
-    AgentInvokeResponse
+    AgentInvokeResponse,
+    TokenUsage
 } from "@deepclaw/core";
 import {
     getLoopId, isInternalInterruptReason, newMessage, splitLoopId
@@ -18,6 +19,7 @@ import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
 import { LoopGatewayEvent, getClientKey } from "./loop-gateway-types";
 import { i18nInstance } from "@deepclaw/i18n";
+import { SessionService } from "@deepclaw/agent";
 
 type LoopState = {
     agentId: string;
@@ -160,6 +162,10 @@ class LoopGatewayImpl {
             const state = runtime.agentBreakReason;
             if (!isInternalInterruptReason(state)) {
                 this.updateMessage('', loopId, loopState.msgId!, text);
+                const usage = SessionService.getTokenUsage(loopId);
+                if (usage) {
+                    this.fireSSEEvent({eventType: 'tokenUsage', loopId, usage});
+                }
                 this.clearLoopState(loopState);
             } else {
                 loopState.runtime = runtime;
@@ -302,6 +308,10 @@ class LoopGatewayImpl {
                 mood: 'none',
             }
         });
+    }
+
+    public static getTokenUsage(loopId: string): TokenUsage | undefined {
+        return SessionService.getTokenUsage(loopId);
     }
 }
 

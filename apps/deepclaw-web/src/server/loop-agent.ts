@@ -1,7 +1,7 @@
 'use server';
 
 import { SSEServer } from '@/app/api/sse-server';
-import { ChatMessage } from '@deepclaw/core';
+import { ChatMessage, TokenUsage } from '@deepclaw/core';
 import { LoopGateway, UIChatService } from '@deepclaw/loop-gateway';
 
 export async function invoke(
@@ -13,6 +13,10 @@ export async function invoke(
 export async function resumeLoop(browserId: string, loopId: string): Promise<{resume: boolean, msgId: string}> {
     SSEServer.activeClient(browserId, loopId, true);
     return LoopGateway.resume(browserId, loopId);
+}
+
+export async function getTokenUsage(loopId: string): Promise<TokenUsage | undefined> {
+    return LoopGateway.getTokenUsage(loopId);
 }
 
 export async function inactiveLoop(browserId: string, loopId: string): Promise<void> {

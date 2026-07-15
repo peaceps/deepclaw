@@ -1,8 +1,8 @@
 import { FileUtils } from "@deepclaw/node-utils";
-import { SESSION_HISTORY_FILE, SESSION_METADATA_FILE } from "../../paths";
+import { AGENTS_DIR, PROJECT_DIR, SESSION_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE } from "../../paths";
 import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetaData } from "../../definitions/definitions";
-import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason } from "@deepclaw/core";
-import { getLogger } from '@deepclaw/node-utils';
+import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason, TokenUsage, splitLoopId } from "@deepclaw/core";
+import { getLogger } from "@deepclaw/node-utils";
 
 const SAVE_THRESHOLD = 10;
 const logger = getLogger('SessionService');
@@ -20,13 +20,33 @@ export class SessionService {
 
     private static sessionMeta: Map<string, SessionMetaData> = new Map();
 
-    public static loadSession<I>(config: MetaDataConfig): I[] {
-        let metaData: SessionMetaData | null = null;
-        let history: I[] = [];
-        const metaFilePath = `${config.sessionDir}/${SESSION_METADATA_FILE}`;
+    public static getSessionDir(agentId: string, projectId: string): string {
+        if (!!projectId) {
+            return `${PROJECT_DIR}/${projectId}/${SESSION_DIR}`;
+        } else {
+            return `${AGENTS_DIR}/${agentId}/${SESSION_DIR}`;
+        }
+    }
+
+    private static getMeta(sessionDir: string): SessionMetaData | null {
+        const meta = this.sessionMeta.get(sessionDir);
+        if (meta) return meta;
+        const metaFilePath = `${sessionDir}/${SESSION_METADATA_FILE}`;
         try {
             const metaFile = FileUtils.readFile(metaFilePath);
             const meta = JSON.parse(metaFile) as SessionMetaData;
+            this.sessionMeta.set(sessionDir, meta);
+            return meta;
+        } catch {
+            return null
+        }
+    }
+
+    public static loadSession<I>(config: MetaDataConfig): I[] {
+        let metaData: SessionMetaData | null = null;
+        let history: I[] = [];
+        const meta = this.getMeta(config.sessionDir);
+        if (meta) {
             if (meta.llmProtocol !== config.llmProtocol) {
                 metaData = this.newSessionMetaData(config);
                 metaData.runtime.outdated = true;
@@ -34,10 +54,9 @@ export class SessionService {
                 metaData = meta;
             }
             history = this.loadHistory<I>(config.sessionDir);
-        } catch {
+        } else {
             metaData = this.newSessionMetaData(config);
             history = [];
-            logger.error(`Failed to load session metadata from ${metaFilePath}`);
         }
         this.sessionMeta.set(config.sessionDir, metaData);
         return history;
@@ -60,7 +79,7 @@ export class SessionService {
             projectId: config.projectId,
             loopId: config.loopId,
             isSubLoop: config.isSubLoop,
-            messagesPath: `${config.sessionDir}/${SESSION_HISTORY_FILE}`,
+            messagesPath: config.isSubLoop ? '' : `${config.sessionDir}/${SESSION_HISTORY_FILE}`,
             runtime: {
                 status: 'idle',
                 turnCount: 0,
@@ -78,12 +97,9 @@ export class SessionService {
     
     public static saveHistory<I>(history: I[], context: OneLoopContext, runtime: Partial<SessionMetaData['runtime']> = {}, force: boolean = false): void {
         // Sub-loop context is intentionally not durably persisted; only parent/main loop state is durable.
-        if (context.isSubLoop) {
-            return;
-        }
         try {
-            const historyPath = `${context.sessionDir}/${SESSION_HISTORY_FILE}`;
-            if (force || context.runtime.turnCount > 0) {
+            if (!context.isSubLoop && (force || context.runtime.turnCount > 0)) {
+                const historyPath = `${context.sessionDir}/${SESSION_HISTORY_FILE}`;
                 try {
                     if (context.runtime.historyPersistIndex === 0) {
                         FileUtils.writeFile(historyPath, this.createJsonl(history));
@@ -100,20 +116,21 @@ export class SessionService {
                     // TODO ERROR HANDLE
                 }
             }
-            this.updateSessionRuntime(context.sessionDir, {
+            this.updateSessionRuntime(context, {
                 ...runtime, status: runtime.status ?? this.getLoopSessionStatus(context)
-            })
+            });
         } catch (error) {
             context.logger.error(error, 'Persist loop state failed');
         }
     }
 
     public static updateSessionRuntime(
-        sessionDir: string, runtime: Partial<SessionMetaData['runtime']>
+        context: OneLoopContext, runtime: Partial<SessionMetaData['runtime']>
     ) {
-        const meta = this.sessionMeta.get(sessionDir);
+        const meta = this.getMeta(context.sessionDir);
         if (!meta) {
-            throw new Error(`Session metadata not found for session directory: ${sessionDir}`);
+            logger.warn(`Session metadata not found for session directory: ${context.sessionDir}`);
+            return;
         }
         const now = new Date().toISOString();
         const {usage, ...rest} = runtime;
@@ -126,11 +143,13 @@ export class SessionService {
             meta.runtime.usage.cachedInputTokens += usage.cachedInputTokens;
             meta.runtime.usage.noCachedInputTokens += usage.noCachedInputTokens;
             meta.runtime.usage.outputTokens += usage.outputTokens;
-            usage.cachedInputTokens = 0;
-            usage.noCachedInputTokens = 0;
-            usage.outputTokens = 0;
         }
-        FileUtils.writeFile(`${sessionDir}/${SESSION_METADATA_FILE}`, JSON.stringify(meta, null, 2));
+        if (!context.isSubLoop) {
+            FileUtils.writeFile(
+                `${context.sessionDir}/${SESSION_METADATA_FILE}`,
+                JSON.stringify(meta, null, 2)
+            );
+        }
     }
 
     private static createJsonl<I>(history: I[]): string {
@@ -153,7 +172,7 @@ export class SessionService {
     }
 
     public static isOutdated(sessionDir: string): boolean {
-        const meta = this.sessionMeta.get(sessionDir);
+        const meta = this.getMeta(sessionDir);
         if (!meta) {
             return false;
         }
@@ -161,11 +180,21 @@ export class SessionService {
     }
 
     public static markNotOutdated(sessionDir: string): void {
-        const meta = this.sessionMeta.get(sessionDir);
+        const meta = this.getMeta(sessionDir);
         if (!meta) {
             return;
         }
         meta.runtime.outdated = false;
+    }
+
+    public static getTokenUsage(loopId: string): TokenUsage | undefined {
+        const {agentId, projectId} = splitLoopId(loopId);
+        const sessionDir = this.getSessionDir(agentId, projectId ?? '');
+        const meta = this.getMeta(sessionDir);
+        if (!meta) {
+            return undefined;
+        }
+        return meta.runtime.usage;
     }
 
 }

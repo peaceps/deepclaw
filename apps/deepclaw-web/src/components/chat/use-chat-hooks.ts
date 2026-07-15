@@ -5,14 +5,16 @@ import { getLogger } from "@/lib/logger";
 import { useModalStore } from '@/lib/modal-store';
 import {
     invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
-    resolveInteraction, updateChatMessage, resumeLoop, inactiveLoop
+    resolveInteraction, updateChatMessage, resumeLoop, inactiveLoop,
+    getTokenUsage
 } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import {
-    AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, newMessage
+    AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, newMessage,
+    TokenUsage
 } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
-import { AgentCancelInteractionEvent, AgentChatEvent, AgentLoopBusyEvent } from "@deepclaw/loop-gateway";
+import { AgentCancelInteractionEvent, AgentChatEvent, AgentLoopBusyEvent, AgentTokenUsageEvent } from "@deepclaw/loop-gateway";
 
 const logger = getLogger('useChatHooks');
 
@@ -24,6 +26,7 @@ function loopSSEConnection(browserId: string, loopId: string): string {
 export function useInitChat(loopId: string,
     setChatInited: React.Dispatch<React.SetStateAction<boolean>>,
     setInput: React.Dispatch<React.SetStateAction<string>>,
+    setTokenUsage: React.Dispatch<React.SetStateAction<TokenUsage | undefined>>,
 ) {
     const addPulledMessages = useAppStore(s => s.addPulledMessages);
     const getNewestMessageId = useAppStore(s => s.getNewestMessageId);
@@ -47,14 +50,19 @@ export function useInitChat(loopId: string,
           setChatInited(true);
       });
 
+      getTokenUsage(loopId).then(usage => {
+        setTokenUsage(usage);
+      }).catch(() => setTokenUsage(undefined));
+
       return () => {
         cancelled = true;
         setChatInited(false);
+        setTokenUsage(undefined);
         inactiveLoop(browserId, loopId);
       }
     }, [
         browserId, loopId, setInput, addPulledMessages,
-        getNewestMessageId, setChatInited
+        getNewestMessageId, setChatInited, setTokenUsage
     ]);
 }
 
@@ -62,6 +70,7 @@ export function useSSEConnection(
     chatInited: boolean,
     loopId: string,
     setListening: React.Dispatch<React.SetStateAction<boolean>>,
+    setTokenUsage: React.Dispatch<React.SetStateAction<TokenUsage | undefined>>,
 ) {
     const browserId = useAppStore(s => s.browserId);
     const sseClient = useSSEClient();
@@ -125,6 +134,14 @@ export function useSSEConnection(
               }
             },
           ),
+          sseClient.subscribe<AgentTokenUsageEvent>(
+            sseUrl,
+            'tokenUsage',
+            (event) => {
+              if (event.loopId !== loopId || !event.usage) return;
+                setTokenUsage(event.usage);
+            },
+          ),
         ];
 
         setListening(true);
@@ -135,7 +152,7 @@ export function useSSEConnection(
         };
     }, [
         chatInited, loopId, sseClient, setChatBusy,
-        showModal, closeModal, addMessage,
+        showModal, closeModal, addMessage, setTokenUsage,
         setListening, browserId, updateMessage, replaceMessage
     ]);
 }
