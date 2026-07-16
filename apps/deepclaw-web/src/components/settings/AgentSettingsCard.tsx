@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  CircleAlert,
   MessageSquare,
 } from 'lucide-react';
 import type { CONFIGS_EVENTS, AgentConfig, IMConfig, LLMConfig } from '@deepclaw/config';
@@ -130,8 +129,6 @@ export function AgentSettingsCard({
               onInput={(e) => onUpdateLLM(index, { baseURL: e.target.value })}
               placeholder="https://api.openai.com/v1"
               error={hasFieldError('llm.baseURL')}
-              Icon={CircleAlert}
-              iconTitle='web.pages.settings.panels.agents.sections.llmBaseURLNotif'
             />
             <DeepInput
               uiInfo={configEvents['agents.llm.apiKey'] as Extract<AgentInteractionEvent, {type: 'input'}>}

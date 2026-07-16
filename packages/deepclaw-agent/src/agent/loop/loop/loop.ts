@@ -40,7 +40,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
     private historyPersistIndex: number = 0;
-    protected history: I[] = [];
+    private history: I[] = [];
+    private outdated: boolean = false;
     private footPrints: FootPrint[] = [];
     private agentConfig: AgentConfig;
     private externalInterruptReason: ExternalInterruptReason | undefined;
@@ -55,8 +56,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         super(agentId, projectId, handler);
         this.subLoopId = subLoopId;
         this.agentConfig = loadAgentConfig(agentId);
-        this.history = this.loadPersistedHistory();
-        this.historyPersistIndex = this.history.length;
+        this.loadSessionData();
         this.llm = new (this.getLLMConstructor())(
             this.isSubLoop(),
             this.agentConfig.llm,
@@ -65,8 +65,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected abstract getLLMProtocol(): LLMProtocol;
 
-    private loadPersistedHistory(): I[] {
-        return SessionService.loadSession({
+    private loadSessionData(): void {
+        const {history, outdated} = SessionService.loadSession<I>({
             sessionDir: this.getSessionDir(),
             agentId: this.agentId,
             projectId: this.projectId,
@@ -74,6 +74,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             isSubLoop: this.isSubLoop(),
             llmProtocol: this.getLLMProtocol()
         });
+        this.history = history;
+        this.outdated = outdated;
+        this.historyPersistIndex = this.history.length;
     }
 
     protected getSessionDir(): string {
@@ -98,6 +101,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                     baseURL: newLLMConfig.baseURL,
                     apiKey: newLLMConfig.apiKey,
                 }
+            } else {
+                this.outdated = true;
             }
         }
         const runtimeConfigs = {model: newLLMConfig.model};
@@ -107,6 +112,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected isSubLoop(): boolean {
         return !!this.subLoopId;
+    }
+
+    public isOutdated(): boolean {
+        return this.outdated;
     }
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
@@ -237,8 +246,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
         const compactor = MessageCompactor.getCompactor(this.getLLMProtocol());
-        compactor.compactOldResults(this.history, context);
-        await compactor.compactFullHistory(context, this.footPrints, this.llm, this.history);
+        if (!this.outdated) {
+            compactor.compactOldResults(this.history, context);
+        }
+        await compactor.compactFullHistory(
+            this.outdated, context, this.footPrints, this.llm, this.history
+        );
+        if (this.outdated) {
+            this.outdated = false;
+        }
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {

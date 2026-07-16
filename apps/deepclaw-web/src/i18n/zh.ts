@@ -201,7 +201,6 @@ export const zh = {
                             basic: '基本信息',
                             im: 'IM配置',
                             llm: 'LLM配置',
-                            llmBaseURLNotif: 'LLM protocol(OpenAI/Anthropic)的切换只有应用重启后才生效',
                         }
                     }
                 }

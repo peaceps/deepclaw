@@ -4,7 +4,6 @@ import { FootPrint, OneLoopContext } from '../../definitions/definitions';
 import { HISTORY_DIR } from '../../paths';
 import { HISTORY_COMPACT_FILE } from '../../paths';
 import { HookManager } from '../services/hook-manager';
-import { SessionService } from '../services/session-service';
 import type { LLMTransitionReason } from '@deepclaw/core';
 
 const MAX_RECENT_TOOL_RESULT_COUNT: number = 20;
@@ -19,7 +18,6 @@ export abstract class AbstractMessagesCompactor<
 > {
 
     public compactOldResults(messages: I[], context: OneLoopContext): void {
-        if (SessionService.isOutdated(context.sessionDir)) return;
         const toolResultMessages = this.getToolResults(messages);
         if (toolResultMessages.length > MAX_RECENT_TOOL_RESULT_COUNT) {
             const oldestResult = toolResultMessages.slice(0, toolResultMessages.length - MAX_RECENT_TOOL_RESULT_COUNT);
@@ -34,9 +32,8 @@ export abstract class AbstractMessagesCompactor<
     }
 
     public async compactFullHistory(
-        context: OneLoopContext, footPrints: FootPrint[], llm: LLM, messages: I[]
+        isOutdated: boolean, context: OneLoopContext, footPrints: FootPrint[], llm: LLM, messages: I[]
     ): Promise<void> {
-        const isOutdated = SessionService.isOutdated(context.sessionDir);
         if (!!messages.length) {
             const lastMessage = messages[messages.length - 1]!;
             const isLastUserMessage = lastMessage && typeof lastMessage === 'object'
@@ -52,9 +49,6 @@ export abstract class AbstractMessagesCompactor<
                 );
                 await HookManager.emitVisitor('historyCompacted', context, jsonl.length);
             }
-        }
-        if (isOutdated) {
-            SessionService.markNotOutdated(context.sessionDir);
         }
     }
 

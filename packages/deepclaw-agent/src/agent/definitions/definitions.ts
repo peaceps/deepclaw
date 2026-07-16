@@ -53,6 +53,5 @@ export type SessionMetaData = {
         updatedAt: string;
         endedAt?: string;
         usage: TokenUsage;
-        outdated: boolean;
     }
 }

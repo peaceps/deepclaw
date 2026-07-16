@@ -42,14 +42,16 @@ export class SessionService {
         }
     }
 
-    public static loadSession<I>(config: MetaDataConfig): I[] {
+    public static loadSession<I>(config: MetaDataConfig): {history: I[], outdated: boolean} {
+        let outdated = false;
         let metaData: SessionMetaData | null = null;
         let history: I[] = [];
         const meta = this.getMeta(config.sessionDir);
         if (meta) {
             if (meta.llmProtocol !== config.llmProtocol) {
                 metaData = this.newSessionMetaData(config);
-                metaData.runtime.outdated = true;
+                metaData.runtime.usage = meta.runtime.usage;
+                outdated = true;
             } else {
                 metaData = meta;
             }
@@ -59,7 +61,7 @@ export class SessionService {
             history = [];
         }
         this.sessionMeta.set(config.sessionDir, metaData);
-        return history;
+        return {history, outdated};
     }
 
     private static loadHistory<I>(sessionDir: string): I[] {
@@ -90,7 +92,6 @@ export class SessionService {
                     noCachedInputTokens: 0,
                     outputTokens: 0
                 },
-                outdated: false
             }
         };
     }
@@ -169,22 +170,6 @@ export class SessionService {
             return 'paused';
         }
         return 'running';
-    }
-
-    public static isOutdated(sessionDir: string): boolean {
-        const meta = this.getMeta(sessionDir);
-        if (!meta) {
-            return false;
-        }
-        return meta.runtime.outdated;
-    }
-
-    public static markNotOutdated(sessionDir: string): void {
-        const meta = this.getMeta(sessionDir);
-        if (!meta) {
-            return;
-        }
-        meta.runtime.outdated = false;
     }
 
     public static getTokenUsage(loopId: string): TokenUsage | undefined {

@@ -79,7 +79,7 @@ export type AgentRuntime = {
     historyPersistIndex: number;
     breakPoint: {
         point: typeof BREAK_POINTS[BreakPoint];
-        input?: unknown;
+        input?: unknown; // 必须是protocol无关
         break?: boolean;
     }
     recoveryState: {

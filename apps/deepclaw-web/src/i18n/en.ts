@@ -201,7 +201,6 @@ export const en = {
                             basic: 'Basic info',
                             im: 'IM configs',
                             llm: 'LLM configs',
-                            llmBaseURLNotif: 'LLM protocol(OpenAI/Anthropic) switch only takes effect after service restart',
                         }
                     }
                 }

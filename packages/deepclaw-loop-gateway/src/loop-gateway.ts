@@ -24,6 +24,7 @@ import { SessionService } from "@deepclaw/agent";
 type LoopState = {
     agentId: string;
     projectId: string;
+    agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>;
     loop: LoopAgent<unknown, any, any>;
     running: boolean;
     msgId?: string;
@@ -97,15 +98,23 @@ class LoopGatewayImpl {
             this.loops[loopId] = {
                 agentId,
                 projectId,
-                loop: LoopInitializer.getLoop(agentId, projectId, {
-                    onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
-                    onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
-                    onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
-                    onInfoEvent: this.defaultHandler.onInfoEvent
-                }),
+                agentHandler,
+                loop: this.createLoop(agentId, projectId, agentHandler),
                 running: false,
             }
         }
+    }
+
+    private static createLoop(
+        agentId: string, projectId: string,
+        agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}
+    ) {
+        return LoopInitializer.getLoop(agentId, projectId, {
+            onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
+            onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
+            onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
+            onInfoEvent: this.defaultHandler.onInfoEvent
+        });
     }
 
     public static isLoopBusy(loopId: string): boolean {
@@ -118,19 +127,26 @@ class LoopGatewayImpl {
         const loopId = getLoopId(agentId, projectId);
         if (!this.loops[loopId]) {
             this.init(loopId);
+        } else {
+            const loopState = this.loops[loopId]!;
+            if (loopState.loop.isOutdated()) {
+                loopState.loop = this.createLoop(
+                    loopState.agentId, loopState.projectId, loopState.agentHandler
+                );
+            }
         }
+        const loopState = this.loops[loopId]!;
         const agentMessages = newMessage('agent', agentId, '');
         this.addMessage('', loopId, agentMessages);
         if (this.isLoopBusy(loopId)) {
             this.updateMessage('', loopId, agentMessages.id, i18nInstance.t('gateway.busy'));
             return {busy: true, msgId: agentMessages.id};
         }
-        this.fireBusyEvent(loopId);
-        const loopState = this.loops[loopId]!;
         loopState.runtime = undefined;
         loopState.running = true;
         loopState.browserId = browserId;
         loopState.msgId = agentMessages.id;
+        this.fireBusyEvent(loopId);
         this.invokeAndReturn(
             loopId, loopState,
             () => loopState.loop.invoke(input, {browserId: loopState.browserId!})
@@ -145,6 +161,11 @@ class LoopGatewayImpl {
         const loopState = this.loops[loopId]!;
         if (loopState.browserId !== browserId || !loopState.runtime) {
             return {resume: false, msgId: ''};
+        }
+        if (loopState.loop.isOutdated()) {
+            loopState.loop = this.createLoop(
+                loopState.agentId, loopState.projectId, loopState.agentHandler
+            );
         }
         const runtime = loopState.runtime!
         loopState.runtime = undefined;
