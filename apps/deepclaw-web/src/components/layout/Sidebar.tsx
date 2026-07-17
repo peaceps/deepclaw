@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-    LayoutDashboard, Users, MessageSquare, ClipboardList, Settings,
-    ChevronLeft, ChevronRight, Menu, X
+    Users, ClipboardList, Settings, Clock,
+    ChevronLeft, ChevronRight, Menu, X,
+    BookOpenText
 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,8 +16,8 @@ import { updateManagerAvatar } from '@/server/configs';
 const navItems = [
   { href: '/agents', label: 'web.sidebar.links.agents', icon: Users },
   { href: '/projects', label: 'web.sidebar.links.projects', icon: ClipboardList },
-  { href: '/chat', label: 'web.sidebar.links.chat', icon: MessageSquare },
-  { href: '/org', label: 'web.sidebar.links.org', icon: LayoutDashboard },
+  { href: '/cron', label: 'web.sidebar.links.cron', icon: Clock },
+  { href: '/skills', label: 'web.sidebar.links.skills', icon: BookOpenText },
   { href: '/settings', label: 'web.sidebar.links.settings', icon: Settings },
 ];
 

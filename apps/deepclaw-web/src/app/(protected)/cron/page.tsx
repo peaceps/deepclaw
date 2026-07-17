@@ -1,10 +1,10 @@
-import { MessageCenter } from '@/components/message/MessageCenter';
+import { Cron } from '@/components/cron/Cron';
 
-export default function ChatPage() {
+export default function CronPage() {
   return (
     <div className="h-full flex items-center justify-center text-gray-400">
       <div className="text-center">
-        <MessageCenter />
+        <Cron />
       </div>
     </div>
   );

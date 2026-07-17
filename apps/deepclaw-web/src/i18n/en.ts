@@ -42,8 +42,8 @@ export const en = {
             links: {
                 agents: 'Agents',
                 projects: 'Project Board',
-                chat: 'Message Center',
-                org: 'Organization',
+                cron: 'Scheduled Tasks',
+                skills: 'Skills',
                 settings: 'Settings',
             },
             manager: {

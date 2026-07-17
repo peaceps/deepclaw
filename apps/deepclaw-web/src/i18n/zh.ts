@@ -42,8 +42,8 @@ export const zh = {
             links: {
                 agents: '员工',
                 projects: '项目看板',
-                chat: '消息中心',
-                org: '组织架构',
+                cron: '定时任务',
+                skills: '技能',
                 settings: '设置',
             },
             manager: {

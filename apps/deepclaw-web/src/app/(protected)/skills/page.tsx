@@ -1,10 +1,10 @@
-import { Organization } from '@/components/org/Organization';
+import { Skills } from '@/components/skills/Skills';
 
-export default function OrgPage() {
+export default function SkillsPage() {
   return (
     <div className="h-full flex items-center justify-center text-gray-400">
       <div className="text-center">
-        <Organization />
+        <Skills />
       </div>
     </div>
   );
