@@ -13,11 +13,12 @@ import {saveMemoryTool, readMemoryDetailTool} from '../tools/save-memory-tool';
 import {createProjectTool, createSimpleTaskTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
 import { AgentMode } from '@deepclaw/config';
+import { base64Tool } from '../tools/encode-decode-tool';
 
 const tools: ToolDesc<any>[] = [
-    syncCommandTool,
     subLoopTool,
     loadSkillTool,
+    base64Tool,
     readFileTool,
     writeFileTool,
     editFileTool,
@@ -29,10 +30,11 @@ const tools: ToolDesc<any>[] = [
     getProjectDetailTool,
     getProjectListTool,
     createSimpleTaskTool,
+    syncCommandTool,
     runBackgroundCommandTool,
     removeBackgroundCommand,
     checkAllBackgroundCommandStatusTool,
-    checkBackgroundCommandStatusTool
+    checkBackgroundCommandStatusTool,
 ];
 
 type ToolsStrorage<T extends (Record<string, ToolDesc<any>> | LLMTool[])> = {

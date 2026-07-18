@@ -140,6 +140,11 @@ export const en = {
                             on: 'Pause after this task done.',
                             off: 'Will not pause after this task done.'
                         }
+                    },
+                    output: {
+                        title: 'Task report',
+                        download: 'Download task report',
+                        view: 'View task report',
                     }
                 }
             },

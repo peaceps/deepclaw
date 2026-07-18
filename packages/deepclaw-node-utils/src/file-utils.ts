@@ -37,7 +37,7 @@ export class FileUtils {
         return files;
     }
 
-    public static writeFile(filePath: string, content: string): string {
+    public static writeFile(filePath: string, content: string | Buffer): string {
         const name = this.sanitizeFileName(filePath);
         const absolutePath = this.getAbsolutePath(name);
         this.ensureFolderExist(absolutePath);

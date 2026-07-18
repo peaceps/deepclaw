@@ -26,3 +26,7 @@ export const SUB_LOOP_DIR = 'subloop';
 export const GLOBAL_MEMORY_DIR = '.memory';
 export const SKILL_DIR = 'skills';
 export const DEEPCLAW_MD = 'DEEPCLAW.md';
+
+// Public resource
+export const PUBLIC = 'public';
+export const PROJECT_TASK_OUTPUT_DIR = `${PUBLIC}/projects`;

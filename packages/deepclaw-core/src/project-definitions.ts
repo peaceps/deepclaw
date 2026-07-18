@@ -36,6 +36,11 @@ export type Task = {
     blocks: string[];
     assignee?: string;
     closedAt?: string;
+    output?: {
+        type: 'markdown' | 'text' | 'binary';
+        content: string;
+        path?: string;
+    };
     pause?: boolean;
     stepsStatus?: TaskStepsContext
 };

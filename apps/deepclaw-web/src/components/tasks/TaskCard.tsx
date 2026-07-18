@@ -9,6 +9,7 @@ import {avatarBG, priorityStyles} from '../styles-mapping';
 import { ProgressBar } from '@/laf/progress-bar';
 import { updateProjectTask as updateProjectTaskToServer } from '@/server/data';
 import { useAppStore } from '@/lib/store';
+import { TaskOutput } from './TaskOutput';
 
 type TaskCardProps = {
   task: Task;
@@ -93,6 +94,8 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
         {progress !== null && (
           <ProgressBar value={progress} size="sm" className="mt-2" />
         )}
+
+        {task.output && <TaskOutput output={task.output}/>}
       </div>
 
       <TaskOwnerTooltip

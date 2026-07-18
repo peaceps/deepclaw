@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react";
 import { useSSEClient } from '@/components/layout/SSEProvider';
 import { SSEConnectedEvent } from "@/app/api/sse-types";
 import { getLogger } from "@/lib/logger";
-import { useModalStore } from '@/lib/modal-store';
+import { useInteractionModalStore } from '@/lib/interaction-modal-store';
 import {
     invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
     resolveInteraction, updateChatMessage, resumeLoop, inactiveLoop,
@@ -74,8 +74,8 @@ export function useSSEConnection(
 ) {
     const browserId = useAppStore(s => s.browserId);
     const sseClient = useSSEClient();
-    const showModal = useModalStore(s => s.showModal);
-    const closeModal = useModalStore(s => s.closeModal);
+    const showModal = useInteractionModalStore(s => s.showModal);
+    const closeModal = useInteractionModalStore(s => s.closeModal);
     const addMessage = useAppStore(s => s.addMessage);
     const updateMessage = useAppStore(s => s.updateMessage);
     const replaceMessage = useAppStore(s => s.replaceMessage);

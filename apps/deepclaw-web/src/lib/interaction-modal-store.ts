@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { AgentInteractionEventPayload } from '@deepclaw/core';
 
-export type ModalState = {
+type InteractionModalState = {
   visible: boolean;
   event: AgentInteractionEventPayload | null;
   loopId: string | null;
@@ -12,7 +12,7 @@ export type ModalState = {
   closeModal: (answer: string | null) => void;
 };
 
-export const useModalStore = create<ModalState>((set, get) => ({
+export const useInteractionModalStore = create<InteractionModalState>((set, get) => ({
   visible: false,
   event: null,
   loopId: null,

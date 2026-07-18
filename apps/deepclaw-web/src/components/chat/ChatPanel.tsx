@@ -8,7 +8,7 @@ import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
-import { Markdown } from "./Markdown";
+import { Markdown } from "@/laf/markdown";
 import { useInitChat, useSSEConnection, useSend, useLoopResume } from "./use-chat-hooks";
 import { useScroll } from "./use-scroll-hooks";
 

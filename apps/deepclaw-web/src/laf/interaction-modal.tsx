@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useModalStore } from '@/lib/modal-store';
+import { useInteractionModalStore } from '@/lib/interaction-modal-store';
 import type { AgentInteractionEventOption } from '@deepclaw/core';
 import { Send, Check } from 'lucide-react';
 
@@ -12,7 +12,7 @@ function isValueEmpty(input: string): boolean {
 
 export function InteractionModal() {
   const { t } = useTranslation();
-  const { visible, event, instanceId, closeModal } = useModalStore();
+  const { visible, event, instanceId, closeModal } = useInteractionModalStore();
 
   if (!visible || !event) return null;
 
@@ -20,7 +20,7 @@ export function InteractionModal() {
 }
 
 function ModalContent({ event, onClose, t }: {
-  event: NonNullable<ReturnType<typeof useModalStore.getState>['event']>;
+  event: NonNullable<ReturnType<typeof useInteractionModalStore.getState>['event']>;
   onClose: (answer: string) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }) {

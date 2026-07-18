@@ -140,6 +140,11 @@ export const zh = {
                             on: '在完成此任务后暂停',
                             off: '不会在完成此任务后暂停',
                         }
+                    },
+                    output: {
+                        title: '任务报告',
+                        download: '下载任务报告',
+                        view: '查看任务报告',
                     }
                 }
             },

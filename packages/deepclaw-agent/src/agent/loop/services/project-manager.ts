@@ -1,5 +1,5 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { PROJECT_DIR, PROJECT_JSON } from '../../paths';
+import { PROJECT_DIR, PROJECT_JSON, PROJECT_TASK_OUTPUT_DIR, PUBLIC } from '../../paths';
 import { type Project, type Task, type TaskStepsContext, getProjectStatus, PROJECT_CONFIG } from '@deepclaw/core';
 
 export type ProjectListInfo = {
@@ -24,6 +24,8 @@ type TaskInitInfo = {
     steps?: string[];
     blockedBy?: string[];
 };
+
+const OUTPUT_LENGTH_LIMIT = 1500;
 
 export class ProjectManager {
 
@@ -151,7 +153,7 @@ export class ProjectManager {
         }
         if (task.status === 'todo' && taskInfo.status === 'done' ||
             task.status === 'ongoing' && taskInfo.status === 'todo' ||
-            task.status === 'done' && taskInfo.status !== 'done') {
+            task.status === 'done' && taskInfo.status && taskInfo.status !== 'done') {
             throw new Error('You can only update the status from todo to ongoing or from ongoing to done.');
         }
         if (taskInfo.status === 'done' && steps) {
@@ -159,6 +161,9 @@ export class ProjectManager {
         }
         if (taskInfo.status === 'done' && !this.isStepsCompleted(task)) {
             throw new Error('All steps should be completed before marking the task as done.');
+        }
+        if (task.status === 'todo' && !taskInfo.status && taskInfo.output) {
+            throw new Error('Cannot set output when task is in todo state.');
         }
         if (steps?.length) {
             if (task.status === 'ongoing' && !!task.stepsStatus?.steps || task.status === 'done') {
@@ -170,6 +175,17 @@ export class ProjectManager {
             };
         }
         Object.assign(task, taskInfo);
+        if (task.output) {
+            const outputType = task.output.type;
+            if (outputType === 'binary' || task.output.content.length > OUTPUT_LENGTH_LIMIT) {
+                const content = outputType === 'binary' ? Buffer.from(task.output.content, 'base64') : task.output.content;
+                const path = FileUtils.writeFile(
+                    `${PROJECT_TASK_OUTPUT_DIR}/${projectId}/${task.title}.${this.getOutputExt(outputType)}`, content
+                );
+                task.output.content = '<Content saved to file>';
+                task.output.path = path.substring(PUBLIC.length + 1);
+            }
+        }
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();
         }
@@ -180,6 +196,17 @@ export class ProjectManager {
         Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
         this.saveProject(project.id);
         return task;
+    }
+
+    private static getOutputExt(outputType: NonNullable<Task['output']>['type']): string {
+        switch (outputType) {
+            case 'text':
+                return 'txt';
+            case 'markdown':
+                return 'md'
+            default:
+                return 'out';
+        }
     }
 
     public static updateCurrentStep(projectId: string, taskTitle: string, stepIndex: number): TaskStepsContext {

@@ -290,6 +290,7 @@ type UpdateTaskInput = {
     status?: Task['status'];
     steps?: string[];
     assignee?: string;
+    output?: Task['output'];
 };
 
 export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
@@ -318,6 +319,24 @@ They shoudl be short descriptions of each step, should not be too long for user 
                     maxItems: PROJECT_CONFIG.maxTaskStepsCount,
                 },
                 assignee: {type: 'string', description: 'The agent name of the task being assigned to.'},
+                output: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        type: {
+                            type: 'string', enum: ['markdown', 'text', 'binary'],
+                            description: 'Type of the task output.'
+                        },
+                        content: {
+                            type: 'string',
+                            description: `Content of the task output. Binary content should be base64 encoded.
+For binary files and large text/md content, a file will be created on server, the content will be replaced as <Content saved to file> 
+and the file path will be set into the path field.`
+                        }
+                    },
+                    required: ['type', 'content'],
+
+                }
             },
             required: ['projectId', 'taskTitle'],
         },
@@ -330,6 +349,7 @@ They shoudl be short descriptions of each step, should not be too long for user 
         const taskInfo: Partial<Task> & {title: string} = {title: input.taskTitle};
         if (input.assignee) taskInfo.assignee = input.assignee;
         if (input.status) taskInfo.status = input.status;
+        if (input.output) taskInfo.output = input.output;
         const task = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
 
         const project = ProjectManager.getProjectDetail(input.projectId);
