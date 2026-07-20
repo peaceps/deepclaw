@@ -34,7 +34,7 @@ export async function updateProjectTags(projectId: string, tags: string[]): Prom
 }
 
 export async function updateProjectTask(
-    projectId: string, taskTitle: string, task: Pick<Task, 'pause'>
+    projectId: string, taskTitle: string, task: Pick<Task, 'pause' | 'verified'>
 ): Promise<void> {
     try {
         LoopGateway.updateProjectTask(projectId, taskTitle, task);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Ban, CirclePause } from 'lucide-react';
+import { Ban, CirclePause, ClipboardCheck } from 'lucide-react';
 import  { type Task, type AgentEmployee, getTaskProgress } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
@@ -38,6 +38,15 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
     });
   }, [projectId, task.title, task.pause, updateProjectTask]);
 
+  const handleVerifiedClick = useCallback(() => {
+    if (!task.pause || task.status !== 'ongoing') return;
+    const next = !task.verified;
+    updateProjectTask(projectId, task.title, { verified: next });
+    updateProjectTaskToServer(projectId, task.title, { verified: next }).catch(() => {
+      updateProjectTask(projectId, task.title, { verified: !next });
+    });
+  }, [projectId, task.title, task.verified, updateProjectTask]);
+
   if (!assignee) return null;
 
   return (
@@ -71,6 +80,12 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
               className='mr-1 flex-shrink-0'
               title={t(`web.pages.projects.task.pause.title.${task.pause ? 'on' : 'off'}`)}>
             <CirclePause size={18} className={`${task.pause ? 'text-yellow-500' : 'text-gray-200'}`} />
+          </button>}
+          {task.status === 'ongoing' && task.pause && typeof task.verified === 'boolean' && <button
+              onClick={handleVerifiedClick}
+              className='mr-1 flex-shrink-0'
+              title={t(`web.pages.projects.task.verified.title.${task.verified ? 'on' : 'off'}`)}>
+            <ClipboardCheck size={18} className={`${task.verified ? 'text-green-500' : 'text-gray-200'}`} />
           </button>}
           {blockedByTitles && blockedByTitles.length > 0 && (
             <span title={t('web.pages.projects.project.blockedBy', { titles: blockedByTitles.join('/') })} className="flex-shrink-0">

@@ -2,6 +2,7 @@ import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
 import { PROJECT_CONFIG, type Project, type Task } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
+import { i18nInstance } from "@deepclaw/i18n";
 
 type CreateProjectInput = {
     title: string;
@@ -345,23 +346,31 @@ and the file path will be set into the path field.`
     parallelSafe: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
-        const oldStatus = ProjectManager.getProjectDetail(input.projectId).tasks[input.taskTitle]?.status;
         const taskInfo: Partial<Task> & {title: string} = {title: input.taskTitle};
         if (input.assignee) taskInfo.assignee = input.assignee;
         if (input.status) taskInfo.status = input.status;
         if (input.output) taskInfo.output = input.output;
-        const task = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
+        const {stop} = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
 
-        const project = ProjectManager.getProjectDetail(input.projectId);
+        if (stop) {
+            context.runtime.agentBreakReason = 'taskPause';
+            context.runtime.agentBreakDetail = i18nInstance.t(
+                'agent.agentBreak.agentStop.taskPause.user', {name: taskInfo.title}
+            );
+        }
         fireProjectInfoEvent(input.projectId, context);
 
-        if (!!task.pause && oldStatus !== 'done' && input.status === 'done') {
-            context.runtime.agentBreakReason = 'taskPause';
-        }
-
-        return `Task updated successfully.
+        const project = ProjectManager.getProjectDetail(input.projectId);
+        let res = `Task updated successfully.
 Here's the related info:
 ${JSON.stringify(project)}`;
+        if (stop) {
+            res += `
+
+Task is not set done because the user requires it to be verified before it can be marked done.
+After user set task.verified to true, it can be successfully set done.`;
+        }
+        return res;
     },
 };
 

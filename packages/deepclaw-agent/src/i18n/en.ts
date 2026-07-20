@@ -11,11 +11,21 @@ export const en = {
         maxTurnReached: 'Reached maximum turn count. Ending session.\n{{finalText}}',
         agentBreak: {
             agentStop: {
-                projectCreated: 'Project is created, please continue to adjust the plan.',
-                taskPause: 'Task is done, please verify.'
+                projectCreated: {
+                    llm: 'Project is created, waiting for user adjustment.',
+                    user: 'Project is created, you can continue to adjust the plan.',
+                },
+                taskPause: {
+                    llm: 'Task is done, waiting for user verification.',
+                    user: `Task {{name}} has been done, please verify the output.
+You can ask me continue to modify the output or mark the task as verified when you feel ok.`,
+                },
             },
             externalInterrupt: {
-                clientLost: 'Client lost connection. Ending session.',
+                clientLost: {
+                    llm: 'Client lost connection. Ending session.',
+                    user: 'Client lost connection. Ending session.',
+                }
             },
         },
         llm: {

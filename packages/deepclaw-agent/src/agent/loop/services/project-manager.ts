@@ -142,7 +142,9 @@ export class ProjectManager {
         return task;
     }
 
-    public static updateTask(projectId: string, taskInfo: Partial<Task> & {title: string}, steps?: string[]): Task {
+    public static updateTask(
+        projectId: string, taskInfo: Partial<Task> & {title: string}, steps?: string[]
+    ): {task: Task, stop: boolean} {
         let task: Task | undefined;
         if (steps?.length && steps?.length > PROJECT_CONFIG.maxTaskStepsCount) {
             throw new Error(`Too much steps for a task. Max is ${PROJECT_CONFIG.maxTaskStepsCount}.`);
@@ -164,6 +166,10 @@ export class ProjectManager {
         }
         if (task.status === 'todo' && !taskInfo.status && taskInfo.output) {
             throw new Error('Cannot set output when task is in todo state.');
+        }
+        if (!!task.pause && !task.verified && task.status !== 'done' && taskInfo.status === 'done' ) {
+            taskInfo.status = task.status;
+            task.verified = false;
         }
         if (steps?.length) {
             if (task.status === 'ongoing' && !!task.stepsStatus?.steps || task.status === 'done') {
@@ -195,7 +201,7 @@ export class ProjectManager {
         }
         Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
         this.saveProject(project.id);
-        return task;
+        return {task, stop: !!task.pause && task.verified === false};
     }
 
     private static getOutputExt(outputType: NonNullable<Task['output']>['type']): string {

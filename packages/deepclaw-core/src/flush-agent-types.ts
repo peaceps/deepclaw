@@ -76,6 +76,7 @@ export type AgentRuntime = {
     turnCount: number;
     transitionReason?: LLMTransitionReason;
     agentBreakReason?: AgentBreakReason;
+    agentBreakDetail?: string;
     historyPersistIndex: number;
     breakPoint: {
         point: typeof BREAK_POINTS[BreakPoint];

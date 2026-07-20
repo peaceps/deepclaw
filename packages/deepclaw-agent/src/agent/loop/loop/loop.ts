@@ -223,15 +223,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 let finalText = this.extractFinalText(state.messages);
                 if (runtime.transitionReason === 'error') {
                     await HookManager.emitVisitor('turnError', state.oneLoopContext);
-                    this.agentHandler.onStreamText({
-                        browserId: state.oneLoopContext.browserId,
-                        text: finalText || i18nInstance.t('common.unexpected')
-                    });
+                    finalText = finalText || i18nInstance.t('common.unexpected');
                 } else if (isAgentStopReason(runtime.agentBreakReason)) {
-                    finalText = this.wrapExternalInterruptMessage(finalText, 'agentStop', runtime.agentBreakReason);
+                    finalText = runtime.agentBreakDetail || this.wrapAgentBreakMessage(finalText, 'agentStop', runtime.agentBreakReason);
                 } else if (isExternalInterruptReason(runtime.agentBreakReason)) {
                     await HookManager.emitVisitor('externalInterrupt', state.oneLoopContext, runtime.agentBreakReason);
-                    finalText = this.wrapExternalInterruptMessage(finalText, 'externalInterrupt', runtime.agentBreakReason);
+                    finalText = runtime.agentBreakDetail || this.wrapAgentBreakMessage(finalText, 'externalInterrupt', runtime.agentBreakReason);
                 } else if (isInternalInterruptReason(runtime.agentBreakReason)) {
                     await HookManager.emitVisitor('internalInterrupt', state.oneLoopContext, runtime.agentBreakReason);
                 }
@@ -240,8 +237,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         }
     }
 
-    private wrapExternalInterruptMessage(text: string, type: string, flag: AgentBreakReason) {
-        return `${text || ''}\n\n${i18nInstance.t(`agent.agentBreak.${type}.${flag}`)}`;
+    private wrapAgentBreakMessage(text: string, type: string, flag: AgentBreakReason) {
+        return `${text || ''}\n\n${i18nInstance.t(`agent.agentBreak.${type}.${flag}.user`)}`;
     }
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
@@ -343,7 +340,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             const breakReason = context.runtime.agentBreakReason;
             if (isAgentStopReason(breakReason) || isExternalInterruptReason(breakReason)) {
                 const stopType = isAgentStopReason(breakReason) ? 'agentStop' : 'externalInterrupt';
-                const stopText = i18nInstance.t(`agent.agentBreak.${stopType}.${breakReason}`);
+                const stopText = i18nInstance.t(`agent.agentBreak.${stopType}.${breakReason}.llm`);
                 const toolResult = {
                     result: {
                         id: toolUseDef.id,

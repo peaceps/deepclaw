@@ -42,6 +42,7 @@ export type Task = {
         path?: string;
     };
     pause?: boolean;
+    verified?: boolean;
     stepsStatus?: TaskStepsContext
 };
 

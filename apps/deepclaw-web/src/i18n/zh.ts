@@ -141,6 +141,12 @@ export const zh = {
                             off: '不会在完成此任务后暂停',
                         }
                     },
+                    verified: {
+                        title: {
+                            on: '验证通过',
+                            off: '未验证',
+                        }
+                    },
                     output: {
                         title: '任务报告',
                         download: '下载任务报告',

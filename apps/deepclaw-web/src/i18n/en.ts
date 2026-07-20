@@ -141,6 +141,12 @@ export const en = {
                             off: 'Will not pause after this task done.'
                         }
                     },
+                    verified: {
+                        title: {
+                            on: 'Verified',
+                            off: 'Not verified',
+                        }
+                    },
                     output: {
                         title: 'Task report',
                         download: 'Download task report',

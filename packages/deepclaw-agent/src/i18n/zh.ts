@@ -11,11 +11,20 @@ export const zh = {
         maxTurnReached: '超过最大迭代次数，运行中止！\n{{finalText}}',
         agentBreak: {
             agentStop: {
-                projectCreated: '项目创建好了，你可以继续让我调整建好的计划。',
-                taskPause: '任务已经完成，请验收成果。'
+                projectCreated: {
+                    llm: '项目创建好了，等待用户调整计划。',
+                    user: '项目创建好了，你可以继续让我调整计划。',
+                },
+                taskPause: {
+                    llm: '任务已经完成，等待用户验收。',
+                    user: '任务{{name}}已完成，请验收成果。你可以继续让我修改输出，或者当成果令你满意时，标记任务为已验证。',
+                },
             },
             externalInterrupt: {
-                clientLost: '客户端断开连接，运行中止！',
+                clientLost: {
+                    llm: '客户端断开连接，运行中止！',
+                    user: '客户端断开连接，运行中止！',
+                },
             },
         },
         llm: {
