@@ -151,6 +151,7 @@ export const zh = {
                         title: '任务报告',
                         download: '下载任务报告',
                         view: '查看任务报告',
+                        fetchFailed: '文件获取失败。',
                     }
                 }
             },

@@ -151,6 +151,7 @@ export const en = {
                         title: 'Task report',
                         download: 'Download task report',
                         view: 'View task report',
+                        fetchFailed: 'File fetch failed.',
                     }
                 }
             },

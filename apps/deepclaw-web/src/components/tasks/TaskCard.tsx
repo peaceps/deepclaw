@@ -45,13 +45,13 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
     updateProjectTaskToServer(projectId, task.title, { verified: next }).catch(() => {
       updateProjectTask(projectId, task.title, { verified: !next });
     });
-  }, [projectId, task.title, task.verified, updateProjectTask]);
+  }, [projectId, task.title, task.verified, task.pause, task.status, updateProjectTask]);
 
   if (!assignee) return null;
 
   return (
     <>
-      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex items-start justify-between gap-2">
           <h4 className="font-medium text-gray-900 line-clamp-2 flex-1">{task.title}</h4>
           <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${priorityStyles[task.priority]}`}>
@@ -77,13 +77,13 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           <div className='flex-1'></div>
           {task.status !== 'done' && <button
               onClick={handlePauseClick}
-              className='mr-1 flex-shrink-0'
+              className='mr-1 flex-shrink-0 cursor-pointer'
               title={t(`web.pages.projects.task.pause.title.${task.pause ? 'on' : 'off'}`)}>
             <CirclePause size={18} className={`${task.pause ? 'text-yellow-500' : 'text-gray-200'}`} />
           </button>}
           {task.status === 'ongoing' && task.pause && typeof task.verified === 'boolean' && <button
               onClick={handleVerifiedClick}
-              className='mr-1 flex-shrink-0'
+              className='mr-1 flex-shrink-0 cursor-pointer'
               title={t(`web.pages.projects.task.verified.title.${task.verified ? 'on' : 'off'}`)}>
             <ClipboardCheck size={18} className={`${task.verified ? 'text-green-500' : 'text-gray-200'}`} />
           </button>}
@@ -110,7 +110,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           <ProgressBar value={progress} size="sm" className="mt-2" />
         )}
 
-        {task.output && <TaskOutput output={task.output}/>}
+        {task.output && <TaskOutput task={task}/>}
       </div>
 
       <TaskOwnerTooltip

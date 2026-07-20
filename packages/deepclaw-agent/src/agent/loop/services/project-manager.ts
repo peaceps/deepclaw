@@ -184,12 +184,14 @@ export class ProjectManager {
         if (task.output) {
             const outputType = task.output.type;
             if (outputType === 'binary' || task.output.content.length > OUTPUT_LENGTH_LIMIT) {
-                const content = outputType === 'binary' ? Buffer.from(task.output.content, 'base64') : task.output.content;
+                const content = outputType === 'binary' ? Buffer.from(task.output.content, 'base64')
+                    : task.output.content;
+                const ext = task.output.ext || this.getOutputExt(outputType);
                 const path = FileUtils.writeFile(
-                    `${PROJECT_TASK_OUTPUT_DIR}/${projectId}/${task.title}.${this.getOutputExt(outputType)}`, content
+                    `${PROJECT_TASK_OUTPUT_DIR}/${projectId}/${FileUtils.hashString(task.title)}.${ext}`, content
                 );
                 task.output.content = '<Content saved to file>';
-                task.output.path = path.substring(PUBLIC.length + 1);
+                task.output.path = `/${path.substring(PUBLIC.length + 1)}`;
             }
         }
         if (!task.closedAt && taskInfo.status === 'done') {

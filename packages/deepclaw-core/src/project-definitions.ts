@@ -40,6 +40,7 @@ export type Task = {
         type: 'markdown' | 'text' | 'binary';
         content: string;
         path?: string;
+        ext?: string;
     };
     pause?: boolean;
     verified?: boolean;

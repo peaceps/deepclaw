@@ -1,12 +1,17 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { createHash } from 'crypto';
 
 export class FileUtils {
 
     public static wrapTimestamp(file: string): string {
         const [name, ext = 'log'] = file.split('.');
         return `${name}_${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}.${ext}`;
+    }
+
+    public static hashString(text: string, length: number = 16): string {
+        return createHash('sha256').update(text).digest('hex').slice(0, length);
     }
 
     public static readFile(filePath: string): string {

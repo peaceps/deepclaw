@@ -333,6 +333,10 @@ They shoudl be short descriptions of each step, should not be too long for user 
                             description: `Content of the task output. Binary content should be base64 encoded.
 For binary files and large text/md content, a file will be created on server, the content will be replaced as <Content saved to file> 
 and the file path will be set into the path field.`
+                        },
+                        ext: {
+                            type: 'string',
+                            description: 'A proper extension for the file, e.g. "txt", "md", "pdf", "jpg", "png", "mp4", etc.'
                         }
                     },
                     required: ['type', 'content'],
