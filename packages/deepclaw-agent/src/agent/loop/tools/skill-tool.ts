@@ -23,3 +23,24 @@ export const loadSkillTool: ToolDesc<SkillInput> = {
         return SkillsManager.getSkillContent(name);
     },
 }
+
+export const refreshSkillTool: ToolDesc<void> = {
+    tool: {
+        name: 'refresh_skill',
+        description: 'Refresh installed skills',
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {},
+            required: [],
+        },
+    },
+    agentMode: ['agent', 'chat'],
+    parallelSafe: true,
+    invoke: async function(): Promise<string> {
+        const availableSkills = SkillsManager.reloadSkills();
+        return `Skills refreshed.
+Available skills:
+${availableSkills}`;
+    },
+};

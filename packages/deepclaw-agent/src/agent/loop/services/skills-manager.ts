@@ -40,6 +40,11 @@ export class SkillsManager {
         this.skillPrompt = this.generateSkillPrompt();
     }
 
+    public static reloadSkills(): string {
+        this.loadSkills();
+        return this.getAvailableSkills();
+    }
+
     private static parseSkillDocument(fileContent: string): SkillDocument | null {
         const {data, content} = matter(fileContent);
 
