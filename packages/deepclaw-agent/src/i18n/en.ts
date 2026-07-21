@@ -42,8 +42,13 @@ You can ask me continue to modify the output or mark the task as verified when y
         tools: {
             permission: {
                 request: 'Request access permission.',
-                allow: 'Allow',
+                allowOnce: 'Allow once',
+                always: 'Always allow {{group}} operation in this session',
                 deny: 'Deny',
+                group: {
+                    command: 'command execution',
+                    file: 'file',
+                }
             },
             file: {
                 guard: 'Deepclaw is going to access files outside current work dir.',

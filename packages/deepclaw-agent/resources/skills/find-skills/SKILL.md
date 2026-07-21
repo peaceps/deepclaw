@@ -19,7 +19,7 @@ Use this skill when the user:
 
 ## Skill System in Deepclaw
 
-Deepclaw loads skills from the `skills/` directory (relative to the working directory). Each skill is a subdirectory containing a `SKILL.md` file with frontmatter:
+Deepclaw loads skills from the `.agents/skills/` directory (relative to the working directory). Each skill is a subdirectory containing a `SKILL.md` file with frontmatter:
 
 ```yaml
 ---
@@ -62,24 +62,15 @@ Show the user what you found:
 
 ### Step 3: Install
 
-`npx skills add` downloads skills to `.agent/skills/` in the current directory by default. After download, **move the skill folder to `skills/`** so deepclaw can load it:
+`npx skills add` installs into `.agents/skills/` in the current directory by default, which is exactly where deepclaw loads skills from — so no extra move step is needed. Pass `--agent cursor` to force the `.agents/skills/` target deterministically:
 
 ```bash
-mv .agent/skills/<skill-folder> skills/
+npx skills add vercel-labs/agent-skills@vercel-react-best-practices --agent cursor -y
 ```
 
-Example:
+Run this from deepclaw's working directory (`DEEPCLAW_HOME` if set, otherwise the process CWD) so the skill lands in the directory deepclaw actually reads.
 
-```bash
-npx skills add vercel-labs/agent-skills@vercel-react-best-practices -y
-mv .agent/skills/vercel-react-best-practices skills/
-```
-
-If the `skills/` directory doesn't exist, create it first:
-
-```bash
-mkdir -p skills
-```
+**Never use the `-g` / `--global` flag.** Global installs go to a user-level directory (e.g. `~/.cursor/skills`), which deepclaw does NOT load. Always install project-locally into `.agents/skills/`.
 
 ### Step 4: Refresh
 
@@ -111,7 +102,7 @@ Then follow the instructions in the skill content to help the user.
 
 1. Acknowledge that no existing skill was found
 2. Offer to help with the task directly
-3. Suggest the user could create their own skill by writing a `skills/<name>/SKILL.md` file
+3. Suggest the user could create their own skill by writing a `.agents/skills/<name>/SKILL.md` file
 
 ## Common Skill Sources
 

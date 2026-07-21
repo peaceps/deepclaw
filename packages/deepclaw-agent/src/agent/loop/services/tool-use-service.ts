@@ -30,7 +30,7 @@ export class ToolUseService {
             }
         }
         if (tool.guard) {
-            const guardResult = tool.guard(input, context.loopConfig.mode);
+            const guardResult = tool.guard(input, context);
             if (guardResult.result === 'denied') {
                 await HookManager.emitVisitor('toolGuardDenied', context, {toolUseDef, reason: guardResult.reason});
                 return this.toolResult(toolUseDef.id, `Tool run is not allowed: ${toolUseDef.name}. ${guardResult.reason}.`, false);

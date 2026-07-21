@@ -24,7 +24,9 @@ export const SUB_LOOP_DIR = 'subloop';
 
 // Global
 export const GLOBAL_MEMORY_DIR = '.memory';
-export const SKILL_DIR = 'skills';
+export const SKILLS = 'skills';
+export const SKILLS_DIR = `${AGENTS_DIR}/${SKILLS}`;
+export const SKILL_MD = 'SKILL.md';
 export const DEEPCLAW_MD = 'DEEPCLAW.md';
 
 // Public resource

@@ -1,6 +1,8 @@
-import { askPermissionGuard, ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
+import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FileUtils } from '@deepclaw/node-utils';
+import { PermissionService } from '../services/permission-service';
+import { OneLoopContext } from '../../definitions/definitions';
 
 type FileOperationInput = {
     filePath: string;
@@ -96,9 +98,11 @@ export const editFileTool: ToolDesc<EditFileInput> = {
     guard: fileGuard
 }
 
-function fileGuard(input: ReadFileInput): ToolGuardResult {
+function fileGuard(input: FileOperationInput, context: OneLoopContext): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
-        return askPermissionGuard(i18nInstance.t('agent.tools.file.guard'));
+        return PermissionService.askPermissionGuard(
+            i18nInstance.t('agent.tools.file.guard'), 'file', context.loopId
+        );
     }
     return {result: 'allowed'};
 }

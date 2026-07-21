@@ -1,10 +1,11 @@
 import matter from 'gray-matter';
 import { FileUtils } from '@deepclaw/node-utils';
-import { SKILL_DIR } from '../../paths';
+import { SKILL_MD, SKILLS_DIR } from '../../paths';
 
 type SkillManifest = {
     name: string;
     description: string;
+    dir: string;
 }
 
 type SkillDocument = {
@@ -28,15 +29,11 @@ export class SkillsManager {
     }
 
     private static loadSkills(): void {
-        const skills: Map<string, SkillDocument> = new Map();
-        const files = FileUtils.readDir(SKILL_DIR, (fileName: string) => `${fileName}/SKILL.md`);
-        for (const fileContent of Object.values(files)) {
-            const skillDocument = this.parseSkillDocument(fileContent.replace(/\r\n/g, '\n'));
-            if (skillDocument) {
-                skills.set(skillDocument.manifest.name, skillDocument);
-            }
+        this.skills = new Map();
+        const files = FileUtils.readDir(SKILLS_DIR, (fileName: string) => `${fileName}/${SKILL_MD}`);
+        for (const {dir, content} of Object.values(files)) {
+            this.parseSkillDocument(content, dir);
         }
-        this.skills = skills;
         this.skillPrompt = this.generateSkillPrompt();
     }
 
@@ -45,20 +42,57 @@ export class SkillsManager {
         return this.getAvailableSkills();
     }
 
-    private static parseSkillDocument(fileContent: string): SkillDocument | null {
-        const {data, content} = matter(fileContent);
+    public static deleteSkill(name: string): void {
+        if (!this.skills.has(name)) {
+            return;
+        }
+        FileUtils.deleteDir(`${SKILLS_DIR}/${this.skills.get(name)!.manifest.dir}`);
+        this.skills.delete(name);
+        this.skillPrompt = this.generateSkillPrompt();
+    }
 
+    public static installSkill(folder: string, files: {path: string, content: string}[]): void {
+        if (!this.skills) {
+            this.loadSkills();
+        }
+        const skillDir = `${SKILLS_DIR}/${folder}`;
+        if (FileUtils.exists(skillDir)) {
+            throw new Error('Skill already exists.');
+        }
+        if (!files.some(file => file.path === SKILL_MD)) {
+            throw new Error('Skill manifest file SKILL.md not found.');
+        }
+        let manifest = null;
+        try {
+            for (const {path, content} of files) {
+                if (path === SKILL_MD) {
+                    manifest = content;
+                }
+                FileUtils.writeFile(`${skillDir}/${path}`, content);
+            }
+        } catch (e) {
+            FileUtils.deleteDir(skillDir);
+            throw new Error(`Failed to install skill. Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        }
+        this.parseSkillDocument(manifest!, folder);
+        this.skillPrompt = this.generateSkillPrompt();
+    }
+
+    private static parseSkillDocument(fileContent: string, dir: string): void {
+        const {data, content} = matter(fileContent.replace(/\r\n/g, '\n'));
         if (!data['name'] || !data['description']) {
-            return null;
+            return;
         }
 
-        return {
+        const skill = {
             manifest: {
                 name: data['name'],
                 description: data['description'],
+                dir,
             },
             body: content,
         };
+        this.skills.set(skill.manifest.name, skill);
     }
 
     public static getSkillPrompt(): string {
@@ -76,12 +110,15 @@ Below available skills are not tools nor MCP tools, they cannot be used directly
 load_skill tool is a local function to get the detailed information of skills.
 You always need to use load_skill tool with function_call first.
 
+When user ask for some skill, first check from below available skills.
+If not found, use find-skills skill to search from public skills.
+
 Skills available:
 ${SkillsManager.getAvailableSkills()}`
     }
 
     private static getAvailableSkills(): string {
-        if (this.skills.size === 0) {
+        if (!this.skills || this.skills.size === 0) {
             return '(no skills available)';
         }
         return Array.from(this.skills.values()).map(skill => skill.manifest)

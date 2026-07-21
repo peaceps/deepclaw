@@ -37,9 +37,9 @@ export class ProjectManager {
 
     private static loadProjects(): void {
         const files = FileUtils.readDir(PROJECT_DIR, dir => `${dir}/${PROJECT_JSON}`);
-        for (const fileContent of Object.values(files)) {
+        for (const {content} of Object.values(files)) {
             try {
-                const project = JSON.parse(fileContent) as Project;
+                const project = JSON.parse(content) as Project;
                 if (project && project.id && project.title && project.description) {
                     project.priority = project.priority || 'low';
                     Object.assign(project, this.calculateProjectTaskInfo(project.tasks));

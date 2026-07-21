@@ -1,7 +1,8 @@
 import { i18nInstance } from '@deepclaw/i18n';
 import { runCommand, childProcessTimeout} from '@deepclaw/node-utils';
-import { ToolDesc, ToolGuardResult, askPermissionGuard } from '../../definitions/tool-definitions';
-import { AgentMode } from '@deepclaw/config';
+import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
+import { OneLoopContext } from '../../definitions/definitions';
+import { PermissionService } from '../services/permission-service';
 
 type SyncCommandInput = {
     command: string;
@@ -43,7 +44,7 @@ const rules: {deny: (string | RegExp)[], warning: (string | RegExp)[]} = {
     ]
 };
 
-function syncCommandGuard(input: SyncCommandInput, agentMode: AgentMode): ToolGuardResult {
+function syncCommandGuard(input: SyncCommandInput, context: OneLoopContext): ToolGuardResult {
     const { command } = input;
     const denied = checkRules(rules.deny, command);
     if (denied) {
@@ -51,10 +52,16 @@ function syncCommandGuard(input: SyncCommandInput, agentMode: AgentMode): ToolGu
     }
     const warned = checkRules(rules.warning, command);
     if (warned) {
-        return askPermissionGuard(i18nInstance.t('agent.tools.syncCommand.guard.warn', {command}));
+        return PermissionService.askPermissionGuard(
+            i18nInstance.t('agent.tools.syncCommand.guard.warn', {command}),
+            'command', context.loopId
+        );
     }
-    if (agentMode !== 'agent') {
-        return askPermissionGuard(i18nInstance.t('agent.tools.syncCommand.guard.mode', {command}));
+    if (context.loopConfig.mode !== 'agent') {
+        return PermissionService.askPermissionGuard(
+            i18nInstance.t('agent.tools.syncCommand.guard.mode', {command}),
+            'command', context.loopId
+        );
     }
     return {result: 'allowed'};
 }

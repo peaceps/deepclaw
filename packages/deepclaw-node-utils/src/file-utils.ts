@@ -14,6 +14,10 @@ export class FileUtils {
         return createHash('sha256').update(text).digest('hex').slice(0, length);
     }
 
+    public static exists(filePath: string): boolean {
+        return fs.existsSync(this.getAbsolutePath(filePath));
+    }
+
     public static readFile(filePath: string): string {
         const name = this.sanitizeFileName(filePath);
         const absolutePath = this.getAbsolutePath(name);
@@ -23,16 +27,18 @@ export class FileUtils {
         return fs.readFileSync(absolutePath, 'utf8');
     }
 
-    public static readDir(dirPath: string, fileToRead?: ((fileName: string) => string)): {[key: string]: string} {
-        const files: {[key: string]: string} = {};
+    public static readDir(
+        dirPath: string, fileToRead?: ((fileName: string) => string)
+    ): {[key: string]: {dir: string, content: string}} {
+        const files: {[key: string]: {dir: string, content: string}} = {};
         const name = this.sanitizeFileName(dirPath);
         dirPath = this.getAbsolutePath(name);
         if (fs.existsSync(dirPath)) {
-            for (const fileName of fs.readdirSync(dirPath)) {
-                const filePath = fileToRead ? fileToRead(fileName) : fileName;
+            for (const subDir of fs.readdirSync(dirPath)) {
+                const filePath = fileToRead ? fileToRead(subDir) : subDir;
                 if (!filePath) continue;
                 try {
-                    files[filePath] = this.readFile(`${dirPath}/${filePath}`);
+                    files[filePath] = {dir: subDir, content: this.readFile(`${dirPath}/${filePath}`)};
                 } catch {
                     // TODO: Handle error
                     continue;
@@ -61,6 +67,13 @@ export class FileUtils {
         const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
         if (fs.existsSync(absolutePath)) {
             fs.rmSync(absolutePath, {force: true});
+        }
+    }
+
+    public static deleteDir(filePath: string): void {
+        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
+        if (fs.existsSync(absolutePath)) {
+            fs.rmSync(absolutePath, {force: true, recursive: true});
         }
     }
 
@@ -114,12 +127,13 @@ export class FileUtils {
         return targetPath === workspacePath || targetPath.startsWith(workspacePrefix);
     }
 
-    public static copyResource(fromDir: string, fileName: string): void {
-        const destination = path.resolve(this.getWorkingDir(), fileName);
+    public static copyResource(fromDir: string, targetName: string, toDir: string = ''): void {
+        const targetPath = toDir ? `${toDir}/${targetName}` : targetName;
+        const destination = path.resolve(this.getWorkingDir(), targetPath);
         if (!fs.existsSync(destination)) {
-            let source = path.join(fromDir, 'resources', fileName);
+            let source = path.join(fromDir, 'resources', targetName);
             if (!fs.existsSync(source)) {
-                source = path.join(fromDir, '..', 'resources', fileName);
+                source = path.join(fromDir, '..', 'resources', targetName);
             }
             if (fs.existsSync(source)) {
                 fs.cpSync(source, destination, { recursive: true });

@@ -41,8 +41,13 @@ export const zh = {
         tools: {
             permission: {
                 request: '允许访问？',
-                allow: '允许',
+                always: '在此对话总是允许{{group}}操作',
+                allowOnce: '允许一次',
                 deny: '拒绝',
+                group: {
+                    command: '命令执行',
+                    file: '文件',
+                }
             },
             file: {
                 guard: 'Deepclaw想要访问当前工作区外的文件。',

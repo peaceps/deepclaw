@@ -53,9 +53,9 @@ export class MemoryManager {
     private static loadMemoriesFromFolder(folder: string): Map<string, Memory> {
         const memories: Map<string, Memory> = new Map();
         const files = FileUtils.readDir(folder);
-        for (const fileContent of Object.values(files)) {
+        for (const file of Object.values(files)) {
             try {
-                const {data, content} = matter(fileContent.replace(/\r\n/g, '\n'));
+                const {data, content} = matter(file.content.replace(/\r\n/g, '\n'));
                 if (data && data['type'] && data['name'] && data['description']) {
                     if (!MEMORY_TYPES.includes(data['type'] as MemoryType)) {
                         continue;
