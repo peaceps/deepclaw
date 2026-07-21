@@ -48,7 +48,7 @@ ${this.projectManagement(agentConfig.mode)}
 ${this.memory(agentConfig.id, projectId)}
 
 # Skills
-${this.availableSkills()}`;
+${this.availableSkills(agentConfig.id)}`;
     }
 
     private static platform(): string {
@@ -138,7 +138,7 @@ But you can call tools to write files owned by the agent program itself, such as
         return MemoryManager.getMemoryPrompt(agentId, projectId);
     }
 
-    private static availableSkills(): string {
-        return SkillsManager.getSkillPrompt();
+    private static availableSkills(agentId: string): string {
+        return SkillsManager.generateSkillPrompt(agentId);
     }
 }

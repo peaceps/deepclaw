@@ -1,4 +1,4 @@
-import { ProjectBoard } from '@/components/tasks/ProjectBoard';
+import { ProjectBoard } from '@/components/projects/ProjectBoard';
 
 type BoardPageProps = {
     searchParams?: Promise<{

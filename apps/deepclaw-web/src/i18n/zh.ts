@@ -30,7 +30,7 @@ export const zh = {
         toast: {
             interactionPause: {
                 role: {
-                    agent: '员工',
+                    agent: 'Agent',
                     project: '项目'
                 },
                 title: '互动请求',
@@ -40,7 +40,7 @@ export const zh = {
         sidebar: {
             subtitle: '一个人也可以很热闹',
             links: {
-                agents: '员工',
+                agents: 'Agent',
                 projects: '项目看板',
                 cron: '定时任务',
                 skills: '技能',
@@ -54,7 +54,7 @@ export const zh = {
             agents: {
                 noSelection: {
                     title: '请选择一个Agent查看详情',
-                    description: '从左侧列表中选择一个Agent员工，查看其角色设定、性格特点和工作状态',
+                    description: '从左侧列表中选择一个 Agent，查看其角色设定、性格特点和工作状态',
                 },
                 mood: {
                     happy: '心情不错',
@@ -183,6 +183,16 @@ export const zh = {
                     output: '输出'
                 }
             },
+            skills: {
+                columns: {
+                    name: '名称',
+                    description: '描述',
+                    agent: '应用给',
+                },
+                empty: '暂无可用技能',
+                resetToAll: '全部 Agent',
+                installHint: '提示：可以直接和 Agent 聊天来安装新技能，让它帮你查找并安装即可。',
+            },
             settings: {
                 title: '系统设置',
                 description: '配置 DeepClaw 的各项参数',
@@ -248,7 +258,7 @@ export const zh = {
                 mode: {
                     prompt: '运行模式',
                     options: {
-                        agent: '代理 (完整操作权限)',
+                        agent: 'Agent (完整操作权限)',
                         chat: '聊天',
                     },
                 },

@@ -1,3 +1,4 @@
+import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { SkillsManager } from "../services/skills-manager";
 
@@ -37,11 +38,11 @@ export const refreshSkillTool: ToolDesc<void> = {
     },
     agentMode: ['agent', 'chat'],
     parallelSafe: true,
-    invoke: async function(): Promise<string> {
-        const availableSkills = SkillsManager.reloadSkills();
+    invoke: async function(_: void, context: OneLoopContext): Promise<string> {
+        SkillsManager.reloadSkills();
         return `Skills refreshed.
 Available skills:
-${availableSkills}`;
+${SkillsManager.getAvailableSkillsPrompt(context.agentId)}`;
     },
 };
 
@@ -61,12 +62,11 @@ export const deleteSkillTool: ToolDesc<DeleteSkillInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: false,
-    invoke: async function(input: DeleteSkillInput): Promise<string> {
+    invoke: async function(input: DeleteSkillInput, context: OneLoopContext): Promise<string> {
         const { name } = input;
         SkillsManager.deleteSkill(name);
-        const availableSkills = SkillsManager.reloadSkills();
         return `Skill ${name} deleted.
 Available skills:
-${availableSkills}`;
+${SkillsManager.getAvailableSkillsPrompt(context.agentId)}`;
     },
 }

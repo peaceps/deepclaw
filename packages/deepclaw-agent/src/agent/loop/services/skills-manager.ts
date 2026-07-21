@@ -1,8 +1,8 @@
 import matter from 'gray-matter';
 import { FileUtils } from '@deepclaw/node-utils';
-import { SKILL_MD, SKILLS_DIR } from '../../paths';
+import { SKILL_AGENT_JSON, SKILL_MD, SKILLS_DIR } from '../../paths';
 
-type SkillManifest = {
+export type SkillManifest = {
     name: string;
     description: string;
     dir: string;
@@ -11,15 +11,21 @@ type SkillManifest = {
 type SkillDocument = {
     manifest: SkillManifest;
     body: string;
+    agents?: string[];
+}
+
+export type SkillInfo = {
+    name: string;
+    description: string;
+    agents?: string[];
 }
 
 export class SkillsManager {
     private static skills: Map<string, SkillDocument>;
-    private static skillPrompt: string;
 
     public static getSkillContent(skillName: string): string {
         if (!this.skills) {
-            this.loadSkills();
+            this.reloadSkills();
         }
         const skillDocument = this.skills.get(skillName);
         if (!skillDocument) {
@@ -28,18 +34,12 @@ export class SkillsManager {
         return `<skill name="${skillName}">\n${skillDocument.body}\n</skill>`;
     }
 
-    private static loadSkills(): void {
+    public static reloadSkills(): void {
         this.skills = new Map();
         const files = FileUtils.readDir(SKILLS_DIR, (fileName: string) => `${fileName}/${SKILL_MD}`);
         for (const {dir, content} of Object.values(files)) {
             this.parseSkillDocument(content, dir);
         }
-        this.skillPrompt = this.generateSkillPrompt();
-    }
-
-    public static reloadSkills(): string {
-        this.loadSkills();
-        return this.getAvailableSkills();
     }
 
     public static deleteSkill(name: string): void {
@@ -48,12 +48,11 @@ export class SkillsManager {
         }
         FileUtils.deleteDir(`${SKILLS_DIR}/${this.skills.get(name)!.manifest.dir}`);
         this.skills.delete(name);
-        this.skillPrompt = this.generateSkillPrompt();
     }
 
     public static installSkill(folder: string, files: {path: string, content: string}[]): void {
         if (!this.skills) {
-            this.loadSkills();
+            this.reloadSkills();
         }
         const skillDir = `${SKILLS_DIR}/${folder}`;
         if (FileUtils.exists(skillDir)) {
@@ -75,7 +74,6 @@ export class SkillsManager {
             throw new Error(`Failed to install skill. Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
         }
         this.parseSkillDocument(manifest!, folder);
-        this.skillPrompt = this.generateSkillPrompt();
     }
 
     private static parseSkillDocument(fileContent: string, dir: string): void {
@@ -84,7 +82,7 @@ export class SkillsManager {
             return;
         }
 
-        const skill = {
+        const skill: SkillDocument = {
             manifest: {
                 name: data['name'],
                 description: data['description'],
@@ -92,36 +90,72 @@ export class SkillsManager {
             },
             body: content,
         };
+
+        try {
+            const agentFile = `${SKILLS_DIR}/${dir}/${SKILL_AGENT_JSON}`;
+            if (FileUtils.exists(agentFile)) {
+                const agents = FileUtils.readFile(agentFile);
+                skill.agents = JSON.parse(agents) as string[];
+            }
+        } catch {
+            skill.agents = undefined;
+        }
+
         this.skills.set(skill.manifest.name, skill);
     }
 
-    public static getSkillPrompt(): string {
-        if (!this.skills) {
-            this.loadSkills();
-        }
-        return this.skillPrompt;
-    }
+    public static generateSkillPrompt(agentId: string): string {
+        return `You have below skills installed:
+${this.getAvailableSkillsPrompt(agentId)}
 
-    private static generateSkillPrompt(): string {
-        return `MCP server is not installed, do not use mcp_call.
-IMPORTANT: You can only use local function calls, no mcp_calls.
+When user ask for some skill, first check from above available skills.
+If not found, use find-skills skill to search from public skills.
 
-Below available skills are not tools nor MCP tools, they cannot be used directly,
 load_skill tool is a local function to get the detailed information of skills.
 You always need to use load_skill tool with function_call first.
 
-When user ask for some skill, first check from below available skills.
-If not found, use find-skills skill to search from public skills.
-
-Skills available:
-${SkillsManager.getAvailableSkills()}`
+NEVER use file tool or shell tool to search files on disk for skills!!!
+`;
     }
 
-    private static getAvailableSkills(): string {
-        if (!this.skills || this.skills.size === 0) {
-            return '(no skills available)';
+    public static getAvailableSkillsPrompt(agentId: string): string {
+        if (!this.skills) {
+            this.reloadSkills();
         }
-        return Array.from(this.skills.values()).map(skill => skill.manifest)
-            .reduce((acc, skill) => acc + `- ${skill.name}: ${skill.description}\n`, '');
+        const skills = Array.from(this.skills.values()).filter(skill =>
+            !skill.agents || skill.agents.includes(agentId)
+        ).map(skill => skill.manifest).reduce((acc, skill) => acc + `- ${skill.name}: ${skill.description}\n`, '');
+
+        return skills.length === 0 ? '(no skills available)' : skills;
+    }
+
+    public static getSkillList(): SkillInfo[] {
+        if (!this.skills) {
+            this.reloadSkills();
+        }
+        return Array.from(this.skills.values()).map(skill => ({
+            name: skill.manifest.name,
+            description: skill.manifest.description,
+            agents: skill.agents,
+        }));
+    }
+
+    public static updateSkillAgents(name: string, agentIds?: string[]): void {
+        if (!this.skills) {
+            this.reloadSkills();
+        }
+        const skill = this.skills.get(name);
+        if (skill) {
+            if (!agentIds) {
+                FileUtils.deleteFile(`${SKILLS_DIR}/${skill.manifest.dir}/${SKILL_AGENT_JSON}`);
+                skill.agents = undefined;
+            } else {
+                FileUtils.writeFile(
+                    `${SKILLS_DIR}/${skill.manifest.dir}/${SKILL_AGENT_JSON}`,
+                    JSON.stringify(agentIds, null, 2)
+                );
+                skill.agents = agentIds;
+            }
+        }
     }
 }

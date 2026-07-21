@@ -183,6 +183,16 @@ export const en = {
                     output: 'Output'
                 }
             },
+            skills: {
+                columns: {
+                    name: 'Name',
+                    description: 'Description',
+                    agent: 'Applied to',
+                },
+                empty: 'No skills available',
+                resetToAll: 'All agents',
+                installHint: 'Tip: you can install new skills by chatting with an agent — just ask it to find and install a skill for you.',
+            },
             settings: {
                 title: 'System Settings',
                 description: 'Configure the settings for the application',

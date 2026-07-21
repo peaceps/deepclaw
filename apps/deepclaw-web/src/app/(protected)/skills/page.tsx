@@ -1,11 +1,7 @@
 import { Skills } from '@/components/skills/Skills';
+import { getSkills, getActiveAgents } from '@/server/skills';
 
-export default function SkillsPage() {
-  return (
-    <div className="h-full flex items-center justify-center text-gray-400">
-      <div className="text-center">
-        <Skills />
-      </div>
-    </div>
-  );
+export default async function SkillsPage() {
+  const [skills, agents] = await Promise.all([getSkills(), getActiveAgents()]);
+  return <Skills skills={skills} agents={agents} />;
 }

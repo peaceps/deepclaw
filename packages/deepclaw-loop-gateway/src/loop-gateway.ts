@@ -13,7 +13,8 @@ import {
 } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
 import {
-    LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent
+    LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent, SkillsManager,
+    type SkillInfo
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
@@ -303,6 +304,14 @@ class LoopGatewayImpl {
         if (resolver) {
             resolver.reject(reason);
         }
+    }
+
+    public static getSkills(): SkillInfo[] {
+        return SkillsManager.getSkillList();
+    }
+
+    public static setSkillAgents(name: string, agentIds?: string[]): void {
+        SkillsManager.updateSkillAgents(name, agentIds);
     }
 
     public static getLoopInfo(): LoopInfo {
