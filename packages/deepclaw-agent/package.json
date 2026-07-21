@@ -1,29 +1,30 @@
 {
-	"name": "@deepclaw/agent",
-	"version": "0.0.1",
+    "name": "@deepclaw/agent",
+    "version": "0.0.1",
     "packageManager": "pnpm@10.33.0",
-	"license": "MIT",
-	"type": "module",
-	"engines": {
-		"node": ">=21"
-	},
-	"scripts": {
-		"build": "rollup -c",
-		"lint": "eslint **/*.ts",
-        "test": "vitest run"
-	},
-    "exports": {
-      ".": {
-        "import": "./src/index.ts"
-      }
+    "license": "MIT",
+    "type": "module",
+    "engines": {
+        "node": ">=21"
     },
-	"dependencies": {
-		"@anthropic-ai/sdk": "0.91.1",
-		"@deepclaw/core": "workspace:*",
-		"@deepclaw/config": "workspace:*",
-		"@deepclaw/i18n": "workspace:*",
-		"@deepclaw/node-utils": "workspace:*",
-		"gray-matter": "4.0.3",
-		"openai": "6.36.0"
-	}
+    "scripts": {
+        "build": "rollup -c",
+        "lint": "eslint **/*.ts",
+        "test": "vitest run"
+    },
+    "exports": {
+        ".": {
+            "import": "./src/index.ts"
+        }
+    },
+    "dependencies": {
+        "@anthropic-ai/sdk": "0.91.1",
+        "@deepclaw/config": "workspace:*",
+        "@deepclaw/core": "workspace:*",
+        "@deepclaw/i18n": "workspace:*",
+        "@deepclaw/node-utils": "workspace:*",
+        "cron": "4.4.0",
+        "gray-matter": "4.0.3",
+        "openai": "6.36.0"
+    }
 }

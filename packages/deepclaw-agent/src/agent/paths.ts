@@ -22,12 +22,17 @@ export const CHAT_FILE = 'chat.jsonl';
 // SubLoop temp
 export const SUB_LOOP_DIR = 'subloop';
 
-// Global
-export const GLOBAL_MEMORY_DIR = '.memory';
+// Skills
 export const SKILLS = 'skills';
 export const SKILLS_DIR = `${AGENTS_DIR}/${SKILLS}`;
 export const SKILL_MD = 'SKILL.md';
 export const SKILL_AGENT_JSON = 'agent.json';
+
+// Cron
+export const CRON_DIR = '.cron';
+
+// Global
+export const GLOBAL_MEMORY_DIR = '.memory';
 export const DEEPCLAW_MD = 'DEEPCLAW.md';
 
 // Public resource

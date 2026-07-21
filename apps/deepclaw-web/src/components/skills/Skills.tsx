@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lightbulb } from 'lucide-react';
 import type { AgentOption } from '@/server/skills';
 import type { SkillInfo } from '@deepclaw/loop-gateway';
 import { setSkillAgents } from '@/server/skills';
 import { MultiSelect } from '@/laf/multi-select';
+import { InfoBar } from '@/laf/info-bar';
 
 type SkillsProps = {
     skills: SkillInfo[];
@@ -56,10 +56,7 @@ export function Skills({ skills: initialSkills, agents }: SkillsProps) {
     return (
         <div className="h-full w-full overflow-auto p-6">
             <h1 className="text-2xl font-bold text-gray-800 mb-4">{t('web.sidebar.links.skills')}</h1>
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                <Lightbulb className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{t('web.pages.skills.installHint')}</span>
-            </div>
+            <InfoBar message={t('web.pages.skills.installHint')} />
             <div className="overflow-hidden rounded-lg border border-gray-200">
                 <table className="w-full text-sm text-left">
                     <thead className="bg-gray-50 text-gray-600 border-b border-gray-200">
