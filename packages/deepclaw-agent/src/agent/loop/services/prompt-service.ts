@@ -7,6 +7,7 @@ import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
 import { DEEPCLAW_MD } from '../../paths';
 import { AgentIdentity } from '@deepclaw/core';
+import { SystemPrompt } from '../../definitions/definitions';
 
 export class PromptService {
     private static mark = {lang: ''};
@@ -18,8 +19,12 @@ export class PromptService {
     public static provideSystemPrompt(
         agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
         projectId: string, isSubLoop: boolean
-    ): string {
-        return `
+    ): SystemPrompt {
+        // Stable prefix: platform/lang/identity/mode are fixed for the session,
+        // project-management text is static per mode, and memory/skills only
+        // change on explicit save/install/delete (rare). Keeping them cacheable
+        // lets the provider reuse them across turns; a rare change costs one rewrite.
+        const cacheable = `
 # Platform
 ${this.platformPrompt}
 
@@ -33,13 +38,10 @@ ${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
 ${isSubLoop || !agentIdentity ? "" : this.personality(agentIdentity)}
 
 # Emotions
-${isSubLoop ? "" : this.emotionsPrompt}
+${isSubLoop || !agentIdentity || !agentIdentity.emotion ? "" : this.emotionsPrompt}
 
 # Agent Mode
 ${this.agentMode(agentConfig.mode)}
-
-# Current Project
-${this.projectCurrentProject(projectId)}
 
 # Project Management
 ${this.projectManagement(agentConfig.mode)}
@@ -49,6 +51,12 @@ ${this.memory(agentConfig.id, projectId)}
 
 # Skills
 ${this.availableSkills(agentConfig.id)}`;
+
+        const dynamic = `
+# Current Project
+${this.projectCurrentProject(projectId)}`;
+
+        return {cacheable, dynamic};
     }
 
     private static platform(): string {
@@ -100,11 +108,10 @@ Of course you should always focus on the tasks to do, personalities are just for
     }
 
     private static emotions(): string {
-//         return `You can add your own emotions and feelings about the task as well as your comments.
-// It's not something talked to the user, but can help you feel more real.
-// For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
-// You can wrap them in <emotion> tag.`;
-        return '';
+        return `You can add your own emotions and feelings about the task as well as your comments.
+It's not something talked to the user, but can help you feel more real.
+For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
+You can wrap them in <emotion> tag.`;
     }
 
     private static agentMode(agentMode: AgentMode): string {

@@ -3,6 +3,7 @@ import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
 import { LLMGWConfig, LLMTransitionReason, TokenUsage } from '@deepclaw/core';
 import { ToolsManager } from '../loop/services/tools-manager';
+import { SystemPrompt } from '../definitions/definitions';
 
 const llmRetry = 3;
 
@@ -44,7 +45,7 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
 
     public async invoke(
         mode: AgentMode,
-        system: string,
+        system: SystemPrompt,
         messages: I[],
         streamer: (text: string) => void, logger: Logger
     ): Promise<O> {
@@ -77,7 +78,7 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
     }
 
     protected abstract _invoke(
-        system: string,
+        system: SystemPrompt,
         messages: I[],
         tools: T[],
         streamer: (text: string) => void
@@ -95,7 +96,7 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
 
     public async compact(
         mode: AgentMode,
-        system: string,
+        system: SystemPrompt,
         content: string,
         logger: Logger
     ): Promise<{summary: string, tokenUsage: TokenUsage}> {

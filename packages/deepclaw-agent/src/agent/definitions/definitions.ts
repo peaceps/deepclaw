@@ -12,6 +12,11 @@ export type FootPrint = {
     content: string;
 }
 
+export type SystemPrompt = {
+    cacheable: string;
+    dynamic: string;
+}
+
 export type LoopState<I> = {
     messages: I[];
     oneLoopContext: OneLoopContext;
@@ -25,7 +30,7 @@ export type OneLoopContext = {
     sessionDir: string;
     isSubLoop: boolean;
     loopConfig: AgentConfig;
-    system: string;
+    system: SystemPrompt;
     logger: Logger;
     actions: {
         newSubLoop: (fork?: boolean) => FlushAgent;

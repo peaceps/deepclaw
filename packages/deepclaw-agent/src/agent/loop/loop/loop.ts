@@ -182,7 +182,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             loopConfig: this.agentConfig,
             browserId: options.browserId,
             sessionDir: this.getSessionDir(),
-            system: '',
+            system: {cacheable: '', dynamic: ''},
             logger: getLoopLogger(this.getId(), this.subLoopId),
             actions: {
                 newSubLoop: this.createSubLoop.bind(this),

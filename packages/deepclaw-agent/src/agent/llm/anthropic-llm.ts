@@ -11,6 +11,7 @@ import {
 } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw';
+import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import { LLMTransitionReason, TokenUsage } from '@deepclaw/core';
 
@@ -44,14 +45,17 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
     }
 
     protected override async _invoke(
-        system: string,
+        system: SystemPrompt,
         messages: ThinkingMessage[],
         tools: ToolUnion[],
         streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
         const stream = this.client.messages.stream({
             model: this.gw.model,
-            system: [{type: 'text', text: system, cache_control: {type: 'ephemeral'}}],
+            system: [
+                {type: 'text', text: system.cacheable, cache_control: {type: 'ephemeral'}},
+                {type: 'text', text: system.dynamic},
+            ],
             messages,
             tools,
             max_tokens: this.gw.maxTokens,

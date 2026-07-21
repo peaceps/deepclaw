@@ -11,6 +11,7 @@ import {
     CompletionUsage,
  } from 'openai/resources/completions.js';
 import { LLMModel } from './llmgw';
+import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import { LLMTransitionReason, TokenUsage } from '@deepclaw/core';
 
@@ -48,16 +49,17 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
     }
 
     protected override async _invoke(
-        system: string,
+        system: SystemPrompt,
         messages: ThinkingMessage[],
         tools: ChatCompletionTool[],
         streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
+        const systemContent = `${system.cacheable}\n${system.dynamic}`;
         const systemIdx = messages.findIndex(m => m.role === 'system');
         if (systemIdx >= 0) {
-            (messages[systemIdx] as ChatCompletionSystemMessageParam).content = system;
+            (messages[systemIdx] as ChatCompletionSystemMessageParam).content = systemContent;
         } else {
-            messages.unshift({role: 'system', content: system});
+            messages.unshift({role: 'system', content: systemContent});
         }
         const stream = await this.client.chat.completions.create({
             model: this.gw.model,

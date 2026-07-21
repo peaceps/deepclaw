@@ -2,6 +2,7 @@ import { OpenAI } from "openai";
 import { randomUUID } from "node:crypto";
 import { i18nInstance } from '@deepclaw/i18n';
 import { LLMModel } from './llmgw';
+import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import {
     ResponseInputItem,
@@ -43,7 +44,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     }
     
     protected override async _invoke(
-        system: string,
+        system: SystemPrompt,
         messages: ThinkingMessage[],
         tools: Tool[],
         streamer: (text: string) => void
@@ -51,7 +52,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
 
         const stream = await this.client.responses.create({
             model: this.gw.model,
-            instructions: system,
+            instructions: `${system.cacheable}\n${system.dynamic}`,
             input: messages,
             stream: true,
             tools,
