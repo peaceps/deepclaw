@@ -11,6 +11,8 @@ export type LLMGWConfig = {
     maxTokens: number
 }
 
+export type FlushAgentRole = 'agent' | 'project' | 'cron';
+
 const STOP_TRANSITION_REASONS = ['endLoop', 'error',  'refused'] as const;
 export type StopTransitionReason = typeof STOP_TRANSITION_REASONS[number];
 export function isStopTransitionReason(reason?: LLMTransitionReason): reason is StopTransitionReason {

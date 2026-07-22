@@ -6,7 +6,7 @@ import { FileUtils } from '@deepclaw/node-utils';
 import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
 import { DEEPCLAW_MD } from '../../paths';
-import { AgentIdentity } from '@deepclaw/core';
+import { AgentIdentity, FlushAgentRole } from '@deepclaw/core';
 import { SystemPrompt } from '../../definitions/definitions';
 
 export class PromptService {
@@ -18,7 +18,7 @@ export class PromptService {
 
     public static provideSystemPrompt(
         agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
-        projectId: string, isSubLoop: boolean
+        role: FlushAgentRole, projectId: string, isSubLoop: boolean
     ): SystemPrompt {
         // Stable prefix: platform/lang/identity/mode are fixed for the session,
         // project-management text is static per mode, and memory/skills only
@@ -47,7 +47,7 @@ ${this.agentMode(agentConfig.mode)}
 ${this.projectManagement(agentConfig.mode)}
 
 # Memory
-${this.memory(agentConfig.id, projectId)}
+${this.memory(role, agentConfig.id, projectId)}
 
 # Skills
 ${this.availableSkills(agentConfig.id)}`;
@@ -141,8 +141,8 @@ But you can call tools to write files owned by the agent program itself, such as
         return agentMode === 'chat' ? '' : ProjectManager.promptManagementTools();
     }
 
-    private static memory(agentId: string, projectId: string): string {
-        return MemoryManager.getMemoryPrompt(agentId, projectId);
+    private static memory(role: FlushAgentRole, agentId: string, projectId: string): string {
+        return MemoryManager.getMemoryPrompt(role, agentId, projectId);
     }
 
     private static availableSkills(agentId: string): string {

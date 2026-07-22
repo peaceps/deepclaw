@@ -1,14 +1,15 @@
 import { AgentEmployee } from "./agent-definitions";
+import { FlushAgentRole } from "./flush-agent-types";
 import { Project } from "./project-definitions";
 import { DistributiveOmit } from "@deepclaw/utils";
 
-export function getLoopId(agentId: string, projectId?: string): string {
-    return !projectId ? agentId : `${agentId}.${projectId}`;
+export function getLoopId(role: FlushAgentRole, agentId: string, projectId?: string): string {
+    return !projectId ? `${role}.${agentId}` : `${role}.${agentId}.${projectId}`;
 }
 
-export function splitLoopId(key: string): {agentId: string; projectId?: string} {
-    const [agentId, projectId] = key.split('.');
-    return {agentId: agentId ?? '', projectId};
+export function splitLoopId(key: string): {role: FlushAgentRole; agentId: string; projectId?: string} {
+    const [role, agentId, projectId] = key.split('.');
+    return {role: role as FlushAgentRole, agentId: agentId ?? '', projectId};
 }
 
 export const LOOP_BUSY_ERROR = 'LOOP_BUSY';

@@ -1,7 +1,7 @@
 import { FileUtils } from "@deepclaw/node-utils";
-import { AGENTS_DIR, PROJECT_DIR, SESSION_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE } from "../../paths";
+import { AGENTS_DIR, CRON_DIR, PROJECT_DIR, SESSION_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE } from "../../paths";
 import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetaData } from "../../definitions/definitions";
-import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason, TokenUsage, splitLoopId } from "@deepclaw/core";
+import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason, TokenUsage, splitLoopId, FlushAgentRole } from "@deepclaw/core";
 import { getLogger } from "@deepclaw/node-utils";
 
 const SAVE_THRESHOLD = 10;
@@ -20,11 +20,15 @@ export class SessionService {
 
     private static sessionMeta: Map<string, SessionMetaData> = new Map();
 
-    public static getSessionDir(agentId: string, projectId: string): string {
-        if (!!projectId) {
+    public static getSessionDir(role: FlushAgentRole, agentId: string, projectId?: string): string {
+        if (role === 'agent') {
+            return `${AGENTS_DIR}/${agentId}/${SESSION_DIR}`;
+        } else if (role === 'cron') {
+            return `${CRON_DIR}/${projectId}/${SESSION_DIR}`;
+        } else if (role === 'project') {
             return `${PROJECT_DIR}/${projectId}/${SESSION_DIR}`;
         } else {
-            return `${AGENTS_DIR}/${agentId}/${SESSION_DIR}`;
+            throw new Error(`Unknown flush agent role: ${role}`);
         }
     }
 
@@ -173,8 +177,8 @@ export class SessionService {
     }
 
     public static getTokenUsage(loopId: string): TokenUsage | undefined {
-        const {agentId, projectId} = splitLoopId(loopId);
-        const sessionDir = this.getSessionDir(agentId, projectId ?? '');
+        const {role, agentId, projectId} = splitLoopId(loopId);
+        const sessionDir = this.getSessionDir(role, agentId, projectId ?? '');
         const meta = this.getMeta(sessionDir);
         if (!meta) {
             return undefined;

@@ -2,7 +2,7 @@ import { AnthropicLLM, ThinkingMessage, ThinkingResponse } from "../../llm/anthr
 import { LoopAgent } from "./loop";
 import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { LLMConstructor } from '../../llm/llmgw';
-import { AgentHandler } from '@deepclaw/core';
+import { AgentHandler, FlushAgentRole } from '@deepclaw/core';
 import { LLMProtocol } from "../../definitions/definitions";
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
@@ -34,12 +34,13 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
     }
 
     protected override newSubLoop(
+        role: FlushAgentRole,
         agentId: string,
         projectId: string,
         subLoopAgentHandler: AgentHandler,
         subLoopId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
-        return new AnthropicLoop(agentId, subLoopAgentHandler, projectId, subLoopId);
+        return new AnthropicLoop(role, agentId, projectId, subLoopAgentHandler, subLoopId);
     }
 
 }

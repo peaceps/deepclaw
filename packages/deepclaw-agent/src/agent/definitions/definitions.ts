@@ -1,7 +1,8 @@
 import type { Logger } from '@deepclaw/node-utils';
 import {
     SealedAgentHandler, LLMTransitionReason, type FlushAgent,
-    type AgentRuntime, type TokenUsage
+    type AgentRuntime, type TokenUsage,
+    FlushAgentRole
 } from '@deepclaw/core';
 import { AgentConfig } from '@deepclaw/config';
 
@@ -23,6 +24,7 @@ export type LoopState<I> = {
 }
 
 export type OneLoopContext = {
+    role: FlushAgentRole;
     agentId: string;
     projectId: string;
     loopId: string;

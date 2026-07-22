@@ -41,7 +41,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
         try {
-            LoopGateway.invoke('', agentIdRef.current!, '', userInput);
+            LoopGateway.invoke('', 'agent', agentIdRef.current!, '', userInput);
         } catch (err: any) {
             setTimeout(() => {
                 handleLlmDone(`${t('common.error')} ${err?.message?.trim() || t('common.unexpected')}`);

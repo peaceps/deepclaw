@@ -1,6 +1,7 @@
 import matter from 'gray-matter';
 import { FileUtils } from '@deepclaw/node-utils';
-import { AGENTS_DIR, GLOBAL_MEMORY_DIR, MEMORY_DIR, PROJECT_DIR } from '../../paths';
+import { AGENTS_DIR, CRON_DIR, GLOBAL_MEMORY_DIR, MEMORY_DIR, PROJECT_DIR } from '../../paths';
+import { FlushAgentRole } from '@deepclaw/core';
 
 const MEMORY_INDEX_LINES = 100;
 const MEMORY_INDEX_LINE_LENGTH = 200;
@@ -14,7 +15,7 @@ When to save memories:
 scope:
 - global: applies to all agents/projects.
 - agent: private to the current agent.
-- project: applies to the current project.
+- project: applies to the current project/cron job.
 
 Typical examples:
 - global + preference: user's default language or coding style.
@@ -76,8 +77,8 @@ export class MemoryManager {
         return memories;
     }
 
-    public static getMemoryPrompt(agentId: string, projectId?: string): string {
-        this.ensureMemoryLoaded(agentId, projectId);
+    public static getMemoryPrompt(role: FlushAgentRole, agentId: string, projectId?: string): string {
+        this.ensureMemoryLoaded(role, agentId, projectId);
         const sections: string[] = [];
         if (this.globalMemoryIndex) {
             sections.push(`## Global memories index (shared by all agents)\n${this.globalMemoryIndex}`);
@@ -89,7 +90,8 @@ export class MemoryManager {
         if (projectId) {
             const project = this.projectsMemoryIndex.get(projectId);
             if (project) {
-                sections.push(`## Project memories index (Focus on this project)\n${project}`);
+                const task = role === 'project' ? 'project' : 'cron job';
+                sections.push(`## ${task} memories index (Focus on this ${task})\n${project}`);
             }
         }
         const body = sections.length ? sections.join('\n\n') : '(none on disk yet)';
@@ -101,9 +103,9 @@ You can get full content via read_memory_detail tool with scope and name.
 ${body}`;
     }
 
-    public static getMemoryDetail(name: string, agentId?: string, projectId?: string): string {
+    public static getMemoryDetail(name: string, role: FlushAgentRole, agentId?: string, projectId?: string): string {
         if (agentId) {
-            this.ensureMemoryLoaded(agentId, projectId);
+            this.ensureMemoryLoaded(role, agentId, projectId);
         }
         const memoryMap = this.getMemoryMap(agentId, projectId);
         if (!memoryMap) return `Memory not found.`;
@@ -111,9 +113,9 @@ ${body}`;
         return memory ? memory.content : `Memory not found.`;
     }
 
-    public static addMemory(memory: Omit<Memory, 'datetime'>, agentId?: string, projectId?: string): void {
+    public static addMemory(memory: Omit<Memory, 'datetime'>, role: FlushAgentRole, agentId?: string, projectId?: string): void {
         if (agentId) {
-            this.ensureMemoryLoaded(agentId, projectId);
+            this.ensureMemoryLoaded(role, agentId, projectId);
         }
         const memoryMap = this.getMemoryMap(agentId, projectId);
         if (!memoryMap) return;
@@ -131,7 +133,7 @@ ${body}`;
             description: memory.description,
             datetime,
         });
-        const memoryDir = this.getMemoryDir(agentId, projectId);
+        const memoryDir = this.getMemoryDir(role, agentId, projectId);
         FileUtils.writeFile(`${memoryDir}/${memory.name}.md`, md);
         const index = this.summary(memoryMap, this.getMemoryScope(agentId, projectId));
         if (projectId) {
@@ -154,15 +156,15 @@ ${body}`;
         return index;
     }
 
-    private static ensureMemoryLoaded(agentId: string, projectId?: string) {
+    private static ensureMemoryLoaded(role: FlushAgentRole, agentId: string, projectId?: string) {
         if (!this.agentsMemories.has(agentId)) {
-            const memoryMap = this.loadMemoriesFromFolder(this.getMemoryDir(agentId));
+            const memoryMap = this.loadMemoriesFromFolder(this.getMemoryDir(role, agentId));
             this.agentsMemories.set(agentId, memoryMap);
             this.agentsMemoryIndex.set(agentId, this.summary(memoryMap, 'agent'));
         }
-        if (projectId) {
+        if (projectId && role !== 'agent') {
             if (!this.projectsMemories.has(projectId)) {
-                const memoryMap = this.loadMemoriesFromFolder(this.getMemoryDir(agentId, projectId));
+                const memoryMap = this.loadMemoriesFromFolder(this.getMemoryDir(role, agentId, projectId));
                 this.projectsMemories.set(projectId, memoryMap);
                 this.projectsMemoryIndex.set(projectId, this.summary(memoryMap, 'project'));
             }
@@ -173,9 +175,15 @@ ${body}`;
         return !agentId ? this.globalMemories : !projectId ? this.agentsMemories.get(agentId) : this.projectsMemories.get(projectId);
     }
 
-    private static getMemoryDir(agentId?: string, projectId?: string): string {
-        return !agentId ? GLOBAL_MEMORY_DIR :
-            !projectId ? `${AGENTS_DIR}/${agentId}/${MEMORY_DIR}` : `${PROJECT_DIR}/${projectId}/${MEMORY_DIR}`;
+    private static getMemoryDir(role?: FlushAgentRole, agentId?: string, projectId?: string): string {
+        if (!role || !agentId) {
+            return GLOBAL_MEMORY_DIR;
+        }
+        if (!projectId || role === 'agent') {
+            return `${AGENTS_DIR}/${agentId}/${MEMORY_DIR}`;
+        }
+        const dir = role === 'project' ? PROJECT_DIR : CRON_DIR;
+        return `${dir}/${projectId}/${MEMORY_DIR}`;
     }
 
     private static getMemoryScope(agentId?: string, projectId?: string): MemoryScope {

@@ -1,4 +1,4 @@
-import { AgentHandler, AgentInvokeResponse } from '@deepclaw/core';
+import { AgentHandler, AgentInvokeResponse, FlushAgentRole } from '@deepclaw/core';
 import {
     ToolUseDef, LoopAgent, LLMConstructor, LLMProtocol, ToolUseResult,
 } from "@deepclaw/agent";
@@ -20,9 +20,9 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
         return toolResults ? [{role: 'user', content: []}] : [];
     }
     protected override newSubLoop(
-        agentId: string, projectId: string, subLoopAgentHandler: AgentHandler, subLoopId: string
+        role: FlushAgentRole, agentId: string, projectId: string, subLoopAgentHandler: AgentHandler, subLoopId: string
     ): LoopAgent<ThinkingMessage, ThinkingResponse, TestLLM> {
-        return new TestLlmAgent(agentId, subLoopAgentHandler, projectId, subLoopId);
+        return new TestLlmAgent(role, agentId, projectId, subLoopAgentHandler, subLoopId);
     }
 
     protected override async _invoke(): Promise<AgentInvokeResponse> {

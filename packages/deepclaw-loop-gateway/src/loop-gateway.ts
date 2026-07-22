@@ -6,7 +6,8 @@ import type {
     InternalInterruptReason,
     AgentRuntime,
     AgentInvokeResponse,
-    TokenUsage
+    TokenUsage,
+    FlushAgentRole
 } from "@deepclaw/core";
 import {
     getLoopId, isInternalInterruptReason, newMessage, splitLoopId
@@ -23,6 +24,7 @@ import { i18nInstance } from "@deepclaw/i18n";
 import { SessionService } from "@deepclaw/agent";
 
 type LoopState = {
+    role: FlushAgentRole;
     agentId: string;
     projectId: string;
     agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>;
@@ -96,23 +98,24 @@ class LoopGatewayImpl {
 
     public static init(loopId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}): void {
         // TODO LRU
-        const {agentId, projectId = ''} = splitLoopId(loopId);
+        const {role, agentId, projectId = ''} = splitLoopId(loopId);
         if (!this.loops[loopId]) {
             this.loops[loopId] = {
+                role,
                 agentId,
                 projectId,
                 agentHandler,
-                loop: this.createLoop(agentId, projectId, agentHandler),
+                loop: this.createLoop(role, agentId, projectId, agentHandler),
                 running: false,
             }
         }
     }
 
     private static createLoop(
-        agentId: string, projectId: string,
+        role: FlushAgentRole, agentId: string, projectId: string,
         agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}
     ) {
-        return LoopInitializer.getLoop(agentId, projectId, {
+        return LoopInitializer.getLoop(role, agentId, projectId, {
             onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
             onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
             onInfoEvent: this.defaultHandler.onInfoEvent
@@ -124,16 +127,16 @@ class LoopGatewayImpl {
     }
 
     public static invoke(
-        browserId: string, agentId: string, projectId: string, input: string
+        browserId: string, role: FlushAgentRole, agentId: string, projectId: string, input: string
     ): {busy: boolean, msgId: string} {
-        const loopId = getLoopId(agentId, projectId);
+        const loopId = getLoopId(role, agentId, projectId);
         if (!this.loops[loopId]) {
             this.init(loopId);
         } else {
             const loopState = this.loops[loopId]!;
             if (loopState.loop.isOutdated()) {
                 loopState.loop = this.createLoop(
-                    loopState.agentId, loopState.projectId, loopState.agentHandler
+                    role, loopState.agentId, loopState.projectId, loopState.agentHandler
                 );
             }
         }
@@ -166,7 +169,7 @@ class LoopGatewayImpl {
         }
         if (loopState.loop.isOutdated()) {
             loopState.loop = this.createLoop(
-                loopState.agentId, loopState.projectId, loopState.agentHandler
+                loopState.role, loopState.agentId, loopState.projectId, loopState.agentHandler
             );
         }
         const runtime = loopState.runtime!

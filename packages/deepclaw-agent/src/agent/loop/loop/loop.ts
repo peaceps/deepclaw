@@ -16,6 +16,7 @@ import {
     BREAK_POINTS,
     AgentBreakReason,
     isStopTransitionReason,
+    FlushAgentRole,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -47,14 +48,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private subLoopId?: string;
 
     constructor(
+        role: FlushAgentRole,
         agentId: string,
+        projectId: string,
         handler: AgentHandler,
-        projectId: string = '',
         subLoopId?: string,
     ) {
-        super(agentId, projectId, handler);
+        super(role, agentId, projectId, handler);
         this.subLoopId = subLoopId;
-        this.agentConfig = loadAgentConfig(agentId);
+        this.agentConfig = loadAgentConfig(this.agentId);
         this.loadSessionData();
         this.llm = new (this.getLLMConstructor())(
             this.isSubLoop(),
@@ -80,7 +82,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected getSessionDir(): string {
         return this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.subLoopId}`
-            : SessionService.getSessionDir(this.agentId, this.projectId);
+            : SessionService.getSessionDir(this.role, this.agentId, this.projectId);
     }
 
     public updateConfig(config: AgentConfig): void {
@@ -174,6 +176,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     private initContext(options: AgentInvokeOptions): OneLoopContext {
         return {
+            role: this.role,
             loopId: this.getId(),
             isSubLoop: this.isSubLoop(),
             agentId: this.agentId,
@@ -214,7 +217,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 }
                 state.oneLoopContext.system = PromptService.provideSystemPrompt(
                     this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
-                    this.projectId, this.isSubLoop()
+                    this.role, this.projectId, this.isSubLoop()
                 );
             }
             const goAround = await this.runOneTurn(state);
@@ -394,7 +397,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         if (this.isSubLoop()) {
             throw new Error('Sub-loop cannot create a sub-loop');
         }
-        return this.newSubLoop(this.agentId, this.projectId, {
+        return this.newSubLoop(this.role, this.agentId, this.projectId, {
             onStreamText: () => {},
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
@@ -402,6 +405,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     }
 
     protected abstract newSubLoop(
+        role: FlushAgentRole,
         agentId: string,
         projectId: string,
         subLoopAgentHandler: AgentHandler,

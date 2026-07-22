@@ -10,7 +10,7 @@ import {
 } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import {
-    AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, newMessage,
+    AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, FlushAgentRole, newMessage,
     TokenUsage
 } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
@@ -178,6 +178,7 @@ export function useLoopResume(listening: boolean, loopId: string) {
 
 export function useSend(
     loopId: string,
+    role: FlushAgentRole,
     agent: AgentEmployee,
     projectId: string,
     input: string,
@@ -204,7 +205,7 @@ export function useSend(
         addAndFireMessage(newMessage('user', agent.id, trimmed));
 
         let unsubscribe: (() => void) | undefined = undefined;
-        invoke(browserId, agent.id, projectId, trimmed).then(({busy, msgId}) => {
+        invoke(browserId, role, agent.id, projectId, trimmed).then(({busy, msgId}) => {
             if (busy) {
               setChatBusy(loopId, busy);
             } else {

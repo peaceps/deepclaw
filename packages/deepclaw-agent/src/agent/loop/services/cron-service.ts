@@ -32,4 +32,12 @@ export class CronService {
         this.cronJobs[cronTask.id] = cronTask;
     }
 
+    public static getCronJob(id: string): CronTask {
+        const cronJob = this.cronJobs[id];
+        if (!cronJob) {
+            throw new Error('Cron job not found.');
+        }
+        return cronJob;
+    }
+
 }

@@ -64,7 +64,7 @@ You can update old memory content via its name if you are sure the old memory is
             name: input.name,
             description: input.description,
             content: input.content,
-        }, agentId, projectId);
+        }, context.role, agentId, projectId);
         return 'Memory saved successfully.';
     },
 }
@@ -103,7 +103,7 @@ export const readMemoryDetailTool: ToolDesc<ReadMemoryDetailInput> = {
         if (input.scope === 'project' && !projectId) {
             return 'Cannot get a project memory outside project chat.';
         }
-        return MemoryManager.getMemoryDetail(input.name, agentId, projectId);
+        return MemoryManager.getMemoryDetail(input.name, context.role, agentId, projectId);
     },
 }
 

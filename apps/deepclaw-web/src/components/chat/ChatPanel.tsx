@@ -19,7 +19,8 @@ type ChatPanelProps = {
 
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const { t, i18n } = useTranslation();
-  const loopId = getLoopId(agent.id, projectId);
+  const role = !projectId ? 'agent' : 'project';
+  const loopId = getLoopId(role, agent.id, projectId);
   const agentMessages = useAppStore(s => s.messages[loopId]);
   const [input, setInput] = useState('');
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | undefined>(undefined);
@@ -35,7 +36,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const handleScroll = useScroll(agentMessages, scrollRef, loopId);
 
   const { handleSend, handleKeyDown } = useSend(
-    loopId, agent, projectId, input, setInput
+    loopId, role, agent, projectId, input, setInput
   );
 
   if (agent.fired) {

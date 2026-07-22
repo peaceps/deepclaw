@@ -19,7 +19,7 @@ const onBotMessage = (client: DWClient) => {
     let sequentialInteraction: Promise<void> = Promise.resolve();
     const agent = AgentIdentityManager.getAgents()[0]!;
 
-    const loop = LoopInitializer.getLoop(agent.id, '', {
+    const loop = LoopInitializer.getLoop('agent', agent.id, '', {
         onStreamText: () => {},
         onInteractionEvent: handleInteractionEvent,
         onInfoEvent: () => Promise.resolve(),

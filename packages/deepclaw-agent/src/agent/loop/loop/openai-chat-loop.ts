@@ -2,7 +2,7 @@ import { OpenAIChatLLM, ThinkingMessage, ThinkingResponse } from '../../llm/open
 import { LoopAgent } from './loop';
 import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { LLMConstructor } from '../../llm/llmgw';
-import { AgentHandler } from '@deepclaw/core';
+import { AgentHandler, FlushAgentRole } from '@deepclaw/core';
 import { LLMProtocol } from '../../definitions/definitions';
 
 export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
@@ -32,11 +32,12 @@ export class OpenAIChatLoop extends LoopAgent<ThinkingMessage, ThinkingResponse,
     }
 
     protected override newSubLoop(
+        role: FlushAgentRole,
         agentId: string,
         projectId: string,
         subLoopAgentHandler: AgentHandler,
         subLoopId: string,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, OpenAIChatLLM> {
-        return new OpenAIChatLoop(agentId, subLoopAgentHandler, projectId, subLoopId);
+        return new OpenAIChatLoop(role, agentId, projectId, subLoopAgentHandler, subLoopId);
     }
 }

@@ -6,20 +6,24 @@ import {
     AgentHandler, SealedAgentHandler,
     AgentInvokeOptions, AgentInvokeResponse,
     AgentRuntime,
-    BREAK_POINTS
+    BREAK_POINTS,
+    FlushAgentRole
 } from './flush-agent-types';
 
 export abstract class FlushAgent {
+    protected role: FlushAgentRole;
     protected agentId: string;
     protected projectId: string;
     protected agentHandler: SealedAgentHandler;
     private flusher: (e: Omit<AgentStreamEvent, 'done'|'loopId'> & {done: boolean}) => void;
 
     constructor(
+        flushAgentRole: FlushAgentRole,
         agentId: string,
-        projectId: string = '',
+        projectId: string,
         handler: AgentHandler
     ) {
+        this.role = flushAgentRole;
         this.agentId = agentId;
         this.projectId = projectId;
         this.flusher = (e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'> & {done: boolean}) => handler.onStreamText({
@@ -46,7 +50,7 @@ export abstract class FlushAgent {
     protected abstract _resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse>;
 
     protected getId() {
-        return getLoopId(this.agentId, this.projectId);
+        return getLoopId(this.role, this.agentId, this.projectId);
     }
 
     async resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse> {
