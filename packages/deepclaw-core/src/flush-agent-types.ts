@@ -1,6 +1,6 @@
 import { TokenUsage } from './agent-definitions';
 import {
-    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent, AgentToolResultEvent,
+    AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent,
     AgentInteractionEventPayload
 } from './flush-agent-event';
 
@@ -47,14 +47,12 @@ export function isAgentStopReason(reason?: AgentBreakReason): reason is AgentSto
 
 export type AgentHandler = {
     onStreamText(e: AgentStreamEvent): void;
-    onToolText(e: AgentToolResultEvent): void;
     onInteractionEvent(event: AgentInteractionEvent): Promise<string>;
     onInfoEvent(event: AgentInfoEvent): void;
 }
 
 export type SealedAgentHandler = {
     onStreamText(e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>): void;
-    onToolText(e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>): void;
     onInteractionEvent(event: AgentInteractionEventPayload & {browserId: string}): Promise<string>;
     onInfoEvent(event: AgentInfoEvent): void;
 }

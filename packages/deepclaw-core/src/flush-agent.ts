@@ -1,5 +1,5 @@
 import {
-    AgentInfoEvent, AgentStreamEvent, AgentToolResultEvent,
+    AgentInfoEvent, AgentStreamEvent,
     getLoopId, AgentInteractionEventPayload
 } from './flush-agent-event';
 import {
@@ -22,20 +22,18 @@ export abstract class FlushAgent {
     ) {
         this.agentId = agentId;
         this.projectId = projectId;
-        this.flusher = (e: Omit<AgentStreamEvent, 'done'|'loopId'> & {done: boolean}) => handler.onStreamText({
+        this.flusher = (e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'> & {done: boolean}) => handler.onStreamText({
             eventType: 'stream',
             loopId: this.getId(),
             browserId: e.browserId,
+            tag: e.tag,
             text: this.formatLLMText(e.text, e.done),
             done: e.done
         });
         this.agentHandler = {
             onStreamText: (e: Omit<AgentStreamEvent, 'done'|'loopId'|'eventType'>) => this.flusher({
-                eventType: 'stream', browserId: e.browserId, text: e.text, done: false
+                eventType: 'stream', browserId: e.browserId, text: e.text, tag: e.tag, done: false
             }),
-            onToolText: (e: Omit<AgentToolResultEvent, 'eventType'|'loopId'>) => handler.onToolText(
-                {eventType: 'toolResult', loopId: this.getId(), ...e}
-            ),
             onInteractionEvent: (e: AgentInteractionEventPayload & {browserId: string}) => handler.onInteractionEvent(
                 {eventType: 'interaction', loopId: this.getId(), ...e}
             ),

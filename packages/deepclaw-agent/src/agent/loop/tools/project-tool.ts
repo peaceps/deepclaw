@@ -409,9 +409,10 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
     exclusiveInSubLoop: false,
     invoke: async function(input: UpdateTaskCurrentStepInput, context: OneLoopContext): Promise<string> {
         const updated = ProjectManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
-        context.actions.agentHandler.onToolText({
-            toolName: 'update_task_current_step',
-            data: updated
+        context.actions.agentHandler.onStreamText({
+            browserId: context.browserId,
+            text: JSON.stringify(updated),
+            tag: 'update_task_current_step'
         });
 
         fireProjectInfoEvent(input.projectId, context);

@@ -1,6 +1,6 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent, useRef} from 'react';
 import { Box, Static, useApp } from 'ink';
-import { AgentInteractionEventPayload, AgentStreamEvent, AgentToolResultEvent } from '@deepclaw/core';
+import { AgentInteractionEventPayload, AgentStreamEvent } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import {LoopGateway} from '@deepclaw/loop-gateway';
 import {HistoryLine, type HistoryItem} from './history';
@@ -10,7 +10,7 @@ import {LlmOutput} from './llm-output';
 import { UserInteraction } from './user-interaction';
 import { useConfig } from '../hooks/use-config';
 import { useTranslation } from 'react-i18next';
-import { formatToolResult } from './tui-formater';
+import { handleTaggedStream } from './tui-formater';
 
 export type AppConfig = {
 }
@@ -41,7 +41,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
         try {
-            LoopGateway.invoke(agentIdRef.current!, '', '', userInput);
+            LoopGateway.invoke('', agentIdRef.current!, '', userInput);
         } catch (err: any) {
             setTimeout(() => {
                 handleLlmDone(`${t('common.error')} ${err?.message?.trim() || t('common.unexpected')}`);
@@ -68,15 +68,14 @@ export function App({app}: {app: AppConfig}): ReactElement {
         if (e.done) {
             handleLlmDone(llmOutput);
         } else {
-            setLlmOutput(prev => prev + e.text);
+            let text = e.text;
+            if (e.tag) {
+                text = handleTaggedStream(e.tag, e.text, t);
+            }
+            if (text) {
+                setLlmOutput(prev => prev + text);
+            }
         }
-    });
-
-    const handleToolResult = useEffectEvent((e: AgentToolResultEvent) => {
-        const formatedResult = formatToolResult(e, t);
-        if (formatedResult) {
-            handleStream({eventType: 'stream', text: formatedResult, done: false, loopId: agentIdRef.current, browserId: ''});
-        } 
     });
 
 	useEffect(() => {
@@ -84,7 +83,6 @@ export function App({app}: {app: AppConfig}): ReactElement {
             agentIdRef.current = LoopGateway.getLoopInfo().agents[0]!.id;
             LoopGateway.init(agentIdRef.current, {
                 onStreamText: handleStream,
-                onToolText: handleToolResult,
                 onInteractionEvent: handleAgentEvent
             });
         }

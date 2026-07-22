@@ -49,8 +49,10 @@ class LoopGatewayImpl {
     private static waitingInteractions: Map<string, InteractionResolver> = new Map();
 
     private static defaultHandler: AgentHandler = {
-        onStreamText: (e) => this.fireSSEEvent(e),
-        onToolText: () => {},
+        onStreamText: (e) => {
+            if (e.tag) return;
+            this.fireSSEEvent(e)
+        },
         onInteractionEvent: (e) => this.fireWaitedSSEEvent(e),
         onInfoEvent: (e) => this.fireSSEEvent(e)
     };
@@ -112,7 +114,6 @@ class LoopGatewayImpl {
     ) {
         return LoopInitializer.getLoop(agentId, projectId, {
             onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
-            onToolText: agentHandler.onToolText || this.defaultHandler.onToolText,
             onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
             onInfoEvent: this.defaultHandler.onInfoEvent
         });

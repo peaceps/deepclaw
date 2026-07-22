@@ -27,13 +27,8 @@ export type AgentStreamEvent = AgentLoopEvent & {
     eventType: 'stream';
     browserId: string;
     text: string;
+    tag?: string;
     done?: boolean;
-};
-
-export type AgentToolResultEvent = AgentLoopEvent & {
-    eventType: 'toolResult';
-    toolName: string;
-    data: any;
 };
 
 export type AgentInteractionEventOption = string | {label: string; value: string};

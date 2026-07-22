@@ -21,7 +21,6 @@ const onBotMessage = (client: DWClient) => {
 
     const loop = LoopInitializer.getLoop(agent.id, '', {
         onStreamText: () => {},
-        onToolText: () => {},
         onInteractionEvent: handleInteractionEvent,
         onInfoEvent: () => Promise.resolve(),
     });

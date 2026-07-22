@@ -1,6 +1,5 @@
 import { CronJob } from 'cron';
 import { Task } from "@deepclaw/core";
-import { LoopInitializer } from '../../loop-initializer';
 
 export type CronJobExecution = {
     start: number;
@@ -20,9 +19,9 @@ export type CronTask = {
 export class CronService {
     private static cronJobs: Record<string, CronTask> = {};
 
-    public static createCronJob(cron: string, input: string) {
-        const job = new CronJob(
-            cron,
+    public static createCronJob(cronTask: CronTask) {
+        new CronJob(
+            cronTask.cron,
             function () {
                 console.log('You will see this message every second');
             }, // onTick
@@ -30,7 +29,7 @@ export class CronService {
             true, // start
             Intl.DateTimeFormat().resolvedOptions().timeZone
         );
+        this.cronJobs[cronTask.id] = cronTask;
     }
 
 }
-

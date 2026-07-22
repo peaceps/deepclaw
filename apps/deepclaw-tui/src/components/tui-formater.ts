@@ -1,4 +1,4 @@
-import { AgentToolResultEvent, TaskStepsContext } from "@deepclaw/core";
+import { TaskStepsContext } from "@deepclaw/core";
 import { type TFunction } from '@deepclaw/i18n';
 
 const MARKERS = {
@@ -7,10 +7,16 @@ const MARKERS = {
     completed: '[√]',
 };
 
-export function formatToolResult(e: AgentToolResultEvent, t: TFunction<"translation", undefined>): string {
-    if (e.toolName === 'update_task_current_step') {
-        return getTaskSteps(e.data, t);
+export function handleTaggedStream(tag: string, text: string, t: TFunction<"translation", undefined>): string {
+    if (tag === 'update_task_current_step') {
+        try {
+            const data = JSON.parse(text) as TaskStepsContext;
+            return getTaskSteps(data, t);
+        } catch {
+            return '';
+        }
     }
+    console.warn(`Unknown tag: ${tag}`);
     return '';
 }
 

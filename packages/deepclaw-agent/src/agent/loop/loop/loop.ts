@@ -5,7 +5,6 @@ import {
     type AgentInteractionEvent,
     FlushAgent,
     type AgentHandler,
-    type AgentToolResultEvent,
     AgentInvokeOptions,
     type LLMTransitionReason,
     isExternalInterruptReason,
@@ -397,7 +396,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         }
         return this.newSubLoop(this.agentId, this.projectId, {
             onStreamText: () => {},
-            onToolText: (e: AgentToolResultEvent) => this.agentHandler.onToolText(e),
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
         }, randomUUID());
