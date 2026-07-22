@@ -10,6 +10,7 @@ import {
     checkBackgroundCommandStatusTool
 } from '../tools/background-command-tool';
 import {saveMemoryTool, readMemoryDetailTool} from '../tools/save-memory-tool';
+import {createCronTaskTool, updateCronOutputTool} from '../tools/cron-tool';
 import {createProjectTool, createSimpleTaskTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
 import { AgentMode } from '@deepclaw/config';
@@ -26,6 +27,8 @@ const tools: ToolDesc<any>[] = [
     editFileTool,
     saveMemoryTool,
     readMemoryDetailTool,
+    createCronTaskTool,
+    updateCronOutputTool,
     createProjectTool,
     updateTaskTool,
     updateTaskCurrentStepTool,

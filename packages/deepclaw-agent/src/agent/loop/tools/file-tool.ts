@@ -101,7 +101,7 @@ export const editFileTool: ToolDesc<EditFileInput> = {
 function fileGuard(input: FileOperationInput, context: OneLoopContext): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
         return PermissionService.askPermissionGuard(
-            i18nInstance.t('agent.tools.file.guard'), 'file', context.loopId
+            i18nInstance.t('agent.tools.file.guard'), 'file', context.loopId, context.role
         );
     }
     return {result: 'allowed'};

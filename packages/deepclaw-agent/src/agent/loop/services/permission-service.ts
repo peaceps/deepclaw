@@ -1,4 +1,5 @@
 import { i18nInstance } from "@deepclaw/i18n";
+import { FlushAgentRole } from "@deepclaw/core";
 import { ToolGuardResult } from "../../definitions/tool-definitions";
 
 type PermissionGroup = 'command' | 'file';
@@ -6,7 +7,12 @@ type PermissionGroup = 'command' | 'file';
 export class PermissionService {
     private static allowList: Partial<Record<PermissionGroup, Set<string>>> = {};
 
-    public static askPermissionGuard(reason: string, group: PermissionGroup, loopId: string): ToolGuardResult {
+    public static askPermissionGuard(
+        reason: string, group: PermissionGroup, loopId: string, role: FlushAgentRole
+    ): ToolGuardResult {
+        if (role === 'cron') {
+            return {result: 'allowed'};
+        }
         if (this.permissionGranted(group, loopId)) {
             return {result: 'allowed'};
         }

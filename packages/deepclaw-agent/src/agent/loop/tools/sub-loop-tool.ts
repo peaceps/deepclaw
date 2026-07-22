@@ -1,5 +1,7 @@
+import { FileUtils } from '@deepclaw/node-utils';
 import { OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
+import { LoopAgent } from '../loop/loop';
 
 type SubLoopInput = {
     prompt: string;
@@ -21,8 +23,9 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
     parallelSafe: true,
     exclusiveInSubLoop: true,
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
-        const subLoop = context.actions.newSubLoop(false);
+        const subLoop = context.actions.newSubLoop() as LoopAgent<any, any, any>;
         const result = await subLoop.invoke(input.prompt, { browserId: context.browserId });
+        FileUtils.deleteDir(subLoop.getSessionDir());
         return result.text;
     },
 }

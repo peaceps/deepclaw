@@ -1,5 +1,8 @@
 import { FileUtils } from "@deepclaw/node-utils";
-import { AGENTS_DIR, CRON_DIR, PROJECT_DIR, SESSION_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE } from "../../paths";
+import {
+    AGENTS_DIR, CRON_DIR, PROJECT_DIR, SESSION_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE,
+    SUB_LOOP_DIR
+} from "../../paths";
 import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetaData } from "../../definitions/definitions";
 import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason, TokenUsage, splitLoopId, FlushAgentRole } from "@deepclaw/core";
 import { getLogger } from "@deepclaw/node-utils";
@@ -20,11 +23,14 @@ export class SessionService {
 
     private static sessionMeta: Map<string, SessionMetaData> = new Map();
 
-    public static getSessionDir(role: FlushAgentRole, agentId: string, projectId?: string): string {
+    public static getSessionDir(role: FlushAgentRole, agentId: string, projectId?: string, subLoopId?: string): string {
+        if (subLoopId) {
+            return `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${subLoopId}`;
+        }
         if (role === 'agent') {
             return `${AGENTS_DIR}/${agentId}/${SESSION_DIR}`;
         } else if (role === 'cron') {
-            return `${CRON_DIR}/${projectId}/${SESSION_DIR}`;
+            return `${FileUtils.getTmpDir()}/${CRON_DIR}/${projectId}/${SESSION_DIR}`;
         } else if (role === 'project') {
             return `${PROJECT_DIR}/${projectId}/${SESSION_DIR}`;
         } else {

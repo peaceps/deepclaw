@@ -20,10 +20,6 @@ export class PromptService {
         agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
         role: FlushAgentRole, projectId: string, isSubLoop: boolean
     ): SystemPrompt {
-        // Stable prefix: platform/lang/identity/mode are fixed for the session,
-        // project-management text is static per mode, and memory/skills only
-        // change on explicit save/install/delete (rare). Keeping them cacheable
-        // lets the provider reuse them across turns; a rare change costs one rewrite.
         const cacheable = `
 # Platform
 ${this.platformPrompt}

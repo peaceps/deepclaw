@@ -25,11 +25,10 @@ import {
 import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
-import { FileUtils, getLoopLogger } from '@deepclaw/node-utils';
+import { getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
 import { AgentConfig, loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
-import { SUB_LOOP_DIR } from '../../paths';
 import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
 import { SessionService } from '../services/session-service';
@@ -40,6 +39,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
     private historyPersistIndex: number = 0;
+    private sessionDir: string;
     private history: I[] = [];
     private outdated: boolean = false;
     private footPrints: FootPrint[] = [];
@@ -57,6 +57,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         super(role, agentId, projectId, handler);
         this.subLoopId = subLoopId;
         this.agentConfig = loadAgentConfig(this.agentId);
+        if (this.role === 'cron') {
+            this.agentConfig = {...this.agentConfig, mode: 'agent'};
+        }
+        this.sessionDir = SessionService.getSessionDir(this.role, this.agentId, this.projectId, this.subLoopId);
         this.loadSessionData();
         this.llm = new (this.getLLMConstructor())(
             this.isSubLoop(),
@@ -68,7 +72,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     private loadSessionData(): void {
         const {history, outdated} = SessionService.loadSession<I>({
-            sessionDir: this.getSessionDir(),
+            sessionDir: this.sessionDir,
             agentId: this.agentId,
             projectId: this.projectId,
             loopId: this.getId(),
@@ -80,9 +84,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         this.historyPersistIndex = this.history.length;
     }
 
-    protected getSessionDir(): string {
-        return this.isSubLoop() ? `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${this.subLoopId}`
-            : SessionService.getSessionDir(this.role, this.agentId, this.projectId);
+    public getSessionDir(): string {
+        return this.sessionDir;
     }
 
     public updateConfig(config: AgentConfig): void {
@@ -183,7 +186,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             projectId: this.projectId,
             loopConfig: this.agentConfig,
             browserId: options.browserId,
-            sessionDir: this.getSessionDir(),
+            sessionDir: this.sessionDir,
             system: {cacheable: '', dynamic: ''},
             logger: getLoopLogger(this.getId(), this.subLoopId),
             actions: {

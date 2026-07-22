@@ -54,13 +54,13 @@ function syncCommandGuard(input: SyncCommandInput, context: OneLoopContext): Too
     if (warned) {
         return PermissionService.askPermissionGuard(
             i18nInstance.t('agent.tools.syncCommand.guard.warn', {command}),
-            'command', context.loopId
+            'command', context.loopId, context.role
         );
     }
     if (context.loopConfig.mode !== 'agent') {
         return PermissionService.askPermissionGuard(
             i18nInstance.t('agent.tools.syncCommand.guard.mode', {command}),
-            'command', context.loopId
+            'command', context.loopId, context.role
         );
     }
     return {result: 'allowed'};

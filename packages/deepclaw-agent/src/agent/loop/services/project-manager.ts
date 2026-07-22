@@ -1,6 +1,7 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { PROJECT_DIR, PROJECT_JSON, PROJECT_TASK_OUTPUT_DIR, PUBLIC } from '../../paths';
+import { PROJECT_DIR, PROJECT_JSON, PROJECT_TASK_OUTPUT_DIR } from '../../paths';
 import { type Project, type Task, type TaskStepsContext, getProjectStatus, PROJECT_CONFIG } from '@deepclaw/core';
+import { saveToPublic } from '../../loop-utils';
 
 export type ProjectListInfo = {
     projects: {
@@ -24,8 +25,6 @@ type TaskInitInfo = {
     steps?: string[];
     blockedBy?: string[];
 };
-
-const OUTPUT_LENGTH_LIMIT = 1500;
 
 export class ProjectManager {
 
@@ -182,17 +181,7 @@ export class ProjectManager {
         }
         Object.assign(task, taskInfo);
         if (task.output) {
-            const outputType = task.output.type;
-            if (outputType === 'binary' || task.output.content.length > OUTPUT_LENGTH_LIMIT) {
-                const content = outputType === 'binary' ? Buffer.from(task.output.content, 'base64')
-                    : task.output.content;
-                const ext = task.output.ext || this.getOutputExt(outputType);
-                const path = FileUtils.writeFile(
-                    `${PROJECT_TASK_OUTPUT_DIR}/${projectId}/${FileUtils.hashString(task.title)}.${ext}`, content
-                );
-                task.output.content = '<Content saved to file>';
-                task.output.path = `/${path.substring(PUBLIC.length + 1)}`;
-            }
+            saveToPublic(projectId, task.output, task.title, PROJECT_TASK_OUTPUT_DIR);
         }
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();
@@ -204,17 +193,6 @@ export class ProjectManager {
         Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
         this.saveProject(project.id);
         return {task, stop: !!task.pause && task.verified === false};
-    }
-
-    private static getOutputExt(outputType: NonNullable<Task['output']>['type']): string {
-        switch (outputType) {
-            case 'text':
-                return 'txt';
-            case 'markdown':
-                return 'md'
-            default:
-                return 'out';
-        }
     }
 
     public static updateCurrentStep(projectId: string, taskTitle: string, stepIndex: number): TaskStepsContext {

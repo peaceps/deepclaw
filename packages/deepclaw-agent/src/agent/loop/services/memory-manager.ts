@@ -15,7 +15,7 @@ When to save memories:
 scope:
 - global: applies to all agents/projects.
 - agent: private to the current agent.
-- project: applies to the current project/cron job.
+- project: applies to the current project/cron task.
 
 Typical examples:
 - global + preference: user's default language or coding style.
@@ -90,7 +90,7 @@ export class MemoryManager {
         if (projectId) {
             const project = this.projectsMemoryIndex.get(projectId);
             if (project) {
-                const task = role === 'project' ? 'project' : 'cron job';
+                const task = role === 'project' ? 'project' : 'cron task';
                 sections.push(`## ${task} memories index (Focus on this ${task})\n${project}`);
             }
         }

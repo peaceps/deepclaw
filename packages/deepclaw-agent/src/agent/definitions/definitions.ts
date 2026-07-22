@@ -1,8 +1,9 @@
 import type { Logger } from '@deepclaw/node-utils';
 import {
-    SealedAgentHandler, LLMTransitionReason, type FlushAgent,
+    SealedAgentHandler, LLMTransitionReason,
     type AgentRuntime, type TokenUsage,
-    FlushAgentRole
+    FlushAgentRole,
+    FlushAgent
 } from '@deepclaw/core';
 import { AgentConfig } from '@deepclaw/config';
 
@@ -35,7 +36,7 @@ export type OneLoopContext = {
     system: SystemPrompt;
     logger: Logger;
     actions: {
-        newSubLoop: (fork?: boolean) => FlushAgent;
+        newSubLoop: () => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
         agentHandler: SealedAgentHandler;
         addStringMessage: (message: string) => void;
