@@ -5,6 +5,7 @@ import { FULL_NAME_MAP } from '@deepclaw/i18n';
 import { FileUtils } from '@deepclaw/node-utils';
 import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
+import { CronService } from './cron-service';
 import { DEEPCLAW_MD } from '../../paths';
 import { AgentIdentity, FlushAgentRole } from '@deepclaw/core';
 import { SystemPrompt } from '../../definitions/definitions';
@@ -14,12 +15,14 @@ export class PromptService {
     private static platformPrompt: string = this.platform();
     private static languagePrompt: string = this.language();
     private static emotionsPrompt: string = this.emotions();
-    private static mainIdentityPrompt: {loop: string, subloop: string} = this.mainIdentity();
+    private static mainIdentityPrompt: {loop: string, subloop: string, cron: string} = this.mainIdentity();
 
     public static provideSystemPrompt(
         agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
         role: FlushAgentRole, projectId: string, isSubLoop: boolean
     ): SystemPrompt {
+        const isCron = role === 'cron';
+        const identityKey = isSubLoop ? 'subloop' : isCron ? 'cron' : 'loop';
         const cacheable = `
 # Platform
 ${this.platformPrompt}
@@ -28,13 +31,13 @@ ${this.platformPrompt}
 ${this.language()}
 
 # Main Identity
-${this.mainIdentityPrompt[isSubLoop ? 'subloop' : 'loop']}
+${this.mainIdentityPrompt[identityKey]}
 
 # Personality
-${isSubLoop || !agentIdentity ? "" : this.personality(agentIdentity)}
+${isSubLoop || isCron || !agentIdentity ? "" : this.personality(agentIdentity)}
 
 # Emotions
-${isSubLoop || !agentIdentity || !agentIdentity.emotion ? "" : this.emotionsPrompt}
+${isSubLoop || isCron || !agentIdentity || !agentIdentity.emotion ? "" : this.emotionsPrompt}
 
 # Agent Mode
 ${this.agentMode(agentConfig.mode)}
@@ -48,7 +51,11 @@ ${this.memory(role, agentConfig.id, projectId)}
 # Skills
 ${this.availableSkills(agentConfig.id)}`;
 
-        const dynamic = `
+        const dynamic = isCron
+            ? `
+# Current Cron Task
+${this.cronCurrentTask(projectId)}`
+            : `
 # Current Project
 ${this.projectCurrentProject(projectId)}`;
 
@@ -72,7 +79,7 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
         return this.languagePrompt;
     }
 
-    private static mainIdentity(): {loop: string, subloop: string} {
+    private static mainIdentity(): {loop: string, subloop: string, cron: string} {
         let commonIdentity = `You are a helpful and efficient assistant for the user.
 You can help the user with various tasks, such as answering questions, providing suggestions,
 and completing tasks via tools. Always try your best to help the user and complete the task. 
@@ -91,6 +98,14 @@ Complete the given task, then summarize your findings.
 You don't have access to file writing tools, and don't use run_sync_command tool to create or edit file.
 When you need to create or generate any content,
 just return it as the output of the agent without writing it to any file.
+`,
+            cron: `${commonIdentity}
+What's more you are running as a scheduled (cron) task, triggered automatically at a preset time.
+There is NO interactive user available during this run, so never ask clarifying questions and never
+wait for confirmation. Make reasonable assumptions and complete the task autonomously.
+When you produce the final result, record it by calling the update_cron_output tool with the cron
+task id so it can be reviewed later. If the task cannot be completed, still call update_cron_output
+to summarize what happened and why.
 `
         };
     }
@@ -131,6 +146,18 @@ But you can call tools to write files owned by the agent program itself, such as
     private static projectCurrentProject(projectId: string): string {
         const current = ProjectManager.promptCurrentProject(projectId)
         return current ? current : 'No project is currently being worked on this chat session.';
+    }
+
+    private static cronCurrentTask(cronId: string): string {
+        try {
+            const detail = CronService.getCronTaskDetail(cronId);
+            return `You are executing the cron task "${detail.title}" (id: ${detail.id}).
+Schedule: ${detail.cron}.
+Use the update_cron_output tool with id "${detail.id}" to record your final result before ending the task.`;
+        } catch {
+            return `You are executing a cron task (id: ${cronId}).
+Use the update_cron_output tool with id "${cronId}" to record your final result before ending the task.`;
+        }
     }
 
     private static projectManagement(agentMode: AgentMode): string {

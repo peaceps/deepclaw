@@ -36,6 +36,7 @@ type AppState = {
 
   // Actions
   getAgents: () => AgentEmployee[];
+  getAgentById: (id: string) => AgentEmployee | undefined;
   setAgents: (agents: AgentEmployee[]) => void;
   updateAgentEmployee: (id: string, employee: Partial<AgentEmployee>) => void;
   getProjects: () => Project[];
@@ -64,6 +65,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   initializedChat: {},
 
   getAgents: () => get().agents,
+  getAgentById: (id: string) => get().agents.find(a => a.id === id),
   setAgents: (agents) => {
     set({ agents, activeAgents: agents.filter(a => !a.fired) });
     selectFirstActiveAgent(get, set);

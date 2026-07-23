@@ -17,6 +17,7 @@ import {
     AgentBreakReason,
     isStopTransitionReason,
     FlushAgentRole,
+    addTokenUsage,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -169,9 +170,11 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 }, true);
                 this.historyPersistIndex = runtime.historyPersistIndex;
                 if (isInternalInterruptReason(runtime.agentBreakReason)) {
-                    runtime.usage.cachedInputTokens = 0;
-                    runtime.usage.noCachedInputTokens = 0;
-                    runtime.usage.outputTokens = 0;
+                    runtime.usage = {
+                        cachedInputTokens: 0,
+                        noCachedInputTokens: 0,
+                        outputTokens: 0,
+                    };
                 }
             }
         }
@@ -278,7 +281,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 state.oneLoopContext.logger
             );
 
-            this.addTokenUsage(state.oneLoopContext, response);
+            this.addUsage(state.oneLoopContext, response);
 
             state.oneLoopContext.runtime.turnCount++;
             state.oneLoopContext.runtime.transitionReason = response.transitionReason;
@@ -331,11 +334,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             && !runtime.agentBreakReason;
     }
 
-    private addTokenUsage(context: OneLoopContext, response: O): void {
+    private addUsage(context: OneLoopContext, response: O): void {
         const tokenUsage = this.llm.getTokenUsage(response);
-        context.runtime.usage.cachedInputTokens += tokenUsage.cachedInputTokens;
-        context.runtime.usage.noCachedInputTokens += tokenUsage.noCachedInputTokens;
-        context.runtime.usage.outputTokens += tokenUsage.outputTokens;
+        addTokenUsage(context.runtime.usage, tokenUsage);
     }
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {

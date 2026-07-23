@@ -8,5 +8,6 @@ export * from './agent/definitions/tool-definitions';
 export * from './agent/loop/services/agent-identity-manager';
 export * from './agent/loop/services/skills-manager';
 export * from './agent/loop/services/project-manager';
+export * from './agent/loop/services/cron-service';
 export * from './agent/loop/services/session-service';
 export * from './agent/paths';

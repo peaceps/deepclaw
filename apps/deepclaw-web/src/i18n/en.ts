@@ -177,11 +177,11 @@ export const en = {
                     title: '😔 Sorry',
                     description: 'This Agent seems to be lost...',
                 },
-                tokenUsage: {
-                    cachedInput: 'Cached input',
-                    noCachedInput: 'No cached input',
-                    output: 'Output'
-                }
+            },
+            tokenUsage: {
+                cachedInput: 'Cached input',
+                noCachedInput: 'No cached input',
+                output: 'Output'
             },
             skills: {
                 columns: {
@@ -192,6 +192,29 @@ export const en = {
                 empty: 'No skills available',
                 resetToAll: 'All agents',
                 installHint: 'Tip: you can install new skills by chatting with an agent — just ask it to find and install a skill for you.',
+            },
+            cron: {
+                tip: 'Tip: you can create scheduled tasks by chatting with an agent - just tell it what to run and when.',
+                empty: 'No scheduled tasks',
+                status: {
+                    running: 'Running',
+                    paused: 'Paused',
+                },
+                creator: 'Creator',
+                lastRun: 'Last run',
+                nextRun: 'Next run',
+                schedule: 'Schedule',
+                prompt: 'Prompt',
+                actions: {
+                    pause: 'Pause',
+                    resume: 'Resume',
+                    delete: 'Delete',
+                },
+                history: {
+                    title: 'Execution History',
+                    empty: 'No executions yet',
+                    report: 'Execution Report',
+                },
             },
             settings: {
                 title: 'System Settings',

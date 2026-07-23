@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { RootLayout } from "@/components/layout/RootLayout";
 import { loadCurrentConfig } from "@/server/configs";
-import { LANG_LOCALE_MAP, DEFAULT_LANG, i18nInstance, SupportedLanguage } from "@deepclaw/i18n";
+import { LANG_BCP47_LOCALE_MAP, DEFAULT_LANG, i18nInstance, SupportedLanguage } from "@deepclaw/i18n";
 import { ManagerConfig } from "@deepclaw/config";
 import '@/i18n-server';
 import { LoopGateway } from "@deepclaw/loop-gateway";
@@ -22,7 +22,7 @@ export default async function Layout({
   const loopInfo = LoopGateway.getLoopInfo();
   return (
     <html
-      lang={LANG_LOCALE_MAP[lang]}
+      lang={LANG_BCP47_LOCALE_MAP[lang]}
       className="h-full antialiased"
     >
       <body className="h-screen flex overflow-hidden">

@@ -1,6 +1,7 @@
 import { Task } from "@deepclaw/core";
-import { OneLoopContext, ToolDesc } from "../../..";
-import { CronService } from "../services/cron-service";
+import { OneLoopContext } from "../../definitions/definitions";
+import { ToolDesc } from "../../definitions/tool-definitions";
+import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
 
 type CreateCronTaskInput = {
     title: string;
@@ -79,7 +80,7 @@ and the file path will be set into the path field.`
     invoke: async function(input: UpdateCronOutputInput): Promise<string> {
         const {id, output} = input;
         CronService.updateCronOutput(id, output);
-        return `Cron output updated successfully, here\'s the detail:
+        return `Cron output updated successfully, here\'s the detail with last max ${MAX_DISPLAY_HISTORIES} histories:
 ${JSON.stringify(CronService.getCronTaskDetail(id))}`;
     },
 }

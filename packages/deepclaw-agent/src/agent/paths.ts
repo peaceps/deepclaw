@@ -30,6 +30,8 @@ export const SKILL_AGENT_JSON = 'agent.json';
 
 // Cron
 export const CRON_DIR = '.cron';
+export const CRON_TASK_JSON = 'cron.json';
+export const CRON_HISTORY_JSONL = 'history.jsonl';
 
 // Global
 export const GLOBAL_MEMORY_DIR = '.memory';

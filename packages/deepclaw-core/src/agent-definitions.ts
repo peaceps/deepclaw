@@ -33,6 +33,12 @@ export type TokenUsage = {
     outputTokens: number;
 }
 
+export function addTokenUsage(usage: TokenUsage, added: TokenUsage): void {
+    usage.cachedInputTokens += added.cachedInputTokens;
+    usage.noCachedInputTokens += added.noCachedInputTokens;
+    usage.outputTokens += added.outputTokens;
+}
+
 export type ChatMessage = {
     id: string;
     agentId: string;

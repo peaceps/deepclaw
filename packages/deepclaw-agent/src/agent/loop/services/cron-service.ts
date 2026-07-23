@@ -1,20 +1,22 @@
 import { CronJob } from 'cron';
-import { Task, TokenUsage } from "@deepclaw/core";
-import { LoopInitializer } from '../../loop-initializer';
+import { addTokenUsage, Task, TokenUsage } from "@deepclaw/core";
 import { saveToPublic } from '../../loop-utils';
-import { CRON_DIR, CRON_OUTPUT_DIR } from '../../paths';
+import { CRON_DIR, CRON_HISTORY_JSONL, CRON_OUTPUT_DIR, CRON_TASK_JSON } from '../../paths';
 import { FileUtils } from '@deepclaw/node-utils';
 import { randomUUID } from 'node:crypto';
 import { getLogger } from '@deepclaw/node-utils';
 
 const logger = getLogger('CronService');
 
+export const MAX_DISPLAY_HISTORIES = 10;
+
 export type CronJobHistory = {
     start: string;
     completed?: string;
     output?: Task['output'];
-    usage?: TokenUsage;
+    usage: TokenUsage;
     finalText?: string;
+    success?: boolean;
 }
 
 export type CronTask = {
@@ -25,7 +27,10 @@ export type CronTask = {
     prompt: string;
     paused?: boolean;
     closed?: boolean;
+    lastRun?: string;
+    nextRun?: string;
     histories: CronJobHistory[];
+    usage: TokenUsage;
 };
 
 export type CronScheduledJob = {
@@ -41,14 +46,14 @@ export class CronService {
 
     private static loadCronTasks(): void {
         if (!FileUtils.exists(CRON_DIR)) return;
-        const cronTaskFiles = FileUtils.readDir(CRON_DIR, dir => `${dir}/cron.json`);
+        const cronTaskFiles = FileUtils.readDir(CRON_DIR, dir => `${dir}/${CRON_TASK_JSON}`);
         for (const {dir, content} of Object.values(cronTaskFiles)) {
             try {
                 const cronTask = JSON.parse(content) as CronTask;
                 if (cronTask.closed) continue;
                 this.cronTasks[cronTask.id] = cronTask;
                 try {
-                    const historyFile = `${CRON_DIR}/${cronTask.id}/history.jsonl`;
+                    const historyFile = `${CRON_DIR}/${cronTask.id}/${CRON_HISTORY_JSONL}`;
                     if (FileUtils.exists(historyFile)) {
                         const histories = FileUtils.readFile(historyFile).trim();
                         cronTask.histories = histories.split('\n').map(line => JSON.parse(line));
@@ -73,12 +78,15 @@ export class CronService {
             creator,
             cron,
             prompt,
+            usage: {
+                cachedInputTokens: 0,
+                noCachedInputTokens: 0,
+                outputTokens: 0,
+            },
             histories: [],
         };
         this.cronTasks[id] = cronTask;
-        FileUtils.writeFile(
-            `${CRON_DIR}/${id}/cron.json`, JSON.stringify(cronTask, null, 2)
-        );
+        this.saveTask(cronTask);
         this.scheduleCronTask(cronTask)
         return cronTask;
     }
@@ -92,6 +100,7 @@ export class CronService {
             true,
             Intl.DateTimeFormat().resolvedOptions().timeZone
         );
+        cronTask.nextRun = job.nextDate().toISO() || '';
         this.cronScheduledJob[cronTask.id] = {
             job,
             running: false,
@@ -106,6 +115,7 @@ export class CronService {
             return;
         }
         job.running = true;
+        const { LoopInitializer } = await import('../../loop-initializer');
         const loop = LoopInitializer.getLoop('cron', cronTask.creator, cronTask.id, {
             onStreamText: () => {},
             onInteractionEvent: () => Promise.resolve(''),
@@ -113,21 +123,32 @@ export class CronService {
         });
         const history: CronJobHistory = {
             start: new Date().toISOString(),
+            usage: {
+                cachedInputTokens: 0,
+                noCachedInputTokens: 0,
+                outputTokens: 0,
+            },
         };
         cronTask.histories.push(history);
-        
+        cronTask.lastRun = history.start;
+        cronTask.nextRun = job.job.nextDate().toISO() || '';
+        this.saveTask(cronTask);
+
         try {
             const {text, runtime} = await loop.invoke(cronTask.prompt, {browserId: ''});
             history.finalText = text;
-            history.usage = runtime.usage;
+            addTokenUsage(history.usage, runtime.usage);
+            addTokenUsage(cronTask.usage, history.usage);
+            history.success = runtime.transitionReason !== 'error';
         } catch (error) {
             const text = `Failed to run cron task ${cronTask.id}: ${error}`;
+            history.success = false;
             history.finalText = text;
         }
         history.completed = new Date().toISOString();
         try {
             FileUtils.appendFile(
-                `${CRON_DIR}/${cronTask.id}/history.jsonl`, `${JSON.stringify(history)}\n`
+                `${CRON_DIR}/${cronTask.id}/${CRON_HISTORY_JSONL}`, `${JSON.stringify(history)}\n`
             );
             FileUtils.deleteDir(loop.getSessionDir());
         } catch (error) {
@@ -152,6 +173,31 @@ export class CronService {
         }
     }
 
+    public static updateCronTaskStatus({id, pause, close}: {id: string, pause?: boolean; close?: boolean}) {
+        const job = this.cronScheduledJob[id];
+        const task = this.getCronTask(id);
+        if (close) {
+            if (job) {
+                job.job.stop();
+            }
+            delete this.cronScheduledJob[id];
+            task.closed = true;
+            task.paused = true;
+            task.nextRun = undefined;
+            delete this.cronTasks[id];
+        } else {
+            task.paused = pause;
+            if (job && pause) {
+                job.job.stop();
+                delete this.cronScheduledJob[id];
+                task.nextRun = undefined;
+            } else if (!pause && !job) {
+                this.scheduleCronTask(task);
+            }
+        }
+        this.saveTask(task);
+    }
+
     private static getCronTask(id: string): CronTask {
         const cronTask = this.cronTasks[id];
         if (!cronTask) {
@@ -160,21 +206,35 @@ export class CronService {
         return cronTask;
     }
 
-    public static getCronTaskDetail(id: string): Partial<CronTask> {
+    public static getCronTasks(): CronTask[] {
+        return Array.from(Object.values(this.cronTasks)).map(task => this.getCronTaskDetail(task.id));
+    }
+
+    public static getCronTaskDetail(id: string): CronTask {
         const cronTask = this.getCronTask(id);
         return {
-            id: cronTask.id,
-            title: cronTask.title,
-            creator: cronTask.creator,
-            cron: cronTask.cron,
-            paused: cronTask.paused,
-            closed: cronTask.closed,
-            histories: cronTask.histories.map(history => ({
-                start: history.start,
-                completed: history.completed,
-                output: history.output,
-            })),
+            ...cronTask,
+            histories: cronTask.histories.slice(-MAX_DISPLAY_HISTORIES),
         };
+    }
+
+    private static saveTask(task: CronTask): void {
+        try {
+            const persisted: Omit<CronTask, 'histories' | 'nextRun'> = {
+                id: task.id,
+                title: task.title,
+                creator: task.creator,
+                cron: task.cron,
+                prompt: task.prompt,
+                paused: task.paused,
+                closed: task.closed,
+                lastRun: task.lastRun,
+                usage: task.usage,
+            };
+            FileUtils.writeFile(`${CRON_DIR}/${task.id}/${CRON_TASK_JSON}`, JSON.stringify(persisted, null, 2));
+        } catch (error) {
+            logger.error(`Failed to save cron task ${task.id}: ${error}`);
+        }
     }
 
 }

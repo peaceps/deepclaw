@@ -177,11 +177,6 @@ export const zh = {
                     title: '😔 非常遗憾',
                     description: '这个Agent好像已经不在了...',
                 },
-                tokenUsage: {
-                    cachedInput: '输入（缓存命中）',
-                    noCachedInput: '输入（缓存未命中）',
-                    output: '输出'
-                }
             },
             skills: {
                 columns: {
@@ -192,6 +187,34 @@ export const zh = {
                 empty: '暂无可用技能',
                 resetToAll: '全部 Agent',
                 installHint: '提示：可以直接和 Agent 聊天来安装新技能，让它帮你查找并安装即可。',
+            },
+            tokenUsage: {
+                cachedInput: '输入（缓存命中）',
+                noCachedInput: '输入（缓存未命中）',
+                output: '输出'
+            },
+            cron: {
+                tip: '提示：可以直接和 Agent 聊天来创建定时任务，告诉它要执行什么以及执行周期即可。',
+                empty: '暂无定时任务',
+                status: {
+                    running: '运行中',
+                    paused: '已暂停',
+                },
+                creator: '创建人',
+                lastRun: '上次执行',
+                nextRun: '下次执行',
+                schedule: '任务周期',
+                prompt: '任务内容',
+                actions: {
+                    pause: '暂停',
+                    resume: '恢复',
+                    delete: '删除',
+                },
+                history: {
+                    title: '执行历史',
+                    empty: '暂无执行记录',
+                    report: '执行报告',
+                },
             },
             settings: {
                 title: '系统设置',

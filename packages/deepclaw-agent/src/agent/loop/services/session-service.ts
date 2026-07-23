@@ -4,7 +4,7 @@ import {
     SUB_LOOP_DIR
 } from "../../paths";
 import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetaData } from "../../definitions/definitions";
-import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason, TokenUsage, splitLoopId, FlushAgentRole } from "@deepclaw/core";
+import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason, TokenUsage, splitLoopId, FlushAgentRole, addTokenUsage } from "@deepclaw/core";
 import { getLogger } from "@deepclaw/node-utils";
 
 const SAVE_THRESHOLD = 10;
@@ -151,9 +151,7 @@ export class SessionService {
             endedAt: runtime.status === 'idle' || runtime.status === 'error' ? now : undefined
         });
         if (usage) {
-            meta.runtime.usage.cachedInputTokens += usage.cachedInputTokens;
-            meta.runtime.usage.noCachedInputTokens += usage.noCachedInputTokens;
-            meta.runtime.usage.outputTokens += usage.outputTokens;
+            addTokenUsage(meta.runtime.usage, usage);
         }
         if (!context.isSubLoop) {
             FileUtils.writeFile(

@@ -15,13 +15,13 @@ import {
 import { globalize } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent, SkillsManager,
-    type SkillInfo
+    type SkillInfo, SessionService, CronService,
+    type CronTask
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
 import { LoopGatewayEvent, getClientKey } from "./loop-gateway-types";
 import { i18nInstance } from "@deepclaw/i18n";
-import { SessionService } from "@deepclaw/agent";
 
 type LoopState = {
     role: FlushAgentRole;
@@ -316,6 +316,14 @@ class LoopGatewayImpl {
 
     public static setSkillAgents(name: string, agentIds?: string[]): void {
         SkillsManager.updateSkillAgents(name, agentIds);
+    }
+
+    public static getCronTasks(): CronTask[] {
+        return CronService.getCronTasks();
+    }
+
+    public static updateCronTaskStatus(id: string, pause?: boolean, close?: boolean): void {
+        CronService.updateCronTaskStatus({id, pause, close});
     }
 
     public static getLoopInfo(): LoopInfo {

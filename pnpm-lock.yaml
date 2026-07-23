@@ -165,6 +165,9 @@ importers:
       '@emoji-mart/react':
         specifier: 1.1.1
         version: 1.1.1(emoji-mart@5.6.0)(react@19.2.5)
+      cronstrue:
+        specifier: 3.24.0
+        version: 3.24.0
       emoji-mart:
         specifier: 5.6.0
         version: 5.6.0
@@ -1924,6 +1927,10 @@ packages:
   cron@4.4.0:
     resolution: {integrity: sha512-fkdfq+b+AHI4cKdhZlppHveI/mgz2qpiYxcm+t5E5TsxX7QrLS1VE0+7GENEk9z0EeGPcpSciGv6ez24duWhwQ==}
     engines: {node: '>=18.x'}
+
+  cronstrue@3.24.0:
+    resolution: {integrity: sha512-t/Ji3Ur2c/pzhIAWNwC0ftl3JAE4dLfCjAdZoTZXmPDZwcispnS1PaMcMS4OmIIXyIVouAz+yw+mfQiE3hz5OQ==}
+    hasBin: true
 
   cross-spawn@5.1.0:
     resolution: {integrity: sha512-pTgQJ5KC0d2hcY8eyL1IzlBPYjTkyH72XRZPnLyKus2mBfNjQs3klqbJU2VILqZryAZUt9JOb3h/mWMy23/f5A==}
@@ -5666,6 +5673,8 @@ snapshots:
     dependencies:
       '@types/luxon': 3.7.2
       luxon: 3.7.2
+
+  cronstrue@3.24.0: {}
 
   cross-spawn@5.1.0:
     dependencies:

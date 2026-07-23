@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AgentOption } from '@/server/skills';
+import type { AgentOption } from '@/server/data';
+import { setSkillAgents } from '@/server/data';
 import type { SkillInfo } from '@deepclaw/loop-gateway';
-import { setSkillAgents } from '@/server/skills';
 import { MultiSelect } from '@/laf/multi-select';
 import { InfoBar } from '@/laf/info-bar';
 

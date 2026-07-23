@@ -4,7 +4,7 @@ import { FootPrint, OneLoopContext } from '../../definitions/definitions';
 import { HISTORY_DIR } from '../../paths';
 import { HISTORY_COMPACT_FILE } from '../../paths';
 import { HookManager } from '../services/hook-manager';
-import type { LLMTransitionReason } from '@deepclaw/core';
+import { addTokenUsage, type LLMTransitionReason } from '@deepclaw/core';
 
 const MAX_RECENT_TOOL_RESULT_COUNT: number = 20;
 const TOOL_RESULT_THRESHOLD: number = 1200;
@@ -63,9 +63,7 @@ export abstract class AbstractMessagesCompactor<
         context: OneLoopContext, footPrints: FootPrint[], llm: LLM, jsonl: string
     ): Promise<I> {
         const {summary, tokenUsage} = await llm.compact(context.loopConfig.mode, context.system, jsonl, context.logger);
-        context.runtime.usage.cachedInputTokens += tokenUsage.cachedInputTokens;
-        context.runtime.usage.noCachedInputTokens += tokenUsage.noCachedInputTokens;
-        context.runtime.usage.outputTokens += tokenUsage.outputTokens;
+        addTokenUsage(context.runtime.usage, tokenUsage);
         return llm.newInputMessage(`
 This session continues from a previous conversation that was compacted.
 This conversation was compacted so the agent can continue working.

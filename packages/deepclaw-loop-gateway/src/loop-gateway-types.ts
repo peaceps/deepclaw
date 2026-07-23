@@ -5,7 +5,7 @@ import {
     TokenUsage
 } from "@deepclaw/core";
 
-export type { SkillInfo } from "@deepclaw/agent";
+export type { SkillInfo, CronTask } from "@deepclaw/agent";
 
 export type AgentLoopBusyEvent = AgentLoopEvent & {
     eventType: 'busy';
