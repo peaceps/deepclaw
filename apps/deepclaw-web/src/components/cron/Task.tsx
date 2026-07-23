@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatDate, translateCron } from '@/components/component-utils';
-import type { CronTask } from '@deepclaw/loop-gateway';
+import type { CronTask } from '@deepclaw/core';
 import { SupportedLanguage } from '@deepclaw/i18n';
 
 function getStatusStyle(task: CronTask): { color: string; bg: string; labelKey: string } {

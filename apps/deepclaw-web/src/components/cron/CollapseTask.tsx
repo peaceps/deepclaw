@@ -1,4 +1,4 @@
-import type { CronTask } from '@deepclaw/loop-gateway';
+import type { CronTask } from '@deepclaw/core';
 import { Task } from './Task';
 import { Detail } from './Detail';
 import { Histories } from './Histories';
@@ -15,6 +15,7 @@ type CollapseTaskProps = {
 export function CollapseTask({ task, isExpanded, onToggle, onToggleStatus, onDelete }: CollapseTaskProps) {
     const getAgentById = useAppStore(s => s.getAgentById);
     const creator = getAgentById(task.creator)?.name || '';
+
     return (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div

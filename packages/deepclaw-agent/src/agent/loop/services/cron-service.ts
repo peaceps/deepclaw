@@ -1,8 +1,8 @@
 import { CronJob } from 'cron';
-import { addTokenUsage, Task, TokenUsage } from "@deepclaw/core";
+import { addTokenUsage, Task, type CronTask, type CronJobHistory } from "@deepclaw/core";
 import { saveToPublic } from '../../loop-utils';
 import { CRON_DIR, CRON_HISTORY_JSONL, CRON_OUTPUT_DIR, CRON_TASK_JSON } from '../../paths';
-import { FileUtils } from '@deepclaw/node-utils';
+import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { randomUUID } from 'node:crypto';
 import { getLogger } from '@deepclaw/node-utils';
 
@@ -10,35 +10,13 @@ const logger = getLogger('CronService');
 
 export const MAX_DISPLAY_HISTORIES = 10;
 
-export type CronJobHistory = {
-    start: string;
-    completed?: string;
-    output?: Task['output'];
-    usage: TokenUsage;
-    finalText?: string;
-    success?: boolean;
-}
-
-export type CronTask = {
-    id: string;
-    title: string;
-    creator: string;
-    cron: string;
-    prompt: string;
-    paused?: boolean;
-    closed?: boolean;
-    lastRun?: string;
-    nextRun?: string;
-    histories: CronJobHistory[];
-    usage: TokenUsage;
-};
-
 export type CronScheduledJob = {
     job: CronJob;
     running: boolean;
 }
 
 export class CronService {
+    private static subscribers: ((task: UpdateContent<CronTask>) => void)[] = [];
     private static cronTasks: Record<string, CronTask> = {};
     private static cronScheduledJob: Record<string, CronScheduledJob> = {};
 
@@ -87,7 +65,8 @@ export class CronService {
         };
         this.cronTasks[id] = cronTask;
         this.saveTask(cronTask);
-        this.scheduleCronTask(cronTask)
+        this.scheduleCronTask(cronTask);
+        this.notify(cronTask);
         return cronTask;
     }
 
@@ -101,6 +80,7 @@ export class CronService {
             Intl.DateTimeFormat().resolvedOptions().timeZone
         );
         cronTask.nextRun = job.nextDate().toISO() || '';
+        this.notify({id: cronTask.id, nextRun: cronTask.nextRun});
         this.cronScheduledJob[cronTask.id] = {
             job,
             running: false,
@@ -133,6 +113,12 @@ export class CronService {
         cronTask.lastRun = history.start;
         cronTask.nextRun = job.job.nextDate().toISO() || '';
         this.saveTask(cronTask);
+        this.notify({
+            id: cronTask.id,
+            lastRun: cronTask.lastRun,
+            nextRun: cronTask.nextRun,
+            histories: cronTask.histories.slice(-MAX_DISPLAY_HISTORIES),
+        });
 
         try {
             const {text, runtime} = await loop.invoke(cronTask.prompt, {browserId: ''});
@@ -146,6 +132,11 @@ export class CronService {
             history.finalText = text;
         }
         history.completed = new Date().toISOString();
+        this.notify({
+            id: cronTask.id,
+            usage: cronTask.usage,
+            histories: cronTask.histories.slice(-MAX_DISPLAY_HISTORIES),
+        });
         try {
             FileUtils.appendFile(
                 `${CRON_DIR}/${cronTask.id}/${CRON_HISTORY_JSONL}`, `${JSON.stringify(history)}\n`
@@ -168,6 +159,10 @@ export class CronService {
             throw new Error('Cron task already completed.');
         }
         history.output = output;
+        this.notify({
+            id: cronTask.id,
+            histories: cronTask.histories.slice(-MAX_DISPLAY_HISTORIES),
+        });
         if (output) {
             saveToPublic(id, output, cronTask.title, CRON_OUTPUT_DIR);
         }
@@ -196,6 +191,12 @@ export class CronService {
             }
         }
         this.saveTask(task);
+        this.notify({
+            id: task.id,
+            paused: task.paused,
+            closed: task.closed,
+            nextRun: task.nextRun,
+        });
     }
 
     private static getCronTask(id: string): CronTask {
@@ -234,6 +235,16 @@ export class CronService {
             FileUtils.writeFile(`${CRON_DIR}/${task.id}/${CRON_TASK_JSON}`, JSON.stringify(persisted, null, 2));
         } catch (error) {
             logger.error(`Failed to save cron task ${task.id}: ${error}`);
+        }
+    }
+
+    public static subscribe(subscriber: (task: UpdateContent<CronTask>) => void): void {
+        this.subscribers.push(subscriber);
+    }
+
+    private static notify(task: UpdateContent<CronTask>): void {
+        for (const subscriber of this.subscribers) {
+            subscriber(task);
         }
     }
 

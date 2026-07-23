@@ -1,4 +1,4 @@
-import { FileUtils } from '@deepclaw/node-utils';
+import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { PROJECT_DIR, PROJECT_JSON, PROJECT_TASK_OUTPUT_DIR } from '../../paths';
 import { type Project, type Task, type TaskStepsContext, getProjectStatus, PROJECT_CONFIG } from '@deepclaw/core';
 import { saveToPublic } from '../../loop-utils';
@@ -76,7 +76,7 @@ export class ProjectManager {
         return project;
     }
 
-    public static updateProject(projectInfo: Partial<Omit<Project, "tasks">> & {id: string}, tasks?: Task[]): Project {
+    public static updateProject(projectInfo: UpdateContent<Omit<Project, "tasks">>, tasks?: Task[]): Project {
         const project = this.projects[projectInfo.id];
         if (!project) {
             throw new Error(`Project ${projectInfo.id} not found.`);

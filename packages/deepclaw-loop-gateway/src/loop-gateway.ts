@@ -10,13 +10,12 @@ import type {
     FlushAgentRole
 } from "@deepclaw/core";
 import {
-    getLoopId, isInternalInterruptReason, newMessage, splitLoopId
+    getLoopId, isInternalInterruptReason, newMessage, splitLoopId, type CronTask
 } from "@deepclaw/core";
 import { globalize } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent, SkillsManager,
     type SkillInfo, SessionService, CronService,
-    type CronTask
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
@@ -49,6 +48,10 @@ class LoopGatewayImpl {
     private static loops: LoopStore = {};
     private static sseSubscriber: ((e: LoopGatewayEvent) => void) | undefined;
     private static waitingInteractions: Map<string, InteractionResolver> = new Map();
+
+    static {
+        CronService.subscribe(task => this.fireSSEEvent({eventType: 'updateCron', content: task}));
+    }
 
     private static defaultHandler: AgentHandler = {
         onStreamText: (e) => {

@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Clock } from 'lucide-react';
 import { InfoBar } from '@/laf/info-bar';
-import type { CronTask } from '@deepclaw/loop-gateway';
-import { updateCronTaskStatus } from '@/server/data';
+import type { CronTask } from '@deepclaw/core';
 import { CollapseTask } from './CollapseTask';
+import { useSSEConnection, useTaskOperation } from './use-cron-hooks';
 
 type CronProperties = {
     cronTasks: CronTask[];
@@ -14,31 +13,8 @@ type CronProperties = {
 
 export function Cron({ cronTasks }: CronProperties) {
     const { t } = useTranslation();
-    const [tasks, setTasks] = useState<CronTask[]>(cronTasks);
-    const [expandedId, setExpandedId] = useState<string | undefined>();
-
-    const toggle = (id: string) => {
-        setExpandedId(prev => (prev === id ? undefined : id));
-    };
-
-    const toggleStatus = (id: string) => {
-        const task = tasks.find(t => t.id === id);
-        if (!task) return;
-        const newPaused = !task.paused;
-        setTasks(prev => prev.map(t => t.id === id ? { ...t, paused: newPaused } : t));
-        updateCronTaskStatus(id, newPaused).catch(() => {
-            setTasks(prev => prev.map(t => t.id === id ? { ...t, paused: !newPaused } : t));
-        });
-    };
-
-    const deleteTask = (id: string) => {
-        const previousTasks = tasks;
-        setTasks(prev => prev.filter(task => task.id !== id));
-        if (expandedId === id) setExpandedId(undefined);
-        updateCronTaskStatus(id, undefined, true).catch(() => {
-            setTasks(previousTasks);
-        });
-    };
+    const { tasks, expandedId, toggle, toggleStatus, deleteTask, setTasks } = useTaskOperation(cronTasks);
+    useSSEConnection(setTasks);
 
     return (
         <div className="h-full w-full overflow-auto p-6">

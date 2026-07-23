@@ -1,8 +1,7 @@
 'use server';
 
-import type { Task } from "@deepclaw/core";
-import { AgentSoulIdentity } from "@deepclaw/core";
-import { type CronTask, LoopGateway, type SkillInfo } from "@deepclaw/loop-gateway";
+import type { Task, CronTask, AgentSoulIdentity } from "@deepclaw/core";
+import { LoopGateway, type SkillInfo } from "@deepclaw/loop-gateway";
 import { revalidatePath } from "next/cache";
 
 export async function updateAgentIdentity(id: string, identity: Partial<AgentSoulIdentity> | string): Promise<void> {

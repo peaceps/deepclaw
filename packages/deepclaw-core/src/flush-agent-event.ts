@@ -1,7 +1,8 @@
 import { AgentEmployee } from "./agent-definitions";
 import { FlushAgentRole } from "./flush-agent-types";
 import { Project } from "./project-definitions";
-import { DistributiveOmit } from "@deepclaw/utils";
+import { DistributiveOmit, UpdateContent } from "@deepclaw/utils";
+import { CronTask } from "./cron-definitions";
 
 export function getLoopId(role: FlushAgentRole, agentId: string, projectId?: string): string {
     return !projectId ? `${role}.${agentId}` : `${role}.${agentId}.${projectId}`;
@@ -57,10 +58,15 @@ export type AgentInfoEvent = FlushAgentEvent & {
 
 export type AgentProjectInfoEvent = AgentInfoEvent & {
     eventType: 'updateProject',
-    content: Partial<Project> & {id: string}
+    content: UpdateContent<Project>
 };
 
 export type AgentAgentInfoEvent = AgentInfoEvent & {
     eventType: 'updateAgent',
-    content: Partial<AgentEmployee> & {id: string}
+    content: UpdateContent<AgentEmployee>
+}
+
+export type AgentCronInfoEvent = AgentInfoEvent & {
+    eventType: 'updateCron',
+    content: UpdateContent<CronTask>
 }

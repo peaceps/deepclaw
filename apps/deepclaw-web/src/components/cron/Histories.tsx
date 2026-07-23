@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { formatDate } from '@/components/component-utils';
-import type { CronTask } from '@deepclaw/loop-gateway';
+import type { CronTask } from '@deepclaw/core';
 import { TokenUsageIcon } from '@/laf/token-usage';
 import { ContentModal } from '@/laf/content-modal';
 

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Play, Pause, Trash2 } from 'lucide-react';
-import type { CronTask } from '@deepclaw/loop-gateway';
+import type { CronTask } from '@deepclaw/core';
 import { translateCron } from '@/components/component-utils';
 import { SupportedLanguage } from '@deepclaw/i18n';
 import { TokenUsageIcon } from '@/laf/token-usage';
