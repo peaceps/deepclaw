@@ -17,6 +17,7 @@ export default [
       // CJS packages: bundling breaks default import interop; leave to Node at runtime.
       '@deepclaw/i18n',
       '@deepclaw/node-utils',
+      '@deepclaw/utils',
       '@deepclaw/core',
       '@deepclaw/config',
       'gray-matter',

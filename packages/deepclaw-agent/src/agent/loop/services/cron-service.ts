@@ -1,10 +1,10 @@
 import { CronJob } from 'cron';
-import { addTokenUsage, Task, type CronTask, type CronJobHistory } from "@deepclaw/core";
+import { addTokenUsage, type CronTask, type CronJobHistory, type LLMTaskOutput } from "@deepclaw/core";
 import { saveToPublic } from '../../loop-utils';
 import { CRON_DIR, CRON_HISTORY_JSONL, CRON_OUTPUT_DIR, CRON_TASK_JSON } from '../../paths';
-import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
+import { FileUtils, UpdateContent, getLogger } from '@deepclaw/node-utils';
 import { randomUUID } from 'node:crypto';
-import { getLogger } from '@deepclaw/node-utils';
+import { globalize } from '@deepclaw/utils';
 
 const logger = getLogger('CronService');
 
@@ -15,15 +15,15 @@ export type CronScheduledJob = {
     running: boolean;
 }
 
-export class CronService {
+class CronServiceImpl {
     private static subscribers: ((task: UpdateContent<CronTask>) => void)[] = [];
-    private static cronTasks: Record<string, CronTask> = {};
-    private static cronScheduledJob: Record<string, CronScheduledJob> = {};
+    private static cronTasks: Record<string, CronTask>;
+    private static cronScheduledJob: Record<string, CronScheduledJob>;
 
-    static {this.loadCronTasks();}
-
-    private static loadCronTasks(): void {
-        if (!FileUtils.exists(CRON_DIR)) return;
+    public static loadCronTasks(): void {
+        if (!FileUtils.exists(CRON_DIR) || !!this.cronTasks) return;
+        this.cronTasks = {};
+        this.cronScheduledJob = {};
         const cronTaskFiles = FileUtils.readDir(CRON_DIR, dir => `${dir}/${CRON_TASK_JSON}`);
         for (const {dir, content} of Object.values(cronTaskFiles)) {
             try {
@@ -102,7 +102,7 @@ export class CronService {
             onInfoEvent: () => {}
         });
         const history: CronJobHistory = {
-            start: new Date().toISOString(),
+            start: Date.now(),
             usage: {
                 cachedInputTokens: 0,
                 noCachedInputTokens: 0,
@@ -110,7 +110,7 @@ export class CronService {
             },
         };
         cronTask.histories.push(history);
-        cronTask.lastRun = history.start;
+        cronTask.lastRun = new Date(history.start).toISOString();
         cronTask.nextRun = job.job.nextDate().toISO() || '';
         this.saveTask(cronTask);
         this.notify({
@@ -131,7 +131,7 @@ export class CronService {
             history.success = false;
             history.finalText = text;
         }
-        history.completed = new Date().toISOString();
+        history.completed = Date.now();
         this.notify({
             id: cronTask.id,
             usage: cronTask.usage,
@@ -149,7 +149,27 @@ export class CronService {
         }
     }
 
-    public static updateCronOutput(id: string, output: Task['output']): void {
+    public static updateCronTask(updateTask: {id: string; title?: string, cron?: string; prompt?: string}): CronTask {
+        const task = this.getCronTask(updateTask.id);
+        Object.assign(task, Object.fromEntries(
+            Object.entries(updateTask).filter(([k, v]) => k !== 'id' && !!v)
+        ));
+
+        if (updateTask.cron || updateTask.prompt) {
+            this.stopCronJob(task.id);
+            this.scheduleCronTask(task);
+        }
+        this.notify({
+            id: task.id,
+            title: task.title,
+            cron: task.cron,
+            prompt: task.prompt
+        });
+        this.saveTask(task);
+        return task;
+    }
+
+    public static updateCronOutput(id: string, output: LLMTaskOutput): void {
         const cronTask = this.getCronTask(id);
         const history = cronTask.histories[cronTask.histories.length - 1];
         if (!history) {
@@ -159,12 +179,8 @@ export class CronService {
             throw new Error('Cron task already completed.');
         }
         history.output = output;
-        this.notify({
-            id: cronTask.id,
-            histories: cronTask.histories.slice(-MAX_DISPLAY_HISTORIES),
-        });
         if (output) {
-            saveToPublic(id, output, cronTask.title, CRON_OUTPUT_DIR);
+            saveToPublic(id, output, `${FileUtils.hashString(cronTask.title)}/${history.start}`, CRON_OUTPUT_DIR);
         }
     }
 
@@ -172,10 +188,7 @@ export class CronService {
         const job = this.cronScheduledJob[id];
         const task = this.getCronTask(id);
         if (close) {
-            if (job) {
-                job.job.stop();
-            }
-            delete this.cronScheduledJob[id];
+            this.stopCronJob(id);
             task.closed = true;
             task.paused = true;
             task.nextRun = undefined;
@@ -183,8 +196,7 @@ export class CronService {
         } else {
             task.paused = pause;
             if (job && pause) {
-                job.job.stop();
-                delete this.cronScheduledJob[id];
+                this.stopCronJob(id);
                 task.nextRun = undefined;
             } else if (!pause && !job) {
                 this.scheduleCronTask(task);
@@ -197,6 +209,14 @@ export class CronService {
             closed: task.closed,
             nextRun: task.nextRun,
         });
+    }
+
+    private static stopCronJob(id: string) {
+        const job = this.cronScheduledJob[id];
+        if (job) {
+            job.job.stop();
+        }
+        delete this.cronScheduledJob[id];
     }
 
     private static getCronTask(id: string): CronTask {
@@ -249,3 +269,6 @@ export class CronService {
     }
 
 }
+
+export const CronService = globalize('CronService', CronServiceImpl);
+CronService.loadCronTasks();

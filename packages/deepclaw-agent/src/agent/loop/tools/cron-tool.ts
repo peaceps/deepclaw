@@ -1,4 +1,4 @@
-import { Task } from "@deepclaw/core";
+import type { LLMTaskOutput } from "@deepclaw/core";
 import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
@@ -35,9 +35,42 @@ ${JSON.stringify(CronService.getCronTaskDetail(cronTask.id))}`;
     },
 }
 
+type UpdateCronTaskInput = {
+    id: string;
+    title?: string;
+    cron?: string;
+    prompt?: string;
+}
+
+export const updateCronTaskTool: ToolDesc<UpdateCronTaskInput> = {
+    tool: {
+        name: 'update_cron_task',
+        description: 'Update an existing cron task',
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                id: {type: 'string', description: 'The id of the cron task'},
+                title: {type: 'string', description: 'The title of the cron task'},
+                cron: {type: 'string', description: 'The cron expression of the cron task, e.g. "0 0 * * *" for daily at midnight'},
+                prompt: {type: 'string', description: 'The prompt of the cron task'},
+            },
+            required: ['id'],
+        },
+    },
+    parallelSafe: false,
+    agentMode: ['agent'],
+    exclusiveInSubLoop: true,
+    invoke: async function(input: UpdateCronTaskInput): Promise<string> {
+        const cronTask = CronService.updateCronTask(input);
+        return `Cron task updated successfully, here\'s the detail:
+${JSON.stringify(CronService.getCronTaskDetail(cronTask.id))}`;
+    },
+}
+
 type UpdateCronOutputInput = {
     id: string;
-    output: Task['output'];
+    output: LLMTaskOutput;
 };
 
 export const updateCronOutputTool: ToolDesc<UpdateCronOutputInput> = {

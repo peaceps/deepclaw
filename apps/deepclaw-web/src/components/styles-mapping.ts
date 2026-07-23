@@ -1,4 +1,4 @@
-import type { Project, MissionStatus, AgentEmployee, AgentStatus, ChatMessage} from "@deepclaw/core";
+import type { Project, MissionStatus, AgentEmployee, AgentStatus, ChatMessage, MissionPriority} from "@deepclaw/core";
 import { getProjectStatus } from "@deepclaw/core";
 
 export const avatarBG = 'bg-gradient-to-br from-amber-300 to-sky-300';
@@ -27,7 +27,7 @@ export const statusColors: Record<AgentStatus, string> = {
     fired: 'bg-gray-400',
 };
 
-export const priorityStyles: Record<Project['priority'], string> = {
+export const priorityStyles: Record<MissionPriority, string> = {
     urgent: 'bg-red-100 text-red-700',
     high: 'bg-orange-100 text-orange-700',
     medium: 'bg-blue-100 text-blue-700',

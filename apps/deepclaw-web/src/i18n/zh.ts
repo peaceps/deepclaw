@@ -147,12 +147,6 @@ export const zh = {
                             off: '未验证',
                         }
                     },
-                    output: {
-                        title: '任务报告',
-                        download: '下载任务报告',
-                        view: '查看任务报告',
-                        fetchFailed: '文件获取失败。',
-                    }
                 }
             },
             chat: {
@@ -192,6 +186,12 @@ export const zh = {
                 cachedInput: '输入（缓存命中）',
                 noCachedInput: '输入（缓存未命中）',
                 output: '输出'
+            },
+            output: {
+                title: '任务报告',
+                download: '下载报告',
+                view: '查看报告',
+                fetchFailed: '文件获取失败。',
             },
             cron: {
                 tip: '提示：可以直接和 Agent 聊天来创建定时任务，告诉它要执行什么以及执行周期即可。',

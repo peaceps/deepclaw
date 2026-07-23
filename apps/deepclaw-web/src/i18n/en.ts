@@ -147,12 +147,6 @@ export const en = {
                             off: 'Not verified',
                         }
                     },
-                    output: {
-                        title: 'Task report',
-                        download: 'Download task report',
-                        view: 'View task report',
-                        fetchFailed: 'File fetch failed.',
-                    }
                 }
             },
             chat: {
@@ -182,6 +176,12 @@ export const en = {
                 cachedInput: 'Cached input',
                 noCachedInput: 'No cached input',
                 output: 'Output'
+            },
+            output: {
+                title: 'Task report',
+                download: 'Download report',
+                view: 'View report',
+                fetchFailed: 'File fetch failed.',
             },
             skills: {
                 columns: {

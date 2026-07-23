@@ -23,6 +23,7 @@
         "@deepclaw/core": "workspace:*",
         "@deepclaw/i18n": "workspace:*",
         "@deepclaw/node-utils": "workspace:*",
+        "@deepclaw/utils": "workspace:*",
         "cron": "4.4.0",
         "gray-matter": "4.0.3",
         "openai": "6.36.0"

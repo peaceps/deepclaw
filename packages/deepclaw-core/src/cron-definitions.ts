@@ -1,10 +1,10 @@
 import type { TokenUsage } from "./agent-definitions";
-import type { Task } from "./project-definitions";
+import type { LLMTaskOutput } from "./flush-agent-types";
 
 export type CronJobHistory = {
-    start: string;
-    completed?: string;
-    output?: Task['output'];
+    start: number;
+    completed?: number;
+    output?: LLMTaskOutput;
     usage: TokenUsage;
     finalText?: string;
     success?: boolean;

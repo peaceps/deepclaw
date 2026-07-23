@@ -232,6 +232,9 @@ importers:
       '@deepclaw/node-utils':
         specifier: workspace:*
         version: link:../deepclaw-node-utils
+      '@deepclaw/utils':
+        specifier: workspace:*
+        version: link:../deepclaw-utils
       cron:
         specifier: 4.4.0
         version: 4.4.0

@@ -1,17 +1,17 @@
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
-import { PROJECT_CONFIG, type Project, type Task } from "@deepclaw/core";
+import { type LLMTaskOutput, type MissionPriority, type MissionStatus, PROJECT_CONFIG, type Task } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 
 type CreateProjectInput = {
     title: string;
     description: string;
-    priority: Project['priority'];
+    priority: MissionPriority;
     tasks: {
         title: string;
         description: string;
-        priority: Task['priority'];
+        priority: MissionPriority;
         steps?: string[];
         blockedBy?: string[];
     }[];
@@ -115,7 +115,7 @@ ${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
 type CreateSimpleTaskInput = {
     title: string;
     description: string;
-    priority: Task['priority'];
+    priority: MissionPriority;
     steps?: string[];
 };
 
@@ -183,11 +183,11 @@ type UpdateProjectInput = {
     projectId: string;
     title?: string;
     description?: string;
-    priority?: Project['priority'];
+    priority?: MissionPriority;
     tasks?: {
         title: string;
         description: string;
-        priority: Task['priority'];
+        priority: MissionPriority;
         steps?: string[];
         blockedBy?: string[];
     }[];
@@ -288,10 +288,10 @@ ${JSON.stringify(ProjectManager.getProjectDetail(input.projectId))}`;
 type UpdateTaskInput = {
     projectId: string;
     taskTitle: string;
-    status?: Task['status'];
+    status?: MissionStatus;
     steps?: string[];
     assignee?: string;
-    output?: Task['output'];
+    output?: LLMTaskOutput;
 };
 
 export const updateTaskTool: ToolDesc<UpdateTaskInput> = {

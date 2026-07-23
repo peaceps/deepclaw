@@ -1,6 +1,6 @@
 import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { PROJECT_DIR, PROJECT_JSON, PROJECT_TASK_OUTPUT_DIR } from '../../paths';
-import { type Project, type Task, type TaskStepsContext, getProjectStatus, PROJECT_CONFIG } from '@deepclaw/core';
+import { type Project, type Task, type TaskStepsContext, getProjectStatus, MissionPriority, PROJECT_CONFIG } from '@deepclaw/core';
 import { saveToPublic } from '../../loop-utils';
 
 export type ProjectListInfo = {
@@ -14,14 +14,14 @@ type ProjectInitInfo = {
     agentId: string;
     title: string;
     description: string;
-    priority: Project['priority'];
+    priority: MissionPriority;
 }
 
 type TaskInitInfo = {
     agentId: string;
     title: string;
     description: string;
-    priority: Task['priority'];
+    priority: MissionPriority;
     steps?: string[];
     blockedBy?: string[];
 };

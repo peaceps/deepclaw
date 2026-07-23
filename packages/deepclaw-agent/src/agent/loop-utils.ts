@@ -1,11 +1,11 @@
-import { Task } from "@deepclaw/core";
+import type { LLMTaskOutput } from "@deepclaw/core";
 import { FileUtils } from "@deepclaw/node-utils";
 import { PUBLIC } from "./paths";
 
 const OUTPUT_LENGTH_LIMIT = 1500;
 
 export function saveToPublic(
-    id: string, output: NonNullable<Task['output']>, title: string, targetFolder: string
+    id: string, output: NonNullable<LLMTaskOutput>, title: string, targetFolder: string
 ) {
     if (!FileUtils.exists(PUBLIC)) return;
     const outputType = output.type;
@@ -21,7 +21,7 @@ export function saveToPublic(
     }
 }
 
-function getOutputExt(outputType: NonNullable<Task['output']>['type']): string {
+function getOutputExt(outputType: NonNullable<LLMTaskOutput>['type']): string {
     switch (outputType) {
         case 'text':
             return 'txt';

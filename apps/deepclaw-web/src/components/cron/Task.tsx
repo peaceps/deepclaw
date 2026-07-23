@@ -3,12 +3,7 @@ import { Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatDate, translateCron } from '@/components/component-utils';
 import type { CronTask } from '@deepclaw/core';
 import { SupportedLanguage } from '@deepclaw/i18n';
-
-function getStatusStyle(task: CronTask): { color: string; bg: string; labelKey: string } {
-    return !task.paused
-        ? { color: 'text-emerald-600', bg: 'bg-emerald-500', labelKey: 'web.pages.cron.status.running' }
-        : { color: 'text-gray-400', bg: 'bg-gray-400', labelKey: 'web.pages.cron.status.paused' };
-}
+import { TokenUsageIcon } from '@/laf/token-usage';
 
 type TaskProps = {
     task: CronTask;
@@ -18,15 +13,14 @@ type TaskProps = {
 
 export function Task({ task, creator, isExpanded }: TaskProps) {
     const { t, i18n } = useTranslation();
-    const statusCfg = getStatusStyle(task);
     return (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                 <div className="text-gray-400 flex-shrink-0">
                     {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                 </div>
-                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500
-                    to-purple-600 flex items-center justify-center text-white flex-shrink-0`}>
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-300
+                    to-orange-600 flex items-center justify-center text-white flex-shrink-0`}>
                     <Clock size={20} />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -50,10 +44,13 @@ export function Task({ task, creator, isExpanded }: TaskProps) {
                     <div className="text-sm text-gray-700">{formatDate(i18n.language, task.nextRun)}</div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${statusCfg.bg}`} />
-                    <span className={`text-sm font-medium ${statusCfg.color}`}>
-                        {t(statusCfg.labelKey)}
+                    <span className={`w-2 h-2 rounded-full ${!task.paused ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                    <span className={`text-sm font-medium ${!task.paused ? 'text-emerald-600': 'text-gray-400'}`}>
+                        {t(`web.pages.cron.status.${!task.paused ? 'running' : 'paused'}`)}
                     </span>
+                </div>
+                <div className="ml-auto">
+                    <TokenUsageIcon tokenUsage={task.usage} />
                 </div>
             </div>
         </div>

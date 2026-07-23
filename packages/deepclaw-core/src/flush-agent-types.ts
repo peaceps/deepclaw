@@ -89,3 +89,10 @@ export type AgentRuntime = {
     },
     usage: TokenUsage;
 }
+
+export type LLMTaskOutput = {
+    type: 'markdown' | 'text' | 'binary';
+    content: string;
+    path?: string;
+    ext?: string;
+}

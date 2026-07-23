@@ -1,4 +1,7 @@
+import { LLMTaskOutput } from "./flush-agent-types";
+
 export type MissionStatus = 'todo' | 'ongoing' | 'done';
+export type MissionPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export const PROJECT_CONFIG = {
     maxTagCount: 5,
@@ -14,7 +17,7 @@ export type Project = {
     createdAt: string;
     closedAt?: string;
     creator: string;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
+    priority: MissionPriority;
     tags?: string[];
     tasks: Record<string, Task>;
     completedTasks: string[];
@@ -31,17 +34,12 @@ export type Task = {
     title: string;
     description: string;
     status: MissionStatus;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
+    priority: MissionPriority;
     blockedBy: string[];
     blocks: string[];
     assignee?: string;
     closedAt?: string;
-    output?: {
-        type: 'markdown' | 'text' | 'binary';
-        content: string;
-        path?: string;
-        ext?: string;
-    };
+    output?: LLMTaskOutput;
     pause?: boolean;
     verified?: boolean;
     stepsStatus?: TaskStepsContext

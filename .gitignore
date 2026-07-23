@@ -19,6 +19,7 @@ next-env.d.ts
 
 .projects/
 .agents/
+.cron
 
 apps/*/DEEPCLAW.md
 packages/*/DEEPCLAW.md

@@ -1,5 +1,5 @@
 import {
-    AgentAgentInfoEvent, AgentEvent, AgentInfoEvent,
+    AgentAgentInfoEvent, AgentCronInfoEvent, AgentEvent, AgentInfoEvent,
     AgentInteractionEvent, AgentLoopEvent, AgentProjectInfoEvent,
     AgentStreamEvent, ChatMessage,
     TokenUsage
@@ -55,13 +55,16 @@ export function isProjectInfoEvent(event: AgentEvent): event is AgentProjectInfo
 export function isAgentInfoEvent(event: AgentEvent): event is AgentAgentInfoEvent {
     return event.eventType === 'updateAgent';
 }
+export function isCronInfoEvent(event: AgentEvent): event is AgentCronInfoEvent {
+    return event.eventType === 'updateCron';
+}
 
 export function isLoopEvent(event: AgentEvent): event is AgentLoopEvent {
     return isLoopBusyEvent(event) || isLoopStreamEvent(event) || isLoopInteractionEvent(event) || isLoopCancelInteractionEvent(event)
         || isLoopChatEvent(event) || isLoopTokenUsageEvent(event);
 }
 export function isInfoEvent(event: AgentEvent): event is AgentInfoEvent {
-    return isProjectInfoEvent(event) || isAgentInfoEvent(event);
+    return isProjectInfoEvent(event) || isAgentInfoEvent(event) || isCronInfoEvent(event);
 }
 
 export function getClientKey(browserId: string, loopId?: string): string {

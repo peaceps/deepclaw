@@ -3,7 +3,6 @@ import { Play, Pause, Trash2 } from 'lucide-react';
 import type { CronTask } from '@deepclaw/core';
 import { translateCron } from '@/components/component-utils';
 import { SupportedLanguage } from '@deepclaw/i18n';
-import { TokenUsageIcon } from '@/laf/token-usage';
 
 type DetailProps = {
     task: CronTask;
@@ -61,9 +60,6 @@ export function Detail({ task, creator, onToggleStatus, onDelete }: DetailProps)
                         <Trash2 size={14} />
                         {t('web.pages.cron.actions.delete')}
                     </button>
-                    <div className="ml-auto">
-                        <TokenUsageIcon tokenUsage={task.usage} />
-                    </div>
                 </div>
             </div>
         </div>
