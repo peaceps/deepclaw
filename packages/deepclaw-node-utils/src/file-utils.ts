@@ -114,17 +114,22 @@ export class FileUtils {
     }
 
     public static isPathInWorkspace(filePath: string): boolean {
-        let workspacePath = this.getAbsolutePath(this.getWorkingDir());
-        let targetPath = this.getAbsolutePath(filePath);
+        const targetPath = this.getAbsolutePath(filePath);
         if (targetPath.startsWith(this.formatSlash(`${this.getTmpDir()}/`))) {
             return true;
         }
+        return this.isPathInside(this.getWorkingDir(), filePath);
+    }
+
+    public static isPathInside(baseDir: string, targetPath: string): boolean {
+        let base = this.getAbsolutePath(baseDir);
+        let target = this.formatSlash(path.resolve(base, targetPath));
         if (process.platform === 'win32' || process.platform === 'darwin') {
-            workspacePath = workspacePath.toLowerCase();
-            targetPath = targetPath.toLowerCase();
+            base = base.toLowerCase();
+            target = target.toLowerCase();
         }
-        const workspacePrefix = workspacePath.endsWith('/') ? workspacePath : `${workspacePath}/`;
-        return targetPath === workspacePath || targetPath.startsWith(workspacePrefix);
+        const basePrefix = base.endsWith('/') ? base : `${base}/`;
+        return target === base || target.startsWith(basePrefix);
     }
 
     public static copyResource(fromDir: string, targetName: string, toDir: string = ''): void {

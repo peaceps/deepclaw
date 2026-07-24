@@ -61,25 +61,34 @@ export class SkillsManager {
         if (!files.some(file => file.path === SKILL_MD)) {
             throw new Error('Skill manifest file SKILL.md not found.');
         }
+        for (const {path: filePath} of files) {
+            if (!FileUtils.isPathInside(skillDir, filePath)) {
+                throw new Error(`Invalid file path outside the skill folder: ${filePath}`);
+            }
+        }
         let manifest = null;
         try {
-            for (const {path, content} of files) {
-                if (path === SKILL_MD) {
+            for (const {path: filePath, content} of files) {
+                if (filePath === SKILL_MD) {
                     manifest = content;
                 }
-                FileUtils.writeFile(`${skillDir}/${path}`, content);
+                FileUtils.writeFile(`${skillDir}/${filePath}`, content);
             }
         } catch (e) {
             FileUtils.deleteDir(skillDir);
             throw new Error(`Failed to install skill. Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
         }
-        this.parseSkillDocument(manifest!, folder);
+        const registeredName = this.parseSkillDocument(manifest!, folder);
+        if (!registeredName) {
+            FileUtils.deleteDir(skillDir);
+            throw new Error('Invalid SKILL.md: frontmatter must define both "name" and "description".');
+        }
     }
 
-    private static parseSkillDocument(fileContent: string, dir: string): void {
+    private static parseSkillDocument(fileContent: string, dir: string): string | undefined {
         const {data, content} = matter(fileContent.replace(/\r\n/g, '\n'));
         if (!data['name'] || !data['description']) {
-            return;
+            return undefined;
         }
 
         const skill: SkillDocument = {
@@ -102,6 +111,7 @@ export class SkillsManager {
         }
 
         this.skills.set(skill.manifest.name, skill);
+        return skill.manifest.name;
     }
 
     public static generateSkillPrompt(agentId: string): string {

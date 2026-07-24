@@ -1,7 +1,7 @@
 import { LLMTool, ToolDesc } from '../../definitions/tool-definitions';
 import {syncCommandTool} from '../tools/sync-command-tool';
 import {subLoopTool} from '../tools/sub-loop-tool';
-import {loadSkillTool, refreshSkillTool, deleteSkillTool} from '../tools/skill-tool';
+import {loadSkillTool, refreshSkillTool, deleteSkillTool, createSkillTool} from '../tools/skill-tool';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool';
 import {
     runBackgroundCommandTool,
@@ -20,6 +20,7 @@ const tools: ToolDesc<any>[] = [
     subLoopTool,
     loadSkillTool,
     refreshSkillTool,
+    createSkillTool,
     deleteSkillTool,
     base64Tool,
     readFileTool,
