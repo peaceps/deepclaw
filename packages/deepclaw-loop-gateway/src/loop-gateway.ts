@@ -12,7 +12,7 @@ import type {
 import {
     getLoopId, isInternalInterruptReason, newMessage, splitLoopId, type CronTask
 } from "@deepclaw/core";
-import { globalize } from "@deepclaw/utils";
+import { globalize, UpdateContent } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent, SkillsManager,
     type SkillInfo, SessionService, CronService,
@@ -271,14 +271,9 @@ class LoopGatewayImpl {
         return newAgent;
     }
 
-    public static updateAgentIdentity(id: string, identity: Partial<AgentIdentity>): void {
-        AgentIdentityManager.updateAgentIdentity(id, identity);
-        this.fireSSEEvent({ eventType: 'updateAgent', content: { id, ...identity } });
-    }
-
-    public static updateAgentDescription(id: string, description: string): void {
-        AgentIdentityManager.updateAgentDescription(id, description);
-        this.fireSSEEvent({ eventType: 'updateAgent', content: { id, description } });
+    public static updateAgentIdentity(identity: UpdateContent<AgentIdentity>): void {
+        AgentIdentityManager.updateAgentIdentity(identity);
+        this.fireSSEEvent({ eventType: 'updateAgent', content: identity });
     }
 
     public static updateProjectTags(projectId: string, tags: string[]): void {
@@ -286,8 +281,8 @@ class LoopGatewayImpl {
         this.fireSSEEvent({ eventType: 'updateProject', content: { id: projectId, tags } });
     }
 
-    public static updateProjectTask(projectId: string, taskTitle: string, task: Partial<Task>): void {
-        ProjectManager.updateTask(projectId, {...task, title: taskTitle});
+    public static updateProjectTask(projectId: string, task: UpdateContent<Task, 'title'>): void {
+        ProjectManager.updateTask(projectId, task);
         this.fireSSEEvent({ eventType: 'updateProject', content: {
             id: projectId, tasks: ProjectManager.getProjectDetail(projectId).tasks
         }});

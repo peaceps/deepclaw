@@ -2,23 +2,20 @@
 
 import type { Task, CronTask, AgentSoulIdentity } from "@deepclaw/core";
 import { LoopGateway, type SkillInfo } from "@deepclaw/loop-gateway";
+import { UpdateContent } from "@deepclaw/utils";
 import { revalidatePath } from "next/cache";
 
-export async function updateAgentIdentity(id: string, identity: Partial<AgentSoulIdentity> | string): Promise<void> {
+export async function updateAgentIdentity(identity: UpdateContent<AgentSoulIdentity>): Promise<void> {
     try {
-      if (typeof identity === 'string') {
-          LoopGateway.updateAgentDescription(id, identity);
-      } else {
-          if (identity.avatar && identity.avatar.length > 16) {
-              throw new Error('Invalid avatar');
-          }
-          LoopGateway.updateAgentIdentity(id, identity);
-      }
-      revalidatePath('/', 'layout');
+        if (identity.avatar && identity.avatar.length > 16) {
+            throw new Error('Invalid avatar');
+        }
+        LoopGateway.updateAgentIdentity(identity);
+        revalidatePath('/', 'layout');
     } catch (error) {
-      // TODO Handle error revert UI
-      console.error('Error saving agent identity:', error);
-      throw error;
+        // TODO Handle error revert UI
+        console.error('Error saving agent identity:', error);
+        throw error;
     }
 }
 
@@ -33,10 +30,10 @@ export async function updateProjectTags(projectId: string, tags: string[]): Prom
 }
 
 export async function updateProjectTask(
-    projectId: string, taskTitle: string, task: Pick<Task, 'pause' | 'verified'>
+    projectId: string, task: UpdateContent<Task, 'title'>
 ): Promise<void> {
     try {
-        LoopGateway.updateProjectTask(projectId, taskTitle, task);
+        LoopGateway.updateProjectTask(projectId, task);
         revalidatePath('/', 'layout');
     } catch (error) {
         console.error('Error saving project task:', error);

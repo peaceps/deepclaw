@@ -32,18 +32,18 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
 
   const handlePauseClick = useCallback(() => {
     const next = !task.pause;
-    updateProjectTask(projectId, task.title, { pause: next });
-    updateProjectTaskToServer(projectId, task.title, { pause: next }).catch(() => {
-      updateProjectTask(projectId, task.title, { pause: !next });
+    updateProjectTask(projectId, { title: task.title, pause: next });
+    updateProjectTaskToServer(projectId, { title: task.title, pause: next }).catch(() => {
+      updateProjectTask(projectId, { title: task.title, pause: !next });
     });
   }, [projectId, task.title, task.pause, updateProjectTask]);
 
   const handleVerifiedClick = useCallback(() => {
     if (!task.pause || task.status !== 'ongoing') return;
     const next = !task.verified;
-    updateProjectTask(projectId, task.title, { verified: next });
-    updateProjectTaskToServer(projectId, task.title, { verified: next }).catch(() => {
-      updateProjectTask(projectId, task.title, { verified: !next });
+    updateProjectTask(projectId, { title: task.title, verified: next });
+    updateProjectTaskToServer(projectId, { title: task.title, verified: next }).catch(() => {
+      updateProjectTask(projectId, { title: task.title, verified: !next });
     });
   }, [projectId, task.title, task.verified, task.pause, task.status, updateProjectTask]);
 

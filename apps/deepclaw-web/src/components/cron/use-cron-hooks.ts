@@ -5,6 +5,7 @@ import { useSSEClient } from "../layout/SSEProvider";
 import { AgentCronInfoEvent, CronTask } from "@deepclaw/core";
 import { useEffect, useState } from "react";
 import { updateCronTaskStatus } from "@/server/data";
+import { handleUpdatedArrayContent } from "../component-utils";
 
 export function useSSEConnection(
     setTasks: React.Dispatch<React.SetStateAction<CronTask[]>>,
@@ -19,18 +20,7 @@ export function useSSEConnection(
             INFO_SSE_URL,
             'updateCron',
             ({content}) => {
-                setTasks(prev => {
-                    const exists = prev.some(t => t.id === content.id);
-                    if (exists) {
-                        if (content.closed) {
-                            return prev.filter(t => t.id !== content.id);
-                        } else {
-                            return prev.map(t => t.id === content.id ? { ...t, ...content } : t);
-                        }
-                    } else {
-                        return [...prev, content as CronTask];
-                    }
-                });
+                setTasks(prev => handleUpdatedArrayContent(prev, content, !!content.closed));
             },
           ),
         ];

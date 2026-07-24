@@ -1,7 +1,7 @@
 import { AgentSoulIdentity, AgentIdentity } from '@deepclaw/core';
 import { AgentsConfig, loadAgentConfig, loadConfig} from '@deepclaw/config';
 import { i18nInstance, parseArrayI18n } from '@deepclaw/i18n';
-import { FileUtils } from '@deepclaw/node-utils';
+import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { AGENTS_DIR, AGENT_MD, AGENT_SOUL_JSON } from '../../paths';
 
 export class AgentIdentityManager {
@@ -72,15 +72,19 @@ export class AgentIdentityManager {
         return identity;
     }
 
-    public static updateAgentIdentity(id: string, identity: Partial<AgentIdentity>): void {
+    public static updateAgentIdentity(identity: UpdateContent<AgentIdentity>): void {
+        const {id, description, ...rest} = identity;
         const current = this.agentMap.get(id);
         if (!current) {
             throw new Error(`Agent "${id}" not found`);
         }
-        Object.assign(current, identity);
+        if (description !== undefined) {
+            this.updateAgentDescription(id, description ?? '');
+        }
+        Object.assign(current, rest);
         this.agentMap.set(id, current);
-        if ('avatar' in identity || 'role' in identity || 'personalities' in identity
-            || 'emotion' in identity || 'expertises' in identity) {
+        if ('avatar' in rest || 'role' in rest || 'personalities' in rest
+            || 'emotion' in rest || 'expertises' in rest) {
             const soul: AgentSoulIdentity = {
                 id: current.id,
                 avatar: current.avatar,
@@ -93,7 +97,7 @@ export class AgentIdentityManager {
         }
     }
 
-    public static updateAgentDescription(id: string, description: string): void {
+    private static updateAgentDescription(id: string, description: string): void {
         const current = this.agentMap.get(id);
         if (!current) {
             throw new Error(`Agent "${id}" not found`);

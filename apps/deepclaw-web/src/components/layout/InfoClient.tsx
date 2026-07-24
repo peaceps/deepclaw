@@ -42,7 +42,7 @@ export function InfoClient() {
         INFO_SSE_URL,
         'updateAgent',
         ({content}) => {
-          updateAgentEmployee(content.id, content);
+          updateAgentEmployee({...content});
         },
       ),
       sseClient.subscribe<SSEToastEvent>(

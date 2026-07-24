@@ -13,6 +13,7 @@ import { AgentDetailDescription } from './AgentDetailDescription';
 import { useCallback } from 'react';
 import { updateAgentIdentity } from "@/server/data";
 import { useAppStore } from '@/lib/store';
+import { UpdateContent } from '@deepclaw/utils';
 
 export function AgentDetail({agent}: {
     agent?: AgentEmployee;
@@ -20,9 +21,9 @@ export function AgentDetail({agent}: {
   const {t} = useTranslation();
   const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
 
-  const onAgentUpdate = useCallback((agentId: string, patch: Partial<AgentSoulIdentity> | string) => {
-    updateAgentEmployee(agentId, typeof patch === 'string' ? { description: patch } : patch);
-    updateAgentIdentity(agentId, patch).catch(() => {
+  const onAgentUpdate = useCallback((patch: UpdateContent<AgentSoulIdentity>) => {
+    updateAgentEmployee(patch);
+    updateAgentIdentity(patch).catch(() => {
         // TODO handle fallback
     });
   }, [updateAgentEmployee]);

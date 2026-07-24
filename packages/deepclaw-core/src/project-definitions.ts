@@ -1,4 +1,4 @@
-import { LLMTaskOutput } from "./flush-agent-types";
+import type { LLMTaskOutput } from "./flush-agent-types";
 
 export type MissionStatus = 'todo' | 'ongoing' | 'done';
 export type MissionPriority = 'low' | 'medium' | 'high' | 'urgent';

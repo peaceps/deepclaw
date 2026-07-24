@@ -3,6 +3,7 @@ import { ProjectManager } from "../services/project-manager";
 import { type LLMTaskOutput, type MissionPriority, type MissionStatus, PROJECT_CONFIG, type Task } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
+import { UpdateContent } from "@deepclaw/utils";
 
 type CreateProjectInput = {
     title: string;
@@ -350,7 +351,7 @@ and the file path will be set into the path field.`
     parallelSafe: false,
     exclusiveInSubLoop: false,
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
-        const taskInfo: Partial<Task> & {title: string} = {title: input.taskTitle};
+        const taskInfo: UpdateContent<Task, 'title'> = {title: input.taskTitle};
         if (input.assignee) taskInfo.assignee = input.assignee;
         if (input.status) taskInfo.status = input.status;
         if (input.output) taskInfo.output = input.output;

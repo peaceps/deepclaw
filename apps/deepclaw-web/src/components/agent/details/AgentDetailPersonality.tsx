@@ -6,17 +6,18 @@ import { Heart } from "lucide-react";
 import { DeepSwitch } from "@/laf/deep-switch";
 import { useCallback } from "react";
 import { EditableLabels } from "@/laf/editable-labels";
+import { UpdateContent } from "@deepclaw/utils";
 
 export function AgentDetailPersonality({ agent, onUpdate }: {
-    agent: AgentEmployee; onUpdate: (id: string, patch: Partial<AgentSoulIdentity>) => void 
+    agent: AgentEmployee; onUpdate: (patch: UpdateContent<AgentSoulIdentity>) => void 
 }) {
     const onEmotionSwitch = useCallback(() => {
       const next = !agent.emotion;
-      onUpdate(agent.id, { emotion: next });
+      onUpdate({id: agent.id, emotion: next });
     }, [agent, onUpdate]);
 
     const onPersonalitiesChange = useCallback((list: string[]) => {
-      onUpdate(agent.id, { personalities: list });
+      onUpdate({id: agent.id, personalities: list });
     }, [onUpdate, agent.id]);
 
     return (

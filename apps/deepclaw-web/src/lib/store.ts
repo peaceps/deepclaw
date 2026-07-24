@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { Project, AgentEmployee, AgentStatus, AgentProjectStats, Task, ChatMessage } from '@deepclaw/core';
 import { getProjectStatus } from '@deepclaw/core';
+import { UpdateContent } from '@deepclaw/utils';
+import { handleUpdatedArrayContent, handleUpdateRecordContent } from '@/components/component-utils';
 
 export type AgentSummary = {
   status: AgentStatus;
@@ -38,11 +40,11 @@ type AppState = {
   getAgents: () => AgentEmployee[];
   getAgentById: (id: string) => AgentEmployee | undefined;
   setAgents: (agents: AgentEmployee[]) => void;
-  updateAgentEmployee: (id: string, employee: Partial<AgentEmployee>) => void;
+  updateAgentEmployee: (employee: UpdateContent<AgentEmployee>) => void;
   getProjects: () => Project[];
   setProjects: (projects: Project[]) => void;
-  updateProject: (project: Partial<Project> & { id: string }) => void;
-  updateProjectTask: (projectId: string, taskTitle: string, task: Partial<Task>) => void;
+  updateProject: (project: UpdateContent<Project>) => void;
+  updateProjectTask: (projectId: string, task: UpdateContent<Task, 'title'>) => void;
   addPulledMessages: (loopId: string, messages: ChatMessage[], head?: boolean) => void;
   addMessage: (loopId: string, message: ChatMessage) => void;
   getMessageById: (loopId: string, id: string) => ChatMessage | undefined;
@@ -70,40 +72,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ agents, activeAgents: agents.filter(a => !a.fired) });
     selectFirstActiveAgent(get, set);
   },
-  updateAgentEmployee: (id: string, employee: Partial<AgentEmployee>) => {
+  updateAgentEmployee: (employee: UpdateContent<AgentEmployee>) => {
     set((state) => {
-        const exists = state.agents.some(a => a.id === id);
-        const agents = exists ? state.agents.map(a => a.id === id ? { ...a, ...employee } : a)
-          : [...state.agents, { id, ...employee } as AgentEmployee];
+        const agents = handleUpdatedArrayContent(state.agents, employee);
         const activeAgents = agents.filter(a => !a.fired);
         return { agents, activeAgents };
     });
   },
   getProjects: () => get().projects,
   setProjects: (projects) => set({ projects }),
-  updateProject: (project: Partial<Project> & { id: string }): void => {
-    set((state) => {
-      const exists = state.projects.some(p => p.id === project.id);
-      return {
-        projects: exists
-          ? state.projects.map(p => p.id === project.id ? { ...p, ...project } : p)
-          : [...state.projects, project as Project],
-      };
-    });
+  updateProject: (project: UpdateContent<Project>): void => {
+    set((state) => ({ projects: handleUpdatedArrayContent(state.projects, project) }));
   },
-  updateProjectTask: (projectId: string, taskTitle: string, data: Partial<Task>): void => {
+  updateProjectTask: (projectId: string, data: UpdateContent<Task, 'title'>): void => {
     set((state) => {
       const project = state.projects.find(p => p.id === projectId);
       if (!project) {
         throw new Error('Project not found.');
       }
+      const taskTitle = data.title;
       const task = project.tasks[taskTitle];
       if (!task) {
         throw new Error('Task not found.');
       }
       return { projects: state.projects.map(p => p.id === projectId ? {
         ...project,
-        tasks: {...project.tasks, [taskTitle]: { ...task, ...data }},
+        tasks: handleUpdateRecordContent(project.tasks, { ...data, title: taskTitle }, false, 'title'),
       } : p) };
     });
   },

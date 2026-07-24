@@ -142,7 +142,7 @@ export class ProjectManager {
     }
 
     public static updateTask(
-        projectId: string, taskInfo: Partial<Task> & {title: string}, steps?: string[]
+        projectId: string, taskInfo: UpdateContent<Task, 'title'>, steps?: string[]
     ): {task: Task, stop: boolean} {
         let task: Task | undefined;
         if (steps?.length && steps?.length > PROJECT_CONFIG.maxTaskStepsCount) {

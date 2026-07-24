@@ -197,7 +197,7 @@ export const zh = {
                 tip: '提示：可以直接和 Agent 聊天来创建定时任务，告诉它要执行什么以及执行周期即可。',
                 empty: '暂无定时任务',
                 status: {
-                    running: '运行中',
+                    running: '计划中',
                     paused: '已暂停',
                 },
                 creator: '创建人',
@@ -211,9 +211,8 @@ export const zh = {
                     delete: '删除',
                 },
                 history: {
-                    title: '执行历史',
+                    title: '执行历史（最新10条）',
                     empty: '暂无执行记录',
-                    report: '执行报告',
                 },
             },
             settings: {

@@ -4,11 +4,12 @@ import { InfoCard } from '@/laf/info-card';
 import { Pencil, User } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AgentEmployee } from '@deepclaw/core';
+import { AgentEmployee, AgentIdentity } from '@deepclaw/core';
+import { UpdateContent } from '@deepclaw/utils';
 
 interface AgentDetailDescriptionProps {
   agent: AgentEmployee;
-  onUpdate: (id: string, description: string) => void;
+  onUpdate: (patch: UpdateContent<AgentIdentity>) => void;
 }
 
 export function AgentDetailDescription({ agent, onUpdate }: AgentDetailDescriptionProps) {
@@ -27,7 +28,7 @@ export function AgentDetailDescription({ agent, onUpdate }: AgentDetailDescripti
     setValue(trimmed);
     setEditing(false);
     if (trimmed !== agent.description) {
-      onUpdate(agent.id, trimmed);
+      onUpdate({ id: agent.id, description: trimmed });
     }
   }, [editing, value, onUpdate, agent]);
 

@@ -18,7 +18,7 @@ export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
   updateConfig(merged);
   for (const agent of config.agents) {
     if (currentAgents.some(current => current.id === agent.id)) {
-        LoopGateway.updateAgentIdentity(agent.id, { name: agent.name, fired: !!agent.fired });
+        LoopGateway.updateAgentIdentity({id: agent.id, name: agent.name, fired: !!agent.fired });
     } else {
         LoopGateway.newAgentIdentity(agent.id);
     }

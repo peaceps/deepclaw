@@ -6,12 +6,11 @@ import { SupportedLanguage } from '@deepclaw/i18n';
 
 type DetailProps = {
     task: CronTask;
-    creator: string;
     onToggleStatus: () => void;
     onDelete: () => void;
 };
 
-export function Detail({ task, creator, onToggleStatus, onDelete }: DetailProps) {
+export function Detail({ task, onToggleStatus, onDelete }: DetailProps) {
     const { t, i18n } = useTranslation();
     return (
         <div className="lg:w-2/5 p-6 border-b lg:border-b-0 lg:border-r border-gray-200 bg-gray-50/50">
@@ -24,12 +23,6 @@ export function Detail({ task, creator, onToggleStatus, onDelete }: DetailProps)
                         {translateCron(i18n.language as SupportedLanguage, task.cron)}
                     </div>
                     <div className="text-xs text-gray-400 font-mono mt-0.5">{task.cron}</div>
-                </div>
-                <div>
-                    <div className="text-xs font-medium text-gray-500 mb-1">
-                        {t('web.pages.cron.creator')}
-                    </div>
-                    <div className="text-sm text-gray-800">{creator}</div>
                 </div>
                 <div>
                     <div className="text-xs font-medium text-gray-500 mb-1">

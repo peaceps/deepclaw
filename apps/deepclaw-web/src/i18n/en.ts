@@ -197,7 +197,7 @@ export const en = {
                 tip: 'Tip: you can create scheduled tasks by chatting with an agent - just tell it what to run and when.',
                 empty: 'No scheduled tasks',
                 status: {
-                    running: 'Running',
+                    running: 'Scheduled',
                     paused: 'Paused',
                 },
                 creator: 'Creator',
@@ -211,9 +211,8 @@ export const en = {
                     delete: 'Delete',
                 },
                 history: {
-                    title: 'Execution History',
+                    title: 'Execution History (latest 10)',
                     empty: 'No executions yet',
-                    report: 'Execution Report',
                 },
             },
             settings: {

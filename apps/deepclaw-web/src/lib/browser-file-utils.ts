@@ -1,4 +1,3 @@
-
 export async function fetchFile(path: string): Promise<string> {
     const response = await fetch(path);
     if (!response.ok) {

@@ -14,7 +14,7 @@ type CollapseTaskProps = {
 
 export function CollapseTask({ task, isExpanded, onToggle, onToggleStatus, onDelete }: CollapseTaskProps) {
     const getAgentById = useAppStore(s => s.getAgentById);
-    const creator = getAgentById(task.creator)?.name || '';
+    const agent = getAgentById(task.creator);
 
     return (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -22,12 +22,12 @@ export function CollapseTask({ task, isExpanded, onToggle, onToggleStatus, onDel
                 onClick={onToggle}
                 className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
             >
-                <Task task={task} creator={creator} isExpanded={isExpanded} />
+                <Task task={task} agent={agent} isExpanded={isExpanded} />
             </div>
             {isExpanded && (
                 <div className="flex flex-col lg:flex-row border-t border-gray-200">
-                    <Detail task={task} creator={creator} onToggleStatus={onToggleStatus} onDelete={onDelete} />
-                    <Histories task={task} creator={creator} />
+                    <Detail task={task} onToggleStatus={onToggleStatus} onDelete={onDelete} />
+                    <Histories task={task} />
                 </div>
             )}
         </div>

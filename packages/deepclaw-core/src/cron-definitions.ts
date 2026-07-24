@@ -7,7 +7,7 @@ export type CronJobHistory = {
     output?: LLMTaskOutput;
     usage: TokenUsage;
     finalText?: string;
-    success?: boolean;
+    status: 'running' | 'success' | 'failed';
 }
 
 export type CronTask = {

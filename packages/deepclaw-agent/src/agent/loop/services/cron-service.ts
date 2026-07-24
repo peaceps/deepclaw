@@ -21,9 +21,12 @@ class CronServiceImpl {
     private static cronScheduledJob: Record<string, CronScheduledJob>;
 
     public static loadCronTasks(): void {
-        if (!FileUtils.exists(CRON_DIR) || !!this.cronTasks) return;
+        if (!!this.cronTasks) return;
         this.cronTasks = {};
         this.cronScheduledJob = {};
+        if (!FileUtils.exists(CRON_DIR)) {
+            return;
+        }
         const cronTaskFiles = FileUtils.readDir(CRON_DIR, dir => `${dir}/${CRON_TASK_JSON}`);
         for (const {dir, content} of Object.values(cronTaskFiles)) {
             try {
@@ -103,6 +106,7 @@ class CronServiceImpl {
         });
         const history: CronJobHistory = {
             start: Date.now(),
+            status: 'running',
             usage: {
                 cachedInputTokens: 0,
                 noCachedInputTokens: 0,
@@ -125,10 +129,10 @@ class CronServiceImpl {
             history.finalText = text;
             addTokenUsage(history.usage, runtime.usage);
             addTokenUsage(cronTask.usage, history.usage);
-            history.success = runtime.transitionReason !== 'error';
+            history.status = runtime.transitionReason === 'error' ? 'failed' : 'success';
         } catch (error) {
             const text = `Failed to run cron task ${cronTask.id}: ${error}`;
-            history.success = false;
+            history.status = 'failed';
             history.finalText = text;
         }
         history.completed = Date.now();
@@ -151,11 +155,14 @@ class CronServiceImpl {
 
     public static updateCronTask(updateTask: {id: string; title?: string, cron?: string; prompt?: string}): CronTask {
         const task = this.getCronTask(updateTask.id);
+        if (task.closed) {
+            throw new Error(`Cannot update a closed task ${task.title}`);
+        }
         Object.assign(task, Object.fromEntries(
             Object.entries(updateTask).filter(([k, v]) => k !== 'id' && !!v)
         ));
 
-        if (updateTask.cron || updateTask.prompt) {
+        if (!task.paused && (updateTask.cron || updateTask.prompt)) {
             this.stopCronJob(task.id);
             this.scheduleCronTask(task);
         }
@@ -195,10 +202,10 @@ class CronServiceImpl {
             delete this.cronTasks[id];
         } else {
             task.paused = pause;
-            if (job && pause) {
+            if (pause) {
                 this.stopCronJob(id);
                 task.nextRun = undefined;
-            } else if (!pause && !job) {
+            } else if (!job) {
                 this.scheduleCronTask(task);
             }
         }
@@ -263,8 +270,14 @@ class CronServiceImpl {
     }
 
     private static notify(task: UpdateContent<CronTask>): void {
+        const record = {...task} as Record<string, unknown>;
+        for (const key of Object.keys(task)) {
+            if (task[key as keyof CronTask] === undefined) {
+                record[key] = null;
+            }
+        }
         for (const subscriber of this.subscribers) {
-            subscriber(task);
+            subscriber(record as UpdateContent<CronTask>);
         }
     }
 

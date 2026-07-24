@@ -6,10 +6,11 @@ import { avatarBG, moodEmojis, statusColors } from "../../styles-mapping";
 import { EmojiPicker } from "@/laf/emoji-picker";
 import { deriveAgentSummary, useAppStore } from "@/lib/store";
 import { AgentActionMenu } from "../AgentActionMenu";
+import { UpdateContent } from "@deepclaw/utils";
 
 export function AgentHeader({ agent, onUpdate }: {
     agent: AgentEmployee;
-    onUpdate: (id: string, patch: Partial<AgentSoulIdentity>) => void;
+    onUpdate: (patch: UpdateContent<AgentSoulIdentity>) => void;
 }) {
     const {t} = useTranslation();
     const projects = useAppStore(s => s.projects);
@@ -18,7 +19,7 @@ export function AgentHeader({ agent, onUpdate }: {
     const [roleDraft, setRoleDraft] = useState(agent.role);
 
     const onAvatarSelect = useCallback((avatar: string) => {
-      onUpdate(agent.id, { avatar });
+      onUpdate({id: agent.id, avatar });
     }, [onUpdate, agent.id]);
 
     const startEditRole = useCallback(() => {
@@ -29,7 +30,7 @@ export function AgentHeader({ agent, onUpdate }: {
     const saveRole = useCallback(() => {
       const next = roleDraft.trim();
       if (next && next !== agent.role) {
-        onUpdate(agent.id, { role: next });
+        onUpdate({id: agent.id, role: next });
       }
       setEditingRole(false);
     }, [roleDraft, agent.role, agent.id, onUpdate]);
