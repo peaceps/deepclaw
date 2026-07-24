@@ -211,7 +211,7 @@ export const zh = {
                     delete: '删除',
                 },
                 history: {
-                    title: '执行历史（最新10条）',
+                    title: '执行历史',
                     empty: '暂无执行记录',
                 },
             },

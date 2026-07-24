@@ -246,6 +246,15 @@ class CronServiceImpl {
         };
     }
 
+    public static getCronHistories(
+        id: string, beforeStart: number, limit: number = MAX_DISPLAY_HISTORIES
+    ): CronJobHistory[] {
+        const all = this.getCronTask(id).histories;
+        const older = all.findIndex(h => h.start >= beforeStart);
+        const end = older === -1 ? all.length : older;
+        return all.slice(Math.max(0, end - limit), end).reverse();
+    }
+
     private static saveTask(task: CronTask): void {
         try {
             const persisted: Omit<CronTask, 'histories' | 'nextRun'> = {

@@ -211,7 +211,7 @@ export const en = {
                     delete: 'Delete',
                 },
                 history: {
-                    title: 'Execution History (latest 10)',
+                    title: 'Execution History',
                     empty: 'No executions yet',
                 },
             },

@@ -10,7 +10,7 @@ import type {
     FlushAgentRole
 } from "@deepclaw/core";
 import {
-    getLoopId, isInternalInterruptReason, newMessage, splitLoopId, type CronTask
+    getLoopId, isInternalInterruptReason, newMessage, splitLoopId, type CronTask, type CronJobHistory
 } from "@deepclaw/core";
 import { globalize, UpdateContent } from "@deepclaw/utils";
 import {
@@ -318,6 +318,10 @@ class LoopGatewayImpl {
 
     public static getCronTasks(): CronTask[] {
         return CronService.getCronTasks();
+    }
+
+    public static getCronHistories(id: string, beforeStart: number, limit?: number): CronJobHistory[] {
+        return CronService.getCronHistories(id, beforeStart, limit);
     }
 
     public static updateCronTaskStatus(id: string, pause?: boolean, close?: boolean): void {
