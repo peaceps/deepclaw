@@ -19,6 +19,7 @@
 		"@deepclaw/config": "workspace:*",
 		"@deepclaw/core": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
+		"@deepclaw/im": "workspace:*",
 		"@deepclaw/loop-gateway": "workspace:*",
 		"@deepclaw/node-utils": "workspace:*",
 		"@deepclaw/utils": "workspace:*",

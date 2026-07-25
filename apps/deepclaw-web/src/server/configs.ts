@@ -1,5 +1,6 @@
 'use server';
 
+import { IMService } from '@/im/im-service';
 import {
     type DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig,
     AgentsConfig,
@@ -23,6 +24,7 @@ export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
         LoopGateway.newAgentIdentity(agent.id);
     }
   }
+  IMService.reset();
   revalidatePath('/', 'layout');
 }
 

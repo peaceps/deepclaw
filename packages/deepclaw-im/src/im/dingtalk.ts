@@ -1,9 +1,9 @@
 import {DWClient, DWClientDownStream, EventAck, TOPIC_ROBOT} from 'dingtalk-stream';
-import { IM } from '../im-definitions';
+import { IM, IMHooks } from '../im-definitions';
 import { AgentInteractionEventPayload } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import {stringifiedInteractionEvent, parseStringifiedAnswer} from '../stringified-event';
-import { LoopInitializer, AgentIdentityManager } from '@deepclaw/agent';
+import { LoopInitializer } from '@deepclaw/agent';
 
 type EndPoint = {
     sessionWebhook: string;
@@ -13,13 +13,12 @@ type EndPoint = {
 const handledMessages = new Set<string>();
 
 // TODO multi session control
-const onBotMessage = (client: DWClient) => {
+const onBotMessage = (client: DWClient, agentId: string, hooks?: IMHooks) => {
     const endPoint = {sessionWebhook: '', senderStaffId: ''};
     let interactionResolver: Function | null = null;
     let sequentialInteraction: Promise<void> = Promise.resolve();
-    const agent = AgentIdentityManager.getAgents()[0]!;
 
-    const loop = LoopInitializer.getLoop('agent', agent.id, '', {
+    const loop = LoopInitializer.getLoop('agent', agentId, '', {
         onStreamText: () => {},
         onInteractionEvent: handleInteractionEvent,
         onInfoEvent: () => Promise.resolve(),
@@ -56,6 +55,17 @@ const onBotMessage = (client: DWClient) => {
             const message = JSON.parse(event.data);
             endPoint.sessionWebhook = message.sessionWebhook || endPoint.sessionWebhook;
             endPoint.senderStaffId = message.senderStaffId || endPoint.senderStaffId;
+
+            if (hooks && hooks.preSend) {
+                const preHookResult = hooks.preSend(event);
+                if (preHookResult.message) {
+                    sendMessage(endPoint, preHookResult.message);
+                }
+                if (preHookResult.stop) {
+                    return;
+                }
+            }
+
             const content = (message?.text?.content || '').trim();
             if (interactionResolver) {
                 const resolver = interactionResolver;
@@ -98,12 +108,12 @@ function sendMessage(endPoint: EndPoint, content: string): void {
     });
 }
 
-function connect(appId: string, secret: string): { disconnect: () => void } {
+function connect(appId: string, secret: string, agentId: string, hooks?: IMHooks): { disconnect: () => void } {
     const client = new DWClient({
       clientId: appId,
       clientSecret: secret,
     });
-    client.registerCallbackListener(TOPIC_ROBOT, onBotMessage(client)).connect();
+    client.registerCallbackListener(TOPIC_ROBOT, onBotMessage(client, agentId, hooks)).connect();
     return {
         disconnect: () => client.disconnect()
     };

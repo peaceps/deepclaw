@@ -1,7 +1,7 @@
 import readline from 'readline/promises';
 import { stdin, stdout } from 'process';
 import { cleanupOnShutdown } from '@deepclaw/node-utils';
-import { validateAndFixCurrentConfig } from '@deepclaw/config';
+import { AgentsConfig, loadConfig, validateAndFixCurrentConfig } from '@deepclaw/config';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import { connectIM, stringifiedInteractionEvent, parseStringifiedAnswer } from '@deepclaw/im';
 import { AgentInteractionEventPayload } from '@deepclaw/core';
@@ -35,7 +35,8 @@ async function handleInteractionEvent(event: AgentInteractionEventPayload): Prom
 }
 
 validateAndFixCurrentConfig(handleInteractionEvent, true).then(() => {
-    const {disconnect} = connectIM();
+    const agent = loadConfig<AgentsConfig>('agents');
+    const {disconnect} = connectIM(agent[0]!.id);
     cleanupOnShutdown(disconnect);
 }).catch(error => {
     // TODO handle error

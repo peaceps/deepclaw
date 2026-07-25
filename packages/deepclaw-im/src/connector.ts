@@ -1,7 +1,7 @@
-import { AgentsConfig, IMConfig, loadConfig } from "@deepclaw/config";
+import { IMConfig, loadAgentConfig } from "@deepclaw/config";
 import { dingTalk } from "./im/dingtalk";
 import { feishu } from "./im/feishu";
-import type { IM } from "./im-definitions";
+import type { IM, IMHooks } from "./im-definitions";
 
 const ims: Record<string, IM> = {
     dingtalk: dingTalk,
@@ -16,8 +16,8 @@ const getIM = (engine: IMConfig["engine"]): IM => {
     return im;
 }
 
-export function connectIM(): { disconnect: () => void } {
-    const agent = loadConfig<AgentsConfig>('agents')[0];
+export function connectIM(agentId: string, hooks?: IMHooks): { disconnect: () => void } {
+    const agent = loadAgentConfig(agentId);
     if (!agent) {
         return {disconnect: () => {}};
     }
@@ -27,5 +27,5 @@ export function connectIM(): { disconnect: () => void } {
     if (!engine || !appId || !secret) {
         return {disconnect: () => {}};
     }
-    return getIM(engine).connect(appId, secret);
+    return getIM(engine).connect(appId, secret, agent.id, hooks);
 }

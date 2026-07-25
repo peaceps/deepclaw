@@ -150,6 +150,9 @@ importers:
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../../packages/deepclaw-i18n
+      '@deepclaw/im':
+        specifier: workspace:*
+        version: link:../../packages/deepclaw-im
       '@deepclaw/loop-gateway':
         specifier: workspace:*
         version: link:../../packages/deepclaw-loop-gateway
