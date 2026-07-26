@@ -236,7 +236,7 @@ export const zh = {
                         description: '配置Agent参数',
                         addButton: '雇佣新Agent',
                         removeButtonTitle: '解雇Agent',
-                        removeButton: '裁员',
+                        removeButton: '裁减',
                         header: {
                             unnamed: '未命名',
                             errors: '个错误'

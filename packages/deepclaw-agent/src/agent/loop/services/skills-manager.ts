@@ -42,15 +42,7 @@ export class SkillsManager {
         }
     }
 
-    public static deleteSkill(name: string): void {
-        if (!this.skills.has(name)) {
-            return;
-        }
-        FileUtils.deleteDir(`${SKILLS_DIR}/${this.skills.get(name)!.manifest.dir}`);
-        this.skills.delete(name);
-    }
-
-    public static installSkill(folder: string, files: {path: string, content: string}[]): void {
+    public static createSkill(folder: string, files: {path: string, content: string}[]): void {
         if (!this.skills) {
             this.reloadSkills();
         }
@@ -119,12 +111,11 @@ export class SkillsManager {
 ${this.getAvailableSkillsPrompt(agentId)}
 
 When user ask for some skill, first check from above available skills.
-If not found, use find-skills skill to search from public skills.
+If not found, use search_online_skills to search from public networks.
+Do not use shell commands to search skill files on local disk, user will be annoyed by permission asking prompt.
+AGAIN! NEVER use file tool or shell tool to search files on disk for skills!!!
 
-load_skill tool is a local function to get the detailed information of skills.
-You always need to use load_skill tool with function_call first.
-
-NEVER use file tool or shell tool to search files on disk for skills!!!
+load_skill_details tool is a local function to get the detailed information of skills.
 `;
     }
 

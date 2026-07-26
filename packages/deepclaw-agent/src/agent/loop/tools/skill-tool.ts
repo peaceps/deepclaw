@@ -1,14 +1,16 @@
+import { runCommand } from "@deepclaw/node-utils";
 import { OneLoopContext } from "../../definitions/definitions";
-import { ToolDesc } from "../../definitions/tool-definitions";
+import { ToolDesc, ToolGuardResult } from "../../definitions/tool-definitions";
 import { SkillsManager } from "../services/skills-manager";
+import { loadLang } from "@deepclaw/config";
 
-type SkillInput = {
+type LoadSkillInput = {
     name: string;
 }
 
-export const loadSkillTool: ToolDesc<SkillInput> = {
+export const loadSkillDetailsTool: ToolDesc<LoadSkillInput> = {
     tool: {
-        name: 'load_skill',
+        name: 'load_skill_details',
         description: 'Load the full body of a named skill into the current context.',
         schema: {
             type: 'object',
@@ -19,15 +21,15 @@ export const loadSkillTool: ToolDesc<SkillInput> = {
     },
     agentMode: ['agent', 'chat'],
     parallelSafe: true,
-    invoke: async function(input: SkillInput): Promise<string> {
+    invoke: async function(input: LoadSkillInput): Promise<string> {
         const { name } = input;
         return SkillsManager.getSkillContent(name);
     },
 }
 
-export const refreshSkillTool: ToolDesc<void> = {
+export const refreshSkillsTool: ToolDesc<void> = {
     tool: {
-        name: 'refresh_skill',
+        name: 'refresh_skills',
         description: 'Refresh installed skills',
         schema: {
             type: 'object',
@@ -44,6 +46,113 @@ export const refreshSkillTool: ToolDesc<void> = {
 Available skills:
 ${SkillsManager.getAvailableSkillsPrompt(context.agentId)}`;
     },
+};
+
+type SearchOnlineSkillsInput = {
+    keywords: string[];
+}
+
+export const searchOnlineSkillsTool: ToolDesc<SearchOnlineSkillsInput> = {
+    tool: {
+        name: 'search_online_skills',
+        description: `Discover skills from the [skills.sh](https://skills.sh/) ecosystem.
+Use this tool when user wanna do some work while local tools and skills cannot help.
+
+Show the user what you found:
+1. Skill name and description
+2. The install command
+3. Link to learn more at skills.sh (links should open on new tab)
+`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                keywords: {
+                    type: 'array',
+                    minItems: 1,
+                    description: 'keywords to search',
+                    items: {
+                        type: 'string',
+                    }
+                }
+            },
+            required: ['keywords'],
+        },
+    },
+    agentMode: ['agent', 'chat'],
+    parallelSafe: true,
+    invoke: async function(input: SearchOnlineSkillsInput): Promise<string> {
+        try {
+            const {output} = await runCommand(`npx skills find ${input.keywords.join(' ')}`);
+            return output;
+        } catch (e) {
+            return `Search failed: ${e}`;
+        }
+    },
+    guard: skillsInjectionGuard(/^[\w\s-]+$/, input => input.keywords.join(' '))
+};
+
+type DownloadSkillInput = {
+    target: string;
+}
+
+export const downloadSkillTool: ToolDesc<DownloadSkillInput> = {
+    tool: {
+        name: 'download_skill',
+        description: `Download and install skill from the [skills.sh](https://skills.sh/) ecosystem.
+Will execute npx skills add to install. e.g. npx skills add vercel-labs/agent-skills@vercel-react-best-practices -y
+The "vercel-labs/agent-skills@vercel-react-best-practices" part is what you should provide to the tool.
+`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                target: {
+                    type: 'string',
+                    description: `the skill path to download, format is "<githubPath>@<skillName>", should match /^[\w./-]+@[\w-]+$/,
+e.g. vercel-labs/agent-skills@vercel-react-best-practices`,
+                }
+            },
+            required: ['target'],
+        },
+    },
+    agentMode: ['agent'],
+    parallelSafe: true,
+    invoke: async function(input: DownloadSkillInput): Promise<string> {
+        return await trySkillsWithMirror('add', input.target);
+    },
+    guard: skillsInjectionGuard(/^[\w./-]+@[\w-]+$/, input => input.target)
+};
+
+type RemoveSkillInput = {
+    dirName: string;
+}
+
+export const removeSkillTool: ToolDesc<RemoveSkillInput> = {
+    tool: {
+        name: 'remove_skill',
+        description: `Remove installed skill.
+Will execute npx skills remove. e.g. npx skills remove vercel-react-best-practices -y
+The "vercel-react-best-practices" part is what you should provide to the tool, which is the "dir" field of the skill manifest.
+`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                dirName: {
+                    type: 'string',
+                    description: `The skill dir name, you can get it in the "dir" field of the skill manifest of available skill info.`, 
+                }
+            },
+            required: ['dirName'],
+        },
+    },
+    agentMode: ['agent'],
+    parallelSafe: false,
+    invoke: async function(input: RemoveSkillInput): Promise<string> {
+        return await trySkillsWithMirror('remove', input.dirName);
+    },
+    guard: skillsInjectionGuard(/^[\w-]+$/, input => input.dirName)
 };
 
 type CreateSkillInput = {
@@ -112,7 +221,7 @@ Rules:
     invoke: async function(input: CreateSkillInput, context: OneLoopContext): Promise<string> {
         const { name, files } = input;
         try {
-            SkillsManager.installSkill(name, files);
+            SkillsManager.createSkill(name, files);
         } catch (e) {
             return `Failed to create skill ${name}: ${e instanceof Error ? e.message : 'Unknown error'}`;
         }
@@ -122,27 +231,35 @@ ${SkillsManager.getAvailableSkillsPrompt(context.agentId)}`;
     },
 }
 
-type DeleteSkillInput = {
-    name: string;
+function getSkillCommand(useMirror: boolean) {
+    if (loadLang() === 'zh' && !useMirror) return 'skills-cn';
+    if (loadLang() !== 'zh' && !useMirror) return 'skills';
+    return loadLang() === 'zh' ? 'skills' : 'skills-cn';
 }
-export const deleteSkillTool: ToolDesc<DeleteSkillInput> = {
-    tool: {
-        name: 'delete_skill',
-        description: 'Delete a named skill',
-        schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {name: {type: 'string'}},
-            required: ['name'],
-        },
-    },
-    agentMode: ['agent'],
-    parallelSafe: false,
-    invoke: async function(input: DeleteSkillInput, context: OneLoopContext): Promise<string> {
-        const { name } = input;
-        SkillsManager.deleteSkill(name);
-        return `Skill ${name} deleted.
-Available skills:
-${SkillsManager.getAvailableSkillsPrompt(context.agentId)}`;
-    },
+
+function skillsInjectionGuard<T>(reg: RegExp, getValue: (input: T) => string): (input: T) => ToolGuardResult {
+    return function(input: T): ToolGuardResult {
+        if (!reg.test(getValue(input))) {
+            const reason = `Invalid input format. Expected ${reg.toString()}`;
+            return {result: 'denied', reason};
+        }
+        return {result: 'allowed'};
+    }
+}
+
+async function trySkillsWithMirror(command: string, input: string) {
+    let output = '';
+    try {
+        const result = await runCommand(`npx ${getSkillCommand(false)} ${command} ${input} -y`);
+        output = result.output;
+    } catch {
+        try {
+            const result = await runCommand(`npx ${getSkillCommand(true)} ${command} ${input} -y`);
+            output = result.output;
+        } catch (e) {
+            return `skills ${command} failed: ${e}`;
+        }
+    }
+    SkillsManager.reloadSkills();
+    return output;
 }
