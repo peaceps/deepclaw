@@ -4,12 +4,14 @@ import { AgentInteractionEventPayload } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import {stringifiedInteractionEvent, parseStringifiedAnswer} from '../stringified-event';
 import { LoopInitializer } from '@deepclaw/agent';
+import { getLogger } from '@deepclaw/node-utils';
 
 type EndPoint = {
     sessionWebhook: string;
     senderStaffId?: string;
 }
 
+const logger = getLogger('dingtalk');
 const handledMessages = new Set<string>();
 
 // TODO multi session control
@@ -56,12 +58,19 @@ const onBotMessage = (client: DWClient, agentId: string, hooks?: IMHooks) => {
             endPoint.sessionWebhook = message.sessionWebhook || endPoint.sessionWebhook;
             endPoint.senderStaffId = message.senderStaffId || endPoint.senderStaffId;
 
-            if (hooks && hooks.preSend) {
-                const preHookResult = hooks.preSend(event);
-                if (preHookResult.message) {
-                    sendMessage(endPoint, preHookResult.message);
-                }
-                if (preHookResult.stop) {
+            if (hooks && hooks.onReceive) {
+                try {
+                    const preHookResult = hooks.onReceive();
+                    if (preHookResult.message) {
+                        sendMessage(endPoint, preHookResult.message);
+                    }
+                    if (preHookResult.stop) {
+                        return;
+                    }
+                } catch (e) {
+                    const msg = i18nInstance.t('im.error');
+                    logger.warn(`${msg}: ${e}`);
+                    sendMessage(endPoint, msg);
                     return;
                 }
             }
@@ -75,13 +84,28 @@ const onBotMessage = (client: DWClient, agentId: string, hooks?: IMHooks) => {
             }
             
             sendMessage(endPoint, i18nInstance.t('im.wait'));
-            sequentialInteraction = sequentialInteraction.then(
-                () => loop.invoke(content, { browserId: '' }).then(res => {
+
+            try {
+                await hooks?.waitReady?.();
+            } catch (e) {
+                const msg = i18nInstance.t('im.error');
+                logger.error(`${msg}: ${e}`);
+                sendMessage(endPoint, msg);
+                return;
+            }
+            
+            sequentialInteraction = sequentialInteraction
+                .then(() => hooks?.onInvoke?.(content))
+                .then(() => loop.invoke(content, { browserId: '' }))
+                .then(res => {
                     sendMessage(endPoint, res.text);
-                }).catch(() => {
-                    sendMessage(endPoint, i18nInstance.t('im.error'));
+                    hooks?.postSend?.(res.text);
                 })
-            );
+                .catch((e) => {
+                    const error = `${i18nInstance.t('im.error')}: ${e?.message}`
+                    sendMessage(endPoint, error);
+                    hooks?.postSend?.(error);
+                });
         } catch(e) {
             console.error(`message ${event.headers.messageId} processing error, simply ignore it.`, e);
         }

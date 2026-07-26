@@ -250,6 +250,10 @@ export const en = {
                 }
             },
         },
+        im: {
+            invalidConfig: 'You have config errors, please fix on web',
+            busy: 'Current loop is busy'
+        },
         config: {
             error: {
                 input: 'Field {{name}} cannot be empty',

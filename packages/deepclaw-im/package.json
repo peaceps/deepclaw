@@ -22,6 +22,7 @@
 		"@deepclaw/agent": "workspace:*",
 		"@deepclaw/config": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
+		"@deepclaw/node-utils": "workspace:*",
 		"dingtalk-stream": "2.1.5"
 	}
 }

@@ -250,6 +250,10 @@ export const zh = {
                 }
             },
         },
+        im: {
+            invalidConfig: '配置不正确，请在网页端修复。',
+            busy: '当前Agent正忙',
+        },
         config: {
             error: {
                 input: '{{name}}不能为空',

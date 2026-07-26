@@ -1,12 +1,12 @@
 'use server';
 
-import { IMService } from '@/im/im-service';
 import {
-    type DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig,
-    AgentsConfig,
+  type DeepclawConfig, loadConfig, writeAppConfig, validateAppConfig, type MissingAppConfig,
+  AgentsConfig,
 } from '@deepclaw/config';
 import { LoopGateway } from '@deepclaw/loop-gateway';
 import { revalidatePath } from 'next/cache';
+import { IMService } from '@/im/im-service';
 
 export async function loadCurrentConfig<T>(key?: string, defaultValue?: T): Promise<T> {
   return loadConfig<T>(key, defaultValue);

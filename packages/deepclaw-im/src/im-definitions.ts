@@ -1,5 +1,8 @@
 export type IMHooks = {
-    preSend?: (event: any) => {message?: string; stop: boolean};
+    onReceive?: () => {message?: string; stop: boolean};
+    waitReady?: () => Promise<void>;
+    onInvoke?: (input: string) => void;
+    postSend?: (output: string) => void;
 };
 
 export type IM = {

@@ -45,12 +45,14 @@ type InteractionResolver = {
 };
 
 class LoopGatewayImpl {
+    private static cronUnsubscriber?: () => void;
     private static loops: LoopStore = {};
-    private static sseSubscriber: ((e: LoopGatewayEvent) => void) | undefined;
+    private static sseSubscribers: Set<(e: LoopGatewayEvent) => void> = new Set();
     private static waitingInteractions: Map<string, InteractionResolver> = new Map();
 
-    static {
-        CronService.subscribe(task => this.fireSSEEvent({eventType: 'updateCron', content: task}));
+    public static initGateway(): void {
+        if (this.cronUnsubscriber) return;
+        this.cronUnsubscriber = CronService.subscribe(task => this.fireSSEEvent({eventType: 'updateCron', content: task}));
     }
 
     private static defaultHandler: AgentHandler = {
@@ -63,14 +65,17 @@ class LoopGatewayImpl {
     };
 
     private static fireSSEEvent(e: LoopGatewayEvent) {
-        this.sseSubscriber?.(e);
+        this.sseSubscribers.forEach(cb => cb(e));
     }
 
     public static fireChatMessageEvent(browserId: string, loopId: string, update: boolean, message: ChatMessage): void {
         this.fireSSEEvent({eventType: 'chat', loopId, browserId, update, message})
     }
 
-    private static fireBusyEvent(loopId: string): void {
+    public static fireBusyEvent(loopId: string, busy?: boolean): void {
+        if (busy !== undefined && !!this.loops[loopId]) {
+            this.loops[loopId]!.running = busy;
+        }
         this.fireSSEEvent({ eventType: 'busy', loopId, busy: this.isLoopBusy(loopId) });
     }
 
@@ -79,7 +84,7 @@ class LoopGatewayImpl {
         const waiting = new Promise<string>((resolve, reject) => this.waitingInteractions.set(
             clientKey, {timer: null, resolve, reject}
         ));
-        this.sseSubscriber?.(e);
+        this.fireSSEEvent(e);
         try {
             const timeout = new Promise((res) => {
                 const timer = setTimeout(res, INTERACTION_TIMEOUT);
@@ -99,7 +104,7 @@ class LoopGatewayImpl {
         }
     }
 
-    public static init(loopId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}): void {
+    private static initLoop(loopId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}): void {
         // TODO LRU
         const {role, agentId, projectId = ''} = splitLoopId(loopId);
         if (!this.loops[loopId]) {
@@ -130,11 +135,12 @@ class LoopGatewayImpl {
     }
 
     public static invoke(
-        browserId: string, role: FlushAgentRole, agentId: string, projectId: string, input: string
+        browserId: string, role: FlushAgentRole, agentId: string, projectId: string, input: string,
+        agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}
     ): {busy: boolean, msgId: string} {
         const loopId = getLoopId(role, agentId, projectId);
         if (!this.loops[loopId]) {
-            this.init(loopId);
+            this.initLoop(loopId, agentHandler);
         } else {
             const loopState = this.loops[loopId]!;
             if (loopState.loop.isOutdated()) {
@@ -240,12 +246,8 @@ class LoopGatewayImpl {
     }
 
     public static subscribe(cb: (e: LoopGatewayEvent) => void): () => void {
-        this.sseSubscriber = cb;
-        return () => {
-            if (this.sseSubscriber === cb) {
-                this.sseSubscriber = undefined;
-            }
-        };
+        this.sseSubscribers.add(cb);
+        return () => this.sseSubscribers.delete(cb);
     }
 
     public static disconnectBrowser(browserId: string) {

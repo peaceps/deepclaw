@@ -37,18 +37,6 @@ export function App({app}: {app: AppConfig}): ReactElement {
         }, 0);
     }, []);
 
-    const invokeLlm = useCallback((userInput: string) => {
-        setHistories(prev => [...prev, {role: 'user', content: userInput}]);
-        setLlmWorking(true);
-        try {
-            LoopGateway.invoke('', 'agent', agentIdRef.current!, '', userInput);
-        } catch (err: any) {
-            setTimeout(() => {
-                handleLlmDone(`${t('common.error')} ${err?.message?.trim() || t('common.unexpected')}`);
-            }, 0);
-        }
-    }, [t, handleLlmDone]);
-
     const handleAgentEvent = useCallback((event: AgentInteractionEventPayload): Promise<string> => {
         setAgentEvent(event);
         return new Promise((resolve) => {
@@ -81,12 +69,23 @@ export function App({app}: {app: AppConfig}): ReactElement {
 	useEffect(() => {
         if (envConfigReady) {
             agentIdRef.current = LoopGateway.getLoopInfo().agents[0]!.id;
-            LoopGateway.init(agentIdRef.current, {
+        }
+	}, [app, handleAgentEvent, envConfigReady]);
+
+    const invokeLlm = useCallback((userInput: string) => {
+        setHistories(prev => [...prev, {role: 'user', content: userInput}]);
+        setLlmWorking(true);
+        try {
+            LoopGateway.invoke('', 'agent', agentIdRef.current!, '', userInput, {
                 onStreamText: handleStream,
                 onInteractionEvent: handleAgentEvent
             });
+        } catch (err: any) {
+            setTimeout(() => {
+                handleLlmDone(`${t('common.error')} ${err?.message?.trim() || t('common.unexpected')}`);
+            }, 0);
         }
-	}, [app, handleAgentEvent, envConfigReady]);
+    }, [t, handleLlmDone]);
 
 	return (
         <Box flexDirection="column">

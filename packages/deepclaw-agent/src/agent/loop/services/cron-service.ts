@@ -16,7 +16,7 @@ export type CronScheduledJob = {
 }
 
 class CronServiceImpl {
-    private static subscribers: ((task: UpdateContent<CronTask>) => void)[] = [];
+    private static subscribers: Set<(task: UpdateContent<CronTask>) => void> = new Set();
     private static cronTasks: Record<string, CronTask>;
     private static cronScheduledJob: Record<string, CronScheduledJob>;
 
@@ -274,8 +274,9 @@ class CronServiceImpl {
         }
     }
 
-    public static subscribe(subscriber: (task: UpdateContent<CronTask>) => void): void {
-        this.subscribers.push(subscriber);
+    public static subscribe(subscriber: (task: UpdateContent<CronTask>) => void): () => void {
+        this.subscribers.add(subscriber);
+        return () => this.subscribers.delete(subscriber);
     }
 
     private static notify(task: UpdateContent<CronTask>): void {
