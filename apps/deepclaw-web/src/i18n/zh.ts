@@ -243,16 +243,12 @@ export const zh = {
                         },
                         sections: {
                             basic: '基本信息',
-                            im: 'IM配置',
+                            im: '连接即时通讯软件',
                             llm: 'LLM配置',
                         }
                     }
                 }
             },
-        },
-        im: {
-            invalidConfig: '配置不正确，请在网页端修复。',
-            busy: '当前Agent正忙',
         },
         config: {
             error: {
@@ -293,7 +289,7 @@ export const zh = {
                         prompt: '即时通讯工具',
                         options: {
                             dingtalk: '钉钉',
-                            feishu: '飞书',
+                            feishu: '飞书(尚不支持)',
                         },
                     },
                     appId: {

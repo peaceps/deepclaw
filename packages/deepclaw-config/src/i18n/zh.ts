@@ -24,15 +24,15 @@ export const zh = {
                     chat: 'Chat (只聊天)',
                 },
             },
-            headlessEnabled: {
-                prompt: '是否使用headless模式并接入即时通讯软件？',
-            },
             im: {
+                enabled: {
+                    prompt: '是否使用即时通讯软件？',
+                },
                 engine: {
                     prompt: '选择通讯工具:',
                     options: {
                         dingtalk: '钉钉',
-                        feishu: '飞书',
+                        feishu: '飞书(尚不支持)',
                     },
                 },
                 appId: {

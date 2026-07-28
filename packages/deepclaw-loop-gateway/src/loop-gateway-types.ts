@@ -2,10 +2,24 @@ import {
     AgentAgentInfoEvent, AgentCronInfoEvent, AgentEvent, AgentInfoEvent,
     AgentInteractionEvent, AgentLoopEvent, AgentProjectInfoEvent,
     AgentStreamEvent, ChatMessage,
+    FlushAgentRole,
     TokenUsage
 } from "@deepclaw/core";
 
 export type { SkillInfo } from "@deepclaw/agent";
+
+export type InvokeSource = 'web' | 'tui' | 'im';
+
+export type InvokeOption = {
+    source: InvokeSource;
+    browserId?: string;
+}
+
+export type LoopInfo = {
+    role: FlushAgentRole;
+    agentId: string;
+    projectId?: string;
+};
 
 export type AgentLoopBusyEvent = AgentLoopEvent & {
     eventType: 'busy';

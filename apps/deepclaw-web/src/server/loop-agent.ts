@@ -7,12 +7,12 @@ import { LoopGateway, UIChatService } from '@deepclaw/loop-gateway';
 export async function invoke(
     browserId: string, role: FlushAgentRole, agentId: string, projectId: string, input: string
 ): Promise<{busy: boolean, msgId: string}> {
-    return LoopGateway.invoke(browserId, role, agentId, projectId, input);
+    return LoopGateway.invoke({role, agentId, projectId}, {source: 'web', browserId}, input);
 }
 
 export async function resumeLoop(browserId: string, loopId: string): Promise<{resume: boolean, msgId: string}> {
     SSEServer.activeClient(browserId, loopId, true);
-    return LoopGateway.resume(browserId, loopId);
+    return LoopGateway.resume(browserId, 'web', loopId);
 }
 
 export async function getTokenUsage(loopId: string): Promise<TokenUsage | undefined> {

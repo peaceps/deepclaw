@@ -83,7 +83,7 @@ Show the user what you found:
     parallelSafe: true,
     invoke: async function(input: SearchOnlineSkillsInput): Promise<string> {
         try {
-            const {output} = await runCommand(`npx skills find ${input.keywords.join(' ')}`);
+            const {output} = await runCommand(`npx ${getSkillCommand(false)} find ${input.keywords.join(' ')}`);
             return output;
         } catch (e) {
             return `Search failed: ${e}`;

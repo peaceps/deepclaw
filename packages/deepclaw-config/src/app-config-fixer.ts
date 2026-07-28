@@ -1,34 +1,28 @@
 import {AgentInteractionEventPayload} from "@deepclaw/core";
 import {
-    AgentConfig, DeepclawConfig, IMConfig, MissingAppConfig,
+    AgentConfig, DeepclawConfig, MissingAppConfig,
     validateCurrentAppConfig, writeAppConfig
 } from "./app-config";
 import {APP_CONFIG_EVENTS} from './app-config-events';
 
 export async function validateAndFixCurrentConfig(
     handleAgentEvent: (event: AgentInteractionEventPayload) => Promise<string>,
-    headless: boolean = false,
 ) {
-    const appConfig = validateCurrentAppConfig(headless);
+    const appConfig = validateCurrentAppConfig();
     if (appConfig.lacks.length > 0) {
         await handleAgentEvent(APP_CONFIG_EVENTS['hint']!);
         const agentsIndex = appConfig.lacks.indexOf('agents');
         if (agentsIndex !== -1) {
-            const agent = {llm: {}} as AgentConfig;
-            const missing = ['name', 'mode', 'llm.baseURL', 'llm.apiKey', 'llm.model'];
-            if (headless) {
-                agent.im = {} as IMConfig;
-                missing.push('im.engine', 'im.appId', 'im.secret');
-            }
+            const agent = {llm: {}, im: {}} as AgentConfig;
+            const missing = ['name', 'mode', 'llm.baseURL', 'llm.apiKey', 'llm.model', 'im.enabled'];
             appConfig.config.agents = [agent];
             appConfig.lacks.splice(agentsIndex, 1, { agents: { 0: missing } });
         }
-        await ensureAppConfig(headless, appConfig, handleAgentEvent);
+        await ensureAppConfig(appConfig, handleAgentEvent);
     }
 }
 
 async function ensureAppConfig(
-    headless: boolean,
     {config, lacks}: {config: DeepclawConfig, lacks: MissingAppConfig},
     handleAgentEvent: (event: AgentInteractionEventPayload) => Promise<string>,
 ) {
@@ -45,22 +39,22 @@ async function ensureAppConfig(
                     const subLacks = lack[key as keyof DeepclawConfig]![Number(index)]!;
                     const name = 'name' in subConfig ? subConfig['name'] : (Number(index) + 1).toString();
                     await handleAgentEvent({...APP_CONFIG_EVENTS[`${key}.index`]!, i18nParam: {name}});
-                    if (key === 'agents' && !headless && !subConfig.im) {
-                        subLacks.push('headlessEnabled');
-                    }
 
                     for (const subLack of subLacks) {
                         const event = APP_CONFIG_EVENTS[`${key}.${subLack}`]!;
                         const answer = await handleAgentEvent(event);
-                        if (subLack !== 'headlessEnabled') {
+                        if (subLack !== 'im.enabled') {
                             setConfigValue(subConfig, subLack, answer);
                         }
-                        if (subLack === 'headlessEnabled' && answer.toLowerCase() === 'yes') {
-                            subConfig.im = {} as IMConfig;
-                            for (const key of ['engine', 'appId', 'secret']) {
-                                const event = APP_CONFIG_EVENTS[`agents.im.${key}`]!;
-                                const answer = await handleAgentEvent(event);
-                                setConfigValue(subConfig.im, key, answer);
+                        if (subLack === 'im.enabled') {
+                            const imEnabled = answer.toLowerCase() === 'yes';
+                            setConfigValue(subConfig.im, 'enabled', imEnabled);
+                            if (imEnabled) {
+                                for (const key of ['engine', 'appId', 'secret']) {
+                                    const event = APP_CONFIG_EVENTS[`agents.im.${key}`]!;
+                                    const answer = await handleAgentEvent(event);
+                                    setConfigValue(subConfig.im, key, answer);
+                                }
                             }
                         }
                     }

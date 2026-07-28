@@ -24,10 +24,10 @@ export const en = {
                     chat: 'Chat (A chat tool, won\'t do any operation)',
                 },
             },
-            headlessEnabled: {
-                prompt: 'Will you use the headless mode with an IM service?',
-            },
             im: {
+                enabled: {
+                    prompt: 'Will you use the IM service?',
+                },
                 engine: {
                     prompt: 'Which IM service will be used?',
                     options: {

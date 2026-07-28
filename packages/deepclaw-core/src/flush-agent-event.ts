@@ -50,7 +50,8 @@ export type AgentInteractionEvent = AgentLoopEvent & {
     options: AgentInteractionEventOption[];
 });
 
-export type AgentInteractionEventPayload = DistributiveOmit<AgentInteractionEvent, 'eventType' | 'loopId' | 'browserId'>;
+export type AgentInteractionEventPayload =
+    DistributiveOmit<AgentInteractionEvent, 'eventType' | 'loopId' | 'browserId'>;
 
 export type AgentInfoEvent = FlushAgentEvent & {
     content: unknown

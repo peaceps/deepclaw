@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 let valid = false;
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
-    valid = !valid ? validateCurrentAppConfig(false).lacks.length === 0 : valid;
+    valid = !valid ? validateCurrentAppConfig().lacks.length === 0 : valid;
     if (!valid) {
         redirect('/settings');
     }

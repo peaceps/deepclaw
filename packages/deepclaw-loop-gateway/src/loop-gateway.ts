@@ -7,7 +7,8 @@ import type {
     AgentRuntime,
     AgentInvokeResponse,
     TokenUsage,
-    FlushAgentRole
+    FlushAgentRole,
+    SealedAgentHandler
 } from "@deepclaw/core";
 import {
     getLoopId, isInternalInterruptReason, newMessage, splitLoopId, type CronTask, type CronJobHistory
@@ -19,22 +20,25 @@ import {
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
-import { LoopGatewayEvent, getClientKey } from "./loop-gateway-types";
+import { LoopInfo, InvokeSource, LoopGatewayEvent, getClientKey, InvokeOption } from "./loop-gateway-types";
 import { i18nInstance } from "@deepclaw/i18n";
+import { getLogger } from "@deepclaw/node-utils";
+
+const logger = getLogger('LoopGateway');
 
 type LoopState = {
-    role: FlushAgentRole;
-    agentId: string;
-    projectId: string;
-    agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>>;
+    info: LoopInfo;
+    invoke?: InvokeOption & {
+        msgId?: string;
+        agentHandler?: Partial<Omit<SealedAgentHandler, 'onInfoEvent'>>;
+        runtime?: AgentRuntime;
+    }
+    agentHandler: Partial<AgentHandler>;
     loop: LoopAgent<unknown, any, any>;
     running: boolean;
-    msgId?: string;
-    browserId?: string;
-    runtime?: AgentRuntime;
 };
 type LoopStore = Record<string, LoopState>;
-export type LoopInfo = {agents: AgentEmployee[], projects: Project[]};
+export type DeepclawDataInfo = {agents: AgentEmployee[], projects: Project[]};
 
 const INTERACTION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
@@ -104,17 +108,17 @@ class LoopGatewayImpl {
         }
     }
 
-    private static initLoop(loopId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}): void {
+    public static initLoop(
+        loopId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}
+    ): void {
         // TODO LRU
         const {role, agentId, projectId = ''} = splitLoopId(loopId);
         if (!this.loops[loopId]) {
             this.loops[loopId] = {
-                role,
-                agentId,
-                projectId,
+                info: {role, agentId, projectId},
                 agentHandler,
                 loop: this.createLoop(role, agentId, projectId, agentHandler),
-                running: false,
+                running: false
             }
         }
     }
@@ -135,17 +139,20 @@ class LoopGatewayImpl {
     }
 
     public static invoke(
-        browserId: string, role: FlushAgentRole, agentId: string, projectId: string, input: string,
-        agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}
+        loopInfo: LoopInfo, options: InvokeOption, input: string,
+        agentHandler?: Partial<Omit<SealedAgentHandler, 'onInfoEvent'>>,
+        onDone?: (text: string) => void,
     ): {busy: boolean, msgId: string} {
+        const {role, agentId, projectId = ''} = loopInfo;
+        const {browserId = '', source} = options;
         const loopId = getLoopId(role, agentId, projectId);
         if (!this.loops[loopId]) {
-            this.initLoop(loopId, agentHandler);
+            this.initLoop(loopId);
         } else {
             const loopState = this.loops[loopId]!;
             if (loopState.loop.isOutdated()) {
                 loopState.loop = this.createLoop(
-                    role, loopState.agentId, loopState.projectId, loopState.agentHandler
+                    role, agentId, projectId, loopState.agentHandler
                 );
             }
         }
@@ -156,57 +163,73 @@ class LoopGatewayImpl {
             this.updateMessage('', loopId, agentMessages.id, i18nInstance.t('gateway.busy'));
             return {busy: true, msgId: agentMessages.id};
         }
-        loopState.runtime = undefined;
         loopState.running = true;
-        loopState.browserId = browserId;
-        loopState.msgId = agentMessages.id;
+        loopState.invoke = {
+            browserId,
+            source,
+            agentHandler,
+            msgId: agentMessages.id
+        };
         this.fireBusyEvent(loopId);
         this.invokeAndReturn(
-            loopId, loopState,
-            () => loopState.loop.invoke(input, {browserId: loopState.browserId!})
+            loopId, source, loopState,
+            () => loopState.loop.invoke(input, {browserId, agentHandler}),
+            onDone
         );
         return {busy: false, msgId: agentMessages.id};
     }
 
-    public static resume(browserId: string, loopId: string): {resume: boolean, msgId: string} {
+    public static resume(
+        browserId: string, source: InvokeSource, loopId: string,
+        onDone?: (text: string) => void,
+    ): {resume: boolean, msgId: string} {
         if (!this.loops[loopId]) {
             return {resume: false, msgId: ''};
         }
         const loopState = this.loops[loopId]!;
-        if (loopState.browserId !== browserId || !loopState.runtime) {
+        if (loopState.invoke?.browserId !== browserId || !loopState.invoke?.runtime) {
             return {resume: false, msgId: ''};
         }
         if (loopState.loop.isOutdated()) {
             loopState.loop = this.createLoop(
-                loopState.role, loopState.agentId, loopState.projectId, loopState.agentHandler
+                loopState.info.role, loopState.info.agentId,
+                loopState.info.projectId || '', loopState.agentHandler
             );
         }
-        const runtime = loopState.runtime!
-        loopState.runtime = undefined;
+        const runtime = loopState.invoke.runtime!
+        loopState.invoke.runtime = undefined;
         this.invokeAndReturn(
-            loopId, loopState,
-            () => loopState.loop.resume({browserId: loopState.browserId!, runtime})
+            loopId, source, loopState,
+            () => loopState.loop.resume({
+                browserId, agentHandler: loopState.invoke!.agentHandler, runtime
+            }),
+            onDone
         );
-        return {resume: true, msgId: loopState.msgId!};
+        return {resume: true, msgId: loopState.invoke.msgId!};
     }
 
     private static invokeAndReturn(
-        loopId: string, loopState: LoopState, invoke: () => Promise<AgentInvokeResponse>
+        loopId: string, source: InvokeSource, loopState: LoopState,
+        invoke: () => Promise<AgentInvokeResponse>,
+        onDone?: (text: string) => void
     ): void {
         invoke().then(({text, runtime}) => {
             const state = runtime.agentBreakReason;
             if (!isInternalInterruptReason(state)) {
-                this.updateMessage('', loopId, loopState.msgId!, text);
+                onDone?.(text);
+                this.updateMessage('', loopId, loopState.invoke!.msgId!, source === 'im' ? `📱 ${text}` : text);
                 const usage = SessionService.getTokenUsage(loopId);
                 if (usage) {
                     this.fireSSEEvent({eventType: 'tokenUsage', loopId, usage});
                 }
                 this.clearLoopState(loopState);
             } else {
-                loopState.runtime = runtime;
-                loopState.runtime.agentBreakReason = undefined;
+                loopState.invoke!.runtime = runtime;
+                loopState.invoke!.runtime.agentBreakReason = undefined;
             }
-        }).catch(() => {
+        }).catch((e) => {
+            logger.warn(`invokeAndReturn failed: ${e}`);
+            onDone?.(e?.message || e);
             this.clearLoopState(loopState);
         }).finally(() => {
             this.fireBusyEvent(loopId);
@@ -215,9 +238,7 @@ class LoopGatewayImpl {
 
     private static clearLoopState(loopState: LoopState): void {
         loopState.running = false;
-        loopState.browserId = undefined;
-        loopState.msgId = undefined;
-        loopState.runtime = undefined;
+        loopState.invoke = undefined;
     }
 
     public static addMessage(
@@ -253,11 +274,11 @@ class LoopGatewayImpl {
     public static disconnectBrowser(browserId: string) {
         for (const loopId of Object.keys(this.loops)) {
             const loopState = this.loops[loopId];
-            if (loopState && loopState.running && loopState.browserId === browserId) {
+            if (loopState && loopState.running && loopState.invoke?.browserId === browserId) {
                 loopState.loop.setExternalInterruptReason('clientLost');
                 this.cancelInteraction(browserId, loopId, 'disconnected');
-                if (loopState.runtime) {
-                    this.resume(loopState.browserId, loopId);
+                if (loopState.invoke?.runtime) {
+                    this.resume(browserId, loopState.invoke.source, loopId);
                 }
             }
         }
@@ -330,7 +351,7 @@ class LoopGatewayImpl {
         CronService.updateCronTaskStatus({id, pause, close});
     }
 
-    public static getLoopInfo(): LoopInfo {
+    public static getDataInfo(): DeepclawDataInfo {
         const projects = this.getProjects();
         return {
             agents: this.getAgents(),

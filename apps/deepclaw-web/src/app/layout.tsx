@@ -19,7 +19,7 @@ export default async function Layout({
 }>) {
   const lang = await loadCurrentConfig<SupportedLanguage>('ui.lang', DEFAULT_LANG);
   const manager = await loadCurrentConfig<ManagerConfig>('manager');
-  const loopInfo = LoopGateway.getLoopInfo();
+  const dataInfo = LoopGateway.getDataInfo();
   return (
     <html
       lang={LANG_BCP47_LOCALE_MAP[lang]}
@@ -29,7 +29,7 @@ export default async function Layout({
         <RootLayout
             lang={lang}
             manager={manager}
-            loopInfo={loopInfo}
+            dataInfo={dataInfo}
         >{children}</RootLayout>
       </body>
     </html>

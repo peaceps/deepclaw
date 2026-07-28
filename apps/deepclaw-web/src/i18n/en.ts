@@ -243,16 +243,12 @@ export const en = {
                         },
                         sections: {
                             basic: 'Basic info',
-                            im: 'IM configs',
+                            im: 'Connect IM software',
                             llm: 'LLM configs',
                         }
                     }
                 }
             },
-        },
-        im: {
-            invalidConfig: 'You have config errors, please fix on web',
-            busy: 'Current loop is busy'
         },
         config: {
             error: {
@@ -293,7 +289,7 @@ export const en = {
                         prompt: 'IM tool',
                         options: {
                             dingtalk: 'DingTalk',
-                            feishu: 'Feishu',
+                            feishu: 'Feishu (Not supported yet)',
                         },
                     },
                     appId: {

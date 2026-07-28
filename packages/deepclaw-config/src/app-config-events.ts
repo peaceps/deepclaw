@@ -40,9 +40,9 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
             {label: 'config.agents.mode.options.chat', value: 'chat'},
         ],
     },
-    ['agents.headlessEnabled']: {
+    ['agents.im.enabled']: {
         type: 'select',
-        content: 'config.agents.headlessEnabled.prompt',
+        content: 'config.agents.im.enabled.prompt',
         options: [
             {label: 'common.yes', value: "yes"},
             {label: 'common.no', value: "no"},

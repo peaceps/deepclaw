@@ -65,36 +65,12 @@ importers:
 
   apps/deepclaw-deepclaw:
     dependencies:
-      '@deepclaw/headless':
-        specifier: workspace:*
-        version: link:../deepclaw-headless
       '@deepclaw/tui':
         specifier: workspace:*
         version: link:../deepclaw-tui
       meow:
         specifier: 14.1.0
         version: 14.1.0
-
-  apps/deepclaw-headless:
-    dependencies:
-      '@deepclaw/agent':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-agent
-      '@deepclaw/config':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-config
-      '@deepclaw/core':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-core
-      '@deepclaw/i18n':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-i18n
-      '@deepclaw/im':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-im
-      '@deepclaw/node-utils':
-        specifier: workspace:*
-        version: link:../../packages/deepclaw-node-utils
 
   apps/deepclaw-tui:
     dependencies:
@@ -302,6 +278,9 @@ importers:
       '@deepclaw/i18n':
         specifier: workspace:*
         version: link:../deepclaw-i18n
+      '@deepclaw/loop-gateway':
+        specifier: workspace:*
+        version: link:../deepclaw-loop-gateway
       '@deepclaw/node-utils':
         specifier: workspace:*
         version: link:../deepclaw-node-utils

@@ -1,6 +1,5 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { avatarBG, statusColors } from "../styles-mapping";
-import { AgentTooltip } from "./AgentTooltip";
 import { useAgentCard } from "./use-agent-card";
 import { deriveAgentSummary, useAppStore } from "@/lib/store";
 
@@ -11,7 +10,7 @@ export function AgentCollapsedCard({
     onSelect?: () => void;
 }) {
     const projects = useAppStore(s => s.projects);
-    const {isSelected, tooltipVisible, setTooltipVisible, cardRef, handleClick} =
+    const {isSelected, cardRef, handleClick} =
         useAgentCard({ agent, onSelect });
     const { status: agentStatus } = deriveAgentSummary(agent, projects);
 
@@ -38,12 +37,12 @@ export function AgentCollapsedCard({
             <span className="w-full text-xs text-center text-gray-700 truncate">{agent.name}</span>
         </div>
 
-        <AgentTooltip
+        {/* <AgentTooltip
             agent={agent}
             visible={tooltipVisible}
             anchorRef={cardRef}
             onClose={() => setTooltipVisible(false)}
-        />
+        /> */}
       </>
     );
 }

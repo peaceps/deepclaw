@@ -11,7 +11,6 @@ export default {
 
   external: [
     /^node:/,
-    '@deepclaw/headless',
     '@deepclaw/tui',
     'meow',
   ],

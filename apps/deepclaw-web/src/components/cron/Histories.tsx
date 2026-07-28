@@ -22,21 +22,28 @@ export function Histories({ task }: HistoriesProps) {
     const [hasMore, setHasMore] = useState(task.histories.length >= PAGE_SIZE);
     const [loading, setLoading] = useState(false);
 
-    // The live window comes straight from the task prop (kept fresh via SSE), newest-first.
-    const live = [...task.histories].reverse();
     const newestStart = task.histories[task.histories.length - 1]?.start;
-    const items = [...live, ...older];
 
-    // On a new execution, reset pagination and scroll back to the top.
-    useEffect(() => {
+    // On a new execution, reset pagination (state adjustment during render, not in an effect).
+    const [prevNewest, setPrevNewest] = useState(newestStart);
+    if (newestStart !== prevNewest) {
+        setPrevNewest(newestStart);
         setOlder([]);
         setHasMore(task.histories.length >= PAGE_SIZE);
+    }
+
+    // Scroll back to the top when a new execution appears (DOM-only side effect).
+    useEffect(() => {
         scrollRef.current?.scrollTo({ top: 0 });
-    }, [newestStart, task.histories.length]);
+    }, [newestStart]);
+
+    // The live window comes straight from the task prop (kept fresh via SSE), newest-first.
+    const live = [...task.histories].reverse();
+    const items = [...live, ...older];
 
     const loadMore = useCallback(async () => {
         if (loading || !hasMore) return;
-        const cursor = items[items.length - 1]?.start;
+        const cursor = older.length > 0 ? older[older.length - 1]!.start : task.histories[0]?.start;
         if (cursor === undefined) return;
         setLoading(true);
         try {
@@ -46,7 +53,7 @@ export function Histories({ task }: HistoriesProps) {
         } finally {
             setLoading(false);
         }
-    }, [task.id, items, loading, hasMore]);
+    }, [task.id, task.histories, older, loading, hasMore]);
 
     const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
         const el = e.currentTarget;

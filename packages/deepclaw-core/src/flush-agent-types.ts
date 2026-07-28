@@ -61,6 +61,7 @@ export type SealedAgentHandler = {
 
 export type AgentInvokeOptions = {
     browserId: string;
+    agentHandler?: Partial<Omit<SealedAgentHandler, 'onInfoEvent'>>;
     runtime?: AgentRuntime;
 }
 

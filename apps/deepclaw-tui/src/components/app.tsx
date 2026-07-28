@@ -1,6 +1,6 @@
 import {useState, useMemo, useEffect, ReactElement, useCallback, useEffectEvent, useRef} from 'react';
 import { Box, Static, useApp } from 'ink';
-import { AgentInteractionEventPayload, AgentStreamEvent } from '@deepclaw/core';
+import { AgentInteractionEventPayload, AgentStreamEvent, getLoopId } from '@deepclaw/core';
 import { DEFAULT_LANG } from '@deepclaw/i18n';
 import {LoopGateway} from '@deepclaw/loop-gateway';
 import {HistoryLine, type HistoryItem} from './history';
@@ -53,9 +53,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
     const envConfigReady = useConfig(handleAgentEvent);
 
     const handleStream = useEffectEvent((e: AgentStreamEvent) => {
-        if (e.done) {
-            handleLlmDone(llmOutput);
-        } else {
+        if (!e.done) {
             let text = e.text;
             if (e.tag) {
                 text = handleTaggedStream(e.tag, e.text, t);
@@ -68,7 +66,11 @@ export function App({app}: {app: AppConfig}): ReactElement {
 
 	useEffect(() => {
         if (envConfigReady) {
-            agentIdRef.current = LoopGateway.getLoopInfo().agents[0]!.id;
+            agentIdRef.current = LoopGateway.getDataInfo().agents[0]!.id;
+            LoopGateway.initLoop(getLoopId('agent', agentIdRef.current!), {
+                onStreamText: handleStream,
+                onInteractionEvent: handleAgentEvent
+            });
         }
 	}, [app, handleAgentEvent, envConfigReady]);
 
@@ -76,10 +78,10 @@ export function App({app}: {app: AppConfig}): ReactElement {
         setHistories(prev => [...prev, {role: 'user', content: userInput}]);
         setLlmWorking(true);
         try {
-            LoopGateway.invoke('', 'agent', agentIdRef.current!, '', userInput, {
-                onStreamText: handleStream,
-                onInteractionEvent: handleAgentEvent
-            });
+            LoopGateway.invoke({
+                role: 'agent',
+                agentId: agentIdRef.current!
+            }, {source: 'tui'}, userInput, handleLlmDone);
         } catch (err: any) {
             setTimeout(() => {
                 handleLlmDone(`${t('common.error')} ${err?.message?.trim() || t('common.unexpected')}`);

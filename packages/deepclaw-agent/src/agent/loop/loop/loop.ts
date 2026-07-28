@@ -195,7 +195,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             actions: {
                 newSubLoop: this.createSubLoop.bind(this),
                 addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
-                agentHandler: this.agentHandler,
+                agentHandler: {
+                    ...this.agentHandler, ...options.agentHandler
+                },
                 addStringMessage: this.addStringMessage.bind(this),
             },
             runtime: options.runtime ?? {

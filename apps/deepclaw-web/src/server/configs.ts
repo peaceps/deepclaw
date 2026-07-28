@@ -55,7 +55,7 @@ export type ValidationResult = {
 };
 
 export async function validateConfig(config: Partial<DeepclawConfig>): Promise<ValidationResult> {
-  const {lacks} = validateAppConfig(false, config);
+  const {lacks} = validateAppConfig(config);
   return transformValidationErrors(lacks);
 }
 

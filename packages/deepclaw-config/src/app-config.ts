@@ -16,10 +16,11 @@ export type DeepclawConfig = {
         id: string;
         name: string;
         fired?: boolean;
-        im?: {
-            engine: 'dingtalk' | 'feishu';
-            appId: string;
-            secret: string;
+        im: {
+            enabled: boolean;
+            engine?: 'dingtalk' | 'feishu';
+            appId?: string;
+            secret?: string;
         },
         mode: 'agent' | 'chat';
         llm: {
@@ -42,8 +43,9 @@ export type LLMConfig = AgentConfig['llm'];
 
 export type MissingAppConfig = (string|{[key in keyof Partial<DeepclawConfig>]: {[key: number]: string[]}})[];
 
-const globalDeepclawConfig: {config: DeepclawConfig} =
-    globalize('globalDeepclawConfig', {config: loadAppConfig()});
+const initialConfig = validateAppConfig(loadAppConfig());
+const globalDeepclawConfig: {config: DeepclawConfig, valid: boolean} =
+    globalize('globalDeepclawConfig', {config: initialConfig.config, valid: initialConfig.lacks.length === 0});
 
 function loadAppConfig(): DeepclawConfig {
     let appConfig: Partial<DeepclawConfig> = {};
@@ -79,6 +81,9 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
         if (!agent.id || typeof agent.id !== 'string') {
             agent.id = crypto.randomUUID();
         }
+        if (!agent.im) {
+            agent.im = {} as IMConfig;
+        }
     }
     const activeAgents = appConfig.agents.filter(agent => !agent.fired);
     if (activeAgents.length > MAX_AGENT_COUNT) {
@@ -88,11 +93,11 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
     }
 }
 
-export function validateCurrentAppConfig(headless: boolean): {config: DeepclawConfig, lacks: MissingAppConfig} {
-    return validateAppConfig(headless, globalDeepclawConfig.config);
+export function validateCurrentAppConfig(): {config: DeepclawConfig, lacks: MissingAppConfig} {
+    return validateAppConfig(globalDeepclawConfig.config);
 }
 
-export function validateAppConfig(headless: boolean, configToValidate: Partial<DeepclawConfig>): {
+export function validateAppConfig(configToValidate: Partial<DeepclawConfig>): {
     config: DeepclawConfig, lacks: MissingAppConfig
 } {
     const lacks: MissingAppConfig = [];
@@ -122,22 +127,26 @@ export function validateAppConfig(headless: boolean, configToValidate: Partial<D
                 agentLacks.push(`mode`);
             }
             if (!agent.im) {
-                if (headless) {
-                    agent.im = {} as IMConfig;
-                    agentLacks.push(`im.engine`, `im.appId`, `im.secret`);
-                }
-            } else {
-                if (!['dingtalk', 'feishu'].includes(agent.im.engine)) {
+                agent.im = {} as IMConfig;
+            }
+            if (typeof agent.im.enabled !== 'boolean') {
+                agent.im.enabled = false;
+                agentLacks.push('im.enabled');
+            }
+            if (agent.im.enabled) {
+                if (!agent.im.engine || !['dingtalk', 'feishu'].includes(agent.im.engine)) {
+                    agent.im.engine = undefined;
                     agentLacks.push('im.engine');
                 }
-                if (!agent.im.appId) {
+                if (!agent.im.appId || typeof agent.im.appId !== 'string') {
+                    agent.im.appId = undefined;
                     agentLacks.push('im.appId');
                 }
-                if (!agent.im.secret) {
+                if (!agent.im.secret || typeof agent.im.secret !== 'string') {
+                    agent.im.secret = undefined;
                     agentLacks.push('im.secret');
                 }
             }
-
             if (!agent.llm) {
                 agent.llm = {} as LLMConfig;
                 agentLacks.push('llm.baseURL', 'llm.apiKey', 'llm.model');
@@ -167,6 +176,7 @@ export function writeAppConfig(config: DeepclawConfig) {
     autoMigrate(config);
     FileUtils.writeFile(APP_CONFIG_FILE, JSON.stringify(config, null, 2));
     globalDeepclawConfig.config = loadAppConfig();
+    globalDeepclawConfig.valid = validateCurrentAppConfig().lacks.length === 0;
 }
 
 export function loadConfig<T>(key?: string, defaultValue?: T): T {
@@ -190,4 +200,8 @@ export function loadAgentConfig(agentId: string): AgentConfig {
 
 export function loadLang(): SupportedLanguage {
     return loadConfig<SupportedLanguage>('ui.lang', DEFAULT_LANG);
+}
+
+export function isCurrentConfigValid(): boolean {
+    return globalDeepclawConfig.valid;
 }

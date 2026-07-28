@@ -47,8 +47,8 @@ export type AgentOption = {
 };
 
 export async function getActiveAgents(): Promise<AgentOption[]> {
-    const loopInfo = LoopGateway.getLoopInfo();
-    return loopInfo.agents
+    const dataInfo = LoopGateway.getDataInfo();
+    return dataInfo.agents
         .filter(a => !a.fired)
         .map(a => ({ id: a.id, name: a.name }));
 }

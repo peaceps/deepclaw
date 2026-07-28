@@ -82,17 +82,17 @@ export function AgentSettingsCard({
         <div className="space-y-4 pt-4 border-t border-gray-100">
           <DeepSwitch
             label="web.pages.settings.panels.agents.sections.im"
-            value={!!agent.im}
+            value={agent.im.enabled}
             onSwitch={(e) => {
               if (e.target.checked) {
-                onUpdate(index, { im: { engine: '' as 'feishu' | 'dingtalk', appId: '', secret: '' } } );
+                onUpdateIM(index, { enabled: true } );
               } else {
-                onUpdate(index, { im: undefined });
+                onUpdateIM(index, { enabled: false });
               }
             }}
             Icon={MessageSquare}
           />
-          {agent.im && (
+          {agent.im.enabled && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <DeepSelect

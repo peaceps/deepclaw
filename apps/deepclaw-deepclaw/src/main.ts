@@ -9,21 +9,15 @@ const cli = meow(`
 	  $ deepclaw
 
 	Options
-		--headless  Headless mode with IM
         --tui       TUI mode
         --web       Web mode (next start; run build in apps/deepclaw-web first)
 
 	Examples
-	  $ deepclaw --headless
+	  $ deepclaw --web
 `,
 	{
 		importMeta: import.meta,
 		flags: {
-			headless: {
-				type: 'boolean',
-                optional: true,
-                default: false,
-			},
 			tui: {
 				type: 'boolean',
 				optional: true,
@@ -61,9 +55,7 @@ function startNextStart(): void {
 	});
 }
 
-if (cli.flags.headless) {
-    void import('@deepclaw/headless');
-} else if (cli.flags.tui) {
+if (cli.flags.tui) {
 	void import('@deepclaw/tui');
 } else if (cli.flags.web) {
 	startNextStart();

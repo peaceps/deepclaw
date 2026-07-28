@@ -53,7 +53,9 @@ export function AgentSettingsHeader({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h4 className="font-semibold text-gray-900">{agent.name || t('web.pages.settings.panels.agents.header.unnamed')}</h4>
+              <h4 className="font-semibold text-gray-900">
+                {agent.name || t('web.pages.settings.panels.agents.header.unnamed')}
+              </h4>
               {validationErrors.length > 0 && (
                 <span className="px-1.5 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-medium">
                   {validationErrors.length} {t('web.pages.settings.panels.agents.header.errors')}
@@ -62,7 +64,7 @@ export function AgentSettingsHeader({
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <span className="capitalize">{findSelectedOption('agents.mode', agent.mode)}</span>
-              {agent.im && (
+              {agent.im?.enabled && agent.im?.engine && (
                 <>
                   <span>·</span>
                   <span className="flex items-center gap-1">

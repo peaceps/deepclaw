@@ -1,5 +1,36 @@
-import { AgentInteractionEventPayload } from '@deepclaw/core';
-import { i18nInstance } from '@deepclaw/i18n';
+import readline from 'readline/promises';
+import { stdin, stdout } from 'process';
+import { AgentInteractionEvent, AgentInteractionEventPayload } from '@deepclaw/core';
+import { i18nInstance, DEFAULT_LANG } from '@deepclaw/i18n';
+
+let rl: readline.Interface | null = null;
+
+export async function handleStringifiedInteractionEvent(event: AgentInteractionEvent): Promise<string> {
+    if (!rl) {
+        rl = readline.createInterface({ input: stdin, output: stdout });
+    }
+    try {
+        let answer: string = '';
+        const question = stringifiedInteractionEvent(event);
+        if (event.type === 'readonly') {
+            console.log(question);
+        } else {
+            answer = await rl.question(question);
+            answer = await parseStringifiedAnswer(
+                event, answer, console.log, handleStringifiedInteractionEvent
+            );
+        }
+        if (event.key === 'lang' && answer !== DEFAULT_LANG) {
+            i18nInstance.changeLanguage(answer as string);
+        }
+        return answer;
+    } catch (error) {
+        throw error;
+    } finally {
+        rl?.close();
+        rl = null;
+    }
+}
 
 export function stringifiedInteractionEvent(event: AgentInteractionEventPayload): string {
     let question = '';
@@ -10,7 +41,7 @@ export function stringifiedInteractionEvent(event: AgentInteractionEventPayload)
         question = content + '\n';
         const options = event.options!.map((option) => i18nInstance.t(typeof option === 'string' ? option : option.label));
         question += options.map((option, i) => `[${i + 1}] ${option}`).join('\n') + '\n';
-        question += i18nInstance.t('headless.selectOption');
+        question += i18nInstance.t('im.selectOption');
     } else if (event.type === 'readonly') {
         question = content;
     }
@@ -18,10 +49,10 @@ export function stringifiedInteractionEvent(event: AgentInteractionEventPayload)
 }
 
 export async function parseStringifiedAnswer(
-    event: AgentInteractionEventPayload,
+    event: AgentInteractionEvent,
     answer: string,
     notify: (message: string) => void,
-    callSelf: (event: AgentInteractionEventPayload) => Promise<string>
+    callSelf: (event: AgentInteractionEvent) => Promise<string>
 ): Promise<string> {
     if (event.type !== 'select') {
         return answer;

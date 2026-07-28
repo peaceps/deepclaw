@@ -15,12 +15,10 @@
 		"lint": "eslint **/*.ts",
 		"test": "vitest run",
 		"web": "npx tsx src/main.ts",
-		"tui": "npx tsx src/main.ts --tui",
-		"headless": "npx tsx src/main.ts --headless"
+		"tui": "npx tsx src/main.ts --tui"
 	},
 	"dependencies": {
 		"@deepclaw/tui": "workspace:*",
-		"@deepclaw/headless": "workspace:*",
         "meow": "14.1.0"
 	}
 }

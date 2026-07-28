@@ -324,6 +324,8 @@ They shoudl be short descriptions of each step, should not be too long for user 
                 output: {
                     type: 'object',
                     additionalProperties: false,
+                    description: `The output of the task, for coding task you can give the source dir of the task,
+also you can start the dev server and provide the access address if possible.`,
                     properties: {
                         type: {
                             type: 'string', enum: ['markdown', 'text', 'binary'],

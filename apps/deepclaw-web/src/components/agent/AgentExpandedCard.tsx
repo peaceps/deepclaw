@@ -1,6 +1,5 @@
 import type { AgentEmployee } from "@deepclaw/core";
 import { avatarBG, moodEmojis, statusColors } from "../styles-mapping";
-import { AgentTooltip } from "./AgentTooltip";
 import { useTranslation } from "react-i18next";
 import { useAgentCard } from "./use-agent-card";
 import { AlarmClock, CheckCircle2, Clock } from "lucide-react";
@@ -13,7 +12,7 @@ export function AgentExpandedCard({
     onSelect?: () => void;
 }) {
     const projects = useAppStore(s => s.projects);
-    const {isSelected, tooltipVisible, setTooltipVisible, cardRef, handleClick} =
+    const {isSelected, cardRef, handleClick} =
         useAgentCard({ agent, onSelect });
     const {t} = useTranslation();
     const { status: agentStatus, stats: projectStats } = deriveAgentSummary(agent, projects);
@@ -61,12 +60,12 @@ export function AgentExpandedCard({
             </div>
           </div>
     
-          <AgentTooltip
+          {/* <AgentTooltip
             agent={agent}
             visible={tooltipVisible}
             anchorRef={cardRef}
             onClose={() => setTooltipVisible(false)}
-          />
+          /> */}
         </>
     );
 }

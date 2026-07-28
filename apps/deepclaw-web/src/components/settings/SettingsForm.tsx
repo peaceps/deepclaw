@@ -54,6 +54,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       name: '',
       mode: '',
       llm: { baseURL: '', apiKey: '', model: '' },
+      im: {enabled: false}
     } as unknown as AgentConfig;
     setConfig((prev) => ({ ...prev, agents: [...prev.agents, newAgent] }));
     setPanelToggleStatus(pre => ({...pre, [`agents.${config.agents.length}`]: true}));
@@ -83,7 +84,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       ...prev,
       agents: prev.agents.map((agent, i) =>
         i === index
-          ? { ...agent, im: agent.im ? { ...agent.im, ...updates } : { engine: '' as 'dingtalk' | 'feishu', appId: '', secret: '', ...updates } }
+          ? { ...agent, im: { ...agent.im, ...updates }}
           : agent
       ),
     }));
