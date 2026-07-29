@@ -3,10 +3,11 @@
 import { useState, useCallback } from 'react';
 import type {
     CONFIGS_EVENTS, DeepclawConfig, AgentConfig, IMConfig,
-    LLMConfig, UIConfig, ManagerConfig
+    LLMConfig, UIConfig, ManagerConfig,
+    AdvancedConfig
 } from '@deepclaw/config';
 import { type AgentInteractionEvent } from '@deepclaw/core';
-import { Save, Plus, Bot, Globe } from 'lucide-react';
+import { Save, Plus, Bot, Globe, Settings } from 'lucide-react';
 import { AgentSettingsCard } from './AgentSettingsCard';
 import {validateConfig, type ValidationResult} from '@/server/configs';
 import {DeepExpandablePanel} from '@/laf/deep-expandable-panel';
@@ -45,6 +46,11 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
 
   const updateManagerConfig = useCallback((updates: Partial<ManagerConfig>) => {
     setConfig((prev) => ({ ...prev, manager: { ...prev.manager, ...updates } }));
+    setEdited(true);
+  }, []);
+
+  const updateAdvancedConfig = useCallback((updates: Partial<AdvancedConfig>) => {
+    setConfig((prev) => ({ ...prev, advanced: { ...prev.advanced, ...updates } }));
     setEdited(true);
   }, []);
 
@@ -235,6 +241,24 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
                 {t('web.pages.settings.panels.agents.addButton')}
               </button>
             </div>
+          </div>
+        </DeepExpandablePanel>
+
+        <DeepExpandablePanel
+          name="advanced"
+          expanded={!!panelToggleStatus['advanced']}
+          onToggle={togglePanel}
+          title="web.pages.settings.panels.advanced.title"
+          description="web.pages.settings.panels.advanced.description"
+          Icon={Settings}
+        >
+          <div className="p-6 border-t border-gray-200">
+            <DeepInput
+              uiInfo={configEvents['advanced.mcpServer'] as Extract<AgentInteractionEvent, {type: 'input'}>}
+              value={config.advanced.mcpServer ?? ''}
+              placeholder={t('web.pages.settings.panels.advanced.mcpServer.placeholder')}
+              onInput={(e) => updateAdvancedConfig({ mcpServer: e.target.value })}
+            />
           </div>
         </DeepExpandablePanel>
       </div>

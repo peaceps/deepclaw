@@ -15,6 +15,10 @@ export default [
     external: [
       /^node:/,
       '@deepclaw/core',
+      '@deepclaw/agent',
+      /^@modelcontextprotocol\/sdk(\/.*)?$/,
+      'zod',
+      'express',
     ],
 
     plugins: [

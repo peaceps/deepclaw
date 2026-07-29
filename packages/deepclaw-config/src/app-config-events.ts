@@ -75,5 +75,9 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
     ['agents.llm.model']: {
         type: 'input',
         content: 'config.agents.llm.model.prompt'
+    },
+    ['advanced.mcpServer']: {
+        type: 'input',
+        content: 'config.advanced.mcpServer.prompt'
     }
 };

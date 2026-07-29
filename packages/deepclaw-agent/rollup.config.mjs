@@ -21,6 +21,7 @@ export default [
       '@deepclaw/core',
       '@deepclaw/config',
       'gray-matter',
+      /^@modelcontextprotocol\/sdk(\/.*)?$/,
       /^@anthropic-ai\/sdk(\/.*)?$/,
       /^openai(\/.*)?$/,
     ],

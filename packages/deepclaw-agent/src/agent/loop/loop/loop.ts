@@ -89,12 +89,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         return this.sessionDir;
     }
 
-    public updateConfig(config: AgentConfig): void {
+    public updateAgentConfig(config: AgentConfig): void {
         const oldLLMConfig = this.agentConfig.llm;
         const newLLMConfig = config.llm;
         this.agentConfig = config;
         let newClient = null;
-        if (oldLLMConfig.baseURL !== newLLMConfig.baseURL || oldLLMConfig.apiKey !== newLLMConfig.apiKey) {
+        if (oldLLMConfig.baseURL !== newLLMConfig.baseURL
+            || oldLLMConfig.apiKey !== newLLMConfig.apiKey
+        ) {
             let protocolChanged = false;
             if (oldLLMConfig.baseURL !== newLLMConfig.baseURL) {
                 const oldProtocol = detectAgentProtocolFromUrl(oldLLMConfig.baseURL);

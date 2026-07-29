@@ -81,7 +81,7 @@ export function App({app}: {app: AppConfig}): ReactElement {
             LoopGateway.invoke({
                 role: 'agent',
                 agentId: agentIdRef.current!
-            }, {source: 'tui'}, userInput, handleLlmDone);
+            }, {source: 'tui'}, userInput, undefined, handleLlmDone);
         } catch (err: any) {
             setTimeout(() => {
                 handleLlmDone(`${t('common.error')} ${err?.message?.trim() || t('common.unexpected')}`);

@@ -31,6 +31,9 @@ export type DeepclawConfig = {
     }[],
     ui: {
         lang: SupportedLanguage;
+    },
+    advanced: {
+        mcpServer?: string;
     }
 };
 export type ManagerConfig = DeepclawConfig['manager'];
@@ -40,6 +43,7 @@ export type AgentConfig = AgentsConfig[number];
 export type AgentMode = AgentConfig['mode'];
 export type IMConfig = NonNullable<AgentConfig['im']>;
 export type LLMConfig = AgentConfig['llm'];
+export type AdvancedConfig = DeepclawConfig['advanced'];
 
 export type MissingAppConfig = (string|{[key in keyof Partial<DeepclawConfig>]: {[key: number]: string[]}})[];
 
@@ -90,6 +94,9 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
         const active = activeAgents.slice(0, MAX_AGENT_COUNT);
         const fired = appConfig.agents.filter(agent => !!agent.fired);
         appConfig.agents = active.concat(fired);
+    }
+    if (!appConfig.advanced) {
+        appConfig.advanced = {} as AdvancedConfig;
     }
 }
 

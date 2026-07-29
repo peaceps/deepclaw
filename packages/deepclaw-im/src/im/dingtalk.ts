@@ -20,8 +20,6 @@ const onBotMessage = (client: DWClient, agentId: string) => {
     const endPoint = {sessionWebhook: '', senderStaffId: ''};
     let interactionResolver: Function | null = null;
     let sequentialInteraction: Promise<void> = Promise.resolve();
-    
-    LoopGateway.initLoop(loopId);
 
     async function handleInteractionEvent(event: AgentInteractionEvent): Promise<string> {
         sendMessage(endPoint, stringifiedInteractionEvent(event));

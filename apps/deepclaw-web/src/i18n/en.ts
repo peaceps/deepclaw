@@ -246,6 +246,13 @@ export const en = {
                             im: 'Connect IM software',
                             llm: 'LLM configs',
                         }
+                    },
+                    advanced: {
+                        title: 'Advanced Settings',
+                        description: 'Advanced settings for the application',
+                        mcpServer: {
+                            placeholder: 'http://localhost:6059/mcp',
+                        },
                     }
                 }
             },
@@ -311,6 +318,11 @@ export const en = {
                     }
                 }
             },
+            advanced: {
+                mcpServer: {
+                    prompt: 'MCP server address',
+                },
+            }
         },
     },
 };

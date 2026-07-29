@@ -17,6 +17,7 @@ import { globalize, UpdateContent } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent, SkillsManager,
     type SkillInfo, SessionService, CronService,
+    MCPService,
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
@@ -57,6 +58,7 @@ class LoopGatewayImpl {
     public static initGateway(): void {
         if (this.cronUnsubscriber) return;
         this.cronUnsubscriber = CronService.subscribe(task => this.fireSSEEvent({eventType: 'updateCron', content: task}));
+        MCPService.connect();
     }
 
     private static defaultHandler: AgentHandler = {
@@ -255,15 +257,16 @@ class LoopGatewayImpl {
         }
     }
 
-    public static updateLoopConfig(config: DeepclawConfig) {
+    public static updateConfig(config: DeepclawConfig) {
         for (const agentConfig of config.agents) {
             for (const loopId of Object.keys(this.loops)) {
                 const {agentId} = splitLoopId(loopId);
                 if (agentId === agentConfig.id) {
-                    this.loops[loopId]!.loop.updateConfig(agentConfig);
+                    this.loops[loopId]!.loop.updateAgentConfig(agentConfig);
                 }
             }
         }
+        MCPService.connect();
     }
 
     public static subscribe(cb: (e: LoopGatewayEvent) => void): () => void {

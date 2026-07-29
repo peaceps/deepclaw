@@ -54,5 +54,10 @@ export const en = {
                 }
             }
         },
+        advanced: {
+            mcpServer: {
+                prompt: 'Please enter the MCP server address:',
+            },
+        },
     },
 };

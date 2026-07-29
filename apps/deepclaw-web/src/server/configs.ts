@@ -16,7 +16,7 @@ export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
   const currentAgents = loadConfig<AgentsConfig>('agents');
   const currentAvatar = loadConfig<string>('manager.avatar');
   const merged: DeepclawConfig = { ...config, manager: { ...config.manager, avatar: currentAvatar } };
-  updateConfig(merged);
+  writeAppConfig(merged);
   for (const agent of config.agents) {
     if (currentAgents.some(current => current.id === agent.id)) {
         LoopGateway.updateAgentIdentity({id: agent.id, name: agent.name, fired: !!agent.fired });
@@ -25,6 +25,7 @@ export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
     }
   }
   IMService.reset();
+  LoopGateway.updateConfig(config);
   revalidatePath('/', 'layout');
 }
 
@@ -34,13 +35,8 @@ export async function updateManagerAvatar(avatar: string): Promise<void> {
   }
   const config = loadConfig<DeepclawConfig>();
   const next: DeepclawConfig = { ...config, manager: { ...config.manager, avatar } };
-  updateConfig(next);
+  writeAppConfig(next);
   revalidatePath('/', 'layout');
-}
-
-function updateConfig(config: DeepclawConfig): void {
-    writeAppConfig(config);
-    LoopGateway.updateLoopConfig(config);
 }
 
 export type ValidationResult = {

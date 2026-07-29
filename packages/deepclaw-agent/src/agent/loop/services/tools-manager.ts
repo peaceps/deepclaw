@@ -15,6 +15,7 @@ import {createProjectTool, createSimpleTaskTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
 import { AgentMode } from '@deepclaw/config';
 import { base64Tool } from '../tools/encode-decode-tool';
+import { MCP_PREFIX, MCPService } from './mcp-service';
 
 const tools: ToolDesc<any>[] = [
     subLoopTool,
@@ -84,15 +85,18 @@ export class ToolsManager {
         if (isSubLoop) {
             return this.map.subLoop[mode][name];
         } else {
+            if (name.startsWith(MCP_PREFIX)) {
+                return MCPService.getTools()[name];
+            }
             return this.map.loop[mode][name];
         }
     }
 
-    public static getToolsArray(isSubLoop: boolean): Record<AgentMode, LLMTool[]> {
+    public static getToolsArray(isSubLoop: boolean, mode: AgentMode): LLMTool[] {
         if (isSubLoop) {
-            return this.array.subLoop;
+            return this.array.subLoop[mode];
         } else {
-            return this.array.loop;
+            return [...this.array.loop[mode], ...Object.values(MCPService.getTools()).map(tool => tool.tool)];
         }
     }
 }

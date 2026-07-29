@@ -246,6 +246,13 @@ export const zh = {
                             im: '连接即时通讯软件',
                             llm: 'LLM配置',
                         }
+                    },
+                    advanced: {
+                        title: '高级设置',
+                        description: '高级设置',
+                        mcpServer: {
+                            placeholder: 'http://localhost:6059/mcp',
+                        },
                     }
                 }
             },
@@ -311,6 +318,11 @@ export const zh = {
                     },
                 }
             },
+            advanced: {
+                mcpServer: {
+                    prompt: 'MCP服务器地址',
+                },
+            }
         },
     },
 };

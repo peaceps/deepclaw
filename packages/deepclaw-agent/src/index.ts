@@ -10,4 +10,5 @@ export * from './agent/loop/services/skills-manager';
 export * from './agent/loop/services/project-manager';
 export * from './agent/loop/services/cron-service';
 export * from './agent/loop/services/session-service';
+export * from './agent/loop/services/mcp-service';
 export * from './agent/paths';

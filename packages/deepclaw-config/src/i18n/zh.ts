@@ -54,5 +54,10 @@ export const zh = {
                 },
             }
         },
+        advanced: {
+            mcpServer: {
+                prompt: '请输入MCP服务器地址：',
+            },
+        },
     },
 };

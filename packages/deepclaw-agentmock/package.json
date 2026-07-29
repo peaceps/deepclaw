@@ -1,24 +1,30 @@
 {
 	"name": "@deepclaw/agentmock",
 	"version": "0.0.1",
-    "packageManager": "pnpm@10.33.0",
+	"packageManager": "pnpm@10.33.0",
 	"license": "MIT",
 	"type": "module",
 	"engines": {
 		"node": ">=21"
 	},
-    "exports": {
-      ".": {
-        "import": "./src/index.ts"
-      }
-    },
+	"exports": {
+		".": {
+			"import": "./src/index.ts"
+		}
+	},
 	"scripts": {
 		"build": "rollup -c",
 		"lint": "eslint **/*.ts",
-        "test": "vitest run"
+		"test": "vitest run"
 	},
-    "dependencies": {
-        "@deepclaw/core": "workspace:*",
-        "@deepclaw/agent": "workspace:*"
-    }
+	"dependencies": {
+		"@deepclaw/agent": "workspace:*",
+		"@deepclaw/core": "workspace:*",
+		"@modelcontextprotocol/sdk": "1.30.0",
+		"zod": "4.4.3",
+		"express": "5.2.1"
+	},
+	"devDependencies": {
+		"@types/express": "5.0.6"
+	}
 }

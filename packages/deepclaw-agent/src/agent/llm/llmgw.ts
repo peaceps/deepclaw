@@ -12,20 +12,17 @@ export type LLMConstructor<I, O extends {transitionReason: LLMTransitionReason},
 
 export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReason}, T, LLM> {
     protected client: LLM;
-    private tools: Record<AgentMode, T[]> = {agent: [], chat: []};
+    private isSubLoop: boolean;
     protected gw: LLMGWConfig;
 
     constructor(isSubLoop: boolean, llmConfig: LLMConfig) {
         this.gw = {
             model: llmConfig.model,
-            timeoutMs: 300 * 1000, // JSON: seconds → client: ms
+            timeoutMs: 300 * 1000,
             temperature: 0.1,
             maxTokens: 8000
         }
-        const allTools = ToolsManager.getToolsArray(isSubLoop);
-        for (const mode of Object.keys(allTools) as AgentMode[]) {
-            this.tools[mode] = this.convertTools(allTools[mode]);
-        };
+        this.isSubLoop = isSubLoop;
         this.client = this.createLLMClient(llmConfig.baseURL, llmConfig.apiKey, this.gw.timeoutMs);
     }
 
@@ -52,7 +49,8 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
         let response: O | null = null;
         for (let i = 0; i < llmRetry; i++) {
             try {
-                response = await this._invoke(system, messages, this.tools[mode], streamer);
+                const tools = this.convertTools(ToolsManager.getToolsArray(this.isSubLoop, mode));
+                response = await this._invoke(system, messages, tools, streamer);
                 break;
             } catch (error) {
                 logger.error(error, 'LLM invoke failed');
