@@ -25,7 +25,7 @@ export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
     }
   }
   IMService.reset();
-  LoopGateway.updateConfig(config);
+  LoopGateway.updateConfig(merged);
   revalidatePath('/', 'layout');
 }
 

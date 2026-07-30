@@ -69,11 +69,14 @@ export class ToolsManager {
     }
     
     private static initTools(): void {
+        const modes = Object.keys(this.map.loop) as AgentMode[];
         for (const tool of tools) {
-            for (const mode of tool.agentMode) {
-                this.map.loop[mode][tool.tool.name] = tool;
-                this.array.loop[mode].push(tool.tool);
-                if (!tool.exclusiveInSubLoop) {
+            for (const mode of modes) {
+                if (this.isAvailable(tool, false, mode)) {
+                    this.map.loop[mode][tool.tool.name] = tool;
+                    this.array.loop[mode].push(tool.tool);
+                }
+                if (this.isAvailable(tool, true, mode)) {
                     this.map.subLoop[mode][tool.tool.name] = tool;
                     this.array.subLoop[mode].push(tool.tool);
                 }
@@ -82,21 +85,26 @@ export class ToolsManager {
     }
 
     public static getToolDesc(isSubLoop: boolean, mode: AgentMode, name: string): ToolDesc<any> | undefined {
+        if (name.startsWith(MCP_PREFIX)) {
+            const tool = MCPService.getTools()[name];
+            return tool && this.isAvailable(tool, isSubLoop, mode) ? tool : undefined;
+        }
         if (isSubLoop) {
             return this.map.subLoop[mode][name];
         } else {
-            if (name.startsWith(MCP_PREFIX)) {
-                return MCPService.getTools()[name];
-            }
             return this.map.loop[mode][name];
         }
     }
 
     public static getToolsArray(isSubLoop: boolean, mode: AgentMode): LLMTool[] {
-        if (isSubLoop) {
-            return this.array.subLoop[mode];
-        } else {
-            return [...this.array.loop[mode], ...Object.values(MCPService.getTools()).map(tool => tool.tool)];
-        }
+        const builtIn = isSubLoop ? this.array.subLoop[mode] : this.array.loop[mode];
+        const mcp = Object.values(MCPService.getTools())
+            .filter(tool => this.isAvailable(tool, isSubLoop, mode))
+            .map(tool => tool.tool);
+        return [...builtIn, ...mcp];
+    }
+
+    private static isAvailable(tool: ToolDesc<any>, isSubLoop: boolean, mode: AgentMode): boolean {
+        return tool.agentMode.includes(mode) && !(isSubLoop && tool.exclusiveInSubLoop);
     }
 }

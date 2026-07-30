@@ -6,7 +6,17 @@ import { loadConfig } from '@deepclaw/config';
 
 const logger = getLogger('MCPService');
 const RETRY_LIMIT = 3;
+const RETRY_DELAY_MS = 200;
+const MAX_TOOL_NAME_LENGTH = 64;
 export const MCP_PREFIX = 'MCP_';
+
+function composeToolName(serverName: string, toolName: string): string {
+    const room = MAX_TOOL_NAME_LENGTH - MCP_PREFIX.length - toolName.length - 1;
+    if (room <= 0) {
+        return `${MCP_PREFIX}${toolName}`.substring(0, MAX_TOOL_NAME_LENGTH);
+    }
+    return `${MCP_PREFIX}${serverName.substring(0, room)}_${toolName}`;
+}
 
 class MCPClient {
     private addr: string;
@@ -20,7 +30,7 @@ class MCPClient {
         this.transport = new StreamableHTTPClientTransport(new URL(addr));
     }
 
-    public getAddr(): string | undefined {
+    public getAddr(): string {
         return this.addr;
     }
 
@@ -36,7 +46,7 @@ class MCPClient {
         do {
             const result = await this.client.listTools(cursor ? {cursor} : undefined);
             for (const tool of result.tools) {
-                const name = `${MCP_PREFIX}${serverName}_${tool.name}`.substring(0, 64);
+                const name = composeToolName(serverName, tool.name);
                 this.tools[name] = {
                     tool: {
                         name,
@@ -76,32 +86,46 @@ class MCPClient {
     }
 }
 
-export class MCPServiceImpl {
+class MCPServiceImpl {
     private static client: MCPClient | undefined;
+    private static pending: Promise<void> = Promise.resolve();
 
-    public static async connect(): Promise<void> {
+    public static connect(): Promise<void> {
+        this.pending = this.pending
+            .then(() => this.reconnect())
+            .catch(error => logger.error(`Failed to connect to MCP server: ${error}`));
+        return this.pending;
+    }
+
+    private static async reconnect(): Promise<void> {
         const addr = loadConfig<string>('advanced.mcpServer');
         if (this.client) {
-            if (addr !== this.client?.getAddr()) {
-                await this.client?.close();
-                this.client = undefined;
-            } else {
+            if (addr === this.client.getAddr()) {
                 return;
             }
+            await this.closeClient();
         }
         if (!addr) {
             return;
         }
-        let tryCount = 0;
-        while (tryCount < RETRY_LIMIT) {
+        for (let tryCount = 0; tryCount < RETRY_LIMIT; tryCount++) {
             try {
                 this.client = await this.connectClient(addr);
-                break;
+                return;
             } catch (error) {
                 logger.error(`Failed to connect to MCP server at ${addr}: ${error}`);
-                tryCount++;
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
             }
+        }
+    }
+
+    private static async closeClient(): Promise<void> {
+        const client = this.client;
+        this.client = undefined;
+        try {
+            await client?.close();
+        } catch (error) {
+            logger.error(`Failed to close MCP client: ${error}`);
         }
     }
 

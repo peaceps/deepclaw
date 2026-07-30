@@ -47,9 +47,9 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
         streamer: (text: string) => void, logger: Logger
     ): Promise<O> {
         let response: O | null = null;
+        const tools = this.convertTools(ToolsManager.getToolsArray(this.isSubLoop, mode));
         for (let i = 0; i < llmRetry; i++) {
             try {
-                const tools = this.convertTools(ToolsManager.getToolsArray(this.isSubLoop, mode));
                 response = await this._invoke(system, messages, tools, streamer);
                 break;
             } catch (error) {
