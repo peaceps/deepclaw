@@ -41,6 +41,7 @@ export class ProjectManager {
                 const project = JSON.parse(content) as Project;
                 if (project && project.id && project.title && project.description) {
                     project.priority = project.priority || 'low';
+                    project.tasks = project.tasks || {};
                     Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
                     this.projects[project.id] = project;
                 }

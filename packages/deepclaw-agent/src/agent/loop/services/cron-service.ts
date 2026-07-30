@@ -32,6 +32,8 @@ class CronServiceImpl {
             try {
                 const cronTask = JSON.parse(content) as CronTask;
                 if (cronTask.closed) continue;
+                // The persisted task never carries its histories, they live in the jsonl next to it.
+                cronTask.histories = [];
                 this.cronTasks[cronTask.id] = cronTask;
                 try {
                     const historyFile = `${CRON_DIR}/${cronTask.id}/${CRON_HISTORY_JSONL}`;
@@ -68,7 +70,14 @@ class CronServiceImpl {
         };
         this.cronTasks[id] = cronTask;
         this.saveTask(cronTask);
-        this.scheduleCronTask(cronTask);
+        try {
+            this.scheduleCronTask(cronTask);
+        } catch (error) {
+            // An unschedulable task must not survive, it would come back on every start.
+            delete this.cronTasks[id];
+            FileUtils.deleteDir(`${CRON_DIR}/${id}`);
+            throw error;
+        }
         this.notify(cronTask);
         return cronTask;
     }
@@ -155,9 +164,6 @@ class CronServiceImpl {
 
     public static updateCronTask(updateTask: {id: string; title?: string, cron?: string; prompt?: string}): CronTask {
         const task = this.getCronTask(updateTask.id);
-        if (task.closed) {
-            throw new Error(`Cannot update a closed task ${task.title}`);
-        }
         Object.assign(task, Object.fromEntries(
             Object.entries(updateTask).filter(([k, v]) => k !== 'id' && !!v)
         ));

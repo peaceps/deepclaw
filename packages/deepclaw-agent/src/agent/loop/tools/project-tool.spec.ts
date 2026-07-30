@@ -1,0 +1,217 @@
+import {beforeEach, describe, expect, test, vi} from 'vitest';
+import {type Project, type Task, type TaskStepsContext} from '@deepclaw/core';
+import {newTestContext} from '../../../test-support/one-loop-context';
+import {ProjectManager} from '../services/project-manager';
+import {
+    createProjectTool,
+    createSimpleTaskTool,
+    getProjectDetailTool,
+    getProjectListTool,
+    updateProjectTool,
+    updateTaskTool,
+    updateTaskCurrentStepTool,
+} from './project-tool';
+
+vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
+vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
+    FileUtils: {readDir: vi.fn(() => ({})), writeFile: vi.fn(), exists: vi.fn(() => false)},
+    getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+}));
+
+const createTask = vi.spyOn(ProjectManager, 'createTask');
+const createProject = vi.spyOn(ProjectManager, 'createProject');
+const updateProject = vi.spyOn(ProjectManager, 'updateProject');
+const updateTask = vi.spyOn(ProjectManager, 'updateTask');
+const updateCurrentStep = vi.spyOn(ProjectManager, 'updateCurrentStep');
+const getProjectList = vi.spyOn(ProjectManager, 'getProjectList');
+const getProjectDetail = vi.spyOn(ProjectManager, 'getProjectDetail');
+
+function newTask(title: string): Task {
+    return {title, description: `${title} desc`, priority: 'medium', status: 'todo'} as Task;
+}
+
+function newProject(overrides: Partial<Project> = {}): Project {
+    return {id: 'pr1', title: 'ship it', description: 'ship the thing', ...overrides} as Project;
+}
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    createTask.mockImplementation(info => newTask(info.title));
+    createProject.mockReturnValue(newProject());
+    updateProject.mockReturnValue(newProject());
+    getProjectDetail.mockReturnValue(newProject());
+});
+
+describe('createProjectTool invoke', () => {
+
+    test('creates every task for the current agent before creating the project', async () => {
+        await createProjectTool.invoke({
+            title: 'ship it',
+            description: 'ship the thing',
+            priority: 'high',
+            tasks: [
+                {title: 'design', description: 'design it', priority: 'medium'},
+                {title: 'build', description: 'build it', priority: 'high', blockedBy: ['design']},
+            ],
+        }, newTestContext());
+        expect(createTask).toHaveBeenCalledTimes(2);
+        expect(createTask).toHaveBeenNthCalledWith(2, {
+            title: 'build', description: 'build it', priority: 'high', blockedBy: ['design'], agentId: 'a1',
+        });
+        expect(createProject).toHaveBeenCalledExactlyOnceWith(
+            {agentId: 'a1', title: 'ship it', description: 'ship the thing', priority: 'high'},
+            [newTask('design'), newTask('build')]
+        );
+    });
+
+    test('announces the new project and pauses the loop for a review', async () => {
+        const context = newTestContext();
+        const result = await createProjectTool.invoke({
+            title: 'ship it', description: 'ship the thing', priority: 'high', tasks: [],
+        }, context);
+        expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
+            eventType: 'updateProject', content: newProject(),
+        });
+        expect(context.runtime.agentBreakReason).toBe('projectCreated');
+        expect(result).toContain('Project created successfully.');
+        expect(result).toContain(JSON.stringify(newProject()));
+    });
+});
+
+describe('createSimpleTaskTool invoke', () => {
+
+    test('wraps the single task into a project that mirrors it', async () => {
+        const context = newTestContext();
+        const result = await createSimpleTaskTool.invoke(
+            {title: 'fix bug', description: 'fix the bug', priority: 'urgent', steps: ['repro', 'patch']}, context
+        );
+        expect(createTask).toHaveBeenCalledExactlyOnceWith({
+            title: 'fix bug', description: 'fix the bug', priority: 'urgent',
+            steps: ['repro', 'patch'], agentId: 'a1',
+        });
+        expect(createProject).toHaveBeenCalledExactlyOnceWith(
+            {agentId: 'a1', title: 'fix bug', description: 'fix bug desc', priority: 'medium'},
+            [newTask('fix bug')]
+        );
+        expect(context.runtime.agentBreakReason).toBe('projectCreated');
+        expect(result).toContain('Task created successfully.');
+    });
+});
+
+describe('updateProjectTool invoke', () => {
+
+    test('patches the project without rebuilding its tasks', async () => {
+        await updateProjectTool.invoke({projectId: 'pr1', title: 'ship it faster'}, newTestContext());
+        expect(createTask).not.toHaveBeenCalled();
+        expect(updateProject).toHaveBeenCalledExactlyOnceWith({id: 'pr1', title: 'ship it faster'}, undefined);
+    });
+
+    test('rebuilds the task list when new tasks are given', async () => {
+        await updateProjectTool.invoke({
+            projectId: 'pr1',
+            tasks: [{title: 'design', description: 'design it', priority: 'low'}],
+        }, newTestContext());
+        expect(updateProject).toHaveBeenCalledExactlyOnceWith({id: 'pr1'}, [newTask('design')]);
+    });
+
+    test('reports the project back and notifies the ui', async () => {
+        const context = newTestContext();
+        const result = await updateProjectTool.invoke({projectId: 'pr1'}, context);
+        expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
+            eventType: 'updateProject', content: newProject(),
+        });
+        expect(result).toContain('Project updated successfully.');
+        expect(context.runtime.agentBreakReason).toBeUndefined();
+    });
+});
+
+describe('updateTaskTool invoke', () => {
+
+    test('only forwards the optional fields that were provided', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        await updateTaskTool.invoke({projectId: 'pr1', taskTitle: 'design', status: 'ongoing'}, newTestContext());
+        expect(updateTask).toHaveBeenCalledExactlyOnceWith(
+            'pr1', {title: 'design', status: 'ongoing'}, undefined
+        );
+    });
+
+    test('passes assignee, output and steps through to the manager', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        const output = {type: 'markdown' as const, content: '# done'};
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskTitle: 'design', assignee: 'a2', output, steps: ['one', 'two'],
+        }, newTestContext());
+        expect(updateTask).toHaveBeenCalledExactlyOnceWith(
+            'pr1', {title: 'design', assignee: 'a2', output}, ['one', 'two']
+        );
+    });
+
+    test('breaks the loop when the task still waits for a user verification', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: true});
+        const context = newTestContext();
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, context
+        );
+        expect(context.runtime.agentBreakReason).toBe('taskPause');
+        expect(context.runtime.agentBreakDetail).toBe('agent.agentBreak.agentStop.taskPause.user');
+        expect(result).toContain('Task is not set done because the user requires it to be verified');
+    });
+
+    test('keeps the loop running when the task was accepted', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        const context = newTestContext();
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, context
+        );
+        expect(context.runtime.agentBreakReason).toBeUndefined();
+        expect(result).toContain('Task updated successfully.');
+        expect(result).not.toContain('verified');
+    });
+});
+
+describe('updateTaskCurrentStepTool invoke', () => {
+
+    test('streams the new step context and reports it back', async () => {
+        const steps: TaskStepsContext = {steps: ['one', 'two'], currentStepIndex: 1};
+        updateCurrentStep.mockReturnValue(steps);
+        const context = newTestContext();
+        const result = await updateTaskCurrentStepTool.invoke(
+            {projectId: 'pr1', taskTitle: 'design', stepIndex: 1}, context
+        );
+        expect(updateCurrentStep).toHaveBeenCalledExactlyOnceWith('pr1', 'design', 1);
+        expect(context.actions.agentHandler.onStreamText).toHaveBeenCalledExactlyOnceWith({
+            browserId: 'b1', text: JSON.stringify(steps), tag: 'update_task_current_step',
+        });
+        expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledOnce();
+        expect(result).toBe(JSON.stringify(steps));
+    });
+});
+
+describe('project query tools', () => {
+
+    test('lists the projects for the requested visibility', async () => {
+        const list = {projects: {open: [{id: 'pr1', title: 'ship it', description: 'ship the thing'}], closed: []}};
+        getProjectList.mockReturnValue(list);
+        const result = await getProjectListTool.invoke({includingClosed: true}, newTestContext());
+        expect(getProjectList).toHaveBeenCalledExactlyOnceWith(true);
+        expect(result).toBe(JSON.stringify(list));
+    });
+
+    test('returns a single project as json', async () => {
+        const result = await getProjectDetailTool.invoke({projectId: 'pr1'}, newTestContext());
+        expect(getProjectDetail).toHaveBeenCalledExactlyOnceWith('pr1');
+        expect(result).toBe(JSON.stringify(newProject()));
+    });
+});
+
+describe('project tool metadata', () => {
+
+    test('planning tools stay out of sub loops while task updates are allowed there', () => {
+        expect(createProjectTool.exclusiveInSubLoop).toBe(true);
+        expect(createSimpleTaskTool.exclusiveInSubLoop).toBe(true);
+        expect(updateTaskTool.exclusiveInSubLoop).toBe(false);
+        expect(updateTaskCurrentStepTool.parallelSafe).toBe(true);
+        expect(createProjectTool.parallelSafe).toBe(false);
+    });
+});

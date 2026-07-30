@@ -1,0 +1,301 @@
+import {describe, expect, test, vi} from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+    readDir: vi.fn<(dirPath: string) => {[key: string]: {dir: string, content: string}}>(),
+    exists: vi.fn<(filePath: string) => boolean>(),
+    readFile: vi.fn<(filePath: string) => string>(),
+    writeFile: vi.fn<(filePath: string, content: string) => string>(),
+    deleteFile: vi.fn<(filePath: string) => void>(),
+    deleteDir: vi.fn<(filePath: string) => void>(),
+    isPathInside: vi.fn<(baseDir: string, targetPath: string) => boolean>(),
+}));
+
+vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
+    FileUtils: {
+        readDir: mocks.readDir,
+        exists: mocks.exists,
+        readFile: mocks.readFile,
+        writeFile: mocks.writeFile,
+        deleteFile: mocks.deleteFile,
+        deleteDir: mocks.deleteDir,
+        isPathInside: mocks.isPathInside,
+    },
+    getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+    getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+}));
+
+const AGENT_JSON = /^\.agents\/skills\/([^/]+)\/agent\.json$/;
+
+type SkillFolder = {manifest: string, agents?: string};
+
+function manifest(name: string, description: string, body: string = 'do the thing'): string {
+    return `---\nname: ${name}\ndescription: ${description}\n---\n${body}`;
+}
+
+/** The skill index lives in module scope, so every test reloads the module with its own disk. */
+async function loadManager(folders: Record<string, SkillFolder> = {}) {
+    vi.resetModules();
+    vi.resetAllMocks();
+    mocks.readDir.mockImplementation(() => Object.fromEntries(
+        Object.entries(folders).map(([dir, folder]) => [dir, {dir, content: folder.manifest}])
+    ));
+    mocks.exists.mockImplementation((filePath: string) => {
+        const folder = AGENT_JSON.exec(filePath)?.[1];
+        return !!folder && folders[folder]?.agents !== undefined;
+    });
+    mocks.readFile.mockImplementation(
+        (filePath: string) => folders[AGENT_JSON.exec(filePath)?.[1] ?? '']?.agents ?? ''
+    );
+    mocks.writeFile.mockImplementation((filePath: string) => filePath);
+    mocks.isPathInside.mockReturnValue(true);
+    return (await import('./skills-manager')).SkillsManager;
+}
+
+/** Pays the transform of the module graph while the file loads, out of reach of a test timeout. */
+await loadManager();
+
+describe('reloadSkills', () => {
+
+    test('indexes every folder whose manifest declares a name and a description', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: manifest('pptx', 'build slide decks')},
+            video: {manifest: manifest('video', 'generate videos')},
+        });
+        manager.reloadSkills();
+        expect(manager.getSkillList().map(skill => skill.name)).toEqual(['pptx', 'video']);
+    });
+
+    test('reads the skill folder with no skill installed', async () => {
+        const manager = await loadManager();
+        manager.reloadSkills();
+        expect(manager.getSkillList()).toEqual([]);
+        expect(mocks.readDir).toHaveBeenCalledWith('.agents/skills', expect.any(Function));
+    });
+
+    test('skips a manifest without a description', async () => {
+        const manager = await loadManager({
+            broken: {manifest: '---\nname: broken\n---\nno description here'},
+            ok: {manifest: manifest('ok', 'fine')},
+        });
+        manager.reloadSkills();
+        expect(manager.getSkillList().map(skill => skill.name)).toEqual(['ok']);
+    });
+
+    test('skips a manifest without a name', async () => {
+        const manager = await loadManager({broken: {manifest: '---\ndescription: nameless\n---\nbody'}});
+        manager.reloadSkills();
+        expect(manager.getSkillList()).toEqual([]);
+    });
+
+    test('reads a manifest written with windows line endings', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: '---\r\nname: pptx\r\ndescription: build slide decks\r\n---\r\nbody'},
+        });
+        manager.reloadSkills();
+        expect(manager.getSkillList()).toEqual([
+            {name: 'pptx', description: 'build slide decks', agents: undefined},
+        ]);
+    });
+
+    test('attaches the agent allow list stored next to the skill', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '["a1","a2"]'},
+        });
+        manager.reloadSkills();
+        expect(manager.getSkillList()[0]!.agents).toEqual(['a1', 'a2']);
+    });
+
+    test('leaves the allow list open when the skill has no agent file', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        manager.reloadSkills();
+        expect(manager.getSkillList()[0]!.agents).toBeUndefined();
+    });
+
+    test('leaves the allow list open when the agent file is not valid json', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '[a1'},
+        });
+        manager.reloadSkills();
+        expect(manager.getSkillList()[0]!.agents).toBeUndefined();
+    });
+
+    test('forgets a skill that disappeared from disk', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        manager.reloadSkills();
+        mocks.readDir.mockReturnValue({});
+        manager.reloadSkills();
+        expect(manager.getSkillList()).toEqual([]);
+    });
+});
+
+describe('getSkillContent', () => {
+
+    test('loads the skills the first time a skill is asked for', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        expect(manager.getSkillContent('pptx')).toBe('<skill name="pptx">\ndo the thing\n</skill>');
+        expect(mocks.readDir).toHaveBeenCalledOnce();
+    });
+
+    test('reports the installed skills when the name is unknown', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: manifest('pptx', 'build slide decks')},
+            video: {manifest: manifest('video', 'generate videos')},
+        });
+        expect(manager.getSkillContent('ghost'))
+            .toBe('Error: Unknown skill: ghost. Available skills: pptx, video.');
+    });
+
+    test('reports an empty skill list when nothing is installed', async () => {
+        const manager = await loadManager();
+        expect(manager.getSkillContent('ghost'))
+            .toBe('Error: Unknown skill: ghost. Available skills: .');
+    });
+});
+
+describe('getAvailableSkillsPrompt', () => {
+
+    test('lists a skill that is not restricted to any agent', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        expect(manager.getAvailableSkillsPrompt('a1')).toBe('- pptx: build slide decks\n');
+    });
+
+    test('lists a skill the agent is allowed to use', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '["a1"]'},
+        });
+        expect(manager.getAvailableSkillsPrompt('a1')).toBe('- pptx: build slide decks\n');
+    });
+
+    test('hides a skill reserved for other agents', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '["a2"]'},
+            video: {manifest: manifest('video', 'generate videos')},
+        });
+        expect(manager.getAvailableSkillsPrompt('a1')).toBe('- video: generate videos\n');
+    });
+
+    test('answers with a placeholder when the agent may use nothing', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '[]'},
+        });
+        expect(manager.getAvailableSkillsPrompt('a1')).toBe('(no skills available)');
+    });
+
+    test('answers with a placeholder when no skill is installed', async () => {
+        const manager = await loadManager();
+        expect(manager.getAvailableSkillsPrompt('a1')).toBe('(no skills available)');
+    });
+});
+
+describe('generateSkillPrompt', () => {
+
+    test('embeds the skills the agent may use into the instructions', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        const prompt = manager.generateSkillPrompt('a1');
+        expect(prompt).toContain('You have below skills installed:\n- pptx: build slide decks');
+        expect(prompt).toContain('load_skill_details');
+    });
+
+    test('still explains the skill tools when nothing is installed', async () => {
+        const manager = await loadManager();
+        expect(manager.generateSkillPrompt('a1')).toContain('(no skills available)');
+    });
+});
+
+describe('updateSkillAgents', () => {
+
+    test('writes the allow list next to the skill and remembers it', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        manager.updateSkillAgents('pptx', ['a1']);
+        expect(mocks.writeFile).toHaveBeenCalledExactlyOnceWith(
+            '.agents/skills/pptx/agent.json', JSON.stringify(['a1'], null, 2)
+        );
+        expect(manager.getSkillList()[0]!.agents).toEqual(['a1']);
+    });
+
+    test('deletes the allow list when it is cleared', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '["a1"]'},
+        });
+        manager.updateSkillAgents('pptx');
+        expect(mocks.deleteFile).toHaveBeenCalledExactlyOnceWith('.agents/skills/pptx/agent.json');
+        expect(manager.getSkillList()[0]!.agents).toBeUndefined();
+    });
+
+    test('stores an empty allow list as a file that hides the skill', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        manager.updateSkillAgents('pptx', []);
+        expect(mocks.writeFile).toHaveBeenCalledOnce();
+        expect(manager.getAvailableSkillsPrompt('a1')).toBe('(no skills available)');
+    });
+
+    test('does nothing for an unknown skill', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        manager.updateSkillAgents('ghost', ['a1']);
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(mocks.deleteFile).not.toHaveBeenCalled();
+    });
+});
+
+describe('createSkill', () => {
+
+    test('refuses a folder that already exists', async () => {
+        const manager = await loadManager();
+        mocks.exists.mockReturnValue(true);
+        expect(() => manager.createSkill('pptx', [{path: 'SKILL.md', content: manifest('pptx', 'decks')}]))
+            .toThrow('Skill already exists.');
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    test('refuses a skill without a manifest file', async () => {
+        const manager = await loadManager();
+        expect(() => manager.createSkill('pptx', [{path: 'readme.md', content: 'hello'}]))
+            .toThrow('Skill manifest file SKILL.md not found.');
+    });
+
+    test('refuses a file that escapes the skill folder', async () => {
+        const manager = await loadManager();
+        mocks.isPathInside.mockReturnValue(false);
+        expect(() => manager.createSkill('pptx', [{path: 'SKILL.md', content: manifest('pptx', 'decks')}]))
+            .toThrow('Invalid file path outside the skill folder: SKILL.md');
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    test('writes every file and registers the new skill', async () => {
+        const manager = await loadManager();
+        manager.createSkill('pptx', [
+            {path: 'SKILL.md', content: manifest('pptx', 'build slide decks')},
+            {path: 'assets/template.txt', content: 'template'},
+        ]);
+        expect(mocks.writeFile.mock.calls.map(call => call[0])).toEqual([
+            '.agents/skills/pptx/SKILL.md', '.agents/skills/pptx/assets/template.txt',
+        ]);
+        expect(manager.getSkillContent('pptx')).toContain('<skill name="pptx">');
+    });
+
+    test('rolls back the folder when a file cannot be written', async () => {
+        const manager = await loadManager();
+        mocks.writeFile.mockImplementation(() => {
+            throw new Error('disk full');
+        });
+        expect(() => manager.createSkill('pptx', [{path: 'SKILL.md', content: manifest('pptx', 'decks')}]))
+            .toThrow('Failed to install skill. Error: disk full');
+        expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith('.agents/skills/pptx');
+    });
+
+    test('rolls back the folder when the manifest has no name', async () => {
+        const manager = await loadManager();
+        expect(() => manager.createSkill('pptx', [{path: 'SKILL.md', content: '---\ndescription: d\n---\nbody'}]))
+            .toThrow('Invalid SKILL.md: frontmatter must define both "name" and "description".');
+        expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith('.agents/skills/pptx');
+    });
+
+    test('registers the skill under the name from the manifest, not the folder', async () => {
+        const manager = await loadManager();
+        manager.createSkill('pptx-folder', [
+            {path: 'SKILL.md', content: manifest('pptx', 'build slide decks')},
+        ]);
+        expect(manager.getSkillList().map(skill => skill.name)).toEqual(['pptx']);
+    });
+});

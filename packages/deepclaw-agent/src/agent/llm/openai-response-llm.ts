@@ -96,7 +96,6 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             }
         }
         if (!thinkingResponse.transitionReason) {
-            thinkingResponse.transitionReason = 'error';
             throw new Error('Invalid response status: ' + thinkingResponse.status);
         }
         return thinkingResponse;

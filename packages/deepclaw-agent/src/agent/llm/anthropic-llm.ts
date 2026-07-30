@@ -69,7 +69,12 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
     }
 
     protected override isInputExceedLimit(error: any): boolean {
-        return error.status === 400 && error.type === 'invalid_request_error' && error.message.toLowerCase().includes('large');
+        if (error?.status !== 400 || error?.type !== 'invalid_request_error') {
+            return false;
+        }
+        // Anthropic words it as "prompt is too long" or "exceed context limit" depending on the endpoint.
+        const message = String(error.message ?? '').toLowerCase();
+        return message.includes('large') || message.includes('too long') || message.includes('context limit');
     }
 
     protected override newResponse(content: string, transitionReason: LLMTransitionReason = 'endLoop'): ThinkingResponse {

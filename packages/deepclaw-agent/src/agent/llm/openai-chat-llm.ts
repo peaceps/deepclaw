@@ -76,6 +76,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         let content = '';
         let reasoningContent = '';
         let finalResponse: ThinkingResponse | undefined = undefined;
+        let usage: CompletionUsage | undefined = undefined;
         for await (const chunk of stream) {
             const response = chunk.choices[0] as ThinkingResponse;
             if (response) {
@@ -110,6 +111,10 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                 }
 
                 if (!!response.finish_reason && (response.finish_reason as string) !== 'null') {
+                    if (!response.delta) {
+                        // Some vendors send the finishing chunk without any delta.
+                        response.delta = {reasoning_content: ''};
+                    }
                     if (toolCallResults.size > 0) {
                         response.delta.tool_calls = [...toolCallResults.entries()]
                             .sort(([a], [b]) => a - b).map(([, toolCall]) => toolCall);
@@ -123,15 +128,18 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                     finalResponse = response;
                 }
             }
-            if (finalResponse && chunk.usage) {
-                finalResponse.usage = chunk.usage;
+            if (chunk.usage) {
+                usage = chunk.usage;
             }
         }
 
         if (finalResponse) {
+            if (usage) {
+                finalResponse.usage = usage;
+            }
             return this.setTransitionReason(finalResponse);
         }
-        return this.newResponse('Error: No response from LLM.');
+        return this.newResponse('Error: No response from LLM.', 'error');
     }
 
     protected override newResponse(content: string, transitionReason: LLMTransitionReason = 'endLoop'): ThinkingResponse {
@@ -179,14 +187,14 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             role: 'assistant' as const,
             content: delta.content || '',
             reasoning_content: delta.reasoning_content || undefined,
-            tool_calls: delta.tool_calls?.map((toolCall) => ({
+            tool_calls: delta.tool_calls?.length ? delta.tool_calls.map((toolCall) => ({
                 id: toolCall.id || '',
                 function: {
                     name: toolCall.function?.name || '',
                     arguments: toolCall.function?.arguments || '',
                 },
                 type: 'function' as const,
-            })) || undefined,
+            })) : undefined,
         }];
     }
 

@@ -56,6 +56,7 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
                 logger.error(error, 'LLM invoke failed');
                 if (this.isInputExceedLimit(error)) {
                     response = this.newResponse('Input token exceeds the limit.', 'inputMaxTokens');
+                    break;
                 } else {
                     const unrecoverableError = this.isUnrecoverableError(error);
                     if (unrecoverableError) {

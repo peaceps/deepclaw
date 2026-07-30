@@ -7,19 +7,22 @@ import { AGENTS_DIR, AGENT_MD, AGENT_SOUL_JSON } from '../../paths';
 export class AgentIdentityManager {
 
     private static agentMap: Map<string, AgentIdentity> = new Map();
+    private static initialized: boolean = false;
 
     public static getAgents(): AgentIdentity[] {
-        if (this.agentMap.size === 0) {
-            this.init();
-        }
+        this.ensureInitialized();
         return [...this.agentMap.values()];
     }
 
     public static getAgent(agentId: string): AgentIdentity | undefined {
-        if (this.agentMap.size === 0) {
-            this.init();
-        }
+        this.ensureInitialized();
         return this.agentMap.get(agentId);
+    }
+
+    private static ensureInitialized() {
+        if (this.initialized) return;
+        this.init();
+        this.initialized = true;
     }
 
     private static init() {

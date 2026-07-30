@@ -1,0 +1,270 @@
+import {beforeEach, describe, expect, test, vi} from 'vitest';
+import type {LLMTransitionReason, TokenUsage} from '@deepclaw/core';
+import type {LLMModel} from '../../llm/llmgw';
+import type {FootPrint, OneLoopContext} from '../../definitions/definitions';
+import {newTestContext} from '../../../test-support/one-loop-context';
+import {HookManager} from '../services/hook-manager';
+import {AbstractMessagesCompactor} from './abstract-messages-compactor';
+
+const COMPACTED = '<tool result compacted> Earlier tool result compacted. Re-run the tool if you need full detail.</tool result compacted>';
+const HISTORY_THRESHOLD = 200000;
+
+const mocks = vi.hoisted(() => ({
+    wrapTimestamp: vi.fn((file: string) => `stamped-${file}`),
+    writeFile: vi.fn((path: string) => path),
+    enforceFileCountLimit: vi.fn<(folder: string, limit: number) => void>(() => undefined),
+}));
+
+vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
+    FileUtils: {
+        wrapTimestamp: mocks.wrapTimestamp,
+        writeFile: mocks.writeFile,
+        enforceFileCountLimit: mocks.enforceFileCountLimit,
+    },
+}));
+
+const emitVisitor = vi.spyOn(HookManager, 'emitVisitor');
+
+type FakeMessage = {role: string; content: string};
+type FakeResponse = {transitionReason: LLMTransitionReason};
+type FakeLLM = LLMModel<FakeMessage, FakeResponse, unknown, unknown>;
+
+/** The simplest possible protocol: a tool result is a message whose role says so. */
+class TestCompactor extends AbstractMessagesCompactor<FakeMessage, FakeResponse, FakeMessage, FakeLLM> {
+
+    protected override getToolResults(messages: FakeMessage[]): FakeMessage[] {
+        return messages.filter(message => message.role === 'tool');
+    }
+
+    protected override getContentLength(toolResult: FakeMessage): number {
+        return toolResult.content.length;
+    }
+
+    protected override compactToolResult(toolResult: FakeMessage, msg: string): void {
+        toolResult.content = msg;
+    }
+}
+
+function newToolResults(count: number, length: number = 5000): FakeMessage[] {
+    return [...Array(count).keys()].map(index => ({role: 'tool', content: `${index}`.padEnd(length, 'x')}));
+}
+
+type CompactCall = (mode: string, system: unknown, content: string, logger: unknown)
+    => Promise<{summary: string; tokenUsage: TokenUsage}>;
+
+function newFakeLLM(summary: string = 'the summary', tokenUsage: TokenUsage = {
+    cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3
+}) {
+    const compact = vi.fn<CompactCall>(async () => ({summary, tokenUsage}));
+    const newInputMessage = vi.fn((content: string): FakeMessage => ({role: 'user', content}));
+    return {llm: {compact, newInputMessage} as unknown as FakeLLM, compact, newInputMessage};
+}
+
+function messageOfSize(size: number): FakeMessage {
+    const overhead = JSON.stringify({role: 'assistant', content: ''}).length;
+    return {role: 'assistant', content: 'x'.repeat(size - overhead)};
+}
+
+function newContext(overrides: Partial<OneLoopContext> = {}): OneLoopContext {
+    return newTestContext(overrides);
+}
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.wrapTimestamp.mockImplementation((file: string) => `stamped-${file}`);
+    emitVisitor.mockResolvedValue(undefined);
+});
+
+describe('AbstractMessagesCompactor compactOldResults', () => {
+
+    test('does nothing for an empty history', () => {
+        new TestCompactor().compactOldResults([], newContext());
+        expect(emitVisitor).not.toHaveBeenCalled();
+    });
+
+    test('keeps every result while there are no more than twenty of them', () => {
+        const messages = newToolResults(20);
+        new TestCompactor().compactOldResults(messages, newContext());
+        expect(messages.some(message => message.content === COMPACTED)).toBe(false);
+    });
+
+    test('compacts the results that fall out of the twenty most recent ones', () => {
+        const messages = newToolResults(22);
+        new TestCompactor().compactOldResults(messages, newContext());
+        expect(messages[0]!.content).toBe(COMPACTED);
+        expect(messages[1]!.content).toBe(COMPACTED);
+        expect(messages[2]!.content).not.toBe(COMPACTED);
+        expect(messages.at(-1)!.content).not.toBe(COMPACTED);
+    });
+
+    test('keeps an old result that is exactly at the size threshold', () => {
+        const messages = newToolResults(21);
+        messages[0] = {role: 'tool', content: 'x'.repeat(1200)};
+        new TestCompactor().compactOldResults(messages, newContext());
+        expect(messages[0]!.content).toHaveLength(1200);
+        expect(emitVisitor).not.toHaveBeenCalled();
+    });
+
+    test('compacts an old result that is one character over the threshold', () => {
+        const messages = newToolResults(21);
+        messages[0] = {role: 'tool', content: 'x'.repeat(1201)};
+        new TestCompactor().compactOldResults(messages, newContext());
+        expect(messages[0]!.content).toBe(COMPACTED);
+    });
+
+    test('reports the original length of every compacted result to the hooks', () => {
+        const messages = newToolResults(21, 3000);
+        const context = newContext();
+        new TestCompactor().compactOldResults(messages, context);
+        expect(emitVisitor).toHaveBeenCalledExactlyOnceWith('toolResultCompacted', context, 3000);
+    });
+
+    test('only counts the tool results when deciding what is recent', () => {
+        const messages: FakeMessage[] = [
+            {role: 'user', content: 'x'.repeat(5000)},
+            ...newToolResults(20),
+            {role: 'assistant', content: 'x'.repeat(5000)},
+        ];
+        new TestCompactor().compactOldResults(messages, newContext());
+        expect(messages.some(message => message.content === COMPACTED)).toBe(false);
+    });
+});
+
+describe('AbstractMessagesCompactor compactFullHistory', () => {
+
+    test('does nothing when the history is empty', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [];
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, messages);
+        expect(compact).not.toHaveBeenCalled();
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(messages).toEqual([]);
+    });
+
+    test('does nothing for a small history that is still current', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}];
+        await new TestCompactor().compactFullHistory(false, newContext(), [], llm, messages);
+        expect(compact).not.toHaveBeenCalled();
+        expect(messages).toHaveLength(2);
+    });
+
+    test('replaces an outdated history with the summary message', async () => {
+        const {llm} = newFakeLLM();
+        const messages: FakeMessage[] = [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}];
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, messages);
+        expect(messages).toHaveLength(1);
+        expect(messages[0]!.content).toContain('the summary');
+    });
+
+    test('keeps a trailing user message after the summary and out of the summarized text', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [{role: 'assistant', content: 'hello'}, {role: 'user', content: 'now do this'}];
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, messages);
+        expect(messages).toHaveLength(2);
+        expect(messages[1]).toEqual({role: 'user', content: 'now do this'});
+        expect(compact.mock.calls[0]![2]).toBe('{"role":"assistant","content":"hello"}');
+    });
+
+    test('does not compact when the only message is the trailing user message', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [{role: 'user', content: 'the first thing i say'}];
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, messages);
+        expect(compact).not.toHaveBeenCalled();
+        expect(messages).toEqual([{role: 'user', content: 'the first thing i say'}]);
+    });
+
+    test('keeps a current history whose json is exactly at the threshold', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [messageOfSize(HISTORY_THRESHOLD)];
+        await new TestCompactor().compactFullHistory(false, newContext(), [], llm, messages);
+        expect(compact).not.toHaveBeenCalled();
+    });
+
+    test('compacts a current history whose json is one character over the threshold', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [messageOfSize(HISTORY_THRESHOLD + 1)];
+        await new TestCompactor().compactFullHistory(false, newContext(), [], llm, messages);
+        expect(compact).toHaveBeenCalledOnce();
+        expect(messages).toHaveLength(1);
+    });
+
+    test('joins the messages as one json line per message', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}];
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, messages);
+        expect(compact.mock.calls[0]![2])
+            .toBe('{"role":"user","content":"hi"}\n{"role":"assistant","content":"hello"}');
+    });
+
+    test('saves the raw history to a timestamped file and trims the folder', async () => {
+        const {llm} = newFakeLLM();
+        const context = newContext({sessionDir: '.agents/a1/session/s9'});
+        await new TestCompactor().compactFullHistory(true, context, [], llm, [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'bye'}]);
+        expect(mocks.wrapTimestamp).toHaveBeenCalledExactlyOnceWith('history_compact.jsonl');
+        expect(mocks.writeFile).toHaveBeenCalledExactlyOnceWith(
+            '.agents/a1/session/s9/history/stamped-history_compact.jsonl',
+            '{"role":"user","content":"hi"}\n{"role":"assistant","content":"bye"}'
+        );
+        expect(mocks.enforceFileCountLimit)
+            .toHaveBeenCalledExactlyOnceWith('.agents/a1/session/s9/history', 5);
+    });
+
+    test('summarizes with the mode, the system prompt and the logger of the loop', async () => {
+        const {llm, compact} = newFakeLLM();
+        const context = newContext();
+        await new TestCompactor().compactFullHistory(true, context, [], llm, [{role: 'assistant', content: 'hello'}]);
+        expect(compact).toHaveBeenCalledExactlyOnceWith(
+            'agent', context.system, '{"role":"assistant","content":"hello"}', context.logger
+        );
+    });
+
+    test('adds the tokens spent on the summary to the runtime usage', async () => {
+        const {llm} = newFakeLLM();
+        const context = newContext();
+        context.runtime.usage = {cachedInputTokens: 10, noCachedInputTokens: 10, outputTokens: 10};
+        await new TestCompactor().compactFullHistory(true, context, [], llm, [{role: 'assistant', content: 'hello'}]);
+        expect(context.runtime.usage)
+            .toEqual({cachedInputTokens: 11, noCachedInputTokens: 12, outputTokens: 13});
+    });
+
+    test('wraps the summary in a continuation prompt', async () => {
+        const {llm, newInputMessage} = newFakeLLM();
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, [{role: 'assistant', content: 'hello'}]);
+        const prompt = newInputMessage.mock.calls[0]![0];
+        expect(prompt).toContain('This session continues from a previous conversation that was compacted.');
+        expect(prompt).toContain('the summary');
+        expect(prompt).toContain('Continue from where we left off without re-asking the user.');
+    });
+
+    test('lists the files the agent read in the action trace', async () => {
+        const {llm, newInputMessage} = newFakeLLM();
+        const footPrints: FootPrint[] = [
+            {type: 'read_file', content: 'src/a.ts'},
+            {type: 'run_command', content: 'ls'},
+            {type: 'read_file', content: 'src/b.ts'},
+        ];
+        await new TestCompactor().compactFullHistory(true, newContext(), footPrints, llm, [{role: 'assistant', content: 'hello'}]);
+        const prompt = newInputMessage.mock.calls[0]![0];
+        expect(prompt).toContain('- src/a.ts\n- src/b.ts');
+        expect(prompt).toContain('you can read the full content of these files by using the read_file tool');
+        expect(prompt).not.toContain('ls');
+    });
+
+    test('leaves the action trace empty when no file was read', async () => {
+        const {llm, newInputMessage} = newFakeLLM();
+        const footPrints: FootPrint[] = [{type: 'run_command', content: 'ls'}];
+        await new TestCompactor().compactFullHistory(true, newContext(), footPrints, llm, [{role: 'assistant', content: 'hello'}]);
+        expect(newInputMessage.mock.calls[0]![0]).toContain('The action trace of the conversation:\n\n');
+    });
+
+    test('reports the compacted size to the hooks', async () => {
+        const {llm} = newFakeLLM();
+        const context = newContext();
+        await new TestCompactor().compactFullHistory(true, context, [], llm, [{role: 'assistant', content: 'hello'}]);
+        expect(emitVisitor).toHaveBeenCalledExactlyOnceWith(
+            'historyCompacted', context, '{"role":"assistant","content":"hello"}'.length
+        );
+    });
+});

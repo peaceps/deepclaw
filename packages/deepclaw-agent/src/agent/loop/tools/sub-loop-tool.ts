@@ -24,8 +24,11 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
     exclusiveInSubLoop: true,
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
         const subLoop = context.actions.newSubLoop() as LoopAgent<any, any, any>;
-        const result = await subLoop.invoke(input.prompt, { browserId: context.browserId });
-        FileUtils.deleteDir(subLoop.getSessionDir());
-        return result.text;
+        try {
+            const result = await subLoop.invoke(input.prompt, { browserId: context.browserId });
+            return result.text;
+        } finally {
+            FileUtils.deleteDir(subLoop.getSessionDir());
+        }
     },
 }

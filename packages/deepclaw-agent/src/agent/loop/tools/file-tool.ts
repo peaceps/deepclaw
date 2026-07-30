@@ -20,7 +20,7 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
             type: 'object',
              properties: {
                 filePath: {type: 'string'},
-                limit: {type: 'integer'}
+                limit: {type: 'integer', minimum: 1}
             },
             required: ['filePath']
         },
@@ -29,6 +29,9 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
     parallelSafe: true,
     invoke: async function(input: ReadFileInput): Promise<string> {
         const { filePath, limit } = input;
+        if (limit !== undefined && limit < 1) {
+            throw new Error('The limit has to be at least one character.');
+        }
         const content = FileUtils.readFile(filePath);
         if (limit) {
             return content.slice(0, limit);

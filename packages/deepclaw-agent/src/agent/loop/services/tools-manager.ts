@@ -11,7 +11,7 @@ import {
 } from '../tools/background-command-tool';
 import {saveMemoryTool, readMemoryDetailTool} from '../tools/save-memory-tool';
 import {createCronTaskTool, updateCronOutputTool, updateCronTaskTool} from '../tools/cron-tool';
-import {createProjectTool, createSimpleTaskTool, updateTaskTool,
+import {createProjectTool, createSimpleTaskTool, updateProjectTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
 import { AgentMode } from '@deepclaw/config';
 import { base64Tool } from '../tools/encode-decode-tool';
@@ -35,6 +35,7 @@ const tools: ToolDesc<any>[] = [
     updateCronOutputTool,
     updateCronTaskTool,
     createProjectTool,
+    updateProjectTool,
     updateTaskTool,
     updateTaskCurrentStepTool,
     getProjectDetailTool,
