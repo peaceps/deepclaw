@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@deepclaw/config', () => ({loadAgentConfig: mocks.loadAgentConfig}));
-vi.mock('./im/dingtalk', () => ({dingTalk: {connect: mocks.dingtalkConnect}}));
-vi.mock('./im/feishu', () => ({feishu: {connect: mocks.feishuConnect}}));
+vi.mock('./im/dingtalk/dingtalk-engine', () => ({dingTalk: {connect: mocks.dingtalkConnect}}));
+vi.mock('./im/feishu/feishu-engine', () => ({feishu: {connect: mocks.feishuConnect}}));
 
 function newAgent(im: Partial<AgentConfig['im']> = {}): AgentConfig {
     return {

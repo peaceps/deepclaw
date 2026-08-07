@@ -1,4 +1,4 @@
 import './i18n/index';
-export * from './im-definitions';
 export * from './connector';
-export * from './stringified-event';
+export * from './utils/stringified-event';
+export * from './utils/im-definitions';

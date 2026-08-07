@@ -35,6 +35,14 @@ export const en = {
                 },
                 title: 'Interaction request',
                 message: '{{role}} ({{name}}) has an interaction request.'
+            },
+            imConnected: {
+                title: 'IM connected',
+                message: 'IM of {{data}} connected successfully.'
+            },
+            imConnectFailed: {
+                title: 'IM connection failed',
+                message: 'IM of {{data}} connection failed.'
             }
         },
         sidebar: {
@@ -296,7 +304,7 @@ export const en = {
                         prompt: 'IM tool',
                         options: {
                             dingtalk: 'DingTalk',
-                            feishu: 'Feishu (Not supported yet)',
+                            feishu: 'Feishu',
                         },
                     },
                     appId: {

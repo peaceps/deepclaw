@@ -4,7 +4,6 @@ import { RootLayout } from "@/components/layout/RootLayout";
 import { loadCurrentConfig } from "@/server/configs";
 import { LANG_BCP47_LOCALE_MAP, DEFAULT_LANG, i18nInstance, SupportedLanguage } from "@deepclaw/i18n";
 import { ManagerConfig } from "@deepclaw/config";
-import '@/i18n-server';
 import { LoopGateway } from "@deepclaw/loop-gateway";
 
 export const metadata: Metadata = {

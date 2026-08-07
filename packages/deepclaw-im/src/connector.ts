@@ -1,7 +1,7 @@
 import { IMConfig, loadAgentConfig } from "@deepclaw/config";
-import { dingTalk } from "./im/dingtalk";
-import { feishu } from "./im/feishu";
-import type { IM } from "./im-definitions";
+import { dingTalk } from "./im/dingtalk/dingtalk-engine";
+import { feishu } from "./im/feishu/feishu-engine";
+import type { IM } from "./utils/im-definitions";
 
 const ims: Record<string, IM> = {
     dingtalk: dingTalk,
@@ -16,7 +16,7 @@ const getIM = (engine: NonNullable<IMConfig["engine"]>): IM => {
     return im;
 }
 
-export function connectIM(agentId: string): { disconnect: () => void } {
+export async function connectIM(agentId: string): Promise<{ disconnect: () => void }> {
     const agent = loadAgentConfig(agentId);
     if (!agent) {
         return {disconnect: () => {}};

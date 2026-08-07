@@ -4,7 +4,9 @@ import {i18nInstance} from '@deepclaw/i18n';
 
 export class ToastService {
 
-    public static parseToastEvent(content: SSEToastEvent['content'], projects: Project[], agents: AgentEmployee[]): {title: string; message: string} {
+    public static parseToastEvent(
+        content: SSEToastEvent['content'], projects: Project[], agents: AgentEmployee[]
+    ): {title: string; message: string} {
         const res = {
             title: '',
             message: ''
@@ -27,6 +29,9 @@ export class ToastService {
             }
             res.title = i18nInstance.t('web.toast.interactionPause.title');
             res.message = i18nInstance.t('web.toast.interactionPause.message', {name, role: i18nInstance.t(`web.toast.interactionPause.role.${role}`)});
+        } else {
+            res.title = i18nInstance.t(`web.toast.${content.key}.title`);
+            res.message = i18nInstance.t(`web.toast.${content.key}.message`, {data: content.data});
         }
         return res;
     }

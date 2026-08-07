@@ -32,7 +32,7 @@ export const zh = {
                     prompt: '选择通讯工具:',
                     options: {
                         dingtalk: '钉钉',
-                        feishu: '飞书(尚不支持)',
+                        feishu: '飞书',
                     },
                 },
                 appId: {

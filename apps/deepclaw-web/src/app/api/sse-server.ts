@@ -59,10 +59,7 @@ class SSEServerImpl {
         const infoClient = this.sseStore['info'].get(event.browserId);
         if (infoClient) {
             LoopGateway.cancelInteraction(event.browserId, event.loopId, 'interactionAfk');
-
-            this.sendEvent('info', infoClient, {
-                eventType: 'toast', content: {key: 'interactionPause', data: event.loopId}
-            } as SSEToastEvent);
+            this.sendToast({key: 'interactionPause', data: event.loopId}, event.browserId);
         } else {
           LoopGateway.cancelInteraction(event.browserId, event.loopId, 'disconnected');
         }
@@ -103,6 +100,18 @@ class SSEServerImpl {
                 LoopGateway.cancelInteraction(client.browserId, client.loopId, 'error');
             }
             this.logger.error(`Failed to send to client ${client.browserId} for ${type}: ${err}`);
+        }
+    }
+
+    public static sendToast(content: SSEToastEvent['content'], browserId: string = '') {
+        const clients = browserId ? [this.sseStore['info'].get(browserId)]
+            : Array.from(this.sseStore['info'].values());
+        for (const client of clients) {
+            if (client) {
+                this.sendEvent('info', client, {
+                    eventType: 'toast', content
+                } as SSEToastEvent);
+            }
         }
     }
 

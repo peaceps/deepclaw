@@ -35,6 +35,14 @@ export const zh = {
                 },
                 title: '互动请求',
                 message: '{{role}}（{{name}}）有一个互动请求'
+            },
+            imConnected: {
+                title: 'IM连接成功',
+                message: '{{data}}的即时通讯连接成功'
+            },
+            imConnectFailed: {
+                title: 'IM连接失败',
+                message: '{{data}}的即时通讯连接失败'
             }
         },
         sidebar: {
@@ -296,7 +304,7 @@ export const zh = {
                         prompt: '即时通讯工具',
                         options: {
                             dingtalk: '钉钉',
-                            feishu: '飞书(尚不支持)',
+                            feishu: '飞书',
                         },
                     },
                     appId: {

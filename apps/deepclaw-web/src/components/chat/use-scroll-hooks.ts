@@ -60,10 +60,13 @@ export function useScroll(
         const el = scrollRef.current;
         if (!el) return;
 
+        // Without an anchor the pull would return the newest page, which the initial load owns.
+        const oldestId = getOldestMessageId(loopId);
+        if (!oldestId) return;
+
         loadingOlderRef.current = true;
 
         try {
-            const oldestId = getOldestMessageId(loopId);
             const messages = await pullOlderMessages(loopId, oldestId);
             if (messages.length > 0) {
                 prevScrollHeightRef.current = el.scrollHeight;

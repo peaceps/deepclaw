@@ -150,9 +150,9 @@ describe('UIChatService pagination', () => {
         expect(UIChatService.getOlderMessages('agent.olderStart', 'm1')).toEqual([]);
     });
 
-    test('falls back to the last page for an unknown cursor', () => {
+    test('returns nothing for an unknown older cursor', () => {
         fill('agent.olderUnknown', 15);
-        expect(ids(UIChatService.getOlderMessages('agent.olderUnknown', 'nope'))).toHaveLength(10);
+        expect(UIChatService.getOlderMessages('agent.olderUnknown', 'nope')).toEqual([]);
     });
 
     test('returns everything when asking for newer messages without a cursor', () => {
@@ -170,9 +170,9 @@ describe('UIChatService pagination', () => {
         expect(UIChatService.getNewerMessages('agent.newerEnd', 'm15')).toEqual([]);
     });
 
-    test('returns everything for an unknown newer cursor', () => {
+    test('returns nothing for an unknown newer cursor', () => {
         fill('agent.newerUnknown', 15);
-        expect(UIChatService.getNewerMessages('agent.newerUnknown', 'nope')).toHaveLength(15);
+        expect(UIChatService.getNewerMessages('agent.newerUnknown', 'nope')).toEqual([]);
     });
 
     test('pages backwards through the whole history', () => {

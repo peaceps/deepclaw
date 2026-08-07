@@ -15,7 +15,10 @@ export default {
     '@deepclaw/agent',
     '@deepclaw/config',
     '@deepclaw/i18n',
-    'dingtalk-stream'
+		'@deepclaw/loop-gateway',
+		'@deepclaw/node-utils',
+    'dingtalk-stream',
+		'@larksuiteoapi/node-sdk'
   ],
 
   plugins: [

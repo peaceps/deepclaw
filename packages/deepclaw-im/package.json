@@ -18,12 +18,13 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@deepclaw/core": "workspace:*",
 		"@deepclaw/agent": "workspace:*",
 		"@deepclaw/config": "workspace:*",
+		"@deepclaw/core": "workspace:*",
 		"@deepclaw/i18n": "workspace:*",
-		"@deepclaw/node-utils": "workspace:*",
 		"@deepclaw/loop-gateway": "workspace:*",
+		"@deepclaw/node-utils": "workspace:*",
+		"@larksuiteoapi/node-sdk": "1.72.0",
 		"dingtalk-stream": "2.1.5"
 	}
 }
