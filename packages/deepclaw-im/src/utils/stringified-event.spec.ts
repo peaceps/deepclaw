@@ -1,7 +1,7 @@
 import {afterEach, beforeAll, beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentInteractionEvent, type AgentInteractionEventPayload} from '@deepclaw/core';
 import {DEFAULT_LANG, i18nInstance, init, mergeResources, SUPPORTED_LANGUAGES} from '@deepclaw/i18n';
-import './i18n/index';
+import '../i18n/index';
 import {
     handleStringifiedInteractionEvent, parseStringifiedAnswer, stringifiedInteractionEvent
 } from './stringified-event';

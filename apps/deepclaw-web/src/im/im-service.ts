@@ -1,7 +1,10 @@
+import { SSEServer } from "@/app/api/sse-server";
 import { AgentsConfig, loadConfig } from "@deepclaw/config";
 import { connectIM } from "@deepclaw/im";
-import { cleanupOnShutdown } from "@deepclaw/node-utils";
+import { cleanupOnShutdown, getLogger } from "@deepclaw/node-utils";
 import { globalize } from "@deepclaw/utils";
+
+const logger = getLogger('IMService');
 
 class IMServiceImpl {
     private static runningIM: Record<string, () => void> = {};
@@ -19,16 +22,31 @@ class IMServiceImpl {
                 if (this.runningIM[agent.id]) {
                     return;
                 }
-                this.connect(agent.id);
+                this.connect(agent.id, agent.name);
             } else {
                 this.disconnect(agent.id);
             }
         });
     }
 
-    public static connect(agentId: string) {
-        const {disconnect} = connectIM(agentId);
-        this.runningIM[agentId] = disconnect;
+    public static async connect(agentId: string, agentName: string) {
+        const token = () => {};
+        this.runningIM[agentId] = token;
+        try {
+            const {disconnect} = await connectIM(agentId);
+            if (this.runningIM[agentId] === token) {
+                this.runningIM[agentId] = disconnect;
+                SSEServer.sendToast({key: 'imConnected', data: agentName});
+            } else {
+                disconnect();
+            }
+        } catch (e) {
+            logger.error(`connect im for agent ${agentId} failed: ${e}`);
+            if (this.runningIM[agentId] === token) {
+                delete this.runningIM[agentId];
+            }
+            SSEServer.sendToast({key: 'imConnectFailed', data: agentName});
+        }
     }
 
     public static disconnect(agentId: string): void {

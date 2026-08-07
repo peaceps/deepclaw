@@ -4,6 +4,7 @@ import { globalize } from '@deepclaw/utils';
 import { FileUtils } from '@deepclaw/node-utils';
 
 const PAGE_SIZE = 10;
+const EMPTY_RANGE: [number, number] = [0, 0];
 
 // TODO FULL MEMORY
 class UIChatServiceImpl {
@@ -33,19 +34,23 @@ class UIChatServiceImpl {
     }
 
     public static getOlderMessages(loopId: string, endMessageId?: string): ChatMessage[] {
-        const getRange = (msgLen: number) => {
-            const end = !endMessageId ? msgLen : (this.getCachedIndex(loopId, endMessageId) ?? msgLen);
-            const start = Math.max(0, end - PAGE_SIZE);
-            return [start, end] as [number, number];
+        const getRange = (msgLen: number): [number, number] => {
+            if (!endMessageId) return [Math.max(0, msgLen - PAGE_SIZE), msgLen];
+            const end = this.getCachedIndex(loopId, endMessageId);
+            // Callers merge the result into what they already hold, so an unresolvable
+            // cursor has to yield nothing rather than a page they may already have.
+            if (end === undefined) return EMPTY_RANGE;
+            return [Math.max(0, end - PAGE_SIZE), end];
         }
         return this.getMessages(loopId, getRange);
     }
 
     public static getNewerMessages(loopId: string, startMessageId?: string): ChatMessage[] {
-        const getRange = (msgLen: number) => {
-            const start = !startMessageId ? 0 : (this.getCachedIndex(loopId, startMessageId) ?? -1) + 1;
-            const end = msgLen;
-            return [start, end] as [number, number];
+        const getRange = (msgLen: number): [number, number] => {
+            if (!startMessageId) return [0, msgLen];
+            const index = this.getCachedIndex(loopId, startMessageId);
+            if (index === undefined) return EMPTY_RANGE;
+            return [index + 1, msgLen];
         }
         return this.getMessages(loopId, getRange);
     }

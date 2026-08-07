@@ -45,9 +45,12 @@ function pauseEvent(loopId: string): SSEToastEvent['content'] {
     return {key: 'interactionPause', data: loopId};
 }
 
+function paramsOf(key: string): Record<string, string> | undefined {
+    return mocks.t.mock.calls.find(([called]) => called === key)?.[1];
+}
+
 function messageParams(): Record<string, string> | undefined {
-    const call = mocks.t.mock.calls.find(([key]) => key === 'web.toast.interactionPause.message');
-    return call?.[1];
+    return paramsOf('web.toast.interactionPause.message');
 }
 
 describe('parseToastEvent', () => {
@@ -57,10 +60,21 @@ describe('parseToastEvent', () => {
         mocks.t.mockImplementation((key: string) => key);
     });
 
-    test('renders nothing for a key it does not know', () => {
-        expect(ToastService.parseToastEvent({key: 'somethingElse', data: 'agent.a1'}, [], []))
-            .toEqual({title: '', message: ''});
-        expect(mocks.t).not.toHaveBeenCalled();
+    test('builds a plain toast out of the key alone', () => {
+        expect(ToastService.parseToastEvent({key: 'imConnected', data: 'Ada'}, [], [])).toEqual({
+            title: 'web.toast.imConnected.title',
+            message: 'web.toast.imConnected.message',
+        });
+    });
+
+    test('hands the payload of a plain toast to its message', () => {
+        ToastService.parseToastEvent({key: 'imConnectFailed', data: 'Ada'}, [], []);
+        expect(paramsOf('web.toast.imConnectFailed.message')).toEqual({data: 'Ada'});
+    });
+
+    test('needs neither projects nor agents for a plain toast', () => {
+        expect(() => ToastService.parseToastEvent({key: 'imConnected', data: 'Ada'}, [], [])).not.toThrow();
+        expect(paramsOf('web.toast.imConnected.title')).toBeUndefined();
     });
 
     test('titles an interaction pause with the shared title key', () => {

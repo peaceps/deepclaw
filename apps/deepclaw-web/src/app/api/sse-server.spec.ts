@@ -349,6 +349,43 @@ describe('interactions nobody listens to', () => {
     });
 });
 
+describe('sendToast', () => {
+
+    test('reaches every info client when no browser is named', () => {
+        const first = addInfoClient(server, 'b1');
+        const second = addInfoClient(server, 'b2');
+        server.sendToast({key: 'imConnected', data: 'Ada'});
+        const toast = {eventType: 'toast', content: {key: 'imConnected', data: 'Ada'}};
+        expect(received(first)).toEqual([toast]);
+        expect(received(second)).toEqual([toast]);
+    });
+
+    test('reaches only the browser it names', () => {
+        const named = addInfoClient(server, 'b1');
+        const other = addInfoClient(server, 'b2');
+        server.sendToast({key: 'imConnectFailed', data: 'Ada'}, 'b1');
+        expect(eventTypes(named)).toEqual(['toast']);
+        expect(other.frames).toEqual([]);
+    });
+
+    test('stays quiet for a browser that is not connected', () => {
+        const client = addInfoClient(server, 'b1');
+        expect(() => server.sendToast({key: 'imConnected', data: 'Ada'}, 'ghost')).not.toThrow();
+        expect(client.frames).toEqual([]);
+    });
+
+    test('stays quiet when nobody is connected at all', () => {
+        expect(() => server.sendToast({key: 'imConnected', data: 'Ada'})).not.toThrow();
+    });
+
+    test('never reaches a loop client', () => {
+        addInfoClient(server, 'b1');
+        const loopClient = addLoopClient(server, 'b1', 'agent.a1');
+        server.sendToast({key: 'imConnected', data: 'Ada'});
+        expect(loopClient.frames).toEqual([]);
+    });
+});
+
 describe('a client whose stream is gone', () => {
 
     function breakClient(client: FakeClient): void {
