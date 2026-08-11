@@ -1,0 +1,33 @@
+{
+	"name": "@deepclaw/eval",
+	"version": "0.0.1",
+	"packageManager": "pnpm@10.33.0",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=21"
+	},
+	"exports": {
+		".": {
+			"import": "./src/index.ts"
+		}
+	},
+	"bin": {
+		"deepclaw-eval": "./src/cli.ts"
+	},
+	"scripts": {
+		"eval": "npx tsx src/cli.ts",
+		"lint": "eslint **/*.ts",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@deepclaw/agent": "workspace:*",
+		"@deepclaw/config": "workspace:*",
+		"@deepclaw/core": "workspace:*",
+		"@deepclaw/i18n": "workspace:*",
+		"@deepclaw/node-utils": "workspace:*"
+	},
+	"devDependencies": {
+		"openai": "6.36.0"
+	}
+}

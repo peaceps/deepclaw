@@ -271,6 +271,28 @@ importers:
         specifier: workspace:*
         version: link:../deepclaw-utils
 
+  packages/deepclaw-eval:
+    dependencies:
+      '@deepclaw/agent':
+        specifier: workspace:*
+        version: link:../deepclaw-agent
+      '@deepclaw/config':
+        specifier: workspace:*
+        version: link:../deepclaw-config
+      '@deepclaw/core':
+        specifier: workspace:*
+        version: link:../deepclaw-core
+      '@deepclaw/i18n':
+        specifier: workspace:*
+        version: link:../deepclaw-i18n
+      '@deepclaw/node-utils':
+        specifier: workspace:*
+        version: link:../deepclaw-node-utils
+    devDependencies:
+      openai:
+        specifier: 6.36.0
+        version: 6.36.0(ws@8.20.1)(zod@4.4.3)
+
   packages/deepclaw-i18n:
     dependencies:
       '@deepclaw/utils':
