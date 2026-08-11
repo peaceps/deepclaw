@@ -10,7 +10,7 @@ export class FileUtils {
         return `${name}_${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}.${ext}`;
     }
 
-    public static hashString(text: string, length: number = 16): string {
+    public static hashString(text: string | Buffer, length: number = 16): string {
         return createHash('sha256').update(text).digest('hex').slice(0, length);
     }
 
@@ -25,6 +25,15 @@ export class FileUtils {
             throw new Error(`File ${filePath} not found.`);
         }
         return fs.readFileSync(absolutePath, 'utf8');
+    }
+
+    public static readBuffer(filePath: string): Buffer {
+        const name = this.sanitizeFileName(filePath);
+        const absolutePath = this.getAbsolutePath(name);
+        if (!fs.existsSync(absolutePath)) {
+            throw new Error(`File ${filePath} not found.`);
+        }
+        return fs.readFileSync(absolutePath);
     }
 
     public static readDir(

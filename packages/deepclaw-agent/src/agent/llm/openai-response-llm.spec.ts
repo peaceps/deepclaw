@@ -9,6 +9,7 @@ import {OpenAIResponseLLM, type ThinkingMessage, type ThinkingResponse} from './
 const mocks = vi.hoisted(() => ({
     newClient: vi.fn<(options: unknown) => void>(() => undefined),
     create: vi.fn(),
+    readImage: vi.fn<(key: string) => Buffer | null>(),
 }));
 
 vi.mock('openai', () => {
@@ -29,6 +30,7 @@ vi.mock('@deepclaw/i18n', async (importOriginal) => ({
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+    ImageStore: {read: mocks.readImage},
 }));
 
 const getToolsArray = vi.spyOn(ToolsManager, 'getToolsArray');
@@ -189,6 +191,27 @@ describe('OpenAIResponseLLM request', () => {
         const messages: ThinkingMessage[] = [{role: 'user', content: 'hi'}];
         await invoke(newLLM(), messages);
         expect((mocks.create.mock.calls[0]![0] as {input: unknown}).input).toBe(messages);
+    });
+
+    test('sends the bytes the reference points at as a data url', async () => {
+        mocks.readImage.mockReturnValue(Buffer.from('ABC'));
+        const messages = [newLLM().newImageInputMessage('look', [{url: 'dcimg://abc123.png'}])];
+        await invoke(newLLM(), messages);
+        const sent = (mocks.create.mock.calls[0]![0] as {input: {content: unknown[]}[]}).input[0]!.content;
+        expect(sent[1]).toEqual({
+            type: 'input_image', detail: 'auto',
+            image_url: `data:image/png;base64,${Buffer.from('ABC').toString('base64')}`,
+        });
+        expect((messages[0] as {content: unknown[]}).content[1]).toEqual({
+            type: 'input_image', detail: 'auto', image_url: 'dcimg://abc123.png'
+        });
+    });
+
+    test('tells the model about an image whose bytes are gone', async () => {
+        mocks.readImage.mockReturnValue(null);
+        await invoke(newLLM(), [newLLM().newImageInputMessage('look', [{url: 'dcimg://abc123.png'}])]);
+        const sent = (mocks.create.mock.calls[0]![0] as {input: {content: unknown[]}[]}).input[0]!.content;
+        expect(sent[1]).toEqual({type: 'input_text', text: '[image unavailable, its bytes are gone]'});
     });
 
     test('adds no system message to the history, unlike the chat protocol', async () => {

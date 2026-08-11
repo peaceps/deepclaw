@@ -9,6 +9,7 @@ import {AnthropicLLM, type ThinkingMessage, type ThinkingResponse} from './anthr
 const mocks = vi.hoisted(() => ({
     newClient: vi.fn<(options: unknown) => void>(() => undefined),
     stream: vi.fn(),
+    readImage: vi.fn<(key: string) => Buffer | null>(),
 }));
 
 vi.mock('@anthropic-ai/sdk', () => ({
@@ -23,6 +24,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+    ImageStore: {read: mocks.readImage},
 }));
 
 const getToolsArray = vi.spyOn(ToolsManager, 'getToolsArray');
@@ -181,6 +183,50 @@ describe('AnthropicLLM request', () => {
             'agent', {cacheable: 'c', dynamic: 'd'}, [], streamer, newTestLogger()
         );
         expect(streamer.mock.calls).toEqual([['he'], ['llo']]);
+    });
+});
+
+describe('AnthropicLLM image references', () => {
+
+    function withImage(url: string): ThinkingMessage[] {
+        return [newLLM().newImageInputMessage('look', [{url}])];
+    }
+
+    function sentContent(): unknown[] {
+        return (mocks.stream.mock.calls[0]![0] as {messages: {content: unknown[]}[]}).messages[0]!.content;
+    }
+
+    test('keeps the reference in the history and sends the bytes it points at', async () => {
+        mocks.readImage.mockReturnValue(Buffer.from('the image'));
+        const messages = withImage('dcimg://abc123.png');
+        await invoke(newLLM(), messages);
+        expect(mocks.readImage).toHaveBeenCalledWith('abc123.png');
+        expect(sentContent()[1]).toEqual({
+            type: 'image',
+            source: {type: 'base64', media_type: 'image/png', data: Buffer.from('the image').toString('base64')},
+        });
+        expect(messages[0]!.content[1]).toEqual({type: 'image', source: {type: 'url', url: 'dcimg://abc123.png'}});
+    });
+
+    test('tells the model about an image whose bytes are gone', async () => {
+        mocks.readImage.mockReturnValue(null);
+        await invoke(newLLM(), withImage('dcimg://abc123.png'));
+        expect(sentContent()[1]).toEqual({type: 'text', text: '[image unavailable, its bytes are gone]'});
+    });
+
+    test('drops an image of a type the model does not take', async () => {
+        mocks.readImage.mockReturnValue(Buffer.from('the image'));
+        await invoke(newLLM(), withImage('dcimg://abc123.bin'));
+        expect(sentContent()[1]).toEqual({
+            type: 'text', text: '[image dropped, unsupported type application/octet-stream]'
+        });
+    });
+
+    test('leaves a history without references untouched', async () => {
+        const messages: ThinkingMessage[] = [{role: 'user', content: 'hi'}];
+        await invoke(newLLM(), messages);
+        expect((mocks.stream.mock.calls[0]![0] as {messages: unknown}).messages).toBe(messages);
+        expect(mocks.readImage).not.toHaveBeenCalled();
     });
 });
 

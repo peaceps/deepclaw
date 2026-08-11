@@ -20,6 +20,7 @@ next-env.d.ts
 
 .projects/
 .agents/
+.images/
 .cron
 
 apps/*/DEEPCLAW.md

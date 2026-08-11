@@ -21,6 +21,7 @@ import {
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
+import { storeImages } from "./image-refs";
 import { LoopInfo, InvokeSource, LoopGatewayEvent, getClientKey, InvokeOption } from "./loop-gateway-types";
 import { i18nInstance } from "@deepclaw/i18n";
 import { getLogger } from "@deepclaw/node-utils";
@@ -146,7 +147,8 @@ class LoopGatewayImpl {
         onDone?: (text: string) => void,
     ): {busy: boolean, msgId: string} {
         const {role, agentId, projectId = ''} = loopInfo;
-        const {browserId = '', source, images} = options;
+        const {browserId = '', source} = options;
+        const images = storeImages(options.images);
         const loopId = getLoopId(role, agentId, projectId);
         if (!this.loops[loopId]) {
             this.initLoop(loopId);

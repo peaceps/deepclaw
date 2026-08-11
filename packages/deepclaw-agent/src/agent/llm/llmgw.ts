@@ -48,9 +48,10 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
     ): Promise<O> {
         let response: O | null = null;
         const tools = this.convertTools(ToolsManager.getToolsArray(this.isSubLoop, mode));
+        const outgoing = this.resolveImages(messages);
         for (let i = 0; i < llmRetry; i++) {
             try {
-                response = await this._invoke(system, messages, tools, streamer);
+                response = await this._invoke(system, outgoing, tools, streamer);
                 break;
             } catch (error) {
                 logger.error(error, 'LLM invoke failed');
@@ -82,6 +83,16 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
         tools: T[],
         streamer: (text: string) => void
     ): Promise<O>;
+
+    /**
+     * Turns the image references the history keeps into payloads the model accepts.
+     * The result is what goes over the wire; the history itself keeps the references.
+     * Answers with the very array it was given when there is nothing to resolve, so
+     * an implementation that adjusts the live history keeps reaching it.
+     */
+    protected resolveImages(messages: I[]): I[] {
+        return messages;
+    }
 
     protected abstract isInputExceedLimit(error: any): boolean;
 

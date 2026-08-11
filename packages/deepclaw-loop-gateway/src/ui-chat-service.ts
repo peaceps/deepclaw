@@ -2,6 +2,7 @@ import {AGENTS_DIR, CHAT_FILE, PROJECT_DIR} from '@deepclaw/agent';
 import { ChatMessage, splitLoopId } from '@deepclaw/core';
 import { globalize } from '@deepclaw/utils';
 import { FileUtils } from '@deepclaw/node-utils';
+import { storeImages } from './image-refs';
 
 const PAGE_SIZE = 10;
 const EMPTY_RANGE: [number, number] = [0, 0];
@@ -16,8 +17,11 @@ class UIChatServiceImpl {
     public static addMessage(loopId: string, message: ChatMessage): void {
         this.ensureMessageLoaded(loopId);
         const messages = this.messageStore.get(loopId)!;
+        message.images = storeImages(message.images);
         messages.push(message);
-        if (message.content) {
+        // The empty message that is opened for an answer waits for its content, but a
+        // message that carries nothing but images is already whole.
+        if (message.content || message.images?.length) {
             this.saveMessages(loopId);
         }
     }

@@ -4,6 +4,7 @@ import {
     LANG_BCP47_LOCALE_MAP, ISO639_1_LOCALE_MAP, SUPPORTED_LANGUAGES, SupportedLanguage
 } from "@deepclaw/i18n";
 import { UpdateContent, StringKeys } from "@deepclaw/utils";
+import { imageRefKey } from "@deepclaw/core";
 
 export function formatDate(lang: string, dateSeed?: string | number): string {
     if (!dateSeed) {
@@ -18,6 +19,12 @@ export function formatDate(lang: string, dateSeed?: string | number): string {
       hour: '2-digit',
       minute: '2-digit',
     });
+}
+
+/** A stored image only travels as a reference, the bytes come from the image endpoint. */
+export function imageSrc(url: string): string {
+    const key = imageRefKey(url);
+    return key ? `/api/image/${key}` : url;
 }
 
 export function translateCron(lang: SupportedLanguage, cron: string): string {

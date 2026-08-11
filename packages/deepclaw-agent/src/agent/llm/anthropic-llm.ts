@@ -14,7 +14,8 @@ import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
+import { isImageRef, LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
+import { IMAGE_UNAVAILABLE, resolveImage } from './image-resolver';
 
 export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam | ImageBlockParam;
 
@@ -159,6 +160,42 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
                 : {type: 'text', text: `[image dropped, unsupported type ${image.mediaType || 'unknown'}]`});
         }
         return {role: 'user', content: contentParts};
+    }
+
+    protected override resolveImages(messages: ThinkingMessage[]): ThinkingMessage[] {
+        return messages.some(message => this.hasRef(message))
+            ? messages.map(message => this.resolveMessage(message)) : messages;
+    }
+
+    private hasRef(message: ThinkingMessage): boolean {
+        return typeof message.content !== 'string' && message.content.some(block => !!this.refOf(block));
+    }
+
+    private resolveMessage(message: ThinkingMessage): ThinkingMessage {
+        return this.hasRef(message)
+            ? {...message, content: (message.content as ThinkingContent[]).map(block => this.resolveBlock(block))}
+            : message;
+    }
+
+    private refOf(block: ThinkingContent): string | undefined {
+        return block.type === 'image' && block.source.type === 'url' && isImageRef(block.source.url)
+            ? block.source.url : undefined;
+    }
+
+    private resolveBlock(block: ThinkingContent): ThinkingContent {
+        const ref = this.refOf(block);
+        if (!ref) {
+            return block;
+        }
+        const resolved = resolveImage(ref);
+        if (resolved.type === 'bytes') {
+            const mediaType = supportedImageType(resolved.mediaType);
+            if (mediaType) {
+                return {type: 'image', source: {type: 'base64', media_type: mediaType, data: resolved.base64}};
+            }
+            return {type: 'text', text: `[image dropped, unsupported type ${resolved.mediaType}]`};
+        }
+        return {type: 'text', text: IMAGE_UNAVAILABLE};
     }
 
     private imageSource(image: ImageContent): ImageBlockParam['source'] | undefined {

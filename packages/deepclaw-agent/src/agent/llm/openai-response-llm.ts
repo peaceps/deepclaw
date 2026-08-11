@@ -11,8 +11,10 @@ import {
     EasyInputMessage,
     ResponseFunctionToolCall,
     ResponseOutputMessage,
+    ResponseInputContent,
 } from "openai/resources/responses/responses.js";
-import { LLMTransitionReason, TokenUsage, type ImageContent } from "@deepclaw/core";
+import { isImageRef, LLMTransitionReason, TokenUsage, type ImageContent } from "@deepclaw/core";
+import { dataUrlOf, IMAGE_UNAVAILABLE, resolveImage } from './image-resolver';
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
 
@@ -164,6 +166,40 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     public override getTextFromInputMessage(message: ThinkingMessage): string {
         return message.type === 'function_call' || message.type === 'function_call_output' ? ''
             : this.extractTextFromContent(message.content, 'input_text');
+    }
+
+    protected override resolveImages(messages: ThinkingMessage[]): ThinkingMessage[] {
+        return messages.some(message => this.hasRef(message))
+            ? messages.map(message => this.resolveMessage(message)) : messages;
+    }
+
+    private hasRef(message: ThinkingMessage): boolean {
+        const content = (message as EasyInputMessage).content;
+        return Array.isArray(content) && content.some(block => !!this.refOf(block));
+    }
+
+    private resolveMessage(message: ThinkingMessage): ThinkingMessage {
+        if (!this.hasRef(message)) {
+            return message;
+        }
+        const input = message as EasyInputMessage;
+        return {...input, content: (input.content as ResponseInputContent[]).map(b => this.resolveBlock(b))};
+    }
+
+    private refOf(block: ResponseInputContent): string | undefined {
+        return block.type === 'input_image' && block.image_url && isImageRef(block.image_url)
+            ? block.image_url : undefined;
+    }
+
+    private resolveBlock(block: ResponseInputContent): ResponseInputContent {
+        const ref = this.refOf(block);
+        if (!ref) {
+            return block;
+        }
+        const resolved = resolveImage(ref);
+        return resolved.type === 'bytes'
+            ? {type: 'input_image', image_url: dataUrlOf(resolved), detail: 'auto'}
+            : {type: 'input_text', text: IMAGE_UNAVAILABLE};
     }
 
     public override newImageInputMessage(content: string, images: ImageContent[]): ThinkingMessage {

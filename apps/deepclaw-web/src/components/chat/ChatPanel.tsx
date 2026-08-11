@@ -8,7 +8,7 @@ import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
 import { useToastStore } from '@/lib/toast-store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
-import { formatDate } from '../component-utils';
+import { formatDate, imageSrc } from '../component-utils';
 import { Markdown } from "@/laf/markdown";
 import { useInitChat, useSSEConnection, useSend, useLoopResume } from "./use-chat-hooks";
 import { useScroll } from "./use-scroll-hooks";
@@ -116,14 +116,16 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
                     {message.images.map((img, idx) => (
                       <img
                         key={idx}
-                        src={img.url}
+                        src={imageSrc(img.url)}
                         alt={`image-${idx}`}
                         className="max-w-48 max-h-48 rounded-lg object-cover"
                       />
                     ))}
                   </div>
                 )}
-                {(message.type === 'user' || (i === agentMessages.length - 1 && locked)) && 
+                {message.type === 'user' && !!message.content &&
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>}
+                {message.type === 'agent' && (i === agentMessages.length - 1 && locked) &&
                     <p className="text-sm whitespace-pre-wrap">
                         {message.content || t('web.pages.chat.loading')}
                     </p>}

@@ -5,6 +5,7 @@ import {UIChatService} from './ui-chat-service';
 const mocks = vi.hoisted(() => ({
     readFile: vi.fn<(path: string) => string>(),
     appendFile: vi.fn(),
+    saveImage: vi.fn<(bytes: Buffer, extension: string) => string>(() => 'abc123.png'),
 }));
 
 vi.mock('@deepclaw/agent', () => ({
@@ -15,6 +16,7 @@ vi.mock('@deepclaw/agent', () => ({
 
 vi.mock('@deepclaw/node-utils', () => ({
     FileUtils: {readFile: mocks.readFile, appendFile: mocks.appendFile},
+    ImageStore: {save: mocks.saveImage},
 }));
 
 function newMessage(id: string, content = `text of ${id}`): ChatMessage {
@@ -45,6 +47,22 @@ describe('UIChatService message store', () => {
         UIChatService.addMessage('agent.add', message);
         expect(ids(UIChatService.getOlderMessages('agent.add'))).toEqual(['m1']);
         expect(mocks.appendFile).toHaveBeenCalledWith('.agents/add/chat.jsonl', `${JSON.stringify(message)}\n`);
+    });
+
+    test('writes a reference into the chat file instead of the bytes of an image', () => {
+        const message = {...newMessage('m1'), images: [{url: 'data:image/png;base64,QUJD', mediaType: 'image/png'}]};
+        UIChatService.addMessage('agent.image', message);
+        expect(mocks.saveImage).toHaveBeenCalledExactlyOnceWith(Buffer.from('ABC'), 'png');
+        expect(mocks.appendFile).toHaveBeenCalledWith('.agents/image/chat.jsonl', `${JSON.stringify({
+            ...message, images: [{url: 'dcimg://abc123.png', mediaType: 'image/png'}]
+        })}\n`);
+    });
+
+    test('persists a message that carries nothing but images', () => {
+        UIChatService.addMessage('agent.only-image', {
+            ...newMessage('m1', ''), images: [{url: 'data:image/png;base64,QUJD', mediaType: 'image/png'}]
+        });
+        expect(mocks.appendFile).toHaveBeenCalledOnce();
     });
 
     test('holds back an empty message until it has content', () => {

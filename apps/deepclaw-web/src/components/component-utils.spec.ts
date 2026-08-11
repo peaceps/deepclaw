@@ -1,5 +1,7 @@
 import {describe, expect, test} from 'vitest';
-import {formatDate, handleUpdateRecordContent, handleUpdatedArrayContent, translateCron} from './component-utils';
+import {
+    formatDate, handleUpdateRecordContent, handleUpdatedArrayContent, imageSrc, translateCron
+} from './component-utils';
 
 type Item = {id: string; name: string; count: number; note?: string};
 
@@ -14,6 +16,18 @@ function localeDate(locale: string): string {
         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
 }
+
+describe('imageSrc', () => {
+
+    test('points a stored image at the endpoint that serves its bytes', () => {
+        expect(imageSrc('dcimg://abc123.png')).toBe('/api/image/abc123.png');
+    });
+
+    test('leaves an image the browser can load on its own alone', () => {
+        expect(imageSrc('data:image/png;base64,QUJD')).toBe('data:image/png;base64,QUJD');
+        expect(imageSrc('https://host/shot.png')).toBe('https://host/shot.png');
+    });
+});
 
 describe('formatDate', () => {
 

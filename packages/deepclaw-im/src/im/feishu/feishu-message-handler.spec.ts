@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     addMessage: vi.fn<(browserId: string, loopId: string, message: {content: string}) => void>(),
     invoke: vi.fn<(...args: unknown[]) => {busy: boolean; msgId: string}>(),
     error: vi.fn<(message: string) => void>(),
+    readImage: vi.fn<(key: string) => Buffer | null>(),
 }));
 
 vi.mock('@larksuiteoapi/node-sdk', () => ({}));
@@ -28,6 +29,7 @@ vi.mock('@deepclaw/loop-gateway', () => ({
 
 vi.mock('@deepclaw/node-utils', () => ({
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: mocks.error}),
+    ImageStore: {read: mocks.readImage},
 }));
 
 function message(content: string, messageId = 'm1', chatId = 'chat-1'): NormalizedMessage {
@@ -226,6 +228,22 @@ describe('sending the images of an answer', () => {
         onDone()('![shot](https://host/shot.png)');
         await flush();
         expect(sentContents()).toEqual([{image: {source: 'https://host/shot.png'}}]);
+    });
+
+    test('reads a stored image out of the store', async () => {
+        mocks.readImage.mockReturnValue(Buffer.from('the image'));
+        onDone()('![shot](dcimg://abc123.png)');
+        await flush();
+        expect(mocks.readImage).toHaveBeenCalledWith('abc123.png');
+        expect(sentContents()).toEqual([{image: {source: Buffer.from('the image')}}]);
+    });
+
+    test('logs a stored image whose bytes are gone', async () => {
+        mocks.readImage.mockReturnValue(null);
+        onDone()('![shot](dcimg://abc123.png)');
+        await flush();
+        expect(mocks.error).toHaveBeenCalled();
+        expect(sentContents()).toEqual([]);
     });
 
     test('logs an image url it cannot turn into bytes', async () => {

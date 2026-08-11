@@ -1,4 +1,5 @@
 export * from './file-utils';
+export * from './image-store';
 export * from './logger';
 export * from './graceful-shutdown';
 export * from './child-process-utils';

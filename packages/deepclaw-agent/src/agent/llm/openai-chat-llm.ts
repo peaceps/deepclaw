@@ -6,6 +6,8 @@ import {
     ChatCompletionUserMessageParam,
     ChatCompletionAssistantMessageParam,
     ChatCompletionToolMessageParam,
+    ChatCompletionContentPart,
+    ChatCompletionContentPartRefusal,
  } from 'openai/resources/chat/completions.js';
 import {
     CompletionUsage,
@@ -13,7 +15,10 @@ import {
 import { LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
+import { isImageRef, LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
+import { dataUrlOf, IMAGE_UNAVAILABLE, resolveImage } from './image-resolver';
+
+type ContentPart = ChatCompletionContentPart | ChatCompletionContentPartRefusal;
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |
@@ -208,6 +213,38 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                 message.content?.filter((block) => block.type === 'text').filter(block => !!block.text)
                     .map(block => block.text).join('\n')
         ) || '';
+    }
+
+    protected override resolveImages(messages: ThinkingMessage[]): ThinkingMessage[] {
+        return messages.some(message => this.hasRef(message))
+            ? messages.map(message => this.resolveMessage(message)) : messages;
+    }
+
+    private hasRef(message: ThinkingMessage): boolean {
+        return Array.isArray(message.content) && message.content.some(block => !!this.refOf(block));
+    }
+
+    private resolveMessage(message: ThinkingMessage): ThinkingMessage {
+        if (!this.hasRef(message)) {
+            return message;
+        }
+        const content = (message.content as ContentPart[]).map(block => this.resolveBlock(block));
+        return {...message, content} as ThinkingMessage;
+    }
+
+    private refOf(block: ContentPart): string | undefined {
+        return block.type === 'image_url' && isImageRef(block.image_url.url) ? block.image_url.url : undefined;
+    }
+
+    private resolveBlock(block: ContentPart): ContentPart {
+        const ref = this.refOf(block);
+        if (!ref) {
+            return block;
+        }
+        const resolved = resolveImage(ref);
+        return resolved.type === 'bytes'
+            ? {type: 'image_url', image_url: {url: dataUrlOf(resolved)}}
+            : {type: 'text', text: IMAGE_UNAVAILABLE};
     }
 
     public override newImageInputMessage(content: string, images: ImageContent[]): ThinkingMessage {

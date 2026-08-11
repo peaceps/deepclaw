@@ -9,6 +9,7 @@ import {OpenAIChatLLM, type ThinkingMessage, type ThinkingResponse} from './open
 const mocks = vi.hoisted(() => ({
     newClient: vi.fn<(options: unknown) => void>(() => undefined),
     create: vi.fn(),
+    readImage: vi.fn<(key: string) => Buffer | null>(),
 }));
 
 vi.mock('openai', () => {
@@ -24,6 +25,7 @@ vi.mock('openai', () => {
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+    ImageStore: {read: mocks.readImage},
 }));
 
 const getToolsArray = vi.spyOn(ToolsManager, 'getToolsArray');
@@ -117,6 +119,30 @@ describe('OpenAIChatLLM convertTools', () => {
 
     test('returns nothing when there is no tool at all', () => {
         expect(newLLM().tools([])).toEqual([]);
+    });
+});
+
+describe('OpenAIChatLLM image references', () => {
+
+    function sentContent(): unknown[] {
+        const sent = mocks.create.mock.calls[0]![0] as {messages: {content: unknown[]}[]};
+        return sent.messages.find(message => Array.isArray(message.content))!.content;
+    }
+
+    test('sends the bytes the reference points at as a data url', async () => {
+        mocks.readImage.mockReturnValue(Buffer.from('ABC'));
+        const messages = [newLLM().newImageInputMessage('look', [{url: 'dcimg://abc123.png'}])];
+        await invoke(newLLM(), messages);
+        expect(sentContent()[1]).toEqual({
+            type: 'image_url', image_url: {url: `data:image/png;base64,${Buffer.from('ABC').toString('base64')}`},
+        });
+        expect(messages[0]!.content![1]).toEqual({type: 'image_url', image_url: {url: 'dcimg://abc123.png'}});
+    });
+
+    test('tells the model about an image whose bytes are gone', async () => {
+        mocks.readImage.mockReturnValue(null);
+        await invoke(newLLM(), [newLLM().newImageInputMessage('look', [{url: 'dcimg://abc123.png'}])]);
+        expect(sentContent()[1]).toEqual({type: 'text', text: '[image unavailable, its bytes are gone]'});
     });
 });
 

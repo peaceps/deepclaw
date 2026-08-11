@@ -1,9 +1,9 @@
 import { IMMessageHandler, ParsedMessage } from "../im-message-handler";
 import { LarkChannel, NormalizedMessage } from '@larksuiteoapi/node-sdk';
-import { type ImageContent } from '@deepclaw/core';
+import { imageRefKey, type ImageContent } from '@deepclaw/core';
 import { extractMarkdownImages } from '../../utils/markdown-images';
 import { imageMediaType } from '../../utils/image-media-type';
-import { getLogger } from '@deepclaw/node-utils';
+import { getLogger, ImageStore } from '@deepclaw/node-utils';
 
 const logger = getLogger('FeishuMessageHandler');
 
@@ -95,6 +95,10 @@ export class FeishuMessageHandler extends IMMessageHandler<NormalizedMessage, No
     }
 
     private imageBytes(url: string): Buffer | null {
+        const key = imageRefKey(url);
+        if (key) {
+            return ImageStore.read(key);
+        }
         const base64 = base64DataUrlRegex.exec(url);
         return base64 ? Buffer.from(base64[1]!, 'base64') : null;
     }
