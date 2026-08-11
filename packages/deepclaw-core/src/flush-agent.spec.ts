@@ -6,15 +6,18 @@ import {
     type AgentRuntime, type SealedAgentHandler
 } from './flush-agent-types';
 import {type AgentInfoEvent, type AgentInteractionEvent, type AgentStreamEvent} from './flush-agent-event';
+import {type ImageContent} from './agent-definitions';
 
 class TestAgent extends FlushAgent {
     public reply = 'done';
     public failWith = '';
     public lastInput = '';
+    public lastImages: ImageContent[] | undefined;
     public lastResumeRuntime: AgentRuntime | undefined;
 
-    protected async _invoke(input: string): Promise<AgentInvokeResponse> {
+    protected async _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         this.lastInput = input;
+        this.lastImages = options.images;
         if (this.failWith) {
             throw new Error(this.failWith);
         }
@@ -127,6 +130,14 @@ describe('FlushAgent invoke', () => {
         expect(agent.lastInput).toBe('do it');
         expect(response.text).toBe('all good');
         expect(response.runtime.turnCount).toBe(3);
+    });
+
+    test('hands the images of the caller to the agent', async () => {
+        const {handler} = newRecordingHandler();
+        const agent = new TestAgent('agent', 'a1', '', handler);
+        const images: ImageContent[] = [{url: 'https://host/shot.png', mediaType: 'image/png'}];
+        await agent.invoke('look', {browserId: 'b1', images});
+        expect(agent.lastImages).toEqual(images);
     });
 
     test('flushes exactly one final stream event marked done', async () => {

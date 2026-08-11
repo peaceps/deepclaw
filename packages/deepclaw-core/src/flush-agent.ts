@@ -9,7 +9,6 @@ import {
     BREAK_POINTS,
     FlushAgentRole
 } from './flush-agent-types';
-
 export abstract class FlushAgent {
     protected role: FlushAgentRole;
     protected agentId: string;
@@ -45,7 +44,7 @@ export abstract class FlushAgent {
         };
     }
 
-    protected abstract _invoke(input: string, options?: AgentInvokeOptions): Promise<AgentInvokeResponse>;
+    protected abstract _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse>;
 
     protected abstract _resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse>;
 

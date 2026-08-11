@@ -1,5 +1,6 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import type {DWClient, DWClientDownStream} from 'dingtalk-stream';
+import {type ImageContent} from '@deepclaw/core';
 import {DingtalkMessageHandler} from './dingtalk-message-handler';
 
 const mocks = vi.hoisted(() => ({
@@ -9,7 +10,8 @@ const mocks = vi.hoisted(() => ({
     invoke: vi.fn<(...args: unknown[]) => {busy: boolean; msgId: string}>(),
     error: vi.fn<(message: string) => void>(),
     info: vi.fn<(message: string) => void>(),
-    fetch: vi.fn<(url: string, init: {body: string}) => Promise<unknown>>(),
+    warn: vi.fn<(message: string) => void>(),
+    fetch: vi.fn<(url: string, init?: {body?: string}) => Promise<unknown>>(),
 }));
 
 vi.mock('dingtalk-stream', () => ({EventAck: {SUCCESS: 200}, TOPIC_ROBOT: '/v1.0/im/bot/messages/get'}));
@@ -23,14 +25,24 @@ vi.mock('@deepclaw/loop-gateway', () => ({
 }));
 
 vi.mock('@deepclaw/node-utils', () => ({
-    getLogger: () => ({debug: vi.fn(), info: mocks.info, warn: vi.fn(), error: mocks.error}),
+    getLogger: () => ({debug: vi.fn(), info: mocks.info, warn: mocks.warn, error: mocks.error}),
 }));
 
 type Payload = {
+    msgtype?: string;
     text?: {content?: string};
     sessionWebhook?: string;
     senderStaffId?: string;
+    robotCode?: string;
+    content?: {
+        downloadCode?: string;
+        pictureDownloadCode?: string;
+        richText?: {type?: string; text?: string; downloadCode?: string}[];
+    };
 };
+
+const DOWNLOAD_API = 'https://api.dingtalk.com/v1.0/robot/messageFiles/download';
+const PNG_BYTES = Buffer.from('89504e470d0a1a0a', 'hex');
 
 function downStream(payload: Payload, messageId = 'm1'): DWClientDownStream {
     return {headers: {messageId}, data: JSON.stringify(payload)} as DWClientDownStream;
@@ -44,11 +56,45 @@ function flush(): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, 0));
 }
 
-function postedBody(call = 0): {msgtype: string; text: {content: string}; at: {atUserIds: string[]}} {
-    return JSON.parse(mocks.fetch.mock.calls[call]![1].body);
+function postedBody(call = 0): {msgtype: string; markdown: {title: string; text: string}; at: {atUserIds: string[]}} {
+    return JSON.parse(mocks.fetch.mock.calls[call]![1]!.body as string);
 }
 
-let client: {socketCallBackResponse: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn>};
+function bodyOf(url: string): {robotCode?: string; downloadCode?: string} {
+    const call = mocks.fetch.mock.calls.find(([called]) => called === url);
+    return JSON.parse(call![1]!.body as string);
+}
+
+function imagesOf(call = 0): ImageContent[] | undefined {
+    return (mocks.invoke.mock.calls[call]![1] as {images?: ImageContent[]}).images;
+}
+
+function onDone(call = 0): (text: string) => void {
+    return mocks.invoke.mock.calls[call]![4] as (text: string) => void;
+}
+
+/** The webhook, the download api and the file itself all go through fetch, so answer by url. */
+function stubDownload(bytes: string | Buffer = 'the image', mediaType = 'image/png'): void {
+    mocks.fetch.mockImplementation((url: string) => {
+        if (url === DOWNLOAD_API) {
+            return Promise.resolve({ok: true, json: () => Promise.resolve({downloadUrl: 'https://files/1'})});
+        }
+        if (url === 'https://files/1') {
+            return Promise.resolve({
+                ok: true,
+                headers: new Headers({'content-type': mediaType}),
+                arrayBuffer: () => Promise.resolve(Buffer.from(bytes)),
+            });
+        }
+        return Promise.resolve({ok: true});
+    });
+}
+
+let client: {
+    socketCallBackResponse: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
+    getAccessToken: ReturnType<typeof vi.fn>;
+};
 let handler: DingtalkMessageHandler;
 
 beforeEach(() => {
@@ -58,7 +104,11 @@ beforeEach(() => {
     mocks.isCurrentConfigValid.mockReturnValue(true);
     mocks.isLoopBusy.mockReturnValue(false);
     mocks.invoke.mockReturnValue({busy: false, msgId: 'msg-1'});
-    client = {socketCallBackResponse: vi.fn(), disconnect: vi.fn()};
+    client = {
+        socketCallBackResponse: vi.fn(),
+        disconnect: vi.fn(),
+        getAccessToken: vi.fn().mockResolvedValue('token-1'),
+    };
     handler = new DingtalkMessageHandler('a1', client as unknown as DWClient);
 });
 
@@ -120,13 +170,27 @@ describe('replying through the webhook', () => {
         handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
         await flush();
         expect(mocks.fetch.mock.calls[0]![0]).toBe('https://hook');
-        expect(postedBody().text.content).toBe('im.wait');
+        expect(postedBody().markdown.text).toBe('im.wait');
     });
 
-    test('sends the reply as plain text', async () => {
+    test('sends the reply as markdown', async () => {
         handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
         await flush();
-        expect(postedBody().msgtype).toBe('text');
+        expect(postedBody().msgtype).toBe('markdown');
+    });
+
+    test('titles the reply with the first line of the answer', async () => {
+        handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
+        await flush();
+        onDone()('the first line\nthe rest of it');
+        expect(postedBody(1).markdown.title).toBe('the first line');
+    });
+
+    test('cuts a long title down', async () => {
+        handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
+        await flush();
+        onDone()('x'.repeat(50));
+        expect(postedBody(1).markdown.title).toHaveLength(20);
     });
 
     test('mentions the sender of the message', async () => {
@@ -163,5 +227,107 @@ describe('replying through the webhook', () => {
         handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
         await flush();
         expect(mocks.error).toHaveBeenCalled();
+    });
+});
+
+describe('reading the images of a message', () => {
+
+    function picture(): DWClientDownStream {
+        return downStream({
+            msgtype: 'picture', content: {downloadCode: 'dc-1'},
+            sessionWebhook: 'https://hook', robotCode: 'bot-1',
+        });
+    }
+
+    function richText(): DWClientDownStream {
+        return downStream({
+            msgtype: 'richText',
+            content: {richText: [
+                {text: 'look at '}, {type: 'picture', downloadCode: 'dc-1'},
+                {text: 'this'}, {type: 'picture', downloadCode: 'dc-2'},
+            ]},
+            sessionWebhook: 'https://hook', robotCode: 'bot-1',
+        });
+    }
+
+    test('asks dingtalk for the file behind the download code', async () => {
+        stubDownload();
+        handler.onMessage(picture());
+        await flush();
+        expect(bodyOf(DOWNLOAD_API)).toEqual({robotCode: 'bot-1', downloadCode: 'dc-1'});
+    });
+
+    test('hands the picture to the run as a data url', async () => {
+        stubDownload('the image', 'image/png');
+        handler.onMessage(picture());
+        await flush();
+        expect(imagesOf()).toEqual([{
+            url: `data:image/png;base64,${Buffer.from('the image').toString('base64')}`,
+            mediaType: 'image/png',
+        }]);
+    });
+
+    test('falls back to the picture download code when there is no plain one', async () => {
+        stubDownload();
+        handler.onMessage(downStream({
+            msgtype: 'picture', content: {pictureDownloadCode: 'dc-2'},
+            sessionWebhook: 'https://hook', robotCode: 'bot-1',
+        }));
+        await flush();
+        expect(bodyOf(DOWNLOAD_API)).toEqual({robotCode: 'bot-1', downloadCode: 'dc-2'});
+    });
+
+    test('takes every picture out of a rich text message', async () => {
+        stubDownload();
+        handler.onMessage(richText());
+        await flush();
+        expect(imagesOf()).toHaveLength(2);
+    });
+
+    test('takes the text out of a rich text message', async () => {
+        stubDownload();
+        handler.onMessage(richText());
+        await flush();
+        expect(mocks.addMessage.mock.calls[0]![2].content).toBe('📱 look at this');
+    });
+
+    test('runs without images for a plain text message', async () => {
+        handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
+        await flush();
+        expect(imagesOf()).toBeUndefined();
+    });
+
+    test('reads the type out of the bytes when the link answers with octet-stream', async () => {
+        stubDownload(PNG_BYTES, 'application/octet-stream');
+        handler.onMessage(picture());
+        await flush();
+        expect(imagesOf()![0]!.mediaType).toBe('image/png');
+    });
+
+    test('falls back to jpeg for bytes it cannot recognise', async () => {
+        stubDownload('the image', 'application/octet-stream');
+        handler.onMessage(picture());
+        await flush();
+        expect(imagesOf()![0]!.mediaType).toBe('image/jpeg');
+    });
+
+    test('skips the download when the robot code is missing', async () => {
+        stubDownload();
+        handler.onMessage(downStream({
+            msgtype: 'picture', content: {downloadCode: 'dc-1'}, sessionWebhook: 'https://hook',
+        }));
+        await flush();
+        expect(mocks.warn).toHaveBeenCalled();
+        expect(imagesOf()).toBeUndefined();
+    });
+
+    test('runs anyway when dingtalk refuses the download', async () => {
+        mocks.fetch.mockImplementation((url: string) => Promise.resolve(
+            url === DOWNLOAD_API ? {ok: false, status: 403, text: () => Promise.resolve('nope')} : {ok: true}
+        ));
+        handler.onMessage(picture());
+        await flush();
+        expect(mocks.error).toHaveBeenCalled();
+        expect(imagesOf()).toBeUndefined();
     });
 });

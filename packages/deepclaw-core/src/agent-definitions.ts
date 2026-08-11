@@ -39,19 +39,28 @@ export function addTokenUsage(usage: TokenUsage, added: TokenUsage): void {
     usage.outputTokens += added.outputTokens;
 }
 
+export type ImageContent = {
+    url: string;
+    mediaType?: string;
+}
+
 export type ChatMessage = {
     id: string;
     agentId: string;
     content: string;
+    images?: ImageContent[];
     type: 'user' | 'agent';
     timestamp: string;
 }
 
-export function newMessage(type: 'user' | 'agent', agentId: string, content: string): ChatMessage {
+export function newMessage(
+    type: 'user' | 'agent', agentId: string, content: string, images?: ImageContent[]
+): ChatMessage {
     return {
         id: crypto.randomUUID(),
         agentId,
         content,
+        images,
         type,
         timestamp: new Date().toISOString(),
     };

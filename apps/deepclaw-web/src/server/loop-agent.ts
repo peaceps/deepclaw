@@ -1,13 +1,14 @@
 'use server';
 
 import { SSEServer } from '@/app/api/sse-server';
-import { ChatMessage, FlushAgentRole, TokenUsage } from '@deepclaw/core';
+import { ChatMessage, FlushAgentRole, TokenUsage, type ImageContent } from '@deepclaw/core';
 import { LoopGateway, UIChatService } from '@deepclaw/loop-gateway';
 
 export async function invoke(
-    browserId: string, role: FlushAgentRole, agentId: string, projectId: string, input: string
+    browserId: string, role: FlushAgentRole, agentId: string, projectId: string,
+    input: string, images?: ImageContent[]
 ): Promise<{busy: boolean, msgId: string}> {
-    return LoopGateway.invoke({role, agentId, projectId}, {source: 'web', browserId}, input);
+    return LoopGateway.invoke({role, agentId, projectId}, {source: 'web', browserId, images}, input);
 }
 
 export async function resumeLoop(browserId: string, loopId: string): Promise<{resume: boolean, msgId: string}> {

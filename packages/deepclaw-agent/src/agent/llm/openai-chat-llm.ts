@@ -13,7 +13,7 @@ import {
 import { LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMTransitionReason, TokenUsage } from '@deepclaw/core';
+import { LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
 
 export type ThinkingMessage = (
     ChatCompletionSystemMessageParam |
@@ -208,6 +208,17 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
                 message.content?.filter((block) => block.type === 'text').filter(block => !!block.text)
                     .map(block => block.text).join('\n')
         ) || '';
+    }
+
+    public override newImageInputMessage(content: string, images: ImageContent[]): ThinkingMessage {
+        const message: ChatCompletionUserMessageParam = {
+            role: 'user',
+            content: [
+                {type: 'text', text: content},
+                ...images.map(image => ({type: 'image_url' as const, image_url: {url: image.url}})),
+            ],
+        };
+        return message;
     }
 
     public override getTokenUsage(response: ThinkingResponse): TokenUsage {

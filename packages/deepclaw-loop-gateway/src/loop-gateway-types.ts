@@ -3,6 +3,7 @@ import {
     AgentInteractionEvent, AgentLoopEvent, AgentProjectInfoEvent,
     AgentStreamEvent, ChatMessage,
     FlushAgentRole,
+    ImageContent,
     TokenUsage
 } from "@deepclaw/core";
 
@@ -13,6 +14,7 @@ export type InvokeSource = 'web' | 'tui' | 'im';
 export type InvokeOption = {
     source: InvokeSource;
     browserId?: string;
+    images?: ImageContent[];
 }
 
 export type LoopInfo = {

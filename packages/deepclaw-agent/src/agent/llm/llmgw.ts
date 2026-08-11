@@ -1,7 +1,7 @@
 import {AgentMode, LLMConfig} from '@deepclaw/config';
 import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMGWConfig, LLMTransitionReason, TokenUsage } from '@deepclaw/core';
+import { LLMGWConfig, LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
 import { ToolsManager } from '../loop/services/tools-manager';
 import { SystemPrompt } from '../definitions/definitions';
 
@@ -128,6 +128,8 @@ ${content}`;
     public newInputMessage(content: string, user: boolean = true): I {
         return {role: user ? 'user' : 'assistant', content} as I;
     }
+
+    public abstract newImageInputMessage(content: string, images: ImageContent[]): I;
 
     protected abstract setTransitionReason(response: O): O;
 

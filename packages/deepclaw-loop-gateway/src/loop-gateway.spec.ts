@@ -260,7 +260,9 @@ describe('invoke', () => {
         const invoked = deferred<AgentInvokeResponse>();
         loop.invoke.mockReturnValue(invoked.promise);
         const onDone = vi.fn();
-        const {msgId} = LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi', undefined, onDone);
+        const {msgId} = LoopGateway.invoke(
+            loopInfo, {source: 'web', browserId: 'b1'}, 'hi', undefined, onDone
+        );
         invoked.resolve({text: 'final answer', runtime: newRuntime()});
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         expect(mocks.replaceMessage).toHaveBeenCalledWith(loopId, msgId, 'final answer');

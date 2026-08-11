@@ -8,7 +8,7 @@ import type {
     AgentInvokeResponse,
     TokenUsage,
     FlushAgentRole,
-    SealedAgentHandler
+    SealedAgentHandler,
 } from "@deepclaw/core";
 import {
     getLoopId, isInternalInterruptReason, newMessage, splitLoopId, type CronTask, type CronJobHistory
@@ -146,7 +146,7 @@ class LoopGatewayImpl {
         onDone?: (text: string) => void,
     ): {busy: boolean, msgId: string} {
         const {role, agentId, projectId = ''} = loopInfo;
-        const {browserId = '', source} = options;
+        const {browserId = '', source, images} = options;
         const loopId = getLoopId(role, agentId, projectId);
         if (!this.loops[loopId]) {
             this.initLoop(loopId);
@@ -175,7 +175,7 @@ class LoopGatewayImpl {
         this.fireBusyEvent(loopId);
         this.invokeAndReturn(
             loopId, source, loopState,
-            () => loopState.loop.invoke(input, {browserId, agentHandler}),
+            () => loopState.loop.invoke(input, {browserId, images, agentHandler}),
             onDone
         );
         return {busy: false, msgId: agentMessages.id};

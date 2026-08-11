@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { i18nInstance } from '@deepclaw/i18n';
-import { 
+import {
     type AgentInfoEvent,
     type AgentInteractionEvent,
     FlushAgent,
@@ -18,6 +18,7 @@ import {
     isStopTransitionReason,
     FlushAgentRole,
     addTokenUsage,
+    type ImageContent,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -138,7 +139,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     }
 
     protected async _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
-        this.addStringMessage(input);
+        this.addUserMessage(input, options.images);
         this.externalInterruptReason = undefined;
         const state: LoopState<I> = {
             messages: this.history,
@@ -386,6 +387,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected addStringMessage(message: string, user: boolean = true): void {
         this.history.push(this.llm.newInputMessage(message, user));
+    }
+
+    protected addUserMessage(message: string, images?: ImageContent[]): void {
+        if (images && images.length > 0) {
+            this.history.push(this.llm.newImageInputMessage(message, images));
+        } else {
+            this.addStringMessage(message);
+        }
     }
         
     protected extractFinalText(messages: I[]): string {

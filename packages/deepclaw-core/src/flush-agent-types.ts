@@ -1,4 +1,4 @@
-import { TokenUsage } from './agent-definitions';
+import { TokenUsage, type ImageContent } from './agent-definitions';
 import {
     AgentInfoEvent, AgentInteractionEvent, AgentStreamEvent,
     AgentInteractionEventPayload
@@ -61,6 +61,7 @@ export type SealedAgentHandler = {
 
 export type AgentInvokeOptions = {
     browserId: string;
+    images?: ImageContent[];
     agentHandler?: Partial<Omit<SealedAgentHandler, 'onInfoEvent'>>;
     runtime?: AgentRuntime;
 }

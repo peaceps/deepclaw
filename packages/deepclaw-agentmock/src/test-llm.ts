@@ -1,5 +1,5 @@
 import { LLMModel, LLMTool } from "@deepclaw/agent";
-import { LLMTransitionReason, TokenUsage } from "@deepclaw/core";
+import { LLMTransitionReason, TokenUsage, type ImageContent } from "@deepclaw/core";
 
 export type ThinkingMessage = {
     role: 'system' | 'user' | 'assistant' | 'tool_result';
@@ -65,5 +65,9 @@ export class TestLLM extends LLMModel<ThinkingMessage, ThinkingResponse, Tool, L
             noCachedInputTokens: 0,
             outputTokens: 0,
         };
+    }
+
+    public override newImageInputMessage(content: string, images: ImageContent[]): ThinkingMessage {
+        return {role: 'user', content: `${content} [${images.length} image(s)]`};
     }
 }

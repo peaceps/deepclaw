@@ -175,6 +175,11 @@ export const en = {
                 send: 'Send message to {{name}}...',
                 loading: 'Thinking...',
                 emptyLLMOutput: 'LLM kept silent...',
+                image: {
+                    upload: 'Upload image',
+                    tooLarge: '{{name}} is over {{size}}MB and was skipped.',
+                    tooMany: 'A message carries at most {{count}} images.',
+                },
                 noAgent: {
                     title: '😔 Sorry',
                     description: 'This Agent seems to be lost...',

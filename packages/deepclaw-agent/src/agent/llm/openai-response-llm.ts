@@ -12,7 +12,7 @@ import {
     ResponseFunctionToolCall,
     ResponseOutputMessage,
 } from "openai/resources/responses/responses.js";
-import { LLMTransitionReason, TokenUsage } from "@deepclaw/core";
+import { LLMTransitionReason, TokenUsage, type ImageContent } from "@deepclaw/core";
 
 export type ThinkingMessage = EasyInputMessage | ResponseFunctionToolCall | ResponseInputItem.FunctionCallOutput;
 
@@ -164,6 +164,19 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     public override getTextFromInputMessage(message: ThinkingMessage): string {
         return message.type === 'function_call' || message.type === 'function_call_output' ? ''
             : this.extractTextFromContent(message.content, 'input_text');
+    }
+
+    public override newImageInputMessage(content: string, images: ImageContent[]): ThinkingMessage {
+        const message: EasyInputMessage = {
+            role: 'user',
+            content: [
+                {type: 'input_text', text: content},
+                ...images.map(image => ({
+                    type: 'input_image' as const, image_url: image.url, detail: 'auto' as const
+                })),
+            ],
+        };
+        return message;
     }
 
     private extractTextFromContent(content: string | {type: string; text?: string}[], attr: string): string {

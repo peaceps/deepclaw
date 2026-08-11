@@ -175,6 +175,11 @@ export const zh = {
                 send: '给 {{name}} 发消息...',
                 loading: '思考中...',
                 emptyLLMOutput: '大模型沉默了...',
+                image: {
+                    upload: '上传图片',
+                    tooLarge: '{{name}} 超过 {{size}}MB，已跳过。',
+                    tooMany: '一条消息最多携带 {{count}} 张图片。',
+                },
                 noAgent: {
                     title: '😔 非常遗憾',
                     description: '这个Agent好像已经不在了...',

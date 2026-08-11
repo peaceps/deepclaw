@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {type ChatMessage, type TokenUsage} from '@deepclaw/core';
+import {type ChatMessage, type ImageContent, type TokenUsage} from '@deepclaw/core';
 import {
     getTokenUsage, inactiveLoop, invoke, pullNewerMessages, pullOlderMessages,
     pushChatMessage, resolveInteraction, resumeLoop, updateChatMessage,
@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     activeClient: vi.fn<(browserId: string, loopId: string, active: boolean) => void>(),
     invoke: vi.fn<(
         loopInfo: {role: string; agentId: string; projectId: string},
-        options: {source: string; browserId: string},
+        options: {source: string; browserId: string; images?: ImageContent[]},
         input: string
     ) => {busy: boolean; msgId: string}>(),
     resume: vi.fn<(browserId: string, source: string, loopId: string) => {resume: boolean; msgId: string}>(),
@@ -56,6 +56,13 @@ describe('invoke', () => {
         expect(mocks.invoke).toHaveBeenCalledWith(
             {role: 'project', agentId: 'a1', projectId: 'p1'}, {source: 'web', browserId: 'b1'}, 'hi'
         );
+    });
+
+    test('passes the images of the browser along with the input', async () => {
+        mocks.invoke.mockReturnValue({busy: false, msgId: 'm1'});
+        const images = [{url: 'data:image/png;base64,QUJD', mediaType: 'image/png'}];
+        await invoke('b1', 'agent', 'a1', '', 'look', images);
+        expect(mocks.invoke.mock.calls[0]![1].images).toEqual(images);
     });
 
     test('marks every invocation as coming from the web', async () => {

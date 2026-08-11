@@ -3,7 +3,7 @@ import {
     SealedAgentHandler, LLMTransitionReason,
     type AgentRuntime, type TokenUsage,
     FlushAgentRole,
-    FlushAgent
+    FlushAgent,
 } from '@deepclaw/core';
 import { AgentConfig } from '@deepclaw/config';
 

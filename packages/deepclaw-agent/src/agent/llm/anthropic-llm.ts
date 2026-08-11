@@ -1,21 +1,32 @@
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
-import { 
+import {
     Message,
     MessageParam,
     ToolResultBlockParam,
     TextBlockParam,
     ToolUseBlockParam,
     TextBlock,
-    ToolUseBlock
+    ToolUseBlock,
+    ImageBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
 import { LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMTransitionReason, TokenUsage } from '@deepclaw/core';
+import { LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
 
-export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam;
+export type ThinkingContent = TextBlockParam | ToolUseBlockParam | ToolResultBlockParam | ImageBlockParam;
+
+const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+type SupportedImageType = typeof SUPPORTED_IMAGE_TYPES[number];
+
+const dataUrlRegex = /^data:([^;,]*)[^,]*,([\s\S]*)$/;
+
+function supportedImageType(mediaType?: string): SupportedImageType | undefined {
+    return (SUPPORTED_IMAGE_TYPES as readonly string[]).includes(mediaType ?? '')
+        ? mediaType as SupportedImageType : undefined;
+}
 
 export type ThinkingMessage = Omit<MessageParam, 'content'> & {
     content: string | ThinkingContent[];
@@ -137,6 +148,27 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
 
     private getTextFromContent(content: ThinkingContent[]): string {
         return content.filter(block => block.type === 'text').map(block => block.text || '').join('\n');
+    }
+
+    public override newImageInputMessage(content: string, images: ImageContent[]): ThinkingMessage {
+        const contentParts: ThinkingContent[] = [{type: 'text', text: content}];
+        for (const image of images) {
+            const source = this.imageSource(image);
+            contentParts.push(source
+                ? {type: 'image', source}
+                : {type: 'text', text: `[image dropped, unsupported type ${image.mediaType || 'unknown'}]`});
+        }
+        return {role: 'user', content: contentParts};
+    }
+
+    private imageSource(image: ImageContent): ImageBlockParam['source'] | undefined {
+        const dataUrl = dataUrlRegex.exec(image.url);
+        if (!dataUrl) {
+            return {type: 'url', url: image.url};
+        }
+        // a data url is only usable as a base64 source, which anthropic accepts for four types only
+        const mediaType = supportedImageType(image.mediaType || dataUrl[1]);
+        return mediaType ? {type: 'base64', media_type: mediaType, data: dataUrl[2] || ''} : undefined;
     }
 
     public override getTokenUsage(response: ThinkingResponse): TokenUsage {

@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {
     BREAK_POINTS,
-    type AgentHandler, type AgentInvokeOptions, type AgentRuntime,
+    type AgentHandler, type AgentInvokeOptions, type AgentRuntime, type ImageContent,
     type FlushAgentRole, type LLMTransitionReason, type SealedAgentHandler, type TokenUsage
 } from '@deepclaw/core';
 import {type AgentConfig, type AgentMode} from '@deepclaw/config';
@@ -116,6 +116,10 @@ class FakeLLM {
 
     public newInputMessage(text: string, user: boolean): TestMessage {
         return {role: user ? 'user' : 'assistant', text};
+    }
+
+    public newImageInputMessage(text: string, images: ImageContent[]): TestMessage {
+        return {role: 'user', text: `${text} [${images.map(image => image.url).join(',')}]`};
     }
 
     public getTextFromInputMessage(message: TestMessage): string {
@@ -316,6 +320,14 @@ describe('one turn', () => {
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('please help', {browserId: 'b1'});
         expect(llm.invoke.mock.calls[0]![2][0]).toEqual({role: 'user', text: 'please help'});
+    });
+
+    test('turns the input into an image message when the caller sent images', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('what is this', {browserId: 'b1', images: [{url: 'https://host/a.png'}]});
+        expect(llm.invoke.mock.calls[0]![2][0])
+            .toEqual({role: 'user', text: 'what is this [https://host/a.png]'});
     });
 
     test('refreshes the system prompt at the start of the loop', async () => {

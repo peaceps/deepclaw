@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
-import {type AgentInteractionEvent} from '@deepclaw/core';
+import {type AgentInteractionEvent, type ImageContent} from '@deepclaw/core';
 import {IMMessageHandler, type ParsedMessage} from './im-message-handler';
 
 type InvokeResult = {busy: boolean; msgId: string};
@@ -29,7 +29,12 @@ vi.mock('@deepclaw/node-utils', () => ({
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: mocks.error}),
 }));
 
-type RawEvent = {id: string; text: string; unparsable?: boolean};
+type RawEvent = {
+    id: string;
+    text: string;
+    unparsable?: boolean;
+    fetchImages?: () => Promise<ImageContent[] | undefined>;
+};
 
 /** Stands in for a real engine: every message answers to a target of its own. */
 class TestHandler extends IMMessageHandler<RawEvent, string> {
@@ -42,7 +47,9 @@ class TestHandler extends IMMessageHandler<RawEvent, string> {
     }
 
     protected override parseMessage(event: RawEvent): ParsedMessage<string> | null {
-        return event.unparsable ? null : {id: event.id, text: event.text, body: `to-${event.id}`};
+        return event.unparsable ? null : {
+            id: event.id, text: event.text, body: `to-${event.id}`, fetchImages: event.fetchImages,
+        };
     }
 
     protected override _sendMessage(target: string, content: string): void {
@@ -81,6 +88,20 @@ function agentHandler(call = 0): AgentHandler {
 
 function onDone(call = 0): (text: string) => void {
     return mocks.invoke.mock.calls[call]![4] as (text: string) => void;
+}
+
+function imagesOf(call = 0): ImageContent[] | undefined {
+    return (mocks.invoke.mock.calls[call]![1] as {images?: ImageContent[]}).images;
+}
+
+function deferred<T>(): {promise: Promise<T>; resolve: (value: T) => void; reject: (e: Error) => void} {
+    let resolve!: (value: T) => void;
+    let reject!: (e: Error) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return {promise, resolve, reject};
 }
 
 let handler: TestHandler;
@@ -193,6 +214,67 @@ describe('turning a message into a run', () => {
         handler.onMessage({id: 'm2', text: 'second'});
         await flush();
         expect(mocks.invoke.mock.calls.map(call => call[2])).toEqual(['first', 'second']);
+    });
+});
+
+describe('carrying images', () => {
+
+    const picture: ImageContent = {url: 'data:image/png;base64,AAA', mediaType: 'image/png'};
+
+    test('runs the agent without images when the message has none', async () => {
+        handler.onMessage({id: 'm1', text: 'hi'});
+        await flush();
+        expect(imagesOf()).toBeUndefined();
+    });
+
+    test('hands the images of the message to the run', async () => {
+        handler.onMessage({id: 'm1', text: 'hi', fetchImages: () => Promise.resolve([picture])});
+        await flush();
+        expect(imagesOf()).toEqual([picture]);
+    });
+
+    test('puts the images into the chat of the agent', async () => {
+        handler.onMessage({id: 'm1', text: 'hi', fetchImages: () => Promise.resolve([picture])});
+        await flush();
+        expect(mocks.addMessage).toHaveBeenCalledWith(
+            '', 'agent.a1', expect.objectContaining({images: [picture]}),
+        );
+    });
+
+    test('asks the sender to wait before the images are downloaded', async () => {
+        const download = deferred<ImageContent[] | undefined>();
+        handler.onMessage({id: 'm1', text: 'hi', fetchImages: () => download.promise});
+        await flush();
+        expect(handler.sent).toEqual(['im.wait']);
+        expect(mocks.invoke).not.toHaveBeenCalled();
+        download.resolve([picture]);
+    });
+
+    test('ignores a redelivery while the images are still downloading', async () => {
+        const download = deferred<ImageContent[] | undefined>();
+        handler.onMessage({id: 'm1', text: 'hi', fetchImages: () => download.promise});
+        handler.onMessage({id: 'm1', text: 'hi', fetchImages: () => download.promise});
+        download.resolve([picture]);
+        await flush();
+        expect(mocks.invoke).toHaveBeenCalledOnce();
+    });
+
+    test('keeps the arrival order when a download is slow', async () => {
+        const download = deferred<ImageContent[] | undefined>();
+        handler.onMessage({id: 'm1', text: 'first', fetchImages: () => download.promise});
+        handler.onMessage({id: 'm2', text: 'second'});
+        await flush();
+        download.resolve([picture]);
+        await flush();
+        expect(mocks.invoke.mock.calls.map(call => call[2])).toEqual(['first', 'second']);
+    });
+
+    test('reports a download that failed', async () => {
+        handler.onMessage({
+            id: 'm1', text: 'hi', fetchImages: () => Promise.reject(new Error('no network')),
+        });
+        await flush();
+        expect(handler.sent[1]).toBe('im.error: no network');
     });
 });
 

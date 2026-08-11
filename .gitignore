@@ -1,6 +1,7 @@
 # Environments
 **/.env
 .vscode/
+.idea/
 
 node_modules/
 dist/

@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import type {LLMGWConfig, LLMTransitionReason, TokenUsage} from '@deepclaw/core';
+import type {LLMGWConfig, LLMTransitionReason, TokenUsage, ImageContent} from '@deepclaw/core';
 import type {LLMConfig} from '@deepclaw/config';
 import type {SystemPrompt} from '../definitions/definitions';
 import type {LLMTool} from '../definitions/tool-definitions';
@@ -84,6 +84,10 @@ class FakeLLM extends LLMModel<FakeMessage, FakeResponse, FakeTool, FakeClient> 
 
     public override getTokenUsage(response: FakeResponse): TokenUsage {
         return response.usage;
+    }
+
+    public override newImageInputMessage(content: string, images: ImageContent[]): FakeMessage {
+        return {role: 'user', content: `${content} [${images.length} image(s)]`};
     }
 
     public getClient(): FakeClient {

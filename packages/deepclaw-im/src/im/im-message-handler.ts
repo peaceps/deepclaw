@@ -1,10 +1,10 @@
-import { AgentInteractionEvent, getLoopId, newMessage } from "@deepclaw/core";
+import { AgentInteractionEvent, getLoopId, newMessage, type ImageContent } from "@deepclaw/core";
 import { isCurrentConfigValid } from "@deepclaw/config";
 import { i18nInstance } from '@deepclaw/i18n';
 import { parseStringifiedAnswer, stringifiedInteractionEvent } from "../utils/stringified-event";
 import { LoopGateway } from "@deepclaw/loop-gateway";
 import { randomUUID } from "node:crypto";
-import { getLogger } from "@deepclaw/node-utils";
+import { getLogger } from '@deepclaw/node-utils';
 
 const logger = getLogger('IMMessageHandler');
 
@@ -12,6 +12,7 @@ export type ParsedMessage<M> = {
     id: string;
     text: string;
     body: M;
+    fetchImages?: () => Promise<ImageContent[] | undefined>;
 }
 
 export abstract class IMMessageHandler<E, M> {
@@ -49,7 +50,7 @@ export abstract class IMMessageHandler<E, M> {
             if (!parsedMessage) {
                 return;
             }
-            const {id, text, body} = parsedMessage;
+            const {id, text, body, fetchImages} = parsedMessage;
             if (this.handledMessages.has(id)) {
                 return;
             }
@@ -75,18 +76,19 @@ export abstract class IMMessageHandler<E, M> {
                 return;
             }
 
-            LoopGateway.addMessage('', this.loopId, newMessage('user', this.agentId, `📱 ${text}`));
-
             this.sendMessage(id, i18nInstance.t('im.wait'));
-            
+
+            // images are downloaded inside the queue so that messages keep their arrival order.
             // invoke returns once the agent has started, its answer and its questions arrive later,
             // so the message stays open until the agent answers (onDone), the run comes back busy,
             // or the run throws.
             this.sequentialInteraction = this.sequentialInteraction
-                .then(() => {
+                .then(() => fetchImages?.())
+                .then((images) => {
+                    LoopGateway.addMessage('', this.loopId, newMessage('user', this.agentId, `📱 ${text}`, images));
                     const {busy} = LoopGateway.invoke(
                         {role: 'agent', agentId: this.agentId, projectId: ''},
-                        {source: 'im', browserId: randomUUID()}, text,
+                        {source: 'im', browserId: randomUUID(), images}, text,
                         {onInteractionEvent: (e: AgentInteractionEvent) => this.handleInteractionEvent(id, e)},
                         (answer) => this.sendMessage(id, answer, true)
                     );

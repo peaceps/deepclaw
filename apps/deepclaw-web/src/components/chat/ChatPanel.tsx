@@ -1,11 +1,12 @@
 'use client';
 
-import { AgentEmployee, getLoopId, TokenUsage } from "@deepclaw/core";
-import { Send } from 'lucide-react';
+import { AgentEmployee, getLoopId, TokenUsage, type ImageContent } from "@deepclaw/core";
+import { Send, ImagePlus, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
+import { useToastStore } from '@/lib/toast-store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate } from '../component-utils';
 import { Markdown } from "@/laf/markdown";
@@ -17,16 +18,34 @@ type ChatPanelProps = {
   projectId: string;
 };
 
+const MAX_IMAGES = 5;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function fileToImageContent(file: File): Promise<ImageContent> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+            url: reader.result as string,
+            mediaType: file.type,
+        });
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
 export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const { t, i18n } = useTranslation();
   const role = !projectId ? 'agent' : 'project';
   const loopId = getLoopId(role, agent.id, projectId);
   const agentMessages = useAppStore(s => s.messages[loopId]);
   const [input, setInput] = useState('');
+  const [pendingImages, setPendingImages] = useState<ImageContent[]>([]);
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | undefined>(undefined);
   const [chatInited, setChatInited] = useState(false);
   const [listening, setListening] = useState(false);
   const locked = useAppStore(s => !!s.busyChatKeys[loopId]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const showToast = useToastStore(s => s.show);
 
   useInitChat(loopId, setChatInited, setInput, setTokenUsage);
   useSSEConnection(chatInited, loopId, setListening, setTokenUsage);
@@ -36,8 +55,35 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   const handleScroll = useScroll(agentMessages, scrollRef, loopId);
 
   const { handleSend, handleKeyDown } = useSend(
-    loopId, role, agent, projectId, input, setInput
+    loopId, role, agent, projectId, input, setInput, pendingImages, () => setPendingImages([])
   );
+
+  const handleImageSelect = async (files: FileList | null) => {
+    if (!files) return;
+    const images: ImageContent[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      if (file.size > MAX_IMAGE_BYTES) {
+        showToast({type: 'warning', message: t('web.pages.chat.image.tooLarge', {
+          name: file.name, size: MAX_IMAGE_BYTES / 1024 / 1024
+        })});
+        continue;
+      }
+      images.push(await fileToImageContent(file));
+    }
+    setPendingImages(prev => {
+      const next = [...prev, ...images];
+      if (next.length > MAX_IMAGES) {
+        showToast({type: 'warning', message: t('web.pages.chat.image.tooMany', {count: MAX_IMAGES})});
+      }
+      return next.slice(0, MAX_IMAGES);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImages(prev => prev.filter((_, i) => i !== index));
+  };
 
   if (agent.fired) {
     return <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-4">
@@ -65,6 +111,18 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
                     messageTextStyles[message.type]
                 }`}
                 >
+                {message.images && message.images.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {message.images.map((img, idx) => (
+                      <img
+                        key={idx}
+                        src={img.url}
+                        alt={`image-${idx}`}
+                        className="max-w-48 max-h-48 rounded-lg object-cover"
+                      />
+                    ))}
+                  </div>
+                )}
                 {(message.type === 'user' || (i === agentMessages.length - 1 && locked)) && 
                     <p className="text-sm whitespace-pre-wrap">
                         {message.content || t('web.pages.chat.loading')}
@@ -79,8 +137,45 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           ))
         )}
       </div>
+      {pendingImages.length > 0 && (
+        <div className="px-4 pt-2 flex flex-wrap gap-2">
+          {pendingImages.map((img, idx) => (
+            <div key={idx} className="relative group">
+              <img
+                src={img.url}
+                alt={`pending-${idx}`}
+                className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+              />
+              <button
+                onClick={() => removePendingImage(idx)}
+                className="absolute -top-1 -right-1 bg-gray-600 text-white rounded-full w-5 h-5
+                  flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="p-4 border-t border-gray-100">
         <div className="flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => handleImageSelect(e.target.files)}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!chatInited || locked}
+            className="px-3 py-2 text-gray-400 hover:text-gray-600 disabled:opacity-30
+              transition-colors flex items-center"
+            title={t('web.pages.chat.image.upload')}
+          >
+            <ImagePlus size={20} />
+          </button>
           <input
             type="text"
             value={input}

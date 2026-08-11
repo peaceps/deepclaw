@@ -11,7 +11,7 @@ import {
 import { useAppStore } from '@/lib/store';
 import {
     AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, FlushAgentRole, newMessage,
-    TokenUsage
+    TokenUsage, type ImageContent
 } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
 import { AgentCancelInteractionEvent, AgentChatEvent, AgentLoopBusyEvent, AgentTokenUsageEvent } from "@deepclaw/loop-gateway";
@@ -183,6 +183,8 @@ export function useSend(
     projectId: string,
     input: string,
     setInput: React.Dispatch<React.SetStateAction<string>>,
+    pendingImages: ImageContent[],
+    clearImages: () => void,
 ) {
     const browserId = useAppStore(s => s.browserId);
     const addMessage = useAppStore(s => s.addMessage);
@@ -198,14 +200,16 @@ export function useSend(
 
     const handleSend = async () => {
         const trimmed = input.trim();
-        if (!trimmed || locked) return;
+        if ((!trimmed && pendingImages.length === 0) || locked) return;
     
         setInput('');
+        clearImages();
         setChatBusy(loopId, true);
-        addAndFireMessage(newMessage('user', agent.id, trimmed));
+        const images = pendingImages.length > 0 ? pendingImages : undefined;
+        addAndFireMessage(newMessage('user', agent.id, trimmed, images));
 
         let unsubscribe: (() => void) | undefined = undefined;
-        invoke(browserId, role, agent.id, projectId, trimmed).then(({busy, msgId}) => {
+        invoke(browserId, role, agent.id, projectId, trimmed, images).then(({busy, msgId}) => {
             if (busy) {
               setChatBusy(loopId, busy);
             } else {
