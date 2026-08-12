@@ -6,6 +6,7 @@ import { AgentCronInfoEvent, CronTask } from "@deepclaw/core";
 import { useEffect, useState } from "react";
 import { updateCronTaskStatus } from "@/server/data";
 import { handleUpdatedArrayContent } from "../component-utils";
+import { usePersistentString } from "@/lib/use-persistent-state";
 
 export function useSSEConnection(
     setTasks: React.Dispatch<React.SetStateAction<CronTask[]>>,
@@ -32,7 +33,7 @@ export function useSSEConnection(
 }
 
 export function useTaskOperation(cronTasks: CronTask[]) {
-    const [expandedId, setExpandedId] = useState<string | undefined>();
+    const [expandedId, setExpandedId] = usePersistentString('cron.expandedId');
     const [tasks, setTasks] = useState<CronTask[]>(cronTasks);
 
     const toggle = (id: string) => {

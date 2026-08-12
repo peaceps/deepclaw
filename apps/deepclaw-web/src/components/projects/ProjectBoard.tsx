@@ -6,6 +6,7 @@ import {ProjectRow} from './ProjectRow';
 import { useTranslation } from 'react-i18next';
 import { getProjectStatus } from '@deepclaw/core';
 import { ProjectSearch, DEFAULT_PROJECT_FILTERS, filterProjects } from './ProjectSearch';
+import { usePersistentString } from '@/lib/use-persistent-state';
 
 export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string }) {
   const projects = useAppStore(s => s.projects);
@@ -14,7 +15,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
     : undefined;
   const projectRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastScrolledProjectIdRef = useRef<string | undefined>(undefined);
-  const [expandedProjectId, setExpandedProjectId] = useState<string | undefined>(selectedProjectId);
+  const [expandedProjectId, setExpandedProjectId] = usePersistentString('projects.expandedId');
   const [handledSelectedProjectId, setHandledSelectedProjectId] = useState<string | undefined>();
   const [filters, setFilters] = useState(DEFAULT_PROJECT_FILTERS);
   const filteredProjects = useMemo(

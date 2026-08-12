@@ -1,19 +1,19 @@
 'use client';
 
-import { useState } from "react";
 import { AgentEmployee } from "@deepclaw/core";
 import { AgentList } from "./AgentList";
 import { ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { AgentDetail } from "./details/AgentDetail";
 import { useTranslation } from "react-i18next";
 import { ChatSidebar } from "../chat/ChatSidebar";
+import { usePersistentBoolean } from '@/lib/use-persistent-state';
 
 export function DesktopAgentPage({selectedAgent}: {
     selectedAgent?: AgentEmployee;
 }) {
 
-  const [detailCollapsed, setDetailCollapsed] = useState(false);
-  const [listCollapsed, setListCollapsed] = useState(false);
+  const [detailCollapsed, toggleDetailCollapsed] = usePersistentBoolean('agent.detailCollapsed', false);
+  const [listCollapsed, toggleListCollapsed] = usePersistentBoolean('agent.listCollapsed', false);
   const {t} = useTranslation();
 
     return (
@@ -24,7 +24,7 @@ export function DesktopAgentPage({selectedAgent}: {
           }>
           <AgentList
             collapsed={listCollapsed}
-            onToggleCollapse={() => setListCollapsed(!listCollapsed)}
+            onToggleCollapse={toggleListCollapsed}
           />
         </div>
 
@@ -37,7 +37,7 @@ export function DesktopAgentPage({selectedAgent}: {
             ${detailCollapsed ? 'flex-col' : 'justify-end'} py-3`
           }>
             <button
-              onClick={() => setDetailCollapsed(!detailCollapsed)}
+              onClick={toggleDetailCollapsed}
               className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600
                 transition-colors cursor-pointer ${detailCollapsed ? '' : 'mr-2'}`
               }

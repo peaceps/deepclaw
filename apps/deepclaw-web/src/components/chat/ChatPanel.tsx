@@ -114,6 +114,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
                 {message.images && message.images.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {message.images.map((img, idx) => (
+                      // eslint-disable-next-line @next/next/no-img-element -- imageSrc yields data: and arbitrary remote URLs, which next/image cannot optimize
                       <img
                         key={idx}
                         src={imageSrc(img.url)}
@@ -143,6 +144,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
         <div className="px-4 pt-2 flex flex-wrap gap-2">
           {pendingImages.map((img, idx) => (
             <div key={idx} className="relative group">
+              {/* eslint-disable-next-line @next/next/no-img-element -- the preview src is a data: URL from FileReader, which next/image cannot optimize */}
               <img
                 src={img.url}
                 alt={`pending-${idx}`}

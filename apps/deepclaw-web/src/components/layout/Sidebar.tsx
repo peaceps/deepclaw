@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import type { ManagerConfig } from '@deepclaw/config';
 import { EmojiPicker } from '@/laf/emoji-picker';
 import { updateManagerAvatar } from '@/server/configs';
+import { usePersistentBoolean } from '@/lib/use-persistent-state';
 
 const navItems = [
   { href: '/agents', label: 'web.sidebar.links.agents', icon: Users },
@@ -27,7 +28,7 @@ interface SidebarProps {
 
 export function Sidebar({manager}: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, toggleCollapsed] = usePersistentBoolean('sidebar.collapsed', false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [avatar, setAvatar] = useState(manager.avatar);
   const {t} = useTranslation();
@@ -143,7 +144,7 @@ export function Sidebar({manager}: SidebarProps) {
         )}
         {!collapsed && (
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={() => toggleCollapsed()}
             className="p-1.5 rounded-lg hover:bg-gray-100
                 text-gray-400 hover:text-gray-600 transition-colors"
             title={t('web.common.toggle.collapse')}
@@ -157,7 +158,7 @@ export function Sidebar({manager}: SidebarProps) {
       {collapsed && (
         <div className="p-2 border-b border-gray-100 flex justify-center">
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={() => toggleCollapsed()}
             className="p-2 rounded-lg hover:bg-gray-100
                 text-gray-400 hover:text-gray-600 transition-colors"
             title={t('web.common.toggle.expand')}
