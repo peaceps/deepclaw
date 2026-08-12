@@ -18,7 +18,8 @@ type ChatPanelProps = {
   projectId: string;
 };
 
-const MAX_IMAGES = 5;
+// as many as an image model takes as the pictures to draw from
+const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 function fileToImageContent(file: File): Promise<ImageContent> {

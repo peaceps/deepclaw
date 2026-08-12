@@ -69,6 +69,8 @@ export const zh = {
                 noModel: '还没有选生图模型。请在该 agent 的生图设置里选一个。',
                 unsupportedModel: '暂时还不支持用 {{model}} 生图。请在该 agent 的生图设置里选一个 qwen-image 或 seedream 模型。',
                 saved: '图片已生成。把 ![image]({{url}}) 放进回复里，图片才会出现在会话中。',
+                unknownImage: '找不到 {{ref}} 这张图。只能用本会话里的 dcimg:// 引用或者一个图片链接作为参考图。',
+                imageTooLarge: '{{ref}} 有 {{size}}MB，超过了生图模型能接受的 {{limit}}MB。请换一张小一点的图。',
             },
             project: {
                 taskSteps: {

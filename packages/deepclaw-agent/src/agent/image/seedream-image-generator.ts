@@ -21,9 +21,12 @@ export class SeedreamImageGenerator extends ImageGenerator {
 
     /** Ark takes no negative prompt, so what the answer wanted kept out cannot be passed on. */
     public override async draw(request: ImageRequest): Promise<string> {
+        const images = request.images || [];
         const answer = await this.ask<SeedreamAnswer>(GENERATION_URL, {
             model: this.model,
             prompt: request.prompt,
+            // one picture to draw from is named on its own, several are named as a list
+            ...(images.length ? {image: images.length === 1 ? images[0] : images} : {}),
             ...(request.size ? {size: pixelsOf(request.size)} : {}),
             response_format: 'url',
             watermark: false,

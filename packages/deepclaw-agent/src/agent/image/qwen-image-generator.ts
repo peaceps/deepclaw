@@ -18,10 +18,12 @@ export class QwenImageGenerator extends ImageGenerator {
 
     public static readonly envKey = 'DASHSCOPE_API_KEY';
 
+    /** A picture to draw from travels in the same message as the prompt, ahead of it. */
     public override async draw(request: ImageRequest): Promise<string> {
+        const content = [...(request.images || []).map(image => ({image})), {text: request.prompt}];
         const answer = await this.ask<QwenAnswer>(GENERATION_URL, {
             model: this.model,
-            input: {messages: [{role: 'user', content: [{text: request.prompt}]}]},
+            input: {messages: [{role: 'user', content}]},
             parameters: {
                 ...(request.negativePrompt ? {negative_prompt: request.negativePrompt} : {}),
                 ...(request.size ? {size: request.size} : {}),

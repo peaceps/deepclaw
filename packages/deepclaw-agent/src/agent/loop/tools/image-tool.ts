@@ -1,5 +1,5 @@
 import type { ImageModel } from '@deepclaw/config';
-import { imageKeyExtension, newImageRef } from '@deepclaw/core';
+import { imageKeyExtension, imageKeyMediaType, imageRefKey, newImageRef } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import { ImageStore } from '@deepclaw/node-utils';
 import { ImageGenerator } from '../../image/image-generator';
@@ -12,16 +12,22 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 
 const SIZES = ['1328*1328', '1664*928', '928*1664', '1472*1104', '1104*1472'] as const;
 
+// Both vendors refuse a picture of more than ten megabytes, and qwen takes at most three of them.
+const MAX_SOURCE_MB = 10;
+const MAX_SOURCE_IMAGES = 3;
+
 type GenerateImageInput = {
     prompt: string;
     negativePrompt?: string;
     size?: typeof SIZES[number];
+    sourceImages?: string[];
 };
 
 export const generateImageTool: ToolDesc<GenerateImageInput> = {
     tool: {
         name: 'generate_image',
-        description: `Generate an image from a text description with the image model of this agent.
+        description: `Generate an image with the image model of this agent, from a text description
+and, when asked to change or reuse a picture of this conversation, from that picture as well.
 Describe the subject, the composition, the style and any text that should appear in the image;
 prompts in English and Chinese both work.
 The result is a reference to the picture, which is how the image is shown to the user.
@@ -45,6 +51,14 @@ If the tool failed, display the failed reason to user and stop, do not use other
                     enum: [...SIZES],
                     description: 'Resolution. Omit it to let the model pick one that fits the prompt.',
                 },
+                sourceImages: {
+                    type: 'array',
+                    items: {type: 'string'},
+                    maxItems: MAX_SOURCE_IMAGES,
+                    description: `The pictures to draw from, named by the dcimg:// references they
+carry in this conversation. Pass them to edit, redraw or combine what is already there, and leave
+them out to draw from the prompt alone.`,
+                },
             },
             required: ['prompt'],
         },
@@ -62,8 +76,15 @@ If the tool failed, display the failed reason to user and stop, do not use other
             throw new Error(i18nInstance.t('agent.tools.image.noModel'));
         }
         const generator = generatorOf(choice, context.loopConfig.llm.imageApiKey);
-        const key = await store(await generator.draw({...input, prompt}), context.loopId);
-        return i18nInstance.t('agent.tools.image.saved', {url: newImageRef(key)});
+        const drawn = await generator.draw({
+            prompt,
+            negativePrompt: input.negativePrompt,
+            size: input.size,
+            images: sourcesOf(input.sourceImages),
+        });
+        return i18nInstance.t('agent.tools.image.saved', {
+            url: newImageRef(await store(drawn, context.loopId)),
+        });
     },
 };
 
@@ -79,6 +100,35 @@ function generatorOf(choice: ImageModel, configuredKey?: string): ImageGenerator
         return new SeedreamImageGenerator(choice, keyOf(configuredKey, SeedreamImageGenerator.envKey));
     }
     throw new Error(i18nInstance.t('agent.tools.image.unsupportedModel', {model: choice}));
+}
+
+/**
+ * A vendor draws from bytes it can reach on its own: a link is handed over as it is, while the
+ * picture behind a reference of this conversation only exists here and travels inline.
+ */
+function sourcesOf(refs?: string[]): string[] | undefined {
+    return refs?.length ? refs.map(ref => sourceOf(ref)) : undefined;
+}
+
+function sourceOf(ref: string): string {
+    const key = imageRefKey(ref);
+    if (!key) {
+        if (!/^https?:\/\//.test(ref)) {
+            throw new Error(i18nInstance.t('agent.tools.image.unknownImage', {ref}));
+        }
+        return ref;
+    }
+    const bytes = ImageStore.read(key);
+    if (!bytes) {
+        throw new Error(i18nInstance.t('agent.tools.image.unknownImage', {ref}));
+    }
+    const megabytes = bytes.length / 1024 / 1024;
+    if (megabytes > MAX_SOURCE_MB) {
+        throw new Error(i18nInstance.t('agent.tools.image.imageTooLarge', {
+            ref, size: megabytes.toFixed(1), limit: MAX_SOURCE_MB,
+        }));
+    }
+    return `data:${imageKeyMediaType(key)};base64,${bytes.toString('base64')}`;
 }
 
 /** Each vendor reads its own variable, so the fallback belongs to the one that was picked. */

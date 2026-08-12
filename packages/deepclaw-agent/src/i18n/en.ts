@@ -73,6 +73,10 @@ or in the {{env}} environment variable.`,
 qwen-image or seedream models in the image settings of this agent.`,
                 saved: `Image generated. Put ![image]({{url}}) in the answer, that reference is what
 carries the picture into a chat.`,
+                unknownImage: `No picture is known as {{ref}}. Only a dcimg:// reference of this
+conversation or a link can be drawn from.`,
+                imageTooLarge: `{{ref}} is {{size}}MB, more than the {{limit}}MB an image model
+takes. Draw from a smaller picture.`,
             },
             project: {
                 taskSteps: {

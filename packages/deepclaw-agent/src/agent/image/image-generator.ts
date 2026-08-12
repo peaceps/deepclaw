@@ -2,6 +2,8 @@ export type ImageRequest = {
     prompt: string;
     negativePrompt?: string;
     size?: string;
+    /** Pictures to draw from, each one a data url or a link the vendor can fetch itself. */
+    images?: string[];
 };
 
 // Drawing regularly takes half a minute, a vendor under load takes considerably longer.

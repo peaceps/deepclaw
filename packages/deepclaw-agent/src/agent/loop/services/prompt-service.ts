@@ -11,16 +11,20 @@ import { AgentIdentity, FlushAgentRole } from '@deepclaw/core';
 import { SystemPrompt } from '../../definitions/definitions';
 
 export class PromptService {
-    private static mark = {lang: ''};
-    private static platformPrompt: string = this.platform();
-    private static languagePrompt: string = this.language();
-    private static emotionsPrompt: string = this.emotions();
-    private static mainIdentityPrompt: {loop: string, subloop: string, cron: string} = this.mainIdentity();
+    private static initialized = false;
+    private static mark: {lang: string};
+    private static platformPrompt: string;
+    private static languagePrompt: string;
+    private static emotionsPrompt: string;
+    private static mainIdentityPrompt: {loop: string, subloop: string, cron: string};
 
     public static provideSystemPrompt(
         agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
         role: FlushAgentRole, projectId: string, isSubLoop: boolean
     ): SystemPrompt {
+        if (!this.initialized) {
+            this.init();
+        }
         const isCron = role === 'cron';
         const identityKey = isSubLoop ? 'subloop' : isCron ? 'cron' : 'loop';
         const cacheable = `
@@ -60,6 +64,15 @@ ${this.cronCurrentTask(projectId)}`
 ${this.projectCurrentProject(projectId)}`;
 
         return {cacheable, dynamic};
+    }
+
+    private static init() {
+        this.initialized = true;
+        this.mark = {lang: ''};
+        this.platformPrompt = this.platform();
+        this.languagePrompt = this.language();
+        this.emotionsPrompt = this.emotions();
+        this.mainIdentityPrompt = this.mainIdentity();
     }
 
     private static platform(): string {

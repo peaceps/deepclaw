@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     save: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
         (_bytes, extension, loopId) => `${loopId}/abcd1234.${extension}`
     ),
+    read: vi.fn<(key: string) => Buffer | null>(() => Buffer.from('source-bytes')),
 }));
 
 vi.mock('@deepclaw/i18n', () => ({
@@ -17,7 +18,7 @@ vi.mock('@deepclaw/i18n', () => ({
 }));
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
-    ImageStore: {save: mocks.save},
+    ImageStore: {save: mocks.save, read: mocks.read},
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
 }));
 
@@ -338,6 +339,103 @@ describe('generateImageTool invoke with seedream', () => {
 
         await expect(generateImageTool.invoke({prompt: 'a whale'}, contextWithKey('k', 'doubao-seedream-4-0-250828')))
             .rejects.toThrow('Image generation returned no image.');
+    });
+});
+
+describe('generateImageTool drawing from a picture', () => {
+
+    const ARK_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
+    const SOURCE = `data:image/png;base64,${Buffer.from('source-bytes').toString('base64')}`;
+    const SEEDREAM: ImageModel = 'doubao-seedream-4-0-250828';
+
+    function drawn() {
+        return {ok: true, status: 200, json: async () => ({data: [{url: 'https://ark.example.com/drawn.png'}]})};
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.stubGlobal('fetch', fetchMock);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    /** Dashscope wants the picture in the message the prompt travels in, ahead of it. */
+    test('hands qwen the bytes behind the reference', async () => {
+        fetchMock.mockResolvedValueOnce(generated()).mockResolvedValueOnce(downloaded());
+
+        await generateImageTool.invoke(
+            {prompt: 'make it night', sourceImages: ['dcimg://agent.a1/abcd1234.png']}, contextWithKey()
+        );
+
+        expect(mocks.read).toHaveBeenCalledExactlyOnceWith('agent.a1/abcd1234.png');
+        expect(requestBodyOf(0).input.messages[0].content)
+            .toEqual([{image: SOURCE}, {text: 'make it night'}]);
+    });
+
+    test('names one picture to ark on its own and several as a list', async () => {
+        fetchMock.mockResolvedValueOnce(drawn()).mockResolvedValueOnce(downloaded());
+        await generateImageTool.invoke(
+            {prompt: 'make it night', sourceImages: ['dcimg://agent.a1/abcd1234.png']},
+            contextWithKey('k', SEEDREAM)
+        );
+        expect(fetchMock.mock.calls[0]![0]).toBe(ARK_URL);
+        expect(requestBodyOf(0).image).toBe(SOURCE);
+
+        fetchMock.mockResolvedValueOnce(drawn()).mockResolvedValueOnce(downloaded());
+        await generateImageTool.invoke(
+            {prompt: 'put them together', sourceImages: ['dcimg://agent.a1/a.png', 'dcimg://agent.a1/b.jpg']},
+            contextWithKey('k', SEEDREAM)
+        );
+        expect(requestBodyOf(2).image).toEqual([SOURCE, `data:image/jpeg;base64,${
+            Buffer.from('source-bytes').toString('base64')}`]);
+    });
+
+    /** Both vendors fetch a link themselves, so its bytes never have to pass through here. */
+    test('hands a link over as it is', async () => {
+        fetchMock.mockResolvedValueOnce(drawn()).mockResolvedValueOnce(downloaded());
+
+        await generateImageTool.invoke(
+            {prompt: 'make it night', sourceImages: ['https://host/shot.png']}, contextWithKey('k', SEEDREAM)
+        );
+
+        expect(mocks.read).not.toHaveBeenCalled();
+        expect(requestBodyOf(0).image).toBe('https://host/shot.png');
+    });
+
+    test('draws from the prompt alone when no picture was named', async () => {
+        fetchMock.mockResolvedValueOnce(drawn()).mockResolvedValueOnce(downloaded());
+
+        await generateImageTool.invoke({prompt: 'a whale'}, contextWithKey('k', SEEDREAM));
+
+        expect(requestBodyOf(0)).not.toHaveProperty('image');
+    });
+
+    test('refuses a reference whose bytes the store does not have', async () => {
+        mocks.read.mockReturnValueOnce(null);
+
+        await expect(generateImageTool.invoke(
+            {prompt: 'make it night', sourceImages: ['dcimg://agent.a1/gone.png']}, contextWithKey()
+        )).rejects.toThrow('agent.tools.image.unknownImage {"ref":"dcimg://agent.a1/gone.png"}');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    test('refuses what is neither a reference nor a link', async () => {
+        await expect(generateImageTool.invoke(
+            {prompt: 'make it night', sourceImages: ['/home/me/cat.png']}, contextWithKey()
+        )).rejects.toThrow('agent.tools.image.unknownImage {"ref":"/home/me/cat.png"}');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    /** A vendor refuses the request outright, so the picture is stopped before it is sent. */
+    test('refuses a picture heavier than an image model takes', async () => {
+        mocks.read.mockReturnValueOnce(Buffer.alloc(11 * 1024 * 1024));
+
+        await expect(generateImageTool.invoke(
+            {prompt: 'make it night', sourceImages: ['dcimg://agent.a1/huge.png']}, contextWithKey()
+        )).rejects.toThrow('agent.tools.image.imageTooLarge {"ref":"dcimg://agent.a1/huge.png","size":"11.0","limit":10}');
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
 
