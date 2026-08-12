@@ -5,7 +5,9 @@ import {UIChatService} from './ui-chat-service';
 const mocks = vi.hoisted(() => ({
     readFile: vi.fn<(path: string) => string>(),
     appendFile: vi.fn(),
-    saveImage: vi.fn<(bytes: Buffer, extension: string) => string>(() => 'abc123.png'),
+    saveImage: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
+        (_bytes, extension, loopId) => `${loopId}/abc123.${extension}`
+    ),
 }));
 
 vi.mock('@deepclaw/agent', () => ({
@@ -52,9 +54,9 @@ describe('UIChatService message store', () => {
     test('writes a reference into the chat file instead of the bytes of an image', () => {
         const message = {...newMessage('m1'), images: [{url: 'data:image/png;base64,QUJD', mediaType: 'image/png'}]};
         UIChatService.addMessage('agent.image', message);
-        expect(mocks.saveImage).toHaveBeenCalledExactlyOnceWith(Buffer.from('ABC'), 'png');
+        expect(mocks.saveImage).toHaveBeenCalledExactlyOnceWith(Buffer.from('ABC'), 'png', 'agent.image');
         expect(mocks.appendFile).toHaveBeenCalledWith('.agents/image/chat.jsonl', `${JSON.stringify({
-            ...message, images: [{url: 'dcimg://abc123.png', mediaType: 'image/png'}]
+            ...message, images: [{url: 'dcimg://agent.image/abc123.png', mediaType: 'image/png'}]
         })}\n`);
     });
 

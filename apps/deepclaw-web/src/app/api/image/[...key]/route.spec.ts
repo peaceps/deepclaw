@@ -10,7 +10,10 @@ vi.mock('@deepclaw/node-utils', () => ({
 }));
 
 function get(key: string): Promise<Response> {
-    return GET(new Request(`http://localhost/api/image/${key}`), {params: Promise.resolve({key})});
+    return GET(
+        new Request(`http://localhost/api/image/${key}`),
+        {params: Promise.resolve({key: key.split('/')})}
+    );
 }
 
 beforeEach(() => {
@@ -21,19 +24,26 @@ describe('image endpoint', () => {
 
     test('serves the bytes of the key with the type they were stored as', async () => {
         mocks.read.mockReturnValue(Buffer.from('the image'));
-        const response = await get('abc123.png');
-        expect(mocks.read).toHaveBeenCalledWith('abc123.png');
+        const response = await get('agent.a1/abc123.png');
+        expect(mocks.read).toHaveBeenCalledWith('agent.a1/abc123.png');
         expect(response.headers.get('Content-Type')).toBe('image/png');
         expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from('the image'));
     });
 
+    /** Chats that were written before the loops had a folder still ask for the bare file. */
+    test('serves a key that names no loop', async () => {
+        mocks.read.mockReturnValue(Buffer.from('the image'));
+        await get('abc123.png');
+        expect(mocks.read).toHaveBeenCalledWith('abc123.png');
+    });
+
     test('lets the browser keep the bytes forever, the name is their hash', async () => {
         mocks.read.mockReturnValue(Buffer.from('the image'));
-        expect((await get('abc123.png')).headers.get('Cache-Control')).toContain('immutable');
+        expect((await get('agent.a1/abc123.png')).headers.get('Cache-Control')).toContain('immutable');
     });
 
     test('answers with nothing for a key the store does not have', async () => {
         mocks.read.mockReturnValue(null);
-        expect((await get('abc123.png')).status).toBe(404);
+        expect((await get('agent.a1/abc123.png')).status).toBe(404);
     });
 });

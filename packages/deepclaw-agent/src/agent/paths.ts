@@ -41,3 +41,4 @@ export const DEEPCLAW_MD = 'DEEPCLAW.md';
 export const PUBLIC = 'public';
 export const PROJECT_TASK_OUTPUT_DIR = `${PUBLIC}/projects`;
 export const CRON_OUTPUT_DIR = `${PUBLIC}/cron`;
+export const IMAGE_OUTPUT_DIR = `${PUBLIC}/images`;

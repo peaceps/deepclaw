@@ -7,6 +7,11 @@ type DeepSelectProps = {
     uiInfo: Extract<AgentInteractionEvent, {type: 'select'}>;
     value?: string;
     onSelect: (e: ChangeEvent<HTMLSelectElement, HTMLSelectElement>) => void;
+    /**
+     * Shown while nothing is chosen and offered as the way back to it, so an optional field can be
+     * emptied again. Translated like the labels, so a key works too.
+     */
+    placeholder?: string;
     error?: boolean;
     Icon?: React.ComponentType<{ size?: number; className?: string, children?: React.ReactNode }>;
     iconTitle?: string;
@@ -16,6 +21,7 @@ export function DeepSelect({
     uiInfo,
     value,
     onSelect,
+    placeholder,
     error,
     Icon,
     iconTitle
@@ -36,7 +42,9 @@ export function DeepSelect({
                     outline-none transition-colors ${error ? 'border-red-500 bg-red-50' : 'border-gray-300'}`
                 }
             >
-                <option value="" disabled hidden></option>
+                <option value="" disabled={!placeholder} hidden={!placeholder}>
+                    {placeholder ? t(placeholder) : ''}
+                </option>
                 {uiInfo.options.map((opt) => {
                     const [l, v] = typeof opt === 'string' ? [opt, opt] : [opt.label, opt.value.toString()];
                     return <option key={v} value={v}>{t(l)}</option>

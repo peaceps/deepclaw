@@ -1,13 +1,13 @@
 import { IMMessageHandler, ParsedMessage } from "../im-message-handler";
 import { LarkChannel, NormalizedMessage } from '@larksuiteoapi/node-sdk';
-import { imageRefKey, type ImageContent } from '@deepclaw/core';
+import { type ImageContent } from '@deepclaw/core';
 import { extractMarkdownImages } from '../../utils/markdown-images';
+import { imageBytes } from '../../utils/image-bytes';
 import { imageMediaType } from '../../utils/image-media-type';
-import { getLogger, ImageStore } from '@deepclaw/node-utils';
+import { i18nInstance } from '@deepclaw/i18n';
+import { getLogger } from '@deepclaw/node-utils';
 
 const logger = getLogger('FeishuMessageHandler');
-
-const base64DataUrlRegex = /^data:[^,]*;base64,([\s\S]*)$/;
 
 type MessageContent = Parameters<LarkChannel['send']>[1];
 
@@ -75,31 +75,42 @@ export class FeishuMessageHandler extends IMMessageHandler<NormalizedMessage, No
         if (textPart) {
             this.send(message, {markdown: textPart});
         }
-        images.forEach(image => this.sendImage(message, image.url));
+        void this.sendImages(message, images.map(image => image.url));
+    }
+
+    /** A picture nobody can see is worth a word, otherwise the answer quietly misses it. */
+    private async sendImages(message: NormalizedMessage, urls: string[]): Promise<void> {
+        let sent = 0;
+        for (const url of urls) {
+            if (await this.sendImage(message, url)) sent++;
+        }
+        if (sent < urls.length) {
+            this.send(message, {markdown: i18nInstance.t('im.imagesNotSent')});
+        }
     }
 
     private send(message: NormalizedMessage, content: MessageContent): void {
-        void this.channel.send(message.chatId, content, {replyTo: message.messageId}).catch(error => {
-            logger.error(`send message to ${message.chatId} failed.`, error);
-        });
+        void this.trySend(message, content);
+    }
+
+    private async trySend(message: NormalizedMessage, content: MessageContent): Promise<boolean> {
+        try {
+            await this.channel.send(message.chatId, content, {replyTo: message.messageId});
+            return true;
+        } catch (error) {
+            // The channel only names the step it failed at, the reason sits in the cause it carries.
+            logger.error({err: error}, `send message to ${message.chatId} failed.`);
+            return false;
+        }
     }
 
     /** The channel fetches a linked image itself, only bytes of our own have to be decoded. */
-    private sendImage(message: NormalizedMessage, url: string): void {
-        const source = url.startsWith('http') ? url : this.imageBytes(url);
+    private sendImage(message: NormalizedMessage, url: string): Promise<boolean> {
+        const source = url.startsWith('http') ? url : imageBytes(url);
         if (!source) {
             logger.error(`image not sent to ${message.chatId}, unsupported url: ${url.slice(0, 64)}`);
-            return;
+            return Promise.resolve(false);
         }
-        this.send(message, {image: {source}});
-    }
-
-    private imageBytes(url: string): Buffer | null {
-        const key = imageRefKey(url);
-        if (key) {
-            return ImageStore.read(key);
-        }
-        const base64 = base64DataUrlRegex.exec(url);
-        return base64 ? Buffer.from(base64[1]!, 'base64') : null;
+        return this.trySend(message, {image: {source}});
     }
 }

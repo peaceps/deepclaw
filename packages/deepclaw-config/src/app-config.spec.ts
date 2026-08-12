@@ -3,6 +3,7 @@ import {
     loadConfig, validateAppConfig,
     type AgentConfig, type DeepclawConfig, type IMConfig, type LLMConfig, type UIConfig
 } from './app-config';
+import {type ImageModel} from './image-models';
 
 function newAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
     return {
@@ -163,5 +164,18 @@ describe('validateAppConfig llm', () => {
         const agent = newAgent({llm: {baseURL: '', apiKey: 'key', model: ''}});
         const {lacks} = validateAppConfig(newConfig({agents: [agent]}));
         expect(agentLacks(lacks)).toEqual(['llm.baseURL', 'llm.model']);
+    });
+
+    test('keeps a known image model and never demands one', () => {
+        const llm = {baseURL: 'url', apiKey: 'key', model: 'model', imageModel: 'doubao-seedream-4-0-250828' as const};
+        const {config, lacks} = validateAppConfig(newConfig({agents: [newAgent({llm})]}));
+        expect(config.agents[0]!.llm.imageModel).toBe('doubao-seedream-4-0-250828');
+        expect(agentLacks(lacks)).toEqual([]);
+    });
+
+    test('drops an image model nobody serves', () => {
+        const llm = {baseURL: 'url', apiKey: 'key', model: 'model', imageModel: 'dall-e-1' as unknown as ImageModel};
+        const {config} = validateAppConfig(newConfig({agents: [newAgent({llm})]}));
+        expect(config.agents[0]!.llm.imageModel).toBeUndefined();
     });
 });

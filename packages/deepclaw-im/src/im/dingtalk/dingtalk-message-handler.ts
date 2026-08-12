@@ -1,8 +1,11 @@
 import {DWClient, DWClientDownStream, EventAck} from 'dingtalk-stream';
 import { getLogger } from '@deepclaw/node-utils';
-import { type ImageContent } from '@deepclaw/core';
+import { i18nInstance } from '@deepclaw/i18n';
+import { imageKeyExtension, type ImageContent } from '@deepclaw/core';
 import { IMMessageHandler, ParsedMessage } from "../im-message-handler";
+import { imageBytes } from '../../utils/image-bytes';
 import { imageMediaType } from '../../utils/image-media-type';
+import { extractMarkdownImages, replaceMarkdownImages } from '../../utils/markdown-images';
 
 const logger = getLogger('DingtalkMessageHandler');
 
@@ -151,17 +154,82 @@ export class DingtalkMessageHandler extends IMMessageHandler<DWClientDownStream,
             logger.info('DingTalk sessionWebhook is not set.');
             return;
         }
+        if (extractMarkdownImages(content).images.length === 0) {
+            this.post(endPoint, content);
+            return;
+        }
+        void this.postWithImages(endPoint, content);
+    }
+
+    private post(endPoint: EndPoint, text: string): void {
         void fetch(endPoint.sessionWebhook, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 msgtype: 'markdown',
                 // dingtalk shows the title, not the text, in the push notification
-                markdown: {title: content.split('\n', 1)[0]!.slice(0, 20), text: content},
+                markdown: {title: text.split('\n', 1)[0]!.slice(0, 20), text},
                 at: {atUserIds: [endPoint.senderStaffId || '']}
             })
         }).catch(error => {
-            logger.error(`send message to ${endPoint.sessionWebhook} failed.`, error);
+            logger.error({err: error}, `send message to ${endPoint.sessionWebhook} failed.`);
         });
+    }
+
+    /** A session webhook carries markdown only, so every picture has to become a url it can name. */
+    private async postWithImages(endPoint: EndPoint, content: string): Promise<void> {
+        let missed = 0;
+        const text = await replaceMarkdownImages(content, async url => {
+            const mediaId = await this.imageUrl(url);
+            if (!mediaId) missed++;
+            return mediaId;
+        });
+        if (missed === 0) {
+            this.post(endPoint, text);
+            return;
+        }
+        const note = i18nInstance.t('im.imagesNotSent');
+        this.post(endPoint, text ? `${text}\n\n${note}` : note);
+    }
+
+    /** A linked picture is left for the client to fetch, bytes of ours go to the media store first. */
+    private async imageUrl(url: string): Promise<string | null> {
+        if (url.startsWith('http')) {
+            return url;
+        }
+        const bytes = imageBytes(url);
+        if (!bytes) {
+            logger.error(`image not sent, unsupported url: ${url.slice(0, 64)}`);
+            return null;
+        }
+        return this.uploadImage(bytes);
+    }
+
+    /**
+     * Media the robot uploads itself is what a dingtalk client can show, and its id stands
+     * in for a url in markdown. Only clients of the same organization can read it.
+     */
+    private async uploadImage(bytes: Buffer): Promise<string | null> {
+        try {
+            const mediaType = imageMediaType(bytes);
+            const form = new FormData();
+            form.append('media',
+                new Blob([new Uint8Array(bytes)], {type: mediaType}),
+                `image.${imageKeyExtension(mediaType)}`);
+            const accessToken = await this.client.getAccessToken();
+            const res = await fetch(
+                `https://oapi.dingtalk.com/media/upload?access_token=${accessToken}&type=image`,
+                {method: 'POST', body: form},
+            );
+            const data = await res.json() as {media_id?: string; errmsg?: string};
+            if (!data.media_id) {
+                logger.error(`upload image API returned ${res.status}: ${data.errmsg || 'no media_id'}`);
+                return null;
+            }
+            return data.media_id;
+        } catch (e) {
+            logger.error(`upload image failed: ${e}`);
+            return null;
+        }
     }
 }

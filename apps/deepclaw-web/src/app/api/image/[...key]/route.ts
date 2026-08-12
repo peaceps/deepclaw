@@ -1,8 +1,9 @@
 import { imageKeyMediaType } from '@deepclaw/core';
 import { ImageStore } from '@deepclaw/node-utils';
 
-export async function GET(_request: Request, {params}: {params: Promise<{key: string}>}) {
-    const {key} = await params;
+/** A key names the loop the picture belongs to, so it arrives here as a path of its own. */
+export async function GET(_request: Request, {params}: {params: Promise<{key: string[]}>}) {
+    const key = (await params).key.join('/');
     const bytes = ImageStore.read(key);
     if (!bytes) {
         return new Response(null, {status: 404});

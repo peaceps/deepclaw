@@ -64,6 +64,12 @@ export const zh = {
                 error: '出错了。{{message}}。',
                 timeout: '命令运行{{timeout}}秒超时。',
             },
+            image: {
+                noKey: '没有配置生图的 API key。请在该 agent 的生图设置里填写，或设置 {{env}} 环境变量。',
+                noModel: '还没有选生图模型。请在该 agent 的生图设置里选一个。',
+                unsupportedModel: '暂时还不支持用 {{model}} 生图。请在该 agent 的生图设置里选一个 qwen-image 或 seedream 模型。',
+                saved: '图片已生成。把 ![image]({{url}}) 放进回复里，图片才会出现在会话中。',
+            },
             project: {
                 taskSteps: {
                     empty: '没有步骤。',

@@ -15,6 +15,7 @@ import {createProjectTool, createSimpleTaskTool, updateProjectTool, updateTaskTo
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
 import { AgentMode } from '@deepclaw/config';
 import { base64Tool } from '../tools/encode-decode-tool';
+import { generateImageTool } from '../tools/image-tool';
 import { MCP_PREFIX, MCPService } from './mcp-service';
 
 const tools: ToolDesc<any>[] = [
@@ -26,6 +27,7 @@ const tools: ToolDesc<any>[] = [
     removeSkillTool,
     createSkillTool,
     base64Tool,
+    generateImageTool,
     readFileTool,
     writeFileTool,
     editFileTool,

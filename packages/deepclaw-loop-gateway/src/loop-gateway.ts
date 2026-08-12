@@ -148,8 +148,8 @@ class LoopGatewayImpl {
     ): {busy: boolean, msgId: string} {
         const {role, agentId, projectId = ''} = loopInfo;
         const {browserId = '', source} = options;
-        const images = storeImages(options.images);
         const loopId = getLoopId(role, agentId, projectId);
+        const images = storeImages(loopId, options.images);
         if (!this.loops[loopId]) {
             this.initLoop(loopId);
         } else {

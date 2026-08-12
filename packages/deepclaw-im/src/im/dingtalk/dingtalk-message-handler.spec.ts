@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({
     error: vi.fn<(message: string) => void>(),
     info: vi.fn<(message: string) => void>(),
     warn: vi.fn<(message: string) => void>(),
-    fetch: vi.fn<(url: string, init?: {body?: string}) => Promise<unknown>>(),
+    fetch: vi.fn<(url: string, init?: {body?: unknown}) => Promise<unknown>>(),
+    readImage: vi.fn<(key: string) => Buffer | null>(),
 }));
 
 vi.mock('dingtalk-stream', () => ({EventAck: {SUCCESS: 200}, TOPIC_ROBOT: '/v1.0/im/bot/messages/get'}));
@@ -26,6 +27,7 @@ vi.mock('@deepclaw/loop-gateway', () => ({
 
 vi.mock('@deepclaw/node-utils', () => ({
     getLogger: () => ({debug: vi.fn(), info: mocks.info, warn: mocks.warn, error: mocks.error}),
+    ImageStore: {read: mocks.readImage},
 }));
 
 type Payload = {
@@ -42,6 +44,7 @@ type Payload = {
 };
 
 const DOWNLOAD_API = 'https://api.dingtalk.com/v1.0/robot/messageFiles/download';
+const UPLOAD_API = 'https://oapi.dingtalk.com/media/upload';
 const PNG_BYTES = Buffer.from('89504e470d0a1a0a', 'hex');
 
 function downStream(payload: Payload, messageId = 'm1'): DWClientDownStream {
@@ -193,6 +196,13 @@ describe('replying through the webhook', () => {
         expect(postedBody(1).markdown.title).toHaveLength(20);
     });
 
+    test('leaves an answer without any picture untouched', async () => {
+        handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
+        await flush();
+        onDone()('  a plain answer  ');
+        expect(postedBody(1).markdown.text).toBe('  a plain answer  ');
+    });
+
     test('mentions the sender of the message', async () => {
         handler.onMessage(downStream({
             text: {content: 'hi'}, sessionWebhook: 'https://hook', senderStaffId: 'u1',
@@ -227,6 +237,86 @@ describe('replying through the webhook', () => {
         handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
         await flush();
         expect(mocks.error).toHaveBeenCalled();
+    });
+});
+
+describe('sending the images of an answer', () => {
+
+    function stubUpload(answer: {media_id?: string; errmsg?: string} = {media_id: '@media-1'}): void {
+        mocks.fetch.mockImplementation((url: string) => url.startsWith(UPLOAD_API)
+            ? Promise.resolve({ok: true, status: 200, json: () => Promise.resolve(answer)})
+            : Promise.resolve({ok: true}));
+    }
+
+    function uploads(): string[] {
+        return mocks.fetch.mock.calls.map(([url]) => url).filter(url => url.startsWith(UPLOAD_API));
+    }
+
+    /** The wait message went out first, the answer is whatever reached the webhook last. */
+    function answered(): string {
+        const posts = mocks.fetch.mock.calls.filter(([url]) => url === 'https://hook');
+        const body = JSON.parse(posts[posts.length - 1]![1]!.body as string) as {markdown: {text: string}};
+        return body.markdown.text;
+    }
+
+    async function answer(text: string): Promise<void> {
+        handler.onMessage(downStream({text: {content: 'hi'}, sessionWebhook: 'https://hook'}));
+        await flush();
+        onDone()(text);
+        await flush();
+    }
+
+    beforeEach(() => {
+        mocks.readImage.mockReturnValue(PNG_BYTES);
+        stubUpload();
+    });
+
+    test('uploads the bytes of a stored picture', async () => {
+        await answer('![shot](dcimg://abc.png)');
+        expect(mocks.readImage).toHaveBeenCalledWith('abc.png');
+        expect(uploads()).toEqual([`${UPLOAD_API}?access_token=token-1&type=image`]);
+    });
+
+    test('names the uploaded media where the picture stood', async () => {
+        await answer('here it is\n\n![shot](dcimg://abc.png)');
+        expect(answered()).toBe('here it is\n\n![shot](@media-1)');
+    });
+
+    test('sends a picture that came without any words', async () => {
+        await answer('![shot](dcimg://abc.png)');
+        expect(answered()).toBe('![shot](@media-1)');
+    });
+
+    test('keeps two pictures each in its own place', async () => {
+        await answer('first\n\n![one](dcimg://a.png)\n\nthen\n\n![two](dcimg://b.png)');
+        expect(uploads()).toHaveLength(2);
+        expect(answered()).toBe('first\n\n![one](@media-1)\n\nthen\n\n![two](@media-1)');
+    });
+
+    test('uploads a picture the answer inlined', async () => {
+        await answer('![shot](data:image/png;base64,QUJD)');
+        expect(uploads()).toHaveLength(1);
+        expect(answered()).toBe('![shot](@media-1)');
+    });
+
+    test('leaves a linked picture for the client to fetch', async () => {
+        await answer('![shot](https://host/shot.png)');
+        expect(uploads()).toEqual([]);
+        expect(answered()).toBe('![shot](https://host/shot.png)');
+    });
+
+    test('says the picture could not be sent when the upload is refused', async () => {
+        stubUpload({errmsg: 'no permission'});
+        await answer('here it is\n\n![shot](dcimg://abc.png)');
+        expect(mocks.error).toHaveBeenCalled();
+        expect(answered()).toBe('here it is\n\nim.imagesNotSent');
+    });
+
+    test('says so when the bytes of a stored picture are gone', async () => {
+        mocks.readImage.mockReturnValue(null);
+        await answer('![shot](dcimg://abc.png)');
+        expect(uploads()).toEqual([]);
+        expect(answered()).toBe('im.imagesNotSent');
     });
 });
 

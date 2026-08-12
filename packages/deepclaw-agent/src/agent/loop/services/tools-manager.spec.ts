@@ -3,15 +3,6 @@ import {type AgentMode} from '@deepclaw/config';
 import {type ToolDesc} from '../../definitions/tool-definitions';
 import {MCP_PREFIX} from './mcp-service';
 import {ToolsManager} from './tools-manager';
-import * as backgroundCommandTools from '../tools/background-command-tool';
-import * as cronTools from '../tools/cron-tool';
-import * as encodeDecodeTools from '../tools/encode-decode-tool';
-import * as fileTools from '../tools/file-tool';
-import * as projectTools from '../tools/project-tool';
-import * as saveMemoryTools from '../tools/save-memory-tool';
-import * as skillTools from '../tools/skill-tool';
-import * as subLoopTools from '../tools/sub-loop-tool';
-import * as syncCommandTools from '../tools/sync-command-tool';
 
 const mocks = vi.hoisted(() => ({
     getTools: vi.fn<() => Record<string, ToolDesc<unknown>>>(() => ({})),
@@ -42,18 +33,30 @@ function names(isSubLoop: boolean, mode: AgentMode): string[] {
     return ToolsManager.getToolsArray(isSubLoop, mode).map(tool => tool.name);
 }
 
-const TOOL_MODULES = [
-    backgroundCommandTools, cronTools, encodeDecodeTools, fileTools, projectTools,
-    saveMemoryTools, skillTools, subLoopTools, syncCommandTools,
-];
+// Loaded inside the test rather than up top: an eager import here keeps the mock above from
+// ever being applied, which quietly hands the real mcp service to every test below.
+function toolModules(): Promise<Record<string, unknown>[]> {
+    return Promise.all([
+        import('../tools/background-command-tool'),
+        import('../tools/cron-tool'),
+        import('../tools/encode-decode-tool'),
+        import('../tools/file-tool'),
+        import('../tools/image-tool'),
+        import('../tools/project-tool'),
+        import('../tools/save-memory-tool'),
+        import('../tools/skill-tool'),
+        import('../tools/sub-loop-tool'),
+        import('../tools/sync-command-tool'),
+    ]);
+}
 
 function isToolDesc(value: unknown): value is ToolDesc<unknown> {
     return typeof value === 'object' && value !== null && 'tool' in value && 'invoke' in value;
 }
 
 /** Every tool the tools folder exports is meant to be offered, an unregistered one is unreachable. */
-function exportedToolNames(): string[] {
-    return TOOL_MODULES
+async function exportedToolNames(): Promise<string[]> {
+    return (await toolModules())
         .flatMap(module => Object.values(module))
         .filter(isToolDesc)
         .map(tool => tool.tool.name);
@@ -113,9 +116,9 @@ describe('built-in tools', () => {
         }
     });
 
-    test('registers exactly the tools the tools folder exports', () => {
+    test('registers exactly the tools the tools folder exports', async () => {
         const registered = new Set(CONTEXTS.flatMap(([isSubLoop, mode]) => names(isSubLoop, mode)));
-        expect([...registered].sort()).toEqual([...new Set(exportedToolNames())].sort());
+        expect([...registered].sort()).toEqual([...new Set(await exportedToolNames())].sort());
     });
 
     test('offers the project update to the agent of a main loop', () => {

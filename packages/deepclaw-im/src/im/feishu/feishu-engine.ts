@@ -15,7 +15,7 @@ export const feishu: IM = {
         return {
             disconnect: () => {
                 void channel.disconnect().catch(error => {
-                    logger.error('disconnect feishu channel failed.', error);
+                    logger.error({err: error}, 'disconnect feishu channel failed.');
                 });
             }
         }

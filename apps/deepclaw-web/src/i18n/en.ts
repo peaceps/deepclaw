@@ -258,6 +258,10 @@ export const en = {
                             basic: 'Basic info',
                             im: 'Connect IM software',
                             llm: 'LLM configs',
+                            image: 'Image generation',
+                        },
+                        imageModel: {
+                            placeholder: '<Please select an image model>',
                         }
                     },
                     advanced: {
@@ -328,7 +332,22 @@ export const en = {
                     },
                     model: {
                         prompt: 'LLM model',
-                    }
+                    },
+                    imageModel: {
+                        prompt: 'Image model',
+                        options: {
+                            'doubao-seedream-5-0-pro-260628': 'Seedream 5.0 Pro',
+                            'doubao-seedream-5-0-260128': 'Seedream 5.0 Lite',
+                            'doubao-seedream-4-5-251128': 'Seedream 4.5',
+                            'doubao-seedream-4-0-250828': 'Seedream 4.0',
+                            'qwen-image-3.0': 'Qwen Image 3',
+                            'qwen-image-2.0-pro-2026-06-22': 'Qwen Image 2.0 Pro 2026-06-22',
+                            'gpt-image-2.0': 'GPT Image 2.0',
+                        },
+                    },
+                    imageApiKey: {
+                        prompt: 'API key for image generation',
+                    },
                 }
             },
             advanced: {

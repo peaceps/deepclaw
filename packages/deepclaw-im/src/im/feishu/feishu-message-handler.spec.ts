@@ -238,25 +238,29 @@ describe('sending the images of an answer', () => {
         expect(sentContents()).toEqual([{image: {source: Buffer.from('the image')}}]);
     });
 
-    test('logs a stored image whose bytes are gone', async () => {
+    test('says so when the bytes of a stored image are gone', async () => {
         mocks.readImage.mockReturnValue(null);
         onDone()('![shot](dcimg://abc123.png)');
         await flush();
         expect(mocks.error).toHaveBeenCalled();
-        expect(sentContents()).toEqual([]);
+        expect(sentContents()).toEqual([{markdown: 'im.imagesNotSent'}]);
     });
 
-    test('logs an image url it cannot turn into bytes', async () => {
+    test('says so when an image url cannot be turned into bytes', async () => {
         onDone()('![shot](ftp://host/shot.png)');
         await flush();
         expect(mocks.error).toHaveBeenCalled();
-        expect(sentContents()).toEqual([]);
+        expect(sentContents()).toEqual([{markdown: 'im.imagesNotSent'}]);
     });
 
-    test('logs a channel that refuses an image', async () => {
+    test('names the missing picture when the channel refuses to take it', async () => {
         mocks.send.mockRejectedValue(new Error('no permission'));
         onDone()('![shot](data:image/png;base64,QUJD)');
         await flush();
         expect(mocks.error).toHaveBeenCalled();
+        expect(sentContents()).toEqual([
+            {image: {source: Buffer.from('ABC')}},
+            {markdown: 'im.imagesNotSent'},
+        ]);
     });
 });

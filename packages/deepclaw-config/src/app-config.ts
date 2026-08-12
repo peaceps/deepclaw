@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { DEFAULT_LANG, SUPPORTED_LANGUAGES, SupportedLanguage } from '@deepclaw/i18n';
 import { clone, FileUtils, globalize } from '@deepclaw/node-utils';
+import { IMAGE_MODELS, type ImageModel } from './image-models';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 
@@ -27,6 +28,9 @@ export type DeepclawConfig = {
             baseURL: string;
             apiKey: string;
             model: string;
+            imageModel?: ImageModel;
+            /** Key for image generation. Falls back to the variable of the picked vendor. */
+            imageApiKey?: string;
         }
     }[],
     ui: {
@@ -166,6 +170,9 @@ export function validateAppConfig(configToValidate: Partial<DeepclawConfig>): {
                 }
                 if (!agent.llm.model) {
                     agentLacks.push('llm.model');
+                }
+                if (agent.llm.imageModel && !IMAGE_MODELS.includes(agent.llm.imageModel)) {
+                    agent.llm.imageModel = undefined;
                 }
             }
             if (agentLacks.length > 0) {

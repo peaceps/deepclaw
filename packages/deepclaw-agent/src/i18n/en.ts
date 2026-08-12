@@ -65,6 +65,15 @@ You can ask me continue to modify the output or mark the task as verified when y
                 error: 'Error: {{message}}.',
                 timeout: 'Error: Timeout ({{timeout}}s).',
             },
+            image: {
+                noKey: `No API key for image generation. Set it in the image settings of this agent,
+or in the {{env}} environment variable.`,
+                noModel: 'No image model picked yet. Pick one in the image settings of this agent.',
+                unsupportedModel: `Images cannot be generated with {{model}} yet. Pick one of the
+qwen-image or seedream models in the image settings of this agent.`,
+                saved: `Image generated. Put ![image]({{url}}) in the answer, that reference is what
+carries the picture into a chat.`,
+            },
             project: {
                 taskSteps: {
                     empty: 'No steps.',

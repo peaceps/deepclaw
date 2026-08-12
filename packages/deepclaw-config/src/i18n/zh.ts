@@ -52,6 +52,21 @@ export const zh = {
                 model: {
                     prompt: '请输入模型名称：',
                 },
+                imageModel: {
+                    prompt: '用哪个模型生图？',
+                    options: {
+                        'doubao-seedream-5-0-pro-260628': 'Seedream 5.0 Pro',
+                        'doubao-seedream-5-0-260128': 'Seedream 5.0 Lite',
+                        'doubao-seedream-4-5-251128': 'Seedream 4.5',
+                        'doubao-seedream-4-0-250828': 'Seedream 4.0',
+                        'qwen-image-3.0': 'Qwen Image 3',
+                        'qwen-image-2.0-pro-2026-06-22': 'Qwen Image 2.0 Pro 2026-06-22',
+                        'gpt-image-2.0': 'GPT Image 2.0',
+                    },
+                },
+                imageApiKey: {
+                    prompt: '请输入用于生图的 API key：',
+                },
             }
         },
         advanced: {

@@ -1,4 +1,5 @@
 import {AgentInteractionEventPayload} from "@deepclaw/core";
+import {IMAGE_MODELS} from "./image-models";
 
 export type CONFIGS_EVENTS = {[key: string]: AgentInteractionEventPayload};
 
@@ -75,6 +76,15 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
     ['agents.llm.model']: {
         type: 'input',
         content: 'config.agents.llm.model.prompt'
+    },
+    ['agents.llm.imageModel']: {
+        type: 'select',
+        content: 'config.agents.llm.imageModel.prompt',
+        options: IMAGE_MODELS.map((value) => ({label: `config.agents.llm.imageModel.options.${value}`, value})),
+    },
+    ['agents.llm.imageApiKey']: {
+        type: 'input',
+        content: 'config.agents.llm.imageApiKey.prompt'
     },
     ['advanced.mcpServer']: {
         type: 'input',

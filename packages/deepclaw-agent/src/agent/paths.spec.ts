@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest';
 import {
-    AGENTS_DIR, CRON_OUTPUT_DIR, PROJECT_TASK_OUTPUT_DIR, PUBLIC, SKILLS, SKILLS_DIR
+    AGENTS_DIR, CRON_OUTPUT_DIR, IMAGE_OUTPUT_DIR, PROJECT_TASK_OUTPUT_DIR, PUBLIC, SKILLS, SKILLS_DIR
 } from './paths';
 
 describe('derived paths', () => {
@@ -17,7 +17,12 @@ describe('derived paths', () => {
         expect(CRON_OUTPUT_DIR.startsWith(`${PUBLIC}/`)).toBe(true);
     });
 
-    test('keeps the two output folders apart', () => {
-        expect(PROJECT_TASK_OUTPUT_DIR).not.toBe(CRON_OUTPUT_DIR);
+    test('serves the generated images from inside the public folder', () => {
+        expect(IMAGE_OUTPUT_DIR.startsWith(`${PUBLIC}/`)).toBe(true);
+    });
+
+    test('keeps the output folders apart', () => {
+        const folders = [PROJECT_TASK_OUTPUT_DIR, CRON_OUTPUT_DIR, IMAGE_OUTPUT_DIR];
+        expect(new Set(folders).size).toBe(folders.length);
     });
 });

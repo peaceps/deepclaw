@@ -1,9 +1,10 @@
 'use client';
 
 import {
+  Image as ImageIcon,
   MessageSquare,
 } from 'lucide-react';
-import type { CONFIGS_EVENTS, AgentConfig, IMConfig, LLMConfig } from '@deepclaw/config';
+import type { CONFIGS_EVENTS, AgentConfig, IMConfig, ImageModel, LLMConfig } from '@deepclaw/config';
 import type { AgentInteractionEvent } from '@deepclaw/core';
 import { type ValidationResult } from '@/server/configs';
 import {DeepSelect} from '@/laf/deep-select';
@@ -145,6 +146,29 @@ export function AgentSettingsCard({
               onInput={(e) => onUpdateLLM(index, { model: e.target.value })}
               error={hasFieldError('llm.model')}
             />
+          </div>
+        </AgentSettingsSection>
+
+        {/* 生图配置 */}
+        <AgentSettingsSection title="web.pages.settings.panels.agents.sections.image" Icon={ImageIcon}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <DeepSelect
+              uiInfo={configEvents['agents.llm.imageModel'] as Extract<AgentInteractionEvent, {type: 'select'}>}
+              value={agent.llm.imageModel}
+              onSelect={(e) => onUpdateLLM(index, {
+                imageModel: (e.target.value || undefined) as ImageModel | undefined
+              })}
+              placeholder="web.pages.settings.panels.agents.imageModel.placeholder"
+            />
+            {/* 没选模型时不问 key，但已填的值留着，换回来还在 */}
+            {agent.llm.imageModel && (
+              <DeepInput
+                uiInfo={configEvents['agents.llm.imageApiKey'] as Extract<AgentInteractionEvent, {type: 'input'}>}
+                value={agent.llm.imageApiKey ?? ''}
+                onInput={(e) => onUpdateLLM(index, { imageApiKey: e.target.value })}
+                placeholder="sk-..."
+              />
+            )}
           </div>
         </AgentSettingsSection>
       </div>

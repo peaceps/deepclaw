@@ -28,7 +28,9 @@ const mocks = vi.hoisted(() => ({
     updateCronTaskStatus: vi.fn(),
     addMessage: vi.fn(),
     replaceMessage: vi.fn(),
-    saveImage: vi.fn<(bytes: Buffer, extension: string) => string>(() => 'abc123.png'),
+    saveImage: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
+        (_bytes, extension, loopId) => `${loopId}/abc123.${extension}`
+    ),
 }));
 
 vi.mock('@deepclaw/agent', () => ({
@@ -299,16 +301,16 @@ describe('invoke', () => {
     });
 
     test('keeps the bytes of an image and hands the loop a reference', () => {
-        const {loopInfo, loop} = nextLoop();
+        const {loopInfo, loopId, loop} = nextLoop();
         loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
         LoopGateway.invoke(
             loopInfo,
             {source: 'web', browserId: 'b1', images: [{url: 'data:image/png;base64,QUJD', mediaType: 'image/png'}]},
             'look'
         );
-        expect(mocks.saveImage).toHaveBeenCalledExactlyOnceWith(Buffer.from('ABC'), 'png');
+        expect(mocks.saveImage).toHaveBeenCalledExactlyOnceWith(Buffer.from('ABC'), 'png', loopId);
         expect(loop.invoke).toHaveBeenCalledWith('look', expect.objectContaining({
-            images: [{url: 'dcimg://abc123.png', mediaType: 'image/png'}]
+            images: [{url: `dcimg://${loopId}/abc123.png`, mediaType: 'image/png'}]
         }));
     });
 

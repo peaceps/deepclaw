@@ -17,7 +17,7 @@ class UIChatServiceImpl {
     public static addMessage(loopId: string, message: ChatMessage): void {
         this.ensureMessageLoaded(loopId);
         const messages = this.messageStore.get(loopId)!;
-        message.images = storeImages(message.images);
+        message.images = storeImages(loopId, message.images);
         messages.push(message);
         // The empty message that is opened for an answer waits for its content, but a
         // message that carries nothing but images is already whole.
