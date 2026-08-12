@@ -69,12 +69,14 @@ export function AgentSettingsCard({
               value={agent.name}
               onInput={(e) => onUpdate(index, { name: e.target.value })}
               error={hasFieldError('name')}
+              required
             />
             <DeepSelect
               uiInfo={configEvents['agents.mode'] as Extract<AgentInteractionEvent, {type: 'select'}>}
               value={agent.mode}
               onSelect={(e) => onUpdate(index, { mode: e.target.value as AgentConfig['mode'] })}
               error={hasFieldError('mode')}
+              required
             />
           </div>
         </AgentSettingsSection>
@@ -101,6 +103,7 @@ export function AgentSettingsCard({
                   value={agent.im!.engine}
                   onSelect={(e) => onUpdateIM(index, { engine: e.target.value as IMConfig['engine'] })}
                   error={hasFieldError('im.engine')}
+                  required
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -109,12 +112,14 @@ export function AgentSettingsCard({
                   value={agent.im!.appId}
                   onInput={(e) => onUpdateIM(index, { appId: e.target.value })}
                   error={hasFieldError('im.appId')}
+                  required
                 />
                 <DeepInput
                   uiInfo={configEvents['agents.im.secret'] as Extract<AgentInteractionEvent, {type: 'input'}>}
                   value={agent.im!.secret}
                   onInput={(e) => onUpdateIM(index, { secret: e.target.value })}
                   error={hasFieldError('im.secret')}
+                  required
                 />
               </div>
             </div>
@@ -130,6 +135,7 @@ export function AgentSettingsCard({
               onInput={(e) => onUpdateLLM(index, { baseURL: e.target.value })}
               placeholder="https://api.openai.com/v1"
               error={hasFieldError('llm.baseURL')}
+              required
             />
             <DeepInput
               uiInfo={configEvents['agents.llm.apiKey'] as Extract<AgentInteractionEvent, {type: 'input'}>}
@@ -137,6 +143,7 @@ export function AgentSettingsCard({
               onInput={(e) => onUpdateLLM(index, { apiKey: e.target.value })}
               placeholder="sk-..."
               error={hasFieldError('llm.apiKey')}
+              required
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -145,6 +152,7 @@ export function AgentSettingsCard({
               value={agent.llm.model}
               onInput={(e) => onUpdateLLM(index, { model: e.target.value })}
               error={hasFieldError('llm.model')}
+              required
             />
           </div>
         </AgentSettingsSection>

@@ -13,6 +13,7 @@ type DeepSelectProps = {
      */
     placeholder?: string;
     error?: boolean;
+    required?: boolean;
     Icon?: React.ComponentType<{ size?: number; className?: string, children?: React.ReactNode }>;
     iconTitle?: string;
 }
@@ -23,6 +24,7 @@ export function DeepSelect({
     onSelect,
     placeholder,
     error,
+    required,
     Icon,
     iconTitle
 }: DeepSelectProps) {
@@ -33,7 +35,7 @@ export function DeepSelect({
             <label className="block text-sm font-medium text-gray-700 mb-2">
                 {Icon && iconTitle && <Icon size={16} className="mr-2 mb-1 text-yellow-500 inline">
                     <title>{t(iconTitle)}</title>
-                </Icon>}{t(uiInfo.content)}
+                </Icon>}{t(uiInfo.content)}{required && <span className="text-red-500 ml-0.5">*</span>}
             </label>
             <select
                 value={value || ''}

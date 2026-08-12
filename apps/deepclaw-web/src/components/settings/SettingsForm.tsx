@@ -188,6 +188,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
                 value={config.ui.lang}
                 onSelect={e => updateUIConfig({ lang: e.target.value as SupportedLanguage })}
                 error={validationResult.errors.some(e => e === 'ui.lang')}
+                required
             />
           </div>
           <div className="p-6 border-t border-gray-200">
