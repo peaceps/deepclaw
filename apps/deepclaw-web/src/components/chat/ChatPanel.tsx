@@ -72,15 +72,15 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
       }
       images.push(await fileToImageContent(file));
     }
-    setPendingImages(prev => {
-      const next = [...prev, ...images];
-      if (next.length > MAX_IMAGES) {
-        showToast({type: 'warning', message: t('web.pages.chat.image.tooMany', {count: MAX_IMAGES})});
-      }
-      return next.slice(0, MAX_IMAGES);
-    });
+    // the warning belongs out here: react runs an updater while rendering, and more than once
+    if (pendingImages.length + images.length > MAX_IMAGES) {
+      showToast({type: 'warning', message: t('web.pages.chat.image.tooMany', {count: MAX_IMAGES})});
+    }
+    setPendingImages(prev => [...prev, ...images].slice(0, MAX_IMAGES));
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const canAddImage = chatInited && !locked && pendingImages.length < MAX_IMAGES;
 
   const removePendingImage = (index: number) => {
     setPendingImages(prev => prev.filter((_, i) => i !== index));
@@ -174,9 +174,9 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={!chatInited || locked}
-            className="px-3 py-2 text-gray-400 hover:text-gray-600 disabled:opacity-30
-              transition-colors flex items-center"
+            disabled={!canAddImage}
+            className={`px-3 py-2 text-gray-400 disabled:opacity-30 transition-colors flex items-center
+              ${canAddImage ? 'hover:text-gray-600' : 'cursor-not-allowed'}`}
             title={t('web.pages.chat.image.upload')}
           >
             <ImagePlus size={20} />

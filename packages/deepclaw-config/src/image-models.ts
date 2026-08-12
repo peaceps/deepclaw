@@ -11,7 +11,7 @@ export const IMAGE_MODELS = [
     'doubao-seedream-4-0-250828',
     'qwen-image-3.0',
     'qwen-image-2.0-pro-2026-06-22',
-    'gpt-image-2.0'
+    'gpt-image-2',
 ] as const;
 
 export type ImageModel = typeof IMAGE_MODELS[number];

@@ -1,5 +1,5 @@
 import type { ImageModel } from '@deepclaw/config';
-import { ImageGenerator, type ImageRequest } from './image-generator';
+import { ImageGenerator, pixelsOf, type ImageRequest } from './image-generator';
 
 const GENERATION_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
 
@@ -37,9 +37,4 @@ export class SeedreamImageGenerator extends ImageGenerator {
         }
         return image;
     }
-}
-
-/** Ark writes a resolution as 1328x1328 where dashscope writes 1328*1328. */
-function pixelsOf(size: string): string {
-    return size.replace('*', 'x');
 }

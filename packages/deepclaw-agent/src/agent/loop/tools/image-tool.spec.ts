@@ -154,8 +154,10 @@ describe('generateImageTool invoke', () => {
     });
 
     test('says so instead of quietly drawing with another model', async () => {
-        await expect(generateImageTool.invoke({prompt: 'a whale'}, contextWithKey('k', 'gpt-image-2.0')))
-            .rejects.toThrow('agent.tools.image.unsupportedModel {"model":"gpt-image-2.0"}');
+        const unknown = 'midjourney-7' as ImageModel;
+
+        await expect(generateImageTool.invoke({prompt: 'a whale'}, contextWithKey('k', unknown)))
+            .rejects.toThrow('agent.tools.image.unsupportedModel {"model":"midjourney-7"}');
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
@@ -342,6 +344,144 @@ describe('generateImageTool invoke with seedream', () => {
     });
 });
 
+describe('generateImageTool invoke with gpt image', () => {
+
+    const OPENAI_URL = 'https://api.openai.com/v1/images/generations';
+    const OPENAI_EDIT_URL = 'https://api.openai.com/v1/images/edits';
+    const GPT_IMAGE: ImageModel = 'gpt-image-2';
+
+    function inlined(bytes = 'png-bytes') {
+        return {
+            ok: true, status: 200,
+            json: async () => ({data: [{b64_json: Buffer.from(bytes).toString('base64')}]}),
+        };
+    }
+
+    function formOf(call: number): FormData {
+        return fetchMock.mock.calls[call]![1].body as FormData;
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.stubGlobal('fetch', fetchMock);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.unstubAllEnvs();
+    });
+
+    /** Openai hands the bytes back inline, so there is no link of its own to fetch afterwards. */
+    test('keeps what openai answered with without asking for it a second time', async () => {
+        fetchMock.mockResolvedValueOnce(inlined());
+
+        const result = await generateImageTool.invoke(
+            {prompt: 'a whale in a teacup'}, contextWithKey('openai-key', GPT_IMAGE)
+        );
+
+        const [url, request] = fetchMock.mock.calls[0]!;
+        expect(url).toBe(OPENAI_URL);
+        expect(request.headers.Authorization).toBe('Bearer openai-key');
+        expect(requestBodyOf(0)).toEqual({model: 'gpt-image-2', prompt: 'a whale in a teacup'});
+        expect(fetchMock).toHaveBeenCalledOnce();
+        expect(mocks.save).toHaveBeenCalledExactlyOnceWith(Buffer.from('png-bytes'), 'png', 'agent.a1');
+        expect(result).toContain('dcimg://agent.a1/abcd1234.png');
+    });
+
+    test('writes the resolution the way openai spells it', async () => {
+        fetchMock.mockResolvedValueOnce(inlined());
+
+        await generateImageTool.invoke(
+            {prompt: 'a whale', size: '1664*928'}, contextWithKey('k', GPT_IMAGE)
+        );
+
+        expect(requestBodyOf(0).size).toBe('1664x928');
+    });
+
+    /** Openai has no field for it, and inventing one would have the request rejected. */
+    test('leaves out what the caller wanted kept out of the picture', async () => {
+        fetchMock.mockResolvedValueOnce(inlined());
+
+        await generateImageTool.invoke(
+            {prompt: 'a whale', negativePrompt: 'no text'}, contextWithKey('k', GPT_IMAGE)
+        );
+
+        expect(requestBodyOf(0)).not.toHaveProperty('negative_prompt');
+    });
+
+    /** Drawing from a picture is another endpoint here, and it reads the bytes off the request. */
+    test('sends the pictures to draw from to the edit endpoint', async () => {
+        fetchMock.mockResolvedValueOnce(inlined());
+
+        await generateImageTool.invoke(
+            {prompt: 'make it night', size: '1328*1328', sourceImages: ['dcimg://agent.a1/abcd1234.png']},
+            contextWithKey('k', GPT_IMAGE)
+        );
+
+        expect(fetchMock.mock.calls[0]![0]).toBe(OPENAI_EDIT_URL);
+        expect(fetchMock.mock.calls[0]![1].headers).not.toHaveProperty('Content-Type');
+        const form = formOf(0);
+        expect(form.get('model')).toBe('gpt-image-2');
+        expect(form.get('prompt')).toBe('make it night');
+        expect(form.get('size')).toBe('1328x1328');
+        const sources = form.getAll('image[]') as File[];
+        expect(sources).toHaveLength(1);
+        expect(sources[0]!.type).toBe('image/png');
+        expect(await sources[0]!.text()).toBe('source-bytes');
+    });
+
+    /** Openai reads no link, so the bytes behind one are fetched here before they are sent on. */
+    test('fetches a link itself rather than passing it on', async () => {
+        fetchMock
+            .mockResolvedValueOnce(downloaded('linked-bytes', 'image/jpeg'))
+            .mockResolvedValueOnce(inlined());
+
+        await generateImageTool.invoke(
+            {prompt: 'make it night', sourceImages: ['https://host/shot.jpg']}, contextWithKey('k', GPT_IMAGE)
+        );
+
+        expect(fetchMock.mock.calls[0]![0]).toBe('https://host/shot.jpg');
+        const sources = formOf(1).getAll('image[]') as File[];
+        expect(sources[0]!.type).toBe('image/jpeg');
+        expect(await sources[0]!.text()).toBe('linked-bytes');
+    });
+
+    test('falls back to the variable openai reads', async () => {
+        vi.stubEnv('OPENAI_API_KEY', 'openai-env-key');
+        fetchMock.mockResolvedValueOnce(inlined());
+
+        await generateImageTool.invoke({prompt: 'a whale'}, contextWithKey('', GPT_IMAGE));
+
+        expect(fetchMock.mock.calls[0]![1].headers.Authorization).toBe('Bearer openai-env-key');
+    });
+
+    test('names the variable of the vendor that was picked when no key is around', async () => {
+        vi.stubEnv('OPENAI_API_KEY', '');
+
+        await expect(generateImageTool.invoke({prompt: 'a whale'}, contextWithKey('', GPT_IMAGE)))
+            .rejects.toThrow('agent.tools.image.noKey {"env":"OPENAI_API_KEY"}');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    test('reports what openai complained about', async () => {
+        fetchMock.mockResolvedValueOnce({
+            ok: false, status: 400,
+            json: async () => ({error: {code: 'invalid_request_error', message: 'unsupported size'}}),
+        });
+
+        await expect(generateImageTool.invoke({prompt: 'a whale'}, contextWithKey('k', GPT_IMAGE)))
+            .rejects.toThrow('Image generation failed (400): unsupported size');
+        expect(mocks.save).not.toHaveBeenCalled();
+    });
+
+    test('reports an answer that came back without an image', async () => {
+        fetchMock.mockResolvedValueOnce({ok: true, status: 200, json: async () => ({data: []})});
+
+        await expect(generateImageTool.invoke({prompt: 'a whale'}, contextWithKey('k', GPT_IMAGE)))
+            .rejects.toThrow('Image generation returned no image.');
+    });
+});
+
 describe('generateImageTool drawing from a picture', () => {
 
     const ARK_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
@@ -392,7 +532,7 @@ describe('generateImageTool drawing from a picture', () => {
             Buffer.from('source-bytes').toString('base64')}`]);
     });
 
-    /** Both vendors fetch a link themselves, so its bytes never have to pass through here. */
+    /** Dashscope and ark fetch a link themselves, so its bytes never have to pass through here. */
     test('hands a link over as it is', async () => {
         fetchMock.mockResolvedValueOnce(drawn()).mockResolvedValueOnce(downloaded());
 

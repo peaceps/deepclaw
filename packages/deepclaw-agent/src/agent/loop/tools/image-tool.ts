@@ -1,7 +1,8 @@
 import type { ImageModel } from '@deepclaw/config';
-import { imageKeyExtension, imageKeyMediaType, imageRefKey, newImageRef } from '@deepclaw/core';
+import { imageKeyExtension, imageKeyMediaType, imageRefKey, newImageRef, parseDataUrl } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import { ImageStore } from '@deepclaw/node-utils';
+import { GPT_IMAGE_MODELS, GptImageGenerator } from '../../image/gpt-image-generator';
 import { ImageGenerator } from '../../image/image-generator';
 import { QWEN_MODELS, QwenImageGenerator } from '../../image/qwen-image-generator';
 import { SEEDREAM_MODELS, SeedreamImageGenerator } from '../../image/seedream-image-generator';
@@ -12,7 +13,7 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 
 const SIZES = ['1328*1328', '1664*928', '928*1664', '1472*1104', '1104*1472'] as const;
 
-// Both vendors refuse a picture of more than ten megabytes, and qwen takes at most three of them.
+// A vendor refuses a picture of more than ten megabytes, and qwen takes at most three of them.
 const MAX_SOURCE_MB = 10;
 const MAX_SOURCE_IMAGES = 3;
 
@@ -99,6 +100,9 @@ function generatorOf(choice: ImageModel, configuredKey?: string): ImageGenerator
     if (SEEDREAM_MODELS.includes(choice)) {
         return new SeedreamImageGenerator(choice, keyOf(configuredKey, SeedreamImageGenerator.envKey));
     }
+    if (GPT_IMAGE_MODELS.includes(choice)) {
+        return new GptImageGenerator(choice, keyOf(configuredKey, GptImageGenerator.envKey));
+    }
     throw new Error(i18nInstance.t('agent.tools.image.unsupportedModel', {model: choice}));
 }
 
@@ -141,14 +145,21 @@ function keyOf(configured: string | undefined, envKey: string): string {
 }
 
 /**
- * The link the service answers with expires within a day, so the bytes are kept right away.
- * They land in the store every other image goes through, which is what lets a chat, a browser
- * and an im client all reach the same picture through one reference.
+ * One vendor answers with a link that expires within a day, another hands the bytes over inline;
+ * either way they are kept right away. They land in the store every other image goes through,
+ * which is what lets a chat, a browser and an im client all reach the same picture through one
+ * reference.
  */
-async function store(imageUrl: string, loopId: string): Promise<string> {
-    const response = await fetch(imageUrl, {signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)});
+async function store(drawn: string, loopId: string): Promise<string> {
+    const inline = parseDataUrl(drawn);
+    if (inline) {
+        return ImageStore.save(
+            Buffer.from(inline.base64, 'base64'), extensionOf(inline.mediaType), loopId
+        );
+    }
+    const response = await fetch(drawn, {signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)});
     if (!response.ok) {
-        throw new Error(`The generated image could not be downloaded (${response.status}): ${imageUrl}`);
+        throw new Error(`The generated image could not be downloaded (${response.status}): ${drawn}`);
     }
     const bytes = Buffer.from(await response.arrayBuffer());
     return ImageStore.save(bytes, extensionOf(response.headers.get('content-type')), loopId);
