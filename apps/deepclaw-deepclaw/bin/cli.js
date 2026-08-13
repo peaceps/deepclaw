@@ -5,10 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const deepclawHome = path.join(os.homedir(), '.deepclaw');
+// Everything an agent reads or writes belongs to the user, not to wherever they typed the
+// command. The web ui runs as a server of its own that chdirs into its installation, so the
+// home has to travel to it as a variable rather than as a working directory.
+const deepclawHome = process.env.DEEPCLAW_HOME || path.join(os.homedir(), '.deepclaw');
 if (!fs.existsSync(deepclawHome)) {
     fs.mkdirSync(deepclawHome, { recursive: true });
 }
+process.env.DEEPCLAW_HOME = deepclawHome;
 process.chdir(deepclawHome);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

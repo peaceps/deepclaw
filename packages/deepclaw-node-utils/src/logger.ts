@@ -1,6 +1,9 @@
 import pino from 'pino'
+import { FileUtils } from './file-utils';
 
-const LOG_FILE = `./.logs/runtime_${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}.log`;
+// a packaged web server runs from inside its own installation, so the logs are placed by hand
+const LOG_FILE = `${FileUtils.getWorkingDir()}/.logs/runtime_${
+    new Date().toISOString().replace(/[\-TZ\.:]/g, '')}.log`;
 
 let logger: pino.Logger | null = null;
 

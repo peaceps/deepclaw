@@ -392,12 +392,21 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected addUserMessage(message: string, images?: ImageContent[]): void {
         if (images && images.length > 0) {
-            this.history.push(this.llm.newImageInputMessage(namingImages(message, images), images));
+            this.history.push(this.llm.newImageInputMessage(this.namingImages(message, images), images));
         } else {
             this.addStringMessage(message);
         }
     }
-        
+
+    /**
+     * The bytes of a picture reach the model, its reference does not: it is swapped for them on the
+     * way out. Naming it beside the picture is what lets the model hand that picture to a tool later.
+     */
+    private namingImages(message: string, images: ImageContent[]): string {
+        const refs = images.map(image => image.url).filter(url => isImageRef(url));
+        return refs.length ? `${message}\n${refs.map(ref => `[image ${ref}]`).join('\n')}` : message;
+    }
+
     protected extractFinalText(messages: I[]): string {
         return messages.length === 0 ? '' :
             this.llm.getTextFromInputMessage(messages[messages.length - 1]!);
@@ -429,13 +438,4 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         subLoopAgentHandler: AgentHandler,
         subLoopId: string,
     ): LoopAgent<I, O, LLM>;
-}
-
-/**
- * The bytes of a picture reach the model, its reference does not: it is swapped for them on the
- * way out. Naming it beside the picture is what lets the model hand that picture to a tool later.
- */
-function namingImages(message: string, images: ImageContent[]): string {
-    const refs = images.map(image => image.url).filter(url => isImageRef(url));
-    return refs.length ? `${message}\n${refs.map(ref => `[image ${ref}]`).join('\n')}` : message;
 }

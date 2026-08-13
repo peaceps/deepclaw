@@ -1,4 +1,5 @@
 import {describe, expect, test, vi} from 'vitest';
+import {FileUtils} from './file-utils';
 import {getLogger, getLoopLogger} from './logger';
 
 const mocks = vi.hoisted(() => {
@@ -43,16 +44,15 @@ describe('root logger', () => {
         expect(mocks.root).toHaveBeenCalledOnce();
     });
 
-    test('writes to a file under .logs and creates the folder when missing', () => {
+    /** The web server of a published build runs from its own installation, never from the home. */
+    test('writes to a file under the .logs of the working dir and creates the folder when missing', () => {
         getLogger('any');
-        expect(mocks.root).toHaveBeenCalledWith(expect.objectContaining({
-            transport: {
-                target: 'pino/file',
-                options: expect.objectContaining({
-                    destination: expect.stringMatching(/^\.\/\.logs\/runtime_\d+\.log$/),
-                    mkdir: true,
-                }),
-            },
-        }));
+        const config = mocks.root.mock.calls[0]![0] as {
+            transport: {target: string, options: {destination: string, mkdir: boolean}}
+        };
+        expect(config.transport.target).toBe('pino/file');
+        expect(config.transport.options.mkdir).toBe(true);
+        expect(config.transport.options.destination).toMatch(/\/\.logs\/runtime_\d+\.log$/);
+        expect(config.transport.options.destination.startsWith(FileUtils.getWorkingDir())).toBe(true);
     });
 });

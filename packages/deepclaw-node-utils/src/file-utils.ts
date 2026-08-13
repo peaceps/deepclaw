@@ -145,14 +145,26 @@ export class FileUtils {
         const targetPath = toDir ? `${toDir}/${targetName}` : targetName;
         const destination = path.resolve(this.getWorkingDir(), targetPath);
         if (!fs.existsSync(destination)) {
-            let source = path.join(fromDir, 'resources', targetName);
-            if (!fs.existsSync(source)) {
-                source = path.join(fromDir, '..', 'resources', targetName);
-            }
-            if (fs.existsSync(source)) {
+            const source = this.resourceOf(fromDir, targetName);
+            if (source) {
                 fs.cpSync(source, destination, { recursive: true });
             }
         }
+    }
+
+    /**
+     * A checkout keeps its resources beside the module that asks for them. A packaged build
+     * cannot: the code it asks from is bundled somewhere else entirely, so the launcher names
+     * the folder the resources were shipped in.
+     */
+    private static resourceOf(fromDir: string, targetName: string): string | null {
+        const shipped = process.env['DEEPCLAW_RESOURCES'];
+        const candidates = [
+            ...(shipped ? [path.join(shipped, targetName)] : []),
+            path.join(fromDir, 'resources', targetName),
+            path.join(fromDir, '..', 'resources', targetName),
+        ];
+        return candidates.find(candidate => fs.existsSync(candidate)) ?? null;
     }
 
     private static getAbsolutePath(relativePath: string): string {
@@ -186,7 +198,8 @@ export class FileUtils {
         return prefix + this.formatSlash(suffix).replace(reg, '_');
     }
 
-    private static getWorkingDir(): string {
+    /** Everything an agent reads or writes lives here, whatever the process was started from. */
+    public static getWorkingDir(): string {
         return process.env['DEEPCLAW_HOME'] || process.cwd();
     }
 
