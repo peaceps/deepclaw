@@ -258,7 +258,7 @@ export const en = {
                             basic: 'Basic info',
                             im: 'Connect IM software',
                             llm: 'LLM configs',
-                            image: 'Image generation',
+                            image: 'Multimodal configs',
                         },
                         imageModel: {
                             placeholder: '<Please select an image model>',
@@ -333,6 +333,8 @@ export const en = {
                     model: {
                         prompt: 'LLM model',
                     },
+                },
+                multimodal: {
                     imageModel: {
                         prompt: 'Image model',
                         options: {

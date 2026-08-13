@@ -32,6 +32,7 @@ export function newTestAgentConfig(overrides: Partial<AgentConfig> = {}): AgentC
         mode: 'agent',
         im: {enabled: false},
         llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model'},
+        multimodal: {},
         ...overrides,
     };
 }

@@ -72,11 +72,11 @@ them out to draw from the prompt alone.`,
         if (!prompt) {
             throw new Error('The prompt of an image cannot be empty.');
         }
-        const choice = context.loopConfig.llm.imageModel;
+        const choice = context.loopConfig.multimodal.imageModel;
         if (!choice) {
             throw new Error(i18nInstance.t('agent.tools.image.noModel'));
         }
-        const generator = generatorOf(choice, context.loopConfig.llm.imageApiKey);
+        const generator = generatorOf(choice, context.loopConfig.multimodal.imageApiKey);
         const drawn = await generator.draw({
             prompt,
             negativePrompt: input.negativePrompt,

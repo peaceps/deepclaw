@@ -51,9 +51,7 @@ function requestBodyOf(call: number): any {
 /** The key and the model belong to the agent that runs the tool, so they arrive with the context. */
 function contextWithKey(imageApiKey = 'configured-key', imageModel: ImageModel = 'qwen-image-3.0') {
     return newTestContext({
-        loopConfig: newTestAgentConfig({
-            llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model', imageModel, imageApiKey},
-        }),
+        loopConfig: newTestAgentConfig({multimodal: {imageModel, imageApiKey}}),
     });
 }
 
@@ -143,9 +141,7 @@ describe('generateImageTool invoke', () => {
 
     test('never picks a vendor for the user when no image model is set', async () => {
         const context = newTestContext({
-            loopConfig: newTestAgentConfig({
-                llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model', imageApiKey: 'k'},
-            }),
+            loopConfig: newTestAgentConfig({multimodal: {imageApiKey: 'k'}}),
         });
 
         await expect(generateImageTool.invoke({prompt: 'a whale'}, context))

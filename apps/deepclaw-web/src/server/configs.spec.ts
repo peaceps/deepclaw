@@ -38,6 +38,7 @@ function newAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
         mode: 'agent',
         im: {enabled: false},
         llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model'},
+        multimodal: {},
         ...overrides,
     };
 }

@@ -258,7 +258,7 @@ export const zh = {
                             basic: '基本信息',
                             im: '连接即时通讯软件',
                             llm: 'LLM配置',
-                            image: '生图配置',
+                            image: '多模态配置',
                         },
                         imageModel: {
                             placeholder: '<请选择图片模型>',
@@ -333,6 +333,8 @@ export const zh = {
                     model: {
                         prompt: '模型名称',
                     },
+                },
+                multimodal: {
                     imageModel: {
                         prompt: '图片模型',
                         options: {

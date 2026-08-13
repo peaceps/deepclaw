@@ -1,7 +1,8 @@
 import {describe, expect, test} from 'vitest';
 import {
     loadConfig, validateAppConfig,
-    type AgentConfig, type DeepclawConfig, type IMConfig, type LLMConfig, type UIConfig
+    type AgentConfig, type DeepclawConfig, type IMConfig, type LLMConfig,
+    type MultimodalConfig, type UIConfig
 } from './app-config';
 import {type ImageModel} from './image-models';
 
@@ -12,6 +13,7 @@ function newAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
         mode: 'agent',
         im: {enabled: false},
         llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model'},
+        multimodal: {},
         ...overrides,
     };
 }
@@ -165,17 +167,26 @@ describe('validateAppConfig llm', () => {
         const {lacks} = validateAppConfig(newConfig({agents: [agent]}));
         expect(agentLacks(lacks)).toEqual(['llm.baseURL', 'llm.model']);
     });
+});
+
+describe('validateAppConfig multimodal', () => {
 
     test('keeps a known image model and never demands one', () => {
-        const llm = {baseURL: 'url', apiKey: 'key', model: 'model', imageModel: 'doubao-seedream-4-0-250828' as const};
-        const {config, lacks} = validateAppConfig(newConfig({agents: [newAgent({llm})]}));
-        expect(config.agents[0]!.llm.imageModel).toBe('doubao-seedream-4-0-250828');
+        const multimodal = {imageModel: 'doubao-seedream-4-0-250828' as const, imageApiKey: 'key'};
+        const {config, lacks} = validateAppConfig(newConfig({agents: [newAgent({multimodal})]}));
+        expect(config.agents[0]!.multimodal).toEqual(multimodal);
         expect(agentLacks(lacks)).toEqual([]);
     });
 
     test('drops an image model nobody serves', () => {
-        const llm = {baseURL: 'url', apiKey: 'key', model: 'model', imageModel: 'dall-e-1' as unknown as ImageModel};
-        const {config} = validateAppConfig(newConfig({agents: [newAgent({llm})]}));
-        expect(config.agents[0]!.llm.imageModel).toBeUndefined();
+        const multimodal = {imageModel: 'dall-e-1' as unknown as ImageModel};
+        const {config} = validateAppConfig(newConfig({agents: [newAgent({multimodal})]}));
+        expect(config.agents[0]!.multimodal.imageModel).toBeUndefined();
+    });
+
+    test('gives an agent that has never drawn a block of its own', () => {
+        const agent = newAgent({multimodal: undefined as unknown as MultimodalConfig});
+        const {config} = validateAppConfig(newConfig({agents: [agent]}));
+        expect(config.agents[0]!.multimodal).toEqual({});
     });
 });

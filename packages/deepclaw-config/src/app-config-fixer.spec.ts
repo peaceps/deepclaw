@@ -86,6 +86,7 @@ describe('validateAndFixCurrentConfig', () => {
             mode: 'agent',
             im: {enabled: false},
             llm: {baseURL: 'https://api', apiKey: 'key', model: 'model'},
+            multimodal: {},
         }]);
     });
 

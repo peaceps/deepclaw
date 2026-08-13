@@ -13,7 +13,7 @@ export async function validateAndFixCurrentConfig(
         await handleAgentEvent(APP_CONFIG_EVENTS['hint']!);
         const agentsIndex = appConfig.lacks.indexOf('agents');
         if (agentsIndex !== -1) {
-            const agent = {llm: {}, im: {}} as AgentConfig;
+            const agent = {llm: {}, im: {}, multimodal: {}} as AgentConfig;
             const missing = ['name', 'mode', 'llm.baseURL', 'llm.apiKey', 'llm.model', 'im.enabled'];
             appConfig.config.agents = [agent];
             appConfig.lacks.splice(agentsIndex, 1, { agents: { 0: missing } });

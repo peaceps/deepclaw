@@ -225,6 +225,24 @@ describe('app store', () => {
             store().updateAgentEmployee({id: 'a1', fired: true});
             expect(store().selectedAgentId).toBe('a1');
         });
+
+        test('selects the first agent hired after the page was loaded without any', () => {
+            store().setAgents([]);
+            store().updateAgentEmployee({id: 'a9', name: 'Newcomer'});
+            expect(store().selectedAgentId).toBe('a9');
+        });
+
+        test('leaves a standing selection alone when another agent is hired', () => {
+            store().setAgents([newAgent()]);
+            store().updateAgentEmployee({id: 'a2', name: 'Newcomer'});
+            expect(store().selectedAgentId).toBe('a1');
+        });
+
+        test('selects nobody while the only agent of the patch is fired', () => {
+            store().setAgents([]);
+            store().updateAgentEmployee({id: 'a9', name: 'Newcomer', fired: true});
+            expect(store().selectedAgentId).toBeNull();
+        });
     });
 
     describe('projects', () => {

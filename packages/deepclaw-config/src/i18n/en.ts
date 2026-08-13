@@ -52,6 +52,8 @@ export const en = {
                 model: {
                     prompt: 'Please enter the LLM model name:',
                 },
+            },
+            multimodal: {
                 imageModel: {
                     prompt: 'Which model will be used to generate images?',
                     options: {

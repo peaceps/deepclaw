@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import type {
     CONFIGS_EVENTS, DeepclawConfig, AgentConfig, IMConfig,
-    LLMConfig, UIConfig, ManagerConfig,
+    LLMConfig, MultimodalConfig, UIConfig, ManagerConfig,
     AdvancedConfig
 } from '@deepclaw/config';
 import { type AgentInteractionEvent } from '@deepclaw/core';
@@ -60,6 +60,7 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       name: '',
       mode: '',
       llm: { baseURL: '', apiKey: '', model: '' },
+      multimodal: {},
       im: {enabled: false}
     } as unknown as AgentConfig;
     setConfig((prev) => ({ ...prev, agents: [...prev.agents, newAgent] }));
@@ -80,6 +81,16 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
       ...prev,
       agents: prev.agents.map((agent, i) =>
         i === index ? { ...agent, llm: { ...agent.llm, ...updates } } : agent
+      ),
+    }));
+    setEdited(true);
+  }, []);
+
+  const updateAgentMultimodal = useCallback((index: number, updates: Partial<MultimodalConfig>) => {
+    setConfig((prev) => ({
+      ...prev,
+      agents: prev.agents.map((agent, i) =>
+        i === index ? { ...agent, multimodal: { ...agent.multimodal, ...updates } } : agent
       ),
     }));
     setEdited(true);
@@ -233,6 +244,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
                   validationErrors={validationResult.errors.filter(e => e.startsWith(`agents.${index}.`))}
                   onUpdate={updateAgent}
                   onUpdateLLM={updateAgentLLM}
+                  onUpdateMultimodal={updateAgentMultimodal}
                   onUpdateIM={updateAgentIM}
                   onRemove={removeAgent}
                 />

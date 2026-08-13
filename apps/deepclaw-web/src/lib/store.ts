@@ -70,7 +70,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   getAgentById: (id: string) => get().agents.find(a => a.id === id),
   setAgents: (agents) => {
     set({ agents, activeAgents: agents.filter(a => !a.fired) });
-    selectFirstActiveAgent(get, set);
+    reselectAgent(get, set);
   },
   updateAgentEmployee: (employee: UpdateContent<AgentEmployee>) => {
     set((state) => {
@@ -78,6 +78,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const activeAgents = agents.filter(a => !a.fired);
         return { agents, activeAgents };
     });
+    selectFirstActiveAgent(get, set);
   },
   getProjects: () => get().projects,
   setProjects: (projects) => set({ projects }),
@@ -153,12 +154,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
 }));
 
+/** A roster that arrives whole may no longer hold the agent the page was showing. */
+function reselectAgent(get: () => AppState, set: (state: Partial<AppState>) => void): void {
+    const { selectedAgentId, activeAgents } = get();
+    if (selectedAgentId && !activeAgents.some(a => a.id === selectedAgentId)) {
+        set({ selectedAgentId: null });
+    }
+    selectFirstActiveAgent(get, set);
+}
+
+/**
+ * A page with nothing selected has nothing to show, so the first agent to arrive takes the place:
+ * on a fresh install that is the one the config the user just filled in has hired.
+ */
 function selectFirstActiveAgent(get: () => AppState, set: (state: Partial<AppState>) => void): void {
     const { selectedAgentId, activeAgents } = get();
-    const selectedLost = !activeAgents.some(a => a.id === selectedAgentId);
-    if ((!selectedAgentId || selectedLost) && activeAgents.length > 0) {
+    if (!selectedAgentId && activeAgents.length > 0) {
         set({ selectedAgentId: activeAgents[0].id });
-    } else if (selectedLost) {
-        set({ selectedAgentId: null });
     }
 }

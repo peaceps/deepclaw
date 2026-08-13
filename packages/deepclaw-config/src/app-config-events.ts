@@ -77,14 +77,16 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
         type: 'input',
         content: 'config.agents.llm.model.prompt'
     },
-    ['agents.llm.imageModel']: {
+    ['agents.multimodal.imageModel']: {
         type: 'select',
-        content: 'config.agents.llm.imageModel.prompt',
-        options: IMAGE_MODELS.map((value) => ({label: `config.agents.llm.imageModel.options.${value}`, value})),
+        content: 'config.agents.multimodal.imageModel.prompt',
+        options: IMAGE_MODELS.map((value) => ({
+            label: `config.agents.multimodal.imageModel.options.${value}`, value
+        })),
     },
-    ['agents.llm.imageApiKey']: {
+    ['agents.multimodal.imageApiKey']: {
         type: 'input',
-        content: 'config.agents.llm.imageApiKey.prompt'
+        content: 'config.agents.multimodal.imageApiKey.prompt'
     },
     ['advanced.mcpServer']: {
         type: 'input',

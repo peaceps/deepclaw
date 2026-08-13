@@ -28,6 +28,9 @@ export type DeepclawConfig = {
             baseURL: string;
             apiKey: string;
             model: string;
+        },
+        /** What the agent works in besides words. Drawing, for now. */
+        multimodal: {
             imageModel?: ImageModel;
             /** Key for image generation. Falls back to the variable of the picked vendor. */
             imageApiKey?: string;
@@ -47,6 +50,7 @@ export type AgentConfig = AgentsConfig[number];
 export type AgentMode = AgentConfig['mode'];
 export type IMConfig = NonNullable<AgentConfig['im']>;
 export type LLMConfig = AgentConfig['llm'];
+export type MultimodalConfig = AgentConfig['multimodal'];
 export type AdvancedConfig = DeepclawConfig['advanced'];
 
 export type MissingAppConfig = (string|{[key in keyof Partial<DeepclawConfig>]: {[key: number]: string[]}})[];
@@ -92,6 +96,10 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
         if (!agent.im) {
             agent.im = {} as IMConfig;
         }
+        if (!agent.multimodal) {
+            agent.multimodal = {} as MultimodalConfig;
+        }
+        adoptLegacyImageKeys(agent);
     }
     const activeAgents = appConfig.agents.filter(agent => !agent.fired);
     if (activeAgents.length > MAX_AGENT_COUNT) {
@@ -102,6 +110,18 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
     if (!appConfig.advanced) {
         appConfig.advanced = {} as AdvancedConfig;
     }
+}
+
+/** Drawing used to be part of the llm section, which it never had anything to do with. */
+function adoptLegacyImageKeys(agent: AgentConfig): void {
+    const llm = agent.llm as LLMConfig & Partial<MultimodalConfig>;
+    if (!llm) {
+        return;
+    }
+    agent.multimodal.imageModel ??= llm.imageModel;
+    agent.multimodal.imageApiKey ??= llm.imageApiKey;
+    delete llm.imageModel;
+    delete llm.imageApiKey;
 }
 
 export function validateCurrentAppConfig(): {config: DeepclawConfig, lacks: MissingAppConfig} {
@@ -171,9 +191,12 @@ export function validateAppConfig(configToValidate: Partial<DeepclawConfig>): {
                 if (!agent.llm.model) {
                     agentLacks.push('llm.model');
                 }
-                if (agent.llm.imageModel && !IMAGE_MODELS.includes(agent.llm.imageModel)) {
-                    agent.llm.imageModel = undefined;
-                }
+            }
+            if (!agent.multimodal) {
+                agent.multimodal = {} as MultimodalConfig;
+            }
+            if (agent.multimodal.imageModel && !IMAGE_MODELS.includes(agent.multimodal.imageModel)) {
+                agent.multimodal.imageModel = undefined;
             }
             if (agentLacks.length > 0) {
                 agentsLacks[index] = agentLacks;

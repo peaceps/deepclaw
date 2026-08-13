@@ -52,6 +52,8 @@ export const zh = {
                 model: {
                     prompt: '请输入模型名称：',
                 },
+            },
+            multimodal: {
                 imageModel: {
                     prompt: '用哪个模型生图？',
                     options: {

@@ -34,6 +34,7 @@ function newAgent(id: string, enabled: boolean, name: string = id): AgentConfig 
         mode: 'agent',
         im: {enabled},
         llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model'},
+        multimodal: {},
     };
 }
 
