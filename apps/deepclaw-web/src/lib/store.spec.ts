@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test} from 'vitest';
-import type {AgentEmployee, ChatMessage, Project, RunningTask, Task} from '@deepclaw/core';
+import type {AgentEmployee, ChatMessage, CronTask, Project, RunningTask, Task} from '@deepclaw/core';
 import {type AgentActivity, deriveAgentSummary, useAppStore} from './store';
 
 function newAgent(overrides: Partial<AgentEmployee> = {}): AgentEmployee {
@@ -53,6 +53,20 @@ function newRunningTask(overrides: Partial<RunningTask> = {}): RunningTask {
         taskTitle: 'ship it',
         agentId: 'a1',
         startedAt: '2024-01-01T00:00:00.000Z',
+        ...overrides,
+    };
+}
+
+function newCronTask(overrides: Partial<CronTask> = {}): CronTask {
+    return {
+        id: 'c1',
+        title: 'daily report',
+        creator: 'a1',
+        cron: '0 9 * * *',
+        prompt: 'write the report',
+        nextRun: '2024-01-02T09:00:00.000Z',
+        histories: [],
+        usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
         ...overrides,
     };
 }
@@ -145,6 +159,7 @@ describe('app store', () => {
             agents: [],
             activeAgents: [],
             projects: [],
+            cronTasks: [],
             messages: {},
             busyChatKeys: {},
             selectedAgentId: null,
@@ -301,6 +316,34 @@ describe('app store', () => {
             store().setProjects([newProject({closedAt: '2024-02-01T00:00:00.000Z'})]);
             store().updateProject({id: 'p1', closedAt: null});
             expect(store().getProjects()[0]).not.toHaveProperty('closedAt');
+        });
+    });
+
+    describe('cron tasks', () => {
+
+        test('replaces the whole list', () => {
+            store().setCronTasks([newCronTask()]);
+            store().setCronTasks([newCronTask({id: 'c2'})]);
+            expect(store().cronTasks.map(task => task.id)).toEqual(['c2']);
+        });
+
+        test('merges a patch into a known task', () => {
+            store().setCronTasks([newCronTask()]);
+            store().updateCronTask({id: 'c1', paused: true, nextRun: null});
+            expect(store().cronTasks[0]).toEqual(newCronTask({paused: true, nextRun: undefined}));
+        });
+
+        test('appends a task that was created after the page loaded', () => {
+            store().setCronTasks([newCronTask()]);
+            store().updateCronTask(newCronTask({id: 'c2'}));
+            expect(store().cronTasks.map(task => task.id)).toEqual(['c1', 'c2']);
+        });
+
+        /** A closed task never comes back, the service leaves it out of the list it hands over. */
+        test('forgets a task that was closed', () => {
+            store().setCronTasks([newCronTask(), newCronTask({id: 'c2'})]);
+            store().updateCronTask({id: 'c1', closed: true});
+            expect(store().cronTasks.map(task => task.id)).toEqual(['c2']);
         });
     });
 

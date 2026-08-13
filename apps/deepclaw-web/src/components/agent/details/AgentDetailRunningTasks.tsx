@@ -19,7 +19,8 @@ export function AgentDetailRunningTasks({ agent }: { agent: AgentEmployee }) {
   return (
     <InfoCard title="web.pages.agents.details.runningTasks.title" icon={<Activity size={20} />} color="cyan">
       {runs.length > 0 ? (
-        <div className="space-y-3">
+        // Room for about three runs, the rest is a scroll away so the card stays a card.
+        <div className="space-y-3 max-h-[420px] overflow-y-auto">
           {runs.map(run => (
             <RunningTaskRow
               key={run.runId}

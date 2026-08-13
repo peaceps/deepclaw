@@ -25,11 +25,14 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
           <label className="text-sm text-gray-500 mb-2 block">
             {t('web.pages.agents.details.workStatus.currentProject')}
           </label>
-          {currentProjects.length > 0 ? (currentProjects.map(currentProject => {
+          {currentProjects.length > 0 ? (
+          // Room for about three projects, the rest is a scroll away so the card stays a card.
+          <div className="space-y-4 mt-4 max-h-[450px] overflow-y-auto">
+          {currentProjects.map(currentProject => {
             const progress = getProjectProgress(currentProject);
             return <Link
               href={`/projects?project=${encodeURIComponent(currentProject.id)}`}
-              className="block bg-gray-50 rounded-lg p-3 mt-4 cursor-pointer transition-colors
+              className="block bg-gray-50 rounded-lg p-3 cursor-pointer transition-colors
                 hover:bg-gray-100 focus:outline-none
                 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
               key={currentProject.id}
@@ -54,7 +57,8 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
               </div>
               <ProgressBar value={progress} size="sm" showLabel={false} className="mt-2" />
               </>}
-            </Link>})
+            </Link>})}
+          </div>
           ) : (
             <div className="text-sm text-gray-400 italic">
               {t('web.pages.agents.details.workStatus.noProject')}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  Project, AgentEmployee, AgentStatus, AgentProjectStats, RunningTask, Task, ChatMessage
+  Project, AgentEmployee, AgentStatus, AgentProjectStats, CronTask, RunningTask, Task, ChatMessage
 } from '@deepclaw/core';
 import { getProjectStatus, splitLoopId } from '@deepclaw/core';
 import { UpdateContent } from '@deepclaw/utils';
@@ -59,6 +59,7 @@ type AppState = {
   projects: Project[];
   runningTasks: RunningTask[];
   busyLoops: string[];
+  cronTasks: CronTask[];
   messages: {[key: string]: ChatMessage[]},
   busyChatKeys: Record<string, boolean>;
   selectedAgentId: string | null;
@@ -75,6 +76,8 @@ type AppState = {
   updateProjectTask: (projectId: string, task: UpdateContent<Task, 'title'>) => void;
   setRunningTasks: (runningTasks: RunningTask[]) => void;
   setBusyLoops: (busyLoops: string[]) => void;
+  setCronTasks: (cronTasks: CronTask[]) => void;
+  updateCronTask: (cronTask: UpdateContent<CronTask>) => void;
   addPulledMessages: (loopId: string, messages: ChatMessage[], head?: boolean) => void;
   addMessage: (loopId: string, message: ChatMessage) => void;
   getMessageById: (loopId: string, id: string) => ChatMessage | undefined;
@@ -93,6 +96,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
   runningTasks: [],
   busyLoops: [],
+  cronTasks: [],
   messages: {},
   busyChatKeys: {},
   selectedAgentId: null,
@@ -136,6 +140,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   setRunningTasks: (runningTasks) => set({ runningTasks }),
   setBusyLoops: (busyLoops) => set({ busyLoops }),
+  setCronTasks: (cronTasks) => set({ cronTasks }),
+  /** A closed task is gone for good, the service drops it from the list it hands out. */
+  updateCronTask: (cronTask: UpdateContent<CronTask>): void => {
+    set((state) => ({
+      cronTasks: handleUpdatedArrayContent(state.cronTasks, cronTask, !!cronTask.closed),
+    }));
+  },
   addPulledMessages: (loopId: string, messages: ChatMessage[], head: boolean = false) => set((state) => {
     const oldMessages = state.messages[loopId] || [];
     return {

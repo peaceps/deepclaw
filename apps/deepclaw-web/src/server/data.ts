@@ -1,6 +1,6 @@
 'use server';
 
-import type { Task, CronTask, CronJobHistory, AgentSoulIdentity } from "@deepclaw/core";
+import type { Task, CronJobHistory, AgentSoulIdentity } from "@deepclaw/core";
 import { LoopGateway, type SkillInfo } from "@deepclaw/loop-gateway";
 import { UpdateContent } from "@deepclaw/utils";
 import { revalidatePath } from "next/cache";
@@ -65,10 +65,6 @@ export async function setSkillAgents(skillName: string, agentIds?: string[]): Pr
         console.error('Error setting skill agents:', error);
         throw error;
     }
-}
-
-export async function getCronTasks(): Promise<CronTask[]> {
-    return LoopGateway.getCronTasks();
 }
 
 export async function getCronHistories(

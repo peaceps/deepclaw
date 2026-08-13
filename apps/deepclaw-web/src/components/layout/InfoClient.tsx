@@ -8,7 +8,8 @@ import { useSSEClient } from './SSEProvider';
 import { useToastStore } from '@/lib/toast-store';
 import { ToastService } from '@/lib/toast-service';
 import {
-  AgentAgentInfoEvent, AgentBusyLoopsInfoEvent, AgentProjectInfoEvent, AgentRunningTasksInfoEvent
+  AgentAgentInfoEvent, AgentBusyLoopsInfoEvent, AgentCronInfoEvent, AgentProjectInfoEvent,
+  AgentRunningTasksInfoEvent
 } from '@deepclaw/core';
 
 const logger = getLogger('InfoClient');
@@ -22,6 +23,7 @@ export function InfoClient() {
   const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
   const setRunningTasks = useAppStore(s => s.setRunningTasks);
   const setBusyLoops = useAppStore(s => s.setBusyLoops);
+  const updateCronTask = useAppStore(s => s.updateCronTask);
   const show = useToastStore(t => t.show);
 
   useEffect(() => {
@@ -63,6 +65,13 @@ export function InfoClient() {
           setBusyLoops(content);
         },
       ),
+      sseClient.subscribe<AgentCronInfoEvent>(
+        INFO_SSE_URL,
+        'updateCron',
+        ({content}) => {
+          updateCronTask(content);
+        },
+      ),
       sseClient.subscribe<SSEToastEvent>(
         INFO_SSE_URL,
         'toast',
@@ -79,7 +88,7 @@ export function InfoClient() {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
   }, [
-    sseClient, updateProject, updateAgentEmployee, setRunningTasks, setBusyLoops,
+    sseClient, updateProject, updateAgentEmployee, setRunningTasks, setBusyLoops, updateCronTask,
     browserId, getAgents, getProjects, show,
   ]);
 

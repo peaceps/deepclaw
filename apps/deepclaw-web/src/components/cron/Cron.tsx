@@ -1,20 +1,36 @@
 'use client';
 
 import { useTranslation } from 'react-i18next';
+import { useEffect, useRef } from 'react';
 import { Clock } from 'lucide-react';
 import { InfoBar } from '@/laf/info-bar';
-import type { CronTask } from '@deepclaw/core';
 import { CollapseTask } from './CollapseTask';
-import { useSSEConnection, useTaskOperation } from './use-cron-hooks';
+import { useTaskOperation } from './use-cron-hooks';
 
-type CronProperties = {
-    cronTasks: CronTask[];
-}
-
-export function Cron({ cronTasks }: CronProperties) {
+export function Cron({ selectedTaskId }: { selectedTaskId?: string }) {
     const { t } = useTranslation();
-    const { tasks, expandedId, toggle, toggleStatus, deleteTask, setTasks } = useTaskOperation(cronTasks);
-    useSSEConnection(setTasks);
+    const { tasks, expandedId, toggle, toggleStatus, deleteTask } = useTaskOperation(selectedTaskId);
+    const selectedTaskRef = useRef<HTMLDivElement | null>(null);
+    const scrolledTaskIdRef = useRef<string | undefined>(undefined);
+
+    // Opening a row below the fold looks like nothing happened, so the deep link brings it into view.
+    useEffect(() => {
+        if (!selectedTaskId) {
+            scrolledTaskIdRef.current = undefined;
+            return;
+        }
+        if (expandedId !== selectedTaskId) return;
+        if (scrolledTaskIdRef.current === selectedTaskId) return;
+
+        const taskElement = selectedTaskRef.current;
+        if (!taskElement) return;
+
+        const frame = requestAnimationFrame(() => {
+            scrolledTaskIdRef.current = selectedTaskId;
+            taskElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [expandedId, selectedTaskId, tasks]);
 
     return (
         <div className="h-full w-full overflow-auto p-6">
@@ -30,14 +46,15 @@ export function Cron({ cronTasks }: CronProperties) {
                         <p className="text-sm">{t('web.pages.cron.empty')}</p>
                     </div>
                 ) : tasks.map(task => (
-                    <CollapseTask
-                        key={task.id}
-                        task={task}
-                        isExpanded={expandedId === task.id}
-                        onToggle={() => toggle(task.id)}
-                        onToggleStatus={() => toggleStatus(task.id)}
-                        onDelete={() => deleteTask(task.id)}
-                    />
+                    <div key={task.id} ref={task.id === selectedTaskId ? selectedTaskRef : undefined}>
+                        <CollapseTask
+                            task={task}
+                            isExpanded={expandedId === task.id}
+                            onToggle={() => toggle(task.id)}
+                            onToggleStatus={() => toggleStatus(task.id)}
+                            onDelete={() => deleteTask(task.id)}
+                        />
+                    </div>
                 ))}
             </div>
         </div>

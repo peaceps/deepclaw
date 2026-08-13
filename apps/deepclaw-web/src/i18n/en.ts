@@ -117,6 +117,10 @@ export const en = {
                         noTask: 'No task running',
                         startedAt: 'Started {{time}}',
                     },
+                    crons: {
+                        title: 'Scheduled Tasks',
+                        noTask: 'No scheduled task',
+                    },
                 },
                 mobile: {
                     returnToList: 'Return to list',
@@ -160,6 +164,7 @@ export const en = {
                             off: 'Not verified',
                         }
                     },
+                    running: 'A subagent is working on this task',
                 }
             },
             chat: {

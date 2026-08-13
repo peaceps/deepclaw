@@ -42,7 +42,8 @@ type LoopState = {
 };
 type LoopStore = Record<string, LoopState>;
 export type DeepclawDataInfo = {
-    agents: AgentEmployee[], projects: Project[], runningTasks: RunningTask[], busyLoops: string[]
+    agents: AgentEmployee[], projects: Project[], runningTasks: RunningTask[], busyLoops: string[],
+    cronTasks: CronTask[]
 };
 
 const INTERACTION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
@@ -381,6 +382,7 @@ class LoopGatewayImpl {
             // A page that just loaded has seen none of the events, so the work travels with it.
             runningTasks: RunningTaskService.getRunningTasks(),
             busyLoops: this.getBusyLoops(),
+            cronTasks: this.getCronTasks(),
         };
     }
 

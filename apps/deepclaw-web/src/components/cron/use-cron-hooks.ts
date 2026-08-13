@@ -1,40 +1,32 @@
 'use client';
 
 import { useAppStore } from "@/lib/store";
-import { useSSEClient } from "../layout/SSEProvider";
-import { AgentCronInfoEvent, CronTask } from "@deepclaw/core";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { updateCronTaskStatus } from "@/server/data";
-import { handleUpdatedArrayContent } from "../component-utils";
 import { usePersistentString } from "@/lib/use-persistent-state";
 
-export function useSSEConnection(
-    setTasks: React.Dispatch<React.SetStateAction<CronTask[]>>,
-) {
-    const browserId = useAppStore(s => s.browserId);
-    const sseClient = useSSEClient();
-
-    useEffect(() => {
-        const INFO_SSE_URL = `/api/info?browserId=${browserId}`;
-        const unsubscribers = [
-          sseClient.subscribe<AgentCronInfoEvent>(
-            INFO_SSE_URL,
-            'updateCron',
-            ({content}) => {
-                setTasks(prev => handleUpdatedArrayContent(prev, content, !!content.closed));
-            },
-          ),
-        ];
-    
-        return () => {
-          unsubscribers.forEach(unsubscribe => unsubscribe());
-        };
-    }, [browserId, setTasks, sseClient]);
-}
-
-export function useTaskOperation(cronTasks: CronTask[]) {
+/**
+ * The task list lives in the store, where the info stream keeps it fresh. This hook only owns the
+ * expanded row and turns a click into a patch the store shows right away, taken back if the call
+ * behind it fails.
+ */
+export function useTaskOperation(selectedTaskId?: string) {
+    const tasks = useAppStore(s => s.cronTasks);
+    const setCronTasks = useAppStore(s => s.setCronTasks);
+    const updateCronTask = useAppStore(s => s.updateCronTask);
     const [expandedId, setExpandedId] = usePersistentString('cron.expandedId');
-    const [tasks, setTasks] = useState<CronTask[]>(cronTasks);
+    const [handledSelectedTaskId, setHandledSelectedTaskId] = useState<string | undefined>();
+
+    // A deep link opens its task once, closing it again is the user's call and not the link's.
+    if (!selectedTaskId && handledSelectedTaskId) {
+        setHandledSelectedTaskId(undefined);
+    } else if (
+        selectedTaskId && selectedTaskId !== handledSelectedTaskId
+        && tasks.some(task => task.id === selectedTaskId)
+    ) {
+        setHandledSelectedTaskId(selectedTaskId);
+        setExpandedId(selectedTaskId);
+    }
 
     const toggle = (id: string) => {
         setExpandedId(prev => (prev === id ? undefined : id));
@@ -43,19 +35,20 @@ export function useTaskOperation(cronTasks: CronTask[]) {
     const toggleStatus = (id: string) => {
         const task = tasks.find(t => t.id === id);
         if (!task) return;
-        const newPaused = !task.paused;
-        setTasks(prev => prev.map(t => t.id === id ? { ...t, paused: newPaused } : t));
-        updateCronTaskStatus(id, newPaused).catch(() => {
-            setTasks(prev => prev.map(t => t.id === id ? { ...t, paused: !newPaused } : t));
+        const paused = !task.paused;
+        updateCronTask({id, paused});
+        updateCronTaskStatus(id, paused).catch(() => {
+            updateCronTask({id, paused: !paused});
         });
     };
 
     const deleteTask = (id: string) => {
+        // The whole list goes back on failure: a single task put back would land at the end of it.
         const previousTasks = tasks;
-        setTasks(prev => prev.filter(task => task.id !== id));
+        updateCronTask({id, closed: true});
         if (expandedId === id) setExpandedId(undefined);
         updateCronTaskStatus(id, undefined, true).catch(() => {
-            setTasks(previousTasks);
+            setCronTasks(previousTasks);
         });
     };
 
@@ -65,6 +58,5 @@ export function useTaskOperation(cronTasks: CronTask[]) {
         toggle,
         toggleStatus,
         deleteTask,
-        setTasks
     };
 }

@@ -117,6 +117,10 @@ export const zh = {
                         noTask: '当前没有正在执行的任务',
                         startedAt: '{{time}} 开始',
                     },
+                    crons: {
+                        title: '定时任务',
+                        noTask: '还没有创建定时任务',
+                    },
                 },
                 mobile: {
                     returnToList: '返回列表',
@@ -160,6 +164,7 @@ export const zh = {
                             off: '未验证',
                         }
                     },
+                    running: '子智能体正在执行这个任务',
                 }
             },
             chat: {

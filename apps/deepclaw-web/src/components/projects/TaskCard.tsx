@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Ban, CirclePause, ClipboardCheck } from 'lucide-react';
+import { Ban, CirclePause, ClipboardCheck, Loader2 } from 'lucide-react';
 import  { type Task, type AgentEmployee, getTaskProgress } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,9 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
   const {t} = useTranslation();
   const progress = getTaskProgress(task);
   const updateProjectTask = useAppStore(s => s.updateProjectTask);
+  // An ongoing task only says the work was taken up, this says a subagent is on it right now.
+  const running = useAppStore(s => s.runningTasks)
+    .some(run => run.projectId === projectId && run.taskTitle === task.title);
 
   const handleAssigneeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -54,6 +57,11 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
       <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex items-start justify-between gap-2">
           <h4 className="font-medium text-gray-900 line-clamp-2 flex-1">{task.title}</h4>
+          {running && (
+            <span title={t('web.pages.projects.task.running')} className="flex-shrink-0 mt-0.5">
+              <Loader2 size={16} className="text-cyan-500 animate-spin" />
+            </span>
+          )}
           <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${priorityStyles[task.priority]}`}>
             {t(`web.common.priority.${task.priority}`)}
           </span>

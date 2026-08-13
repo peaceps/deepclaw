@@ -1,11 +1,11 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {
-    type AgentEmployee, type AgentSoulIdentity, type CronJobHistory, type CronTask, type Task,
+    type AgentEmployee, type AgentSoulIdentity, type CronJobHistory, type Task,
 } from '@deepclaw/core';
 import {type SkillInfo} from '@deepclaw/loop-gateway';
 import {type UpdateContent} from '@deepclaw/utils';
 import {
-    getActiveAgents, getCronHistories, getCronTasks, getSkills, setSkillAgents,
+    getActiveAgents, getCronHistories, getSkills, setSkillAgents,
     updateAgentIdentity, updateCronTaskStatus, updateProjectTags, updateProjectTask,
 } from './data';
 
@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
     getDataInfo: vi.fn<() => {agents: AgentEmployee[]}>(),
     getSkills: vi.fn<() => SkillInfo[]>(),
     setSkillAgents: vi.fn<(name: string, agentIds?: string[]) => void>(),
-    getCronTasks: vi.fn<() => CronTask[]>(),
     getCronHistories: vi.fn<(id: string, beforeStart: number, limit?: number) => CronJobHistory[]>(),
     updateCronTaskStatus: vi.fn<(id: string, pause?: boolean, close?: boolean) => void>(),
     revalidatePath: vi.fn<(path: string, type: string) => void>(),
@@ -30,7 +29,6 @@ vi.mock('@deepclaw/loop-gateway', () => ({
         getDataInfo: mocks.getDataInfo,
         getSkills: mocks.getSkills,
         setSkillAgents: mocks.setSkillAgents,
-        getCronTasks: mocks.getCronTasks,
         getCronHistories: mocks.getCronHistories,
         updateCronTaskStatus: mocks.updateCronTaskStatus,
     },
@@ -193,12 +191,6 @@ describe('skills', () => {
 });
 
 describe('cron tasks', () => {
-
-    test('reads the tasks from the gateway', async () => {
-        const tasks = [{id: 'c1'}] as CronTask[];
-        mocks.getCronTasks.mockReturnValue(tasks);
-        await expect(getCronTasks()).resolves.toBe(tasks);
-    });
 
     test('passes the history cursor and the page size on', async () => {
         mocks.getCronHistories.mockReturnValue([]);

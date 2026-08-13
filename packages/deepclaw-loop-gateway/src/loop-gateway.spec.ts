@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
     getSkillList: vi.fn(),
     updateSkillAgents: vi.fn(),
     getRunningTasks: vi.fn<() => unknown[]>(() => []),
-    getCronTasks: vi.fn(),
+    getCronTasks: vi.fn<() => unknown[]>(() => []),
     getCronHistories: vi.fn(),
     updateCronTaskStatus: vi.fn(),
     addMessage: vi.fn(),
@@ -549,6 +549,12 @@ describe('data updates', () => {
         mocks.getRunningTasks.mockReturnValue([{projectId: 'p1', taskTitle: 'ship it', agentId: 'a1'}]);
         expect(LoopGateway.getDataInfo().runningTasks)
             .toEqual([{projectId: 'p1', taskTitle: 'ship it', agentId: 'a1'}]);
+    });
+
+    test('collects the scheduled tasks as they stand', () => {
+        mocks.getProjectList.mockReturnValue({projects: {open: [], closed: []}});
+        mocks.getCronTasks.mockReturnValue([{id: 'c1', title: 'daily report'}]);
+        expect(LoopGateway.getDataInfo().cronTasks).toEqual([{id: 'c1', title: 'daily report'}]);
     });
 
     test('collects the loops that are working right now', () => {

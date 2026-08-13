@@ -23,6 +23,7 @@ export function RootLayout({ manager, lang, dataInfo, children }: RootLayoutProp
   const setProjects = useAppStore(s => s.setProjects);
   const setRunningTasks = useAppStore(s => s.setRunningTasks);
   const setBusyLoops = useAppStore(s => s.setBusyLoops);
+  const setCronTasks = useAppStore(s => s.setCronTasks);
   const i18nInitRef = useRef<boolean | null>(null);
   const storeRef = useRef<DeepclawDataInfo | null>(null);
   if (i18nInitRef.current === null) {
@@ -34,6 +35,7 @@ export function RootLayout({ manager, lang, dataInfo, children }: RootLayoutProp
     setProjects(dataInfo.projects);
     setRunningTasks(dataInfo.runningTasks);
     setBusyLoops(dataInfo.busyLoops);
+    setCronTasks(dataInfo.cronTasks);
     storeRef.current = dataInfo;
   }
 

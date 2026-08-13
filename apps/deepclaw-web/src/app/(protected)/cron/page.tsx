@@ -1,7 +1,15 @@
 import { Cron } from '@/components/cron/Cron';
-import { getCronTasks } from '@/server/data';
 
-export default async function CronPage() {
-  const cronTasks = await getCronTasks();
-  return <Cron cronTasks={cronTasks}/>;
+type CronPageProps = {
+  searchParams?: Promise<{
+    task?: string | string[];
+  }>;
+};
+
+export default async function CronPage({ searchParams }: CronPageProps) {
+  const params = await searchParams;
+  const taskParam = params?.task;
+  const selectedTaskId = Array.isArray(taskParam) ? taskParam[0] : taskParam;
+
+  return <Cron selectedTaskId={selectedTaskId}/>;
 }
