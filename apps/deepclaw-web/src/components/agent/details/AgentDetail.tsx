@@ -8,6 +8,7 @@ import { AgentHeader } from './AgentDetailHeader';
 import { AgentDetailPersonality } from './AgentDetailPersonality';
 import { AgentDetailExpertise } from './AgentDetailExpertise';
 import { AgentDetailWorkStatus } from './AgentDetailWorkStatus';
+import { AgentDetailRunningTasks } from './AgentDetailRunningTasks';
 import { useTranslation } from 'react-i18next';
 import { AgentDetailDescription } from './AgentDetailDescription';
 import { useCallback } from 'react';
@@ -61,6 +62,8 @@ export function AgentDetail({agent}: {
 
         {/* Work Style */}
         <AgentDetailWorkStatus agent={agent} />
+
+        <AgentDetailRunningTasks agent={agent} />
       </div>
     </div>
   );

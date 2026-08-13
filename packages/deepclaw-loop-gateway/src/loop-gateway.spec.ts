@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
     getProjectList: vi.fn(),
     getSkillList: vi.fn(),
     updateSkillAgents: vi.fn(),
+    getRunningTasks: vi.fn<() => unknown[]>(() => []),
     getCronTasks: vi.fn(),
     getCronHistories: vi.fn(),
     updateCronTaskStatus: vi.fn(),
@@ -55,6 +56,7 @@ vi.mock('@deepclaw/agent', () => ({
         getProjectList: mocks.getProjectList,
     },
     SkillsManager: {getSkillList: mocks.getSkillList, updateSkillAgents: mocks.updateSkillAgents},
+    RunningTaskService: {getRunningTasks: mocks.getRunningTasks},
 }));
 
 vi.mock('./ui-chat-service', () => ({
@@ -136,6 +138,10 @@ function nextLoop(role: 'agent' | 'project' = 'agent', projectId?: string) {
     return {loopInfo, loopId, loop: currentLoop};
 }
 
+function busyEvents(list: LoopGatewayEvent[]): LoopGatewayEvent[] {
+    return list.filter(event => event.eventType === 'busy');
+}
+
 function capturedHandler(): AgentHandler {
     return mocks.getLoop.mock.calls.at(-1)![3];
 }
@@ -165,13 +171,13 @@ describe('subscribe', () => {
         LoopGateway.fireBusyEvent('agent.unknown');
         off();
         LoopGateway.fireBusyEvent('agent.unknown');
-        expect(seen).toHaveLength(1);
-        expect(events).toHaveLength(2);
+        expect(busyEvents(seen)).toHaveLength(1);
+        expect(busyEvents(events)).toHaveLength(2);
     });
 
     test('reports an unknown loop as idle', () => {
         LoopGateway.fireBusyEvent('agent.unknown');
-        expect(events).toEqual([{eventType: 'busy', loopId: 'agent.unknown', busy: false}]);
+        expect(events).toContainEqual({eventType: 'busy', loopId: 'agent.unknown', busy: false});
     });
 });
 
@@ -240,6 +246,23 @@ describe('invoke', () => {
         expect(events).toContainEqual({eventType: 'busy', loopId, busy: true});
     });
 
+    /** The busy event only reaches whoever watches that loop, a page watching none needs the list. */
+    test('names the working loops to whoever watches no loop', async () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        const invoked = deferred<AgentInvokeResponse>();
+        loop.invoke.mockReturnValue(invoked.promise);
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        expect(LoopGateway.getBusyLoops()).toContain(loopId);
+        expect(events).toContainEqual({
+            eventType: 'updateBusyLoops', content: expect.arrayContaining([loopId])
+        });
+        invoked.resolve({text: 'done', runtime: newRuntime()});
+        await vi.waitFor(() => expect(LoopGateway.getBusyLoops()).not.toContain(loopId));
+        expect(events.at(-1)).toEqual({
+            eventType: 'updateBusyLoops', content: expect.not.arrayContaining([loopId])
+        });
+    });
+
     test('opens an empty agent message for the answer', () => {
         const {loopInfo, loopId, loop} = nextLoop();
         loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
@@ -272,7 +295,7 @@ describe('invoke', () => {
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         expect(mocks.replaceMessage).toHaveBeenCalledWith(loopId, msgId, 'final answer');
         expect(onDone).toHaveBeenCalledWith('final answer');
-        expect(events.at(-1)).toEqual({eventType: 'busy', loopId, busy: false});
+        expect(busyEvents(events).at(-1)).toEqual({eventType: 'busy', loopId, busy: false});
     });
 
     test('marks an answer that came through im', async () => {
@@ -348,6 +371,20 @@ describe('resume', () => {
             browserId: 'b1', runtime: expect.objectContaining({turnCount: 4})
         }));
         expect(mocks.replaceMessage).not.toHaveBeenCalledWith(loopId, msgId, 'waiting');
+    });
+
+    /** An agent board reads that list, and an agent that waits for an answer is not at work. */
+    test('leaves a loop that waits for a human out of the working ones', async () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockResolvedValue({
+            text: 'waiting', runtime: newRuntime({agentBreakReason: 'interactionAfk'})
+        });
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.getBusyLoops()).not.toContain(loopId));
+        expect(LoopGateway.isLoopBusy(loopId)).toBe(true);
+        expect(events.at(-1)).toEqual({
+            eventType: 'updateBusyLoops', content: expect.not.arrayContaining([loopId])
+        });
     });
 
     test('ignores a resume asked by another browser', async () => {
@@ -504,6 +541,22 @@ describe('data updates', () => {
         const info = LoopGateway.getDataInfo();
         expect(info.agents).toEqual([{id: 'a1', name: 'Ada', mood: 'none'}]);
         expect(info.projects.map(project => project.id)).toEqual(['p1', 'p2']);
+    });
+
+    /** A page that just loaded has seen no event yet, so the running tasks travel with it. */
+    test('collects the tasks subagents are running right now', () => {
+        mocks.getProjectList.mockReturnValue({projects: {open: [], closed: []}});
+        mocks.getRunningTasks.mockReturnValue([{projectId: 'p1', taskTitle: 'ship it', agentId: 'a1'}]);
+        expect(LoopGateway.getDataInfo().runningTasks)
+            .toEqual([{projectId: 'p1', taskTitle: 'ship it', agentId: 'a1'}]);
+    });
+
+    test('collects the loops that are working right now', () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        mocks.getProjectList.mockReturnValue({projects: {open: [], closed: []}});
+        loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        expect(LoopGateway.getDataInfo().busyLoops).toContain(loopId);
     });
 });
 

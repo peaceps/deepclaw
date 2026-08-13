@@ -7,7 +7,9 @@ import type { SSEConnectedEvent, SSEToastEvent } from '@/app/api/sse-types';
 import { useSSEClient } from './SSEProvider';
 import { useToastStore } from '@/lib/toast-store';
 import { ToastService } from '@/lib/toast-service';
-import { AgentAgentInfoEvent, AgentProjectInfoEvent } from '@deepclaw/core';
+import {
+  AgentAgentInfoEvent, AgentBusyLoopsInfoEvent, AgentProjectInfoEvent, AgentRunningTasksInfoEvent
+} from '@deepclaw/core';
 
 const logger = getLogger('InfoClient');
 
@@ -18,6 +20,8 @@ export function InfoClient() {
   const getAgents = useAppStore(s => s.getAgents);
   const getProjects = useAppStore(s => s.getProjects);
   const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
+  const setRunningTasks = useAppStore(s => s.setRunningTasks);
+  const setBusyLoops = useAppStore(s => s.setBusyLoops);
   const show = useToastStore(t => t.show);
 
   useEffect(() => {
@@ -45,6 +49,20 @@ export function InfoClient() {
           updateAgentEmployee({...content});
         },
       ),
+      sseClient.subscribe<AgentRunningTasksInfoEvent>(
+        INFO_SSE_URL,
+        'updateRunningTasks',
+        ({content}) => {
+          setRunningTasks(content);
+        },
+      ),
+      sseClient.subscribe<AgentBusyLoopsInfoEvent>(
+        INFO_SSE_URL,
+        'updateBusyLoops',
+        ({content}) => {
+          setBusyLoops(content);
+        },
+      ),
       sseClient.subscribe<SSEToastEvent>(
         INFO_SSE_URL,
         'toast',
@@ -60,7 +78,10 @@ export function InfoClient() {
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
-  }, [sseClient, updateProject, updateAgentEmployee, browserId, getAgents, getProjects, show]);
+  }, [
+    sseClient, updateProject, updateAgentEmployee, setRunningTasks, setBusyLoops,
+    browserId, getAgents, getProjects, show,
+  ]);
 
   return <></>;
 }

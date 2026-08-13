@@ -2,7 +2,7 @@
 
 import { AgentEmployee, TokenUsage } from "@deepclaw/core";
 import { avatarBG, statusColors } from '../styles-mapping';
-import { deriveAgentSummary, useAppStore } from "@/lib/store";
+import { deriveAgentSummary, useAgentActivity, useAppStore } from "@/lib/store";
 import { TokenUsageIcon } from "@/laf/token-usage";
 
 type ChatHeaderProps = {
@@ -12,7 +12,7 @@ type ChatHeaderProps = {
 
 export function ChatHeader({ agent, tokenUsage }: ChatHeaderProps) {
   const projects = useAppStore(s => s.projects);
-  const { status: agentStatus } = deriveAgentSummary(agent, projects);
+  const { status: agentStatus } = deriveAgentSummary(agent, projects, useAgentActivity());
 
   return (
     <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">

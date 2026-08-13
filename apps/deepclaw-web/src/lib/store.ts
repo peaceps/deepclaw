@@ -1,6 +1,8 @@
 import { create } from 'zustand';
-import type { Project, AgentEmployee, AgentStatus, AgentProjectStats, Task, ChatMessage } from '@deepclaw/core';
-import { getProjectStatus } from '@deepclaw/core';
+import type {
+  Project, AgentEmployee, AgentStatus, AgentProjectStats, RunningTask, Task, ChatMessage
+} from '@deepclaw/core';
+import { getProjectStatus, splitLoopId } from '@deepclaw/core';
 import { UpdateContent } from '@deepclaw/utils';
 import { handleUpdatedArrayContent, handleUpdateRecordContent } from '@/components/component-utils';
 
@@ -9,7 +11,27 @@ export type AgentSummary = {
   stats: AgentProjectStats;
 };
 
-export function deriveAgentSummary(agent: AgentEmployee | undefined, projects: Project[]): AgentSummary {
+/** What an agent is doing at this very moment, as opposed to what it was given to do. */
+export type AgentActivity = {
+  runningTasks: RunningTask[];
+  busyLoops: string[];
+};
+
+/** Reads the two live signals off the store, they always travel together. */
+export function useAgentActivity(): AgentActivity {
+  const runningTasks = useAppStore(s => s.runningTasks);
+  const busyLoops = useAppStore(s => s.busyLoops);
+  return { runningTasks, busyLoops };
+}
+
+/**
+ * Busy means this agent is at work right now, either in a loop of its own or through a subagent
+ * running one of its tasks. An open project says the work was planned, not that anyone is on it,
+ * so the counts and the status answer two different questions.
+ */
+export function deriveAgentSummary(
+  agent: AgentEmployee | undefined, projects: Project[], activity: AgentActivity
+): AgentSummary {
   const stats: AgentProjectStats = { todo: 0, ongoing: 0, done: 0 };
   if (!agent) {
     return { status: 'fired', stats };
@@ -22,8 +44,12 @@ export function deriveAgentSummary(agent: AgentEmployee | undefined, projects: P
   if (agent.fired) {
     return { status: 'fired', stats };
   }
-  const status: AgentStatus = (stats.ongoing > 0 || stats.todo > 0) ? 'busy' : 'idle';
-  return { status, stats };
+  return { status: isAtWork(agent.id, activity) ? 'busy' : 'idle', stats };
+}
+
+function isAtWork(agentId: string, {runningTasks, busyLoops}: AgentActivity): boolean {
+  return runningTasks.some(run => run.agentId === agentId)
+    || busyLoops.some(loopId => splitLoopId(loopId).agentId === agentId);
 }
 
 type AppState = {
@@ -31,6 +57,8 @@ type AppState = {
   agents: AgentEmployee[];
   activeAgents: AgentEmployee[];
   projects: Project[];
+  runningTasks: RunningTask[];
+  busyLoops: string[];
   messages: {[key: string]: ChatMessage[]},
   busyChatKeys: Record<string, boolean>;
   selectedAgentId: string | null;
@@ -45,6 +73,8 @@ type AppState = {
   setProjects: (projects: Project[]) => void;
   updateProject: (project: UpdateContent<Project>) => void;
   updateProjectTask: (projectId: string, task: UpdateContent<Task, 'title'>) => void;
+  setRunningTasks: (runningTasks: RunningTask[]) => void;
+  setBusyLoops: (busyLoops: string[]) => void;
   addPulledMessages: (loopId: string, messages: ChatMessage[], head?: boolean) => void;
   addMessage: (loopId: string, message: ChatMessage) => void;
   getMessageById: (loopId: string, id: string) => ChatMessage | undefined;
@@ -61,6 +91,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   agents: [],
   activeAgents: [],
   projects: [],
+  runningTasks: [],
+  busyLoops: [],
   messages: {},
   busyChatKeys: {},
   selectedAgentId: null,
@@ -102,6 +134,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       } : p) };
     });
   },
+  setRunningTasks: (runningTasks) => set({ runningTasks }),
+  setBusyLoops: (busyLoops) => set({ busyLoops }),
   addPulledMessages: (loopId: string, messages: ChatMessage[], head: boolean = false) => set((state) => {
     const oldMessages = state.messages[loopId] || [];
     return {

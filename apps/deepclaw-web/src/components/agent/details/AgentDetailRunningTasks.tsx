@@ -1,0 +1,81 @@
+import { InfoCard } from "@/laf/info-card";
+import { ProgressBar } from "@/laf/progress-bar";
+import { type AgentEmployee, getTaskProgress, type RunningTask, type Task } from "@deepclaw/core";
+import { Activity, CalendarDays } from "lucide-react";
+import Link from "next/link";
+import { useTranslation } from "react-i18next";
+import { priorityStyles } from '../../styles-mapping';
+import { useAppStore } from "@/lib/store";
+import { formatDate } from "@/components/component-utils";
+
+export function AgentDetailRunningTasks({ agent }: { agent: AgentEmployee }) {
+  const {t, i18n} = useTranslation();
+  const runningTasks = useAppStore(s => s.runningTasks);
+  const projects = useAppStore(s => s.projects);
+  const runs = runningTasks
+    .filter(run => run.agentId === agent.id)
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+
+  return (
+    <InfoCard title="web.pages.agents.details.runningTasks.title" icon={<Activity size={20} />} color="cyan">
+      {runs.length > 0 ? (
+        <div className="space-y-3">
+          {runs.map(run => (
+            <RunningTaskRow
+              key={run.runId}
+              run={run}
+              task={projects.find(project => project.id === run.projectId)?.tasks[run.taskTitle]}
+              startedAt={formatDate(i18n.language, run.startedAt)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="text-sm text-gray-400 italic">
+          {t('web.pages.agents.details.runningTasks.noTask')}
+        </div>
+      )}
+    </InfoCard>
+  );
+}
+
+/**
+ * A run outlives nothing but the process, while the task it points at is stored: the two can drift
+ * apart when a task is renamed, and then the run is still worth showing on its own.
+ */
+function RunningTaskRow({run, task, startedAt}: {
+  run: RunningTask; task?: Task; startedAt: string;
+}) {
+  const {t} = useTranslation();
+  const progress = task ? getTaskProgress(task) : null;
+
+  return (
+    <Link
+      href={`/projects?project=${encodeURIComponent(run.projectId)}`}
+      className="block bg-gray-50 rounded-lg p-3 cursor-pointer transition-colors
+        hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2"
+      aria-label={`${t('web.pages.agents.details.runningTasks.title')}: ${run.taskTitle}`}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse flex-shrink-0" />
+          <span className="font-medium text-gray-900 truncate">{run.taskTitle}</span>
+        </span>
+        {task && (
+          <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+            priorityStyles[task.priority]
+          }`}>
+            {t(`web.common.priority.${task.priority}`)}
+          </span>
+        )}
+      </div>
+      {task && <p className="text-sm text-gray-600 line-clamp-2">{task.description}</p>}
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-400">
+        <CalendarDays size={12} />
+        <span>{t('web.pages.agents.details.runningTasks.startedAt', {time: startedAt})}</span>
+      </div>
+      {progress !== null && (
+        <ProgressBar value={progress} size="sm" showLabel={false} className="mt-2" />
+      )}
+    </Link>
+  );
+}

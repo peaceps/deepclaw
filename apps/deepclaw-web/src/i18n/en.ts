@@ -112,6 +112,11 @@ export const en = {
                         currentProject: 'Current Project',
                         noProject: 'No project ongoing',
                     },
+                    runningTasks: {
+                        title: 'Running Now',
+                        noTask: 'No task running',
+                        startedAt: 'Started {{time}}',
+                    },
                 },
                 mobile: {
                     returnToList: 'Return to list',

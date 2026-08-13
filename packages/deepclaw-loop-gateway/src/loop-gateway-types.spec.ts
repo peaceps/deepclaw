@@ -2,9 +2,9 @@ import {describe, expect, test} from 'vitest';
 import {type AgentEvent, type ChatMessage} from '@deepclaw/core';
 import {
     getClientKey,
-    isAgentInfoEvent, isCronInfoEvent, isInfoEvent, isLoopBusyEvent, isLoopCancelInteractionEvent,
-    isLoopChatEvent, isLoopEvent, isLoopInteractionEvent, isLoopStreamEvent, isLoopTokenUsageEvent,
-    isProjectInfoEvent
+    isAgentInfoEvent, isBusyLoopsInfoEvent, isCronInfoEvent, isInfoEvent, isLoopBusyEvent,
+    isLoopCancelInteractionEvent, isLoopChatEvent, isLoopEvent, isLoopInteractionEvent,
+    isLoopStreamEvent, isLoopTokenUsageEvent, isProjectInfoEvent, isRunningTasksInfoEvent
 } from './loop-gateway-types';
 
 const LOOP_ID = 'agent.a1';
@@ -24,6 +24,8 @@ const events = {
     updateProject: {eventType: 'updateProject', content: {id: 'p1'}},
     updateAgent: {eventType: 'updateAgent', content: {id: 'a1'}},
     updateCron: {eventType: 'updateCron', content: {id: 'c1'}},
+    updateRunningTasks: {eventType: 'updateRunningTasks', content: [{projectId: 'p1', taskTitle: 't'}]},
+    updateBusyLoops: {eventType: 'updateBusyLoops', content: [LOOP_ID]},
 };
 
 function acceptedBy(guard: (event: AgentEvent) => boolean): string[] {
@@ -67,6 +69,14 @@ describe('event guards', () => {
     test('isCronInfoEvent matches only cron updates', () => {
         expect(acceptedBy(isCronInfoEvent)).toEqual(['updateCron']);
     });
+
+    test('isRunningTasksInfoEvent matches only running task updates', () => {
+        expect(acceptedBy(isRunningTasksInfoEvent)).toEqual(['updateRunningTasks']);
+    });
+
+    test('isBusyLoopsInfoEvent matches only busy loop updates', () => {
+        expect(acceptedBy(isBusyLoopsInfoEvent)).toEqual(['updateBusyLoops']);
+    });
 });
 
 describe('event families', () => {
@@ -76,8 +86,12 @@ describe('event families', () => {
             .toEqual(['busy', 'stream', 'interaction', 'cancelInteraction', 'chat', 'tokenUsage']);
     });
 
+    /** An event outside both families would be dropped on its way to a browser. */
     test('isInfoEvent covers every data update event', () => {
-        expect(acceptedBy(isInfoEvent)).toEqual(['updateProject', 'updateAgent', 'updateCron']);
+        expect(acceptedBy(isInfoEvent))
+            .toEqual([
+                'updateProject', 'updateAgent', 'updateCron', 'updateRunningTasks', 'updateBusyLoops'
+            ]);
     });
 
     test('the two families never overlap', () => {

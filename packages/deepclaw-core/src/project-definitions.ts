@@ -45,6 +45,20 @@ export type Task = {
     stepsStatus?: TaskStepsContext
 };
 
+/**
+ * A task a subagent is working on right now. The status of a task says it was handed out, not that
+ * anything is running: it is set before the handover and stays until the result was accepted.
+ */
+export type RunningTask = {
+    /** The handle of this one run, the only thing telling two runs of a task apart. */
+    runId: string;
+    projectId: string;
+    taskTitle: string;
+    /** Whoever the subagent stands for, the assignee of the task or the agent that spawned it. */
+    agentId: string;
+    startedAt: string;
+};
+
 export function getProjectStatus(project: Project): MissionStatus {
     if (!project.closedAt) {
         return !project.ongoingTasks.length && !project.completedTasks.length ? 'todo' : 'ongoing';

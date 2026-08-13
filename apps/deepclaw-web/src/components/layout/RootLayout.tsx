@@ -21,6 +21,8 @@ type RootLayoutProps = {
 export function RootLayout({ manager, lang, dataInfo, children }: RootLayoutProps) {
   const setAgents = useAppStore(s => s.setAgents);
   const setProjects = useAppStore(s => s.setProjects);
+  const setRunningTasks = useAppStore(s => s.setRunningTasks);
+  const setBusyLoops = useAppStore(s => s.setBusyLoops);
   const i18nInitRef = useRef<boolean | null>(null);
   const storeRef = useRef<DeepclawDataInfo | null>(null);
   if (i18nInitRef.current === null) {
@@ -30,6 +32,8 @@ export function RootLayout({ manager, lang, dataInfo, children }: RootLayoutProp
   if (storeRef.current === null) {
     setAgents(dataInfo.agents);
     setProjects(dataInfo.projects);
+    setRunningTasks(dataInfo.runningTasks);
+    setBusyLoops(dataInfo.busyLoops);
     storeRef.current = dataInfo;
   }
 

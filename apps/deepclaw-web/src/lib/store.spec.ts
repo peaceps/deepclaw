@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, test} from 'vitest';
-import type {AgentEmployee, ChatMessage, Project, Task} from '@deepclaw/core';
-import {deriveAgentSummary, useAppStore} from './store';
+import type {AgentEmployee, ChatMessage, Project, RunningTask, Task} from '@deepclaw/core';
+import {type AgentActivity, deriveAgentSummary, useAppStore} from './store';
 
 function newAgent(overrides: Partial<AgentEmployee> = {}): AgentEmployee {
     return {
@@ -46,6 +46,21 @@ function newProject(overrides: Partial<Project> = {}): Project {
     };
 }
 
+function newRunningTask(overrides: Partial<RunningTask> = {}): RunningTask {
+    return {
+        runId: 'r1',
+        projectId: 'p1',
+        taskTitle: 'ship it',
+        agentId: 'a1',
+        startedAt: '2024-01-01T00:00:00.000Z',
+        ...overrides,
+    };
+}
+
+function idle(overrides: Partial<AgentActivity> = {}): AgentActivity {
+    return {runningTasks: [], busyLoops: [], ...overrides};
+}
+
 function newChatMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
     return {
         id: 'm1',
@@ -64,13 +79,14 @@ function store(): ReturnType<typeof useAppStore.getState> {
 describe('deriveAgentSummary', () => {
 
     test('reports a missing agent as fired with an empty count', () => {
-        expect(deriveAgentSummary(undefined, [newProject()]))
+        expect(deriveAgentSummary(undefined, [newProject()], idle()))
             .toEqual({status: 'fired', stats: {todo: 0, ongoing: 0, done: 0}});
     });
 
     test('counts only the projects the agent created', () => {
         const projects = [newProject(), newProject({id: 'p2', creator: 'a2'})];
-        expect(deriveAgentSummary(newAgent(), projects).stats).toEqual({todo: 1, ongoing: 0, done: 0});
+        expect(deriveAgentSummary(newAgent(), projects, idle()).stats)
+            .toEqual({todo: 1, ongoing: 0, done: 0});
     });
 
     test('sorts the projects into todo, ongoing and done', () => {
@@ -80,28 +96,44 @@ describe('deriveAgentSummary', () => {
             newProject({id: 'p3', completedTasks: ['t1']}),
             newProject({id: 'p4', closedAt: '2024-02-01T00:00:00.000Z'}),
         ];
-        expect(deriveAgentSummary(newAgent(), projects).stats).toEqual({todo: 1, ongoing: 2, done: 1});
+        expect(deriveAgentSummary(newAgent(), projects, idle()).stats)
+            .toEqual({todo: 1, ongoing: 2, done: 1});
     });
 
-    test('is idle without any open project', () => {
-        expect(deriveAgentSummary(newAgent(), []).status).toBe('idle');
+    test('is idle with nothing running', () => {
+        expect(deriveAgentSummary(newAgent(), [], idle()).status).toBe('idle');
     });
 
-    test('is idle when every project is done', () => {
-        const projects = [newProject({closedAt: '2024-02-01T00:00:00.000Z'})];
-        expect(deriveAgentSummary(newAgent(), projects)).toEqual({status: 'idle', stats: {todo: 0, ongoing: 0, done: 1}});
+    /** A project waiting to be worked on says nothing about anyone being at work on it. */
+    test('stays idle while its open projects wait for a subagent', () => {
+        const projects = [newProject(), newProject({id: 'p2', ongoingTasks: ['t1']})];
+        expect(deriveAgentSummary(newAgent(), projects, idle()).status).toBe('idle');
     });
 
-    test('is busy while a project is still todo', () => {
-        expect(deriveAgentSummary(newAgent(), [newProject()]).status).toBe('busy');
+    test('is busy while a subagent runs a task of this agent', () => {
+        const activity = idle({runningTasks: [newRunningTask()]});
+        expect(deriveAgentSummary(newAgent(), [], activity).status).toBe('busy');
     });
 
-    test('is busy while a project is ongoing', () => {
-        expect(deriveAgentSummary(newAgent(), [newProject({ongoingTasks: ['t1']})]).status).toBe('busy');
+    test('is idle while the only run belongs to another agent', () => {
+        const activity = idle({runningTasks: [newRunningTask({agentId: 'a2'})]});
+        expect(deriveAgentSummary(newAgent(), [], activity).status).toBe('idle');
+    });
+
+    test('is busy while a loop of this agent works, whatever its role', () => {
+        expect(deriveAgentSummary(newAgent(), [], idle({busyLoops: ['cron.a1']})).status).toBe('busy');
+    });
+
+    test('is idle while the only working loop belongs to another agent', () => {
+        const activity = idle({busyLoops: ['agent.a2', 'project.a2.p1']});
+        expect(deriveAgentSummary(newAgent(), [], activity).status).toBe('idle');
     });
 
     test('reports a fired agent as fired but still counts the projects', () => {
-        const summary = deriveAgentSummary(newAgent({fired: true}), [newProject({ongoingTasks: ['t1']})]);
+        const summary = deriveAgentSummary(
+            newAgent({fired: true}), [newProject({ongoingTasks: ['t1']})],
+            idle({runningTasks: [newRunningTask()]})
+        );
         expect(summary).toEqual({status: 'fired', stats: {todo: 0, ongoing: 1, done: 0}});
     });
 });

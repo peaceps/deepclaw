@@ -3,7 +3,7 @@ import { avatarBG, moodEmojis, statusColors } from "../styles-mapping";
 import { useTranslation } from "react-i18next";
 import { useAgentCard } from "./use-agent-card";
 import { AlarmClock, CheckCircle2, Clock } from "lucide-react";
-import { deriveAgentSummary, useAppStore } from "@/lib/store";
+import { deriveAgentSummary, useAgentActivity, useAppStore } from "@/lib/store";
 
 export function AgentExpandedCard({
     agent, onSelect
@@ -12,10 +12,12 @@ export function AgentExpandedCard({
     onSelect?: () => void;
 }) {
     const projects = useAppStore(s => s.projects);
+    const activity = useAgentActivity();
     const {isSelected, cardRef, handleClick} =
         useAgentCard({ agent, onSelect });
     const {t} = useTranslation();
-    const { status: agentStatus, stats: projectStats } = deriveAgentSummary(agent, projects);
+    const { status: agentStatus, stats: projectStats } =
+        deriveAgentSummary(agent, projects, activity);
 
     return (
         <>

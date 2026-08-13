@@ -1,4 +1,4 @@
-import { deriveAgentSummary, useAppStore } from "@/lib/store";
+import { deriveAgentSummary, useAgentActivity, useAppStore } from "@/lib/store";
 import type { AgentEmployee, AgentStatus } from "@deepclaw/core";
 
 // TODO test file only, will remove later
@@ -83,7 +83,7 @@ function getAgentThoughts(agent: AgentEmployee, agentStatus: AgentStatus): { emo
   
 export function AgentThoughts({ agent }: { agent: AgentEmployee }) {
     const projects = useAppStore(s => s.projects);
-    const { status: agentStatus } = deriveAgentSummary(agent, projects);
+    const { status: agentStatus } = deriveAgentSummary(agent, projects, useAgentActivity());
     const { emoji, text, color } = getAgentThoughts(agent, agentStatus);
   
     return (

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { BriefcaseBusiness, Pencil } from "lucide-react";
 import { avatarBG, moodEmojis, statusColors } from "../../styles-mapping";
 import { EmojiPicker } from "@/laf/emoji-picker";
-import { deriveAgentSummary, useAppStore } from "@/lib/store";
+import { deriveAgentSummary, useAgentActivity, useAppStore } from "@/lib/store";
 import { AgentActionMenu } from "../AgentActionMenu";
 import { UpdateContent } from "@deepclaw/utils";
 
@@ -14,7 +14,9 @@ export function AgentHeader({ agent, onUpdate }: {
 }) {
     const {t} = useTranslation();
     const projects = useAppStore(s => s.projects);
-    const { status: agentStatus, stats: projectStats } = deriveAgentSummary(agent, projects);
+    const activity = useAgentActivity();
+    const { status: agentStatus, stats: projectStats } =
+        deriveAgentSummary(agent, projects, activity);
     const [editingRole, setEditingRole] = useState(false);
     const [roleDraft, setRoleDraft] = useState(agent.role);
 

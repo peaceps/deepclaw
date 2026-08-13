@@ -1,7 +1,7 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { avatarBG, statusColors } from "../styles-mapping";
 import { useAgentCard } from "./use-agent-card";
-import { deriveAgentSummary, useAppStore } from "@/lib/store";
+import { deriveAgentSummary, useAgentActivity, useAppStore } from "@/lib/store";
 
 export function AgentCollapsedCard({
     agent, onSelect
@@ -10,9 +10,10 @@ export function AgentCollapsedCard({
     onSelect?: () => void;
 }) {
     const projects = useAppStore(s => s.projects);
+    const activity = useAgentActivity();
     const {isSelected, cardRef, handleClick} =
         useAgentCard({ agent, onSelect });
-    const { status: agentStatus } = deriveAgentSummary(agent, projects);
+    const { status: agentStatus } = deriveAgentSummary(agent, projects, activity);
 
     return (
       <>

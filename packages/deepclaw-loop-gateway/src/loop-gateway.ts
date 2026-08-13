@@ -9,6 +9,7 @@ import type {
     TokenUsage,
     FlushAgentRole,
     SealedAgentHandler,
+    RunningTask,
 } from "@deepclaw/core";
 import {
     getLoopId, isInternalInterruptReason, newMessage, splitLoopId, type CronTask, type CronJobHistory
@@ -17,7 +18,7 @@ import { globalize, UpdateContent } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent, SkillsManager,
     type SkillInfo, SessionService, CronService,
-    MCPService,
+    MCPService, RunningTaskService,
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
@@ -40,7 +41,9 @@ type LoopState = {
     running: boolean;
 };
 type LoopStore = Record<string, LoopState>;
-export type DeepclawDataInfo = {agents: AgentEmployee[], projects: Project[]};
+export type DeepclawDataInfo = {
+    agents: AgentEmployee[], projects: Project[], runningTasks: RunningTask[], busyLoops: string[]
+};
 
 const INTERACTION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
@@ -84,6 +87,18 @@ class LoopGatewayImpl {
             this.loops[loopId]!.running = busy;
         }
         this.fireSSEEvent({ eventType: 'busy', loopId, busy: this.isLoopBusy(loopId) });
+        // The busy event above only reaches whoever watches that loop, and an agent board watches none.
+        this.fireSSEEvent({ eventType: 'updateBusyLoops', content: this.getBusyLoops() });
+    }
+
+    /**
+     * A loop that stopped to wait for the user keeps its runtime for a resume, and waiting is not
+     * working: it would sit in this list until whoever left comes back.
+     */
+    public static getBusyLoops(): string[] {
+        return Object.entries(this.loops)
+            .filter(([, state]) => state.running && !state.invoke?.runtime)
+            .map(([loopId]) => loopId);
     }
 
     private static async fireWaitedSSEEvent(e: AgentInteractionEvent): Promise<string> {
@@ -363,6 +378,9 @@ class LoopGatewayImpl {
         return {
             agents: this.getAgents(),
             projects,
+            // A page that just loaded has seen none of the events, so the work travels with it.
+            runningTasks: RunningTaskService.getRunningTasks(),
+            busyLoops: this.getBusyLoops(),
         };
     }
 

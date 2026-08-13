@@ -112,6 +112,11 @@ export const zh = {
                         currentProject: '当前项目',
                         noProject: '暂无进行中的项目',
                     },
+                    runningTasks: {
+                        title: '正在执行',
+                        noTask: '当前没有正在执行的任务',
+                        startedAt: '{{time}} 开始',
+                    },
                 },
                 mobile: {
                     returnToList: '返回列表',

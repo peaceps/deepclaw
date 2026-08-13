@@ -1,6 +1,6 @@
 import { AgentEmployee } from "./agent-definitions";
 import { FlushAgentRole } from "./flush-agent-types";
-import { Project } from "./project-definitions";
+import { Project, RunningTask } from "./project-definitions";
 import { DistributiveOmit, UpdateContent } from "@deepclaw/utils";
 import { CronTask } from "./cron-definitions";
 
@@ -70,4 +70,19 @@ export type AgentAgentInfoEvent = AgentInfoEvent & {
 export type AgentCronInfoEvent = AgentInfoEvent & {
     eventType: 'updateCron',
     content: UpdateContent<CronTask>
+}
+
+/** The whole list every time: it is a handful of entries and a lost delta would strand one of them. */
+export type AgentRunningTasksInfoEvent = AgentInfoEvent & {
+    eventType: 'updateRunningTasks',
+    content: RunningTask[]
+}
+
+/**
+ * The loops that are working, by id. A busy event travels to whoever watches that one loop, while
+ * this one tells a page that watches no loop at all which of its agents are at work.
+ */
+export type AgentBusyLoopsInfoEvent = AgentInfoEvent & {
+    eventType: 'updateBusyLoops',
+    content: string[]
 }
