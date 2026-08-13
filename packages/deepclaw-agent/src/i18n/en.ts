@@ -78,6 +78,11 @@ conversation or a link can be drawn from.`,
                 imageTooLarge: `{{ref}} is {{size}}MB, more than the {{limit}}MB an image model
 takes. Draw from a smaller picture.`,
             },
+            subLoop: {
+                drawnImages: `The subagent drew these pictures. Naming one in your own answer is
+what carries it into the chat, nothing the subagent did puts it there:
+{{images}}`,
+            },
             project: {
                 taskSteps: {
                     empty: 'No steps.',

@@ -1,6 +1,6 @@
 import process from 'node:process';
 import {describe, expect, test, vi} from 'vitest';
-import {type AgentIdentity, type CronTask} from '@deepclaw/core';
+import {type AgentIdentity, type CronTask, type Task} from '@deepclaw/core';
 import {newTestAgentConfig} from '../../../test-support/one-loop-context';
 
 const mocks = vi.hoisted(() => ({
@@ -41,14 +41,21 @@ async function loadService(setup: () => void = () => undefined) {
     const {SkillsManager} = await import('./skills-manager');
     const {ProjectManager} = await import('./project-manager');
     const {CronService} = await import('./cron-service');
+    const {AgentIdentityManager} = await import('./agent-identity-manager');
     return {
         PromptService,
+        getTask: vi.spyOn(ProjectManager, 'getTask').mockReturnValue(undefined),
+        assignedTaskPrompt: vi.spyOn(ProjectManager, 'promptAssignedTask')
+            .mockReturnValue('the assigned task'),
+        getAgent: vi.spyOn(AgentIdentityManager, 'getAgent').mockReturnValue(undefined),
         memoryPrompt: vi.spyOn(MemoryManager, 'getMemoryPrompt').mockReturnValue('the memory prompt'),
         skillPrompt: vi.spyOn(SkillsManager, 'generateSkillPrompt').mockReturnValue('the skills prompt'),
         currentProject: vi.spyOn(ProjectManager, 'promptCurrentProject')
             .mockReturnValue('the current project'),
         managementTools: vi.spyOn(ProjectManager, 'promptManagementTools')
             .mockReturnValue('the project tools'),
+        taskDelegation: vi.spyOn(ProjectManager, 'promptTaskDelegation')
+            .mockReturnValue('hand the tasks over'),
         cronTaskDetail: vi.spyOn(CronService, 'getCronTaskDetail')
             .mockReturnValue({id: 'c1', title: 'nightly report', cron: '0 9 * * *'} as CronTask),
     };
@@ -133,7 +140,8 @@ describe('main identity', () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', true);
         expect(cacheable).toContain('you are a subloop agent for specific task described in the prompt');
-        expect(cacheable).toContain("You don't have access to file writing tools");
+        expect(cacheable).toContain('You can write files and run commands to carry the task out');
+        expect(cacheable).toContain('never ask a question');
     });
 
     test('adds the autonomous rules for a cron loop', async () => {
@@ -234,6 +242,83 @@ describe('personality and emotions', () => {
     });
 });
 
+describe('a sub loop working on a task', () => {
+
+    const TASK = {projectId: 'p1', taskTitle: 'ship it'};
+
+    /** Arranges a task owned by "a2", the agent whose identity the sub loop has to borrow. */
+    async function loadServiceWithAssignee() {
+        const service = await loadService();
+        service.getTask.mockReturnValue({title: 'ship it', assignee: 'a2'} as Task);
+        service.getAgent.mockReturnValue(newIdentity({
+            id: 'a2', name: 'Bob', role: 'reviewer', personalities: ['picky'],
+        }));
+        return service;
+    }
+
+    test('speaks as the agent the task is assigned to', async () => {
+        const {PromptService, getAgent} = await loadServiceWithAssignee();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+        );
+        expect(getAgent).toHaveBeenCalledWith('a2');
+        expect(cacheable).toContain('Your name is Bob, your role is reviewer.');
+        expect(cacheable).not.toContain('Your name is Ada');
+    });
+
+    test('stays anonymous when the task has no assignee', async () => {
+        const {PromptService, getTask, getAgent} = await loadServiceWithAssignee();
+        getTask.mockReturnValue({title: 'ship it'} as Task);
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+        );
+        expect(getAgent).not.toHaveBeenCalled();
+        expect(cacheable).not.toContain('Your name is');
+    });
+
+    test('stays anonymous when the assignee is no longer an agent', async () => {
+        const {PromptService, getAgent} = await loadServiceWithAssignee();
+        getAgent.mockReturnValue(undefined);
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+        );
+        expect(cacheable).not.toContain('Your name is');
+    });
+
+    test('keeps the emotions of the assignee out of its report', async () => {
+        const {PromptService} = await loadServiceWithAssignee();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+        );
+        expect(cacheable).not.toContain('You can add your own emotions');
+    });
+
+    test('puts the task next to the project it belongs to', async () => {
+        const {PromptService, assignedTaskPrompt} = await loadServiceWithAssignee();
+        const {dynamic} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+        );
+        expect(assignedTaskPrompt).toHaveBeenCalledWith('p1', 'ship it');
+        expect(dynamic.split('\n').filter(line => line.startsWith('# ')))
+            .toEqual(['# Current Project', '# Assigned Task']);
+        expect(dynamic).toContain('the assigned task');
+    });
+
+    test('describes the project the task belongs to, not the one of the session', async () => {
+        const {PromptService, currentProject} = await loadServiceWithAssignee();
+        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK);
+        expect(currentProject).toHaveBeenCalledWith('p1');
+    });
+
+    test('leaves the task section out of a sub loop without a task', async () => {
+        const {PromptService} = await loadServiceWithAssignee();
+        const {dynamic} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', true
+        );
+        expect(dynamic).not.toContain('# Assigned Task');
+    });
+});
+
 describe('agent mode and project management', () => {
 
     test('lets an agent use every tool', async () => {
@@ -264,6 +349,39 @@ describe('agent mode and project management', () => {
         );
         expect(cacheable).not.toContain('the project tools');
         expect(managementTools).not.toHaveBeenCalled();
+    });
+
+    test('asks the loop that owns a project to delegate its tasks', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', false);
+        expect(cacheable).toContain('the project tools');
+        expect(cacheable).toContain('hand the tasks over');
+    });
+
+    test('says nothing about delegation without a project to run', async () => {
+        const {PromptService, taskDelegation} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        expect(cacheable).toContain('the project tools');
+        expect(taskDelegation).not.toHaveBeenCalled();
+    });
+
+    /** A sub loop is the one the work is delegated to, it does not delegate any further. */
+    test('says nothing about delegation to a sub loop', async () => {
+        const {PromptService, taskDelegation} = await loadService();
+        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', true);
+        expect(taskDelegation).not.toHaveBeenCalled();
+    });
+
+    test('says nothing about delegation to a cron loop', async () => {
+        const {PromptService, taskDelegation} = await loadService();
+        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', false);
+        expect(taskDelegation).not.toHaveBeenCalled();
+    });
+
+    test('hides the delegation rules in chat mode', async () => {
+        const {PromptService, taskDelegation} = await loadService();
+        PromptService.provideSystemPrompt(newTestAgentConfig({mode: 'chat'}), undefined, 'project', 'p1', false);
+        expect(taskDelegation).not.toHaveBeenCalled();
     });
 
     test('keeps the chat mode rules for the sub loop of a chat agent', async () => {

@@ -14,6 +14,9 @@ export type FootPrint = {
     content: string;
 }
 
+/** What a drawn picture is filed under, so a loop can name the images it produced. */
+export const IMAGE_FOOT_PRINT = 'image';
+
 export type SystemPrompt = {
     cacheable: string;
     dynamic: string;
@@ -22,6 +25,15 @@ export type SystemPrompt = {
 export type LoopState<I> = {
     messages: I[];
     oneLoopContext: OneLoopContext;
+}
+
+/**
+ * The task a sub loop was spawned for. Kept as a reference instead of a copy of the task, so that
+ * every turn reads the state the task is in by then, steps included.
+ */
+export type AssignedTask = {
+    projectId: string;
+    taskTitle: string;
 }
 
 export type OneLoopContext = {
@@ -36,7 +48,7 @@ export type OneLoopContext = {
     system: SystemPrompt;
     logger: Logger;
     actions: {
-        newSubLoop: () => FlushAgent;
+        newSubLoop: (assignedTask?: AssignedTask) => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
         agentHandler: SealedAgentHandler;
         addStringMessage: (message: string) => void;

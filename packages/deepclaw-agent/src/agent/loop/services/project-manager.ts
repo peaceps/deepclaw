@@ -2,6 +2,7 @@ import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { PROJECT_DIR, PROJECT_JSON, PROJECT_TASK_OUTPUT_DIR } from '../../paths';
 import { type Project, type Task, type TaskStepsContext, getProjectStatus, MissionPriority, PROJECT_CONFIG } from '@deepclaw/core';
 import { saveToPublic } from '../../loop-utils';
+import { OneLoopContext } from '../../definitions/definitions';
 
 export type ProjectListInfo = {
     projects: {
@@ -269,8 +270,16 @@ export class ProjectManager {
         };
     }
 
-    private static getTask(projectId: string, taskTitle: string): Task | undefined {
+    public static getTask(projectId: string, taskTitle: string): Task | undefined {
         return this.projects[projectId]?.tasks[taskTitle];
+    }
+
+    /** Lets the ui redraw a project, to be called by whoever changed something in it. */
+    public static fireProjectInfoEvent(projectId: string, context: OneLoopContext): void {
+        context.actions.agentHandler.onInfoEvent({
+            eventType: 'updateProject',
+            content: this.getProjectDetail(projectId),
+        });
     }
 
     public static promptManagementTools(): string {
@@ -295,7 +304,42 @@ steps info are important for user to get current task execution status, so make 
 ## Update task status
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
 For simple tasks just set the wrapped project id.
-It's also allowed for subloop agents to take action on tasks, and update task status.`;
+A subloop agent cannot update a task, it only moves the step index of the task it works on.`;
+    }
+
+    public static promptTaskDelegation(): string {
+        return `## Run the tasks through subagents
+You run this project, you do not work through its tasks yourself. Hand every task that is ready to
+a subagent: call the sub_loop tool with the title of the task, and the subagent answers under the
+name of the agent the task is assigned to, with the description and the steps of it in front of it.
+Tasks that block nothing and wait for nothing can go out at the same time, one sub_loop call each.
+Handing a task over marks it ongoing; you mark it done once you accepted what came back, the
+subagent itself only moves the step index inside the task.
+A subagent reaches no user: it never gets an answer to a question. Put everything it needs into the
+prompt you give it, and keep the talking to the user yours.`;
+    }
+
+    public static promptAssignedTask(projectId: string, taskTitle: string): string {
+        const task = this.getTask(projectId, taskTitle);
+        if (!task) {
+            return '';
+        }
+        return `## You were assigned this single task, it is the only thing you work on:
+${JSON.stringify({
+    projectId,
+    title: task.title,
+    description: task.description,
+    priority: task.priority,
+    status: task.status,
+    steps: task.stepsStatus?.steps,
+    currentStepIndex: task.stepsStatus?.currentStepIndex,
+})}
+Stay inside the scope of this task: do not pick up other tasks of the project and do not carry the
+work further than the description asks for. If something outside the task turns out to be needed,
+report it instead of doing it.${task.stepsStatus?.steps.length ? `
+Keep the step index up to date with the update_task_current_step tool as you go through the steps.` : ''}
+Close your run with a summary of what you did and what came out of it, that summary is what the
+agent who assigned the task gets to see.`;
     }
 
     public static promptCurrentProject(projectId: string): string {

@@ -207,10 +207,13 @@ describe('project query tools', () => {
 
 describe('project tool metadata', () => {
 
-    test('planning tools stay out of sub loops while task updates are allowed there', () => {
+    /** A sub loop reports its work, the loop that assigned the task is the one acting on it. */
+    test('a sub loop may only move the step index of a task', () => {
         expect(createProjectTool.exclusiveInSubLoop).toBe(true);
         expect(createSimpleTaskTool.exclusiveInSubLoop).toBe(true);
-        expect(updateTaskTool.exclusiveInSubLoop).toBe(false);
+        expect(updateProjectTool.exclusiveInSubLoop).toBe(true);
+        expect(updateTaskTool.exclusiveInSubLoop).toBe(true);
+        expect(updateTaskCurrentStepTool.exclusiveInSubLoop).toBe(false);
     });
 
     /** Ending the loop mid group would let the siblings of the call run past the stop. */

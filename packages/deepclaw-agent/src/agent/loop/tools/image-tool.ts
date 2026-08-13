@@ -6,7 +6,7 @@ import { GPT_IMAGE_MODELS, GptImageGenerator } from '../../image/gpt-image-gener
 import { ImageGenerator } from '../../image/image-generator';
 import { QWEN_MODELS, QwenImageGenerator } from '../../image/qwen-image-generator';
 import { SEEDREAM_MODELS, SeedreamImageGenerator } from '../../image/seedream-image-generator';
-import { OneLoopContext } from '../../definitions/definitions';
+import { IMAGE_FOOT_PRINT, OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
 
 const DOWNLOAD_TIMEOUT_MS = 60_000;
@@ -66,7 +66,7 @@ them out to draw from the prompt alone.`,
     },
     agentMode: ['agent', 'chat'],
     parallelSafe: true,
-    exclusiveInSubLoop: true,
+    exclusiveInSubLoop: false,
     invoke: async function(input: GenerateImageInput, context: OneLoopContext): Promise<string> {
         const prompt = input.prompt?.trim();
         if (!prompt) {
@@ -83,9 +83,9 @@ them out to draw from the prompt alone.`,
             size: input.size,
             images: sourcesOf(input.sourceImages),
         });
-        return i18nInstance.t('agent.tools.image.saved', {
-            url: newImageRef(await store(drawn, context.loopId)),
-        });
+        const ref = newImageRef(await store(drawn, context.loopId));
+        context.actions.addFootPrint({type: IMAGE_FOOT_PRINT, content: ref});
+        return i18nInstance.t('agent.tools.image.saved', {url: ref});
     },
 };
 

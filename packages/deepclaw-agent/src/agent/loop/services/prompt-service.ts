@@ -8,7 +8,8 @@ import { ProjectManager } from './project-manager';
 import { CronService } from './cron-service';
 import { DEEPCLAW_MD } from '../../paths';
 import { AgentIdentity, FlushAgentRole } from '@deepclaw/core';
-import { SystemPrompt } from '../../definitions/definitions';
+import { AssignedTask, SystemPrompt } from '../../definitions/definitions';
+import { AgentIdentityManager } from './agent-identity-manager';
 
 export class PromptService {
     private static initialized = false;
@@ -20,13 +21,20 @@ export class PromptService {
 
     public static provideSystemPrompt(
         agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
-        role: FlushAgentRole, projectId: string, isSubLoop: boolean
+        role: FlushAgentRole, projectId: string, isSubLoop: boolean,
+        assignedTask?: AssignedTask
     ): SystemPrompt {
         if (!this.initialized) {
             this.init();
         }
         const isCron = role === 'cron';
         const identityKey = isSubLoop ? 'subloop' : isCron ? 'cron' : 'loop';
+        // A sub loop working on a task speaks as the agent the task belongs to, not as the one
+        // that handed it over, and that is the only case where a sub loop has a personality. Only
+        // the wording is borrowed: memory and skills stay with the agent that runs the loop,
+        // because the memory tools resolve their scope from the loop and not from the name.
+        const assignee = this.assignee(assignedTask);
+        const persona = isCron || (isSubLoop && !assignee) ? undefined : assignee ?? agentIdentity;
         const cacheable = `
 # Platform
 ${this.platformPrompt}
@@ -38,16 +46,16 @@ ${this.language()}
 ${this.mainIdentityPrompt[identityKey]}
 
 # Personality
-${isSubLoop || isCron || !agentIdentity ? "" : this.personality(agentIdentity)}
+${persona ? this.personality(persona) : ""}
 
 # Emotions
-${isSubLoop || isCron || !agentIdentity || !agentIdentity.emotion ? "" : this.emotionsPrompt}
+${persona && !isSubLoop && persona.emotion ? this.emotionsPrompt : ""}
 
 # Agent Mode
 ${this.agentMode(agentConfig.mode)}
 
 # Project Management
-${this.projectManagement(agentConfig.mode)}
+${this.projectManagement(agentConfig.mode, !isCron && !isSubLoop && !!projectId)}
 
 # Memory
 ${this.memory(role, agentConfig.id, projectId)}
@@ -61,9 +69,28 @@ ${this.availableSkills(agentConfig.id)}`;
 ${this.cronCurrentTask(projectId)}`
             : `
 # Current Project
-${this.projectCurrentProject(projectId)}`;
+${this.projectCurrentProject(assignedTask?.projectId || projectId)}${this.assignedTask(assignedTask)}`;
 
         return {cacheable, dynamic};
+    }
+
+    private static assignedTask(assignedTask?: AssignedTask): string {
+        if (!assignedTask) {
+            return '';
+        }
+        return `
+
+# Assigned Task
+${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskTitle)}`;
+    }
+
+    /** The agent a task belongs to, which is the one a sub loop impersonates while working on it. */
+    private static assignee(assignedTask?: AssignedTask): AgentIdentity | undefined {
+        if (!assignedTask) {
+            return undefined;
+        }
+        const task = ProjectManager.getTask(assignedTask.projectId, assignedTask.taskTitle);
+        return task?.assignee ? AgentIdentityManager.getAgent(task.assignee) : undefined;
     }
 
     private static init() {
@@ -108,9 +135,12 @@ Always think step by step and be specific when you answer.`;
             subloop: `${commonIdentity}
 What's more you are a subloop agent for specific task described in the prompt.
 Complete the given task, then summarize your findings.
-You don't have access to file writing tools, and don't use run_sync_command tool to create or edit file.
-When you need to create or generate any content,
-just return it as the output of the agent without writing it to any file.
+You can write files and run commands to carry the task out, but keep every change within what the
+task asks for: another agent is waiting for your report and did not ask you for anything else.
+Nobody is there to talk to while you run, so never ask a question and never wait for a confirmation.
+Decide on your own and write the assumptions you made into your summary.
+That summary is all the agent that spawned you gets to see: it has to say what you did, which files
+you touched and everything that agent needs to carry on.
 `,
             cron: `${commonIdentity}
 What's more you are running as a scheduled (cron) task, triggered automatically at a preset time.
@@ -173,8 +203,15 @@ Use the update_cron_output tool with id "${cronId}" to record your final result 
         }
     }
 
-    private static projectManagement(agentMode: AgentMode): string {
-        return agentMode === 'chat' ? '' : ProjectManager.promptManagementTools();
+    /** Only the loop that owns a project delegates: a sub loop is the one being delegated to. */
+    private static projectManagement(agentMode: AgentMode, runsAProject: boolean): string {
+        if (agentMode === 'chat') {
+            return '';
+        }
+        return !runsAProject ? ProjectManager.promptManagementTools()
+            : `${ProjectManager.promptManagementTools()}
+
+${ProjectManager.promptTaskDelegation()}`;
     }
 
     private static memory(role: FlushAgentRole, agentId: string, projectId: string): string {

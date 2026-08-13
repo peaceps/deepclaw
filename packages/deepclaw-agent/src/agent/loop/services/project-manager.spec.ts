@@ -607,6 +607,11 @@ describe('prompts', () => {
         expect(manager.promptManagementTools()).toContain('## Project Management tools');
     });
 
+    test('keeps the status of a task away from a subloop agent', () => {
+        expect(manager.promptManagementTools())
+            .toContain('A subloop agent cannot update a task, it only moves the step index');
+    });
+
     test('describes the current project with its tasks and buckets', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         const prompt = manager.promptCurrentProject(id);
@@ -616,5 +621,40 @@ describe('prompts', () => {
 
     test('says nothing about an unknown project', () => {
         expect(manager.promptCurrentProject('ghost')).toBe('');
+    });
+
+    test('tells the project owner to hand its tasks to subagents', () => {
+        const prompt = manager.promptTaskDelegation();
+        expect(prompt).toContain('## Run the tasks through subagents');
+        expect(prompt).toContain('call the sub_loop tool with the title of the task');
+        expect(prompt).toContain('Handing a task over marks it ongoing');
+        expect(prompt).toContain('A subagent reaches no user');
+    });
+
+    test('describes the task a sub loop was assigned to', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const prompt = manager.promptAssignedTask(id, 'design');
+        expect(prompt).toContain('## You were assigned this single task');
+        expect(prompt).toContain('"title":"design"');
+        expect(prompt).toContain('"description":"design description"');
+        expect(prompt).toContain('do not pick up other tasks of the project');
+    });
+
+    test('asks for the step index to be kept up to date when the task has steps', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {steps: newSteps(2)})]);
+        const prompt = manager.promptAssignedTask(id, 'design');
+        expect(prompt).toContain('"steps":["step 0","step 1"]');
+        expect(prompt).toContain('update_task_current_step');
+    });
+
+    test('leaves out the step instruction for a task without steps', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(manager.promptAssignedTask(id, 'design')).not.toContain('update_task_current_step');
+    });
+
+    test('says nothing about a task the project does not have', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(manager.promptAssignedTask(id, 'ghost')).toBe('');
+        expect(manager.promptAssignedTask('ghost', 'design')).toBe('');
     });
 });

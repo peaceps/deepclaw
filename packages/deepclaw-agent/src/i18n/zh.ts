@@ -72,6 +72,10 @@ export const zh = {
                 unknownImage: '找不到 {{ref}} 这张图。只能用本会话里的 dcimg:// 引用或者一个图片链接作为参考图。',
                 imageTooLarge: '{{ref}} 有 {{size}}MB，超过了生图模型能接受的 {{limit}}MB。请换一张小一点的图。',
             },
+            subLoop: {
+                drawnImages: `子代理生成了这些图片。只有你把它放进自己的回复里，图片才会出现在会话中，子代理做什么都送不到：
+{{images}}`,
+            },
             project: {
                 taskSteps: {
                     empty: '没有步骤。',

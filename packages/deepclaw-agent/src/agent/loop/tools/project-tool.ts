@@ -105,7 +105,7 @@ All steps should be done when task is going to be marked as done.`,
             priority: input.priority
         }, tasks);
         
-        fireProjectInfoEvent(project.id, context);
+        ProjectManager.fireProjectInfoEvent(project.id, context);
         context.runtime.agentBreakReason = 'projectCreated';
         return `Project created successfully.
 Here's the project info:
@@ -172,7 +172,7 @@ All steps should be done when task is going to be marked as done.`,
             description: task.description,
             priority: task.priority,
         }, [task]);
-        fireProjectInfoEvent(project.id, context);
+        ProjectManager.fireProjectInfoEvent(project.id, context);
         context.runtime.agentBreakReason = 'projectCreated';
         return `Task created successfully.
 Here's the wrapper project info:
@@ -268,7 +268,7 @@ All steps should be done when task is going to be marked as done.`,
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
+    exclusiveInSubLoop: true,
     invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
         const {projectId, tasks, ...patch} =  input;
         const projectTasks = tasks?.map(task => ProjectManager.createTask({
@@ -279,7 +279,7 @@ All steps should be done when task is going to be marked as done.`,
             id: projectId,
             ...patch,
         }, projectTasks);
-        fireProjectInfoEvent(projectId, context);
+        ProjectManager.fireProjectInfoEvent(projectId, context);
         return `Project updated successfully.
 Here's the project info:
 ${JSON.stringify(ProjectManager.getProjectDetail(input.projectId))}`;
@@ -320,7 +320,7 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
 They shoudl be short descriptions of each step, should not be too long for user to read.`,
                     maxItems: PROJECT_CONFIG.maxTaskStepsCount,
                 },
-                assignee: {type: 'string', description: 'The agent name of the task being assigned to.'},
+                assignee: {type: 'string', description: 'The id of the agent the task is assigned to.'},
                 output: {
                     type: 'object',
                     additionalProperties: false,
@@ -351,7 +351,9 @@ and the file path will be set into the path field.`
     },
     agentMode: ['agent'],
     parallelSafe: false,
-    exclusiveInSubLoop: false,
+    // A task waiting to be verified stops the loop that marks it done, and a sub loop that stops
+    // there reports the pause instead of its work. Its status belongs to whoever assigned it.
+    exclusiveInSubLoop: true,
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
         const taskInfo: UpdateContent<Task, 'title'> = {title: input.taskTitle};
         if (input.assignee) taskInfo.assignee = input.assignee;
@@ -365,7 +367,7 @@ and the file path will be set into the path field.`
                 'agent.agentBreak.agentStop.taskPause.user', {name: taskInfo.title}
             );
         }
-        fireProjectInfoEvent(input.projectId, context);
+        ProjectManager.fireProjectInfoEvent(input.projectId, context);
 
         const project = ProjectManager.getProjectDetail(input.projectId);
         let res = `Task updated successfully.
@@ -418,7 +420,7 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
             tag: 'update_task_current_step'
         });
 
-        fireProjectInfoEvent(input.projectId, context);
+        ProjectManager.fireProjectInfoEvent(input.projectId, context);
         return JSON.stringify(updated);
     },
 };
@@ -472,12 +474,4 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
     invoke: async function(input: GetProjectDetailInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectDetail(input.projectId));
     },
-}
-
-function fireProjectInfoEvent(projectId: string, context: OneLoopContext) {
-    const project = ProjectManager.getProjectDetail(projectId);
-    context.actions.agentHandler.onInfoEvent({
-        eventType: 'updateProject',
-        content: project
-    });
 }

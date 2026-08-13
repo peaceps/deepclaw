@@ -123,10 +123,11 @@ describe('file tool guard', () => {
 
 describe('file tool metadata', () => {
 
-    test('only reading is allowed inside a sub loop', () => {
+    /** A sub loop that runs a task has to be able to finish it, which includes writing it out. */
+    test('reading and writing are both allowed inside a sub loop', () => {
         expect(readFileTool.exclusiveInSubLoop).toBeUndefined();
-        expect(writeFileTool.exclusiveInSubLoop).toBe(true);
-        expect(editFileTool.exclusiveInSubLoop).toBe(true);
+        expect(writeFileTool.exclusiveInSubLoop).toBe(false);
+        expect(editFileTool.exclusiveInSubLoop).toBe(false);
     });
 
     /** Every file operation runs to its end without awaiting, so none of them can interleave. */

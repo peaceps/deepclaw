@@ -77,8 +77,8 @@ describe('built-in tools', () => {
     });
 
     test('hides a main loop only tool from sub loops', () => {
-        expect(ToolsManager.getToolDesc(false, 'agent', 'write_file')?.tool.name).toBe('write_file');
-        expect(ToolsManager.getToolDesc(true, 'agent', 'write_file')).toBeUndefined();
+        expect(ToolsManager.getToolDesc(false, 'agent', 'sub_loop')?.tool.name).toBe('sub_loop');
+        expect(ToolsManager.getToolDesc(true, 'agent', 'sub_loop')).toBeUndefined();
     });
 
     test('returns undefined for a tool nobody registered', () => {

@@ -102,6 +102,17 @@ describe('generateImageTool invoke', () => {
         expect(result).toContain('"url":"dcimg://agent.a1/abcd1234.png"');
     });
 
+    /** A sub loop hands its pictures over through this trace, its own words may not carry them. */
+    test('leaves the reference behind as a foot print of the loop', async () => {
+        fetchMock.mockResolvedValueOnce(generated()).mockResolvedValueOnce(downloaded());
+        const context = contextWithKey();
+
+        await generateImageTool.invoke({prompt: 'a whale'}, context);
+
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'image', content: 'dcimg://agent.a1/abcd1234.png'});
+    });
+
     test('keeps the type the service actually answered with', async () => {
         fetchMock.mockResolvedValueOnce(generated()).mockResolvedValueOnce(downloaded('jpg-bytes', 'image/jpeg'));
 
@@ -577,10 +588,10 @@ describe('generateImageTool drawing from a picture', () => {
 
 describe('generateImageTool metadata', () => {
 
-    test('draws for a chat as well, but never from inside a sub loop', () => {
+    test('draws for a chat and from inside a sub loop as well', () => {
         expect(generateImageTool.agentMode).toEqual(['agent', 'chat']);
         expect(generateImageTool.parallelSafe).toBe(true);
-        expect(generateImageTool.exclusiveInSubLoop).toBe(true);
+        expect(generateImageTool.exclusiveInSubLoop).toBe(false);
     });
 
     test('only offers resolutions the model accepts', () => {

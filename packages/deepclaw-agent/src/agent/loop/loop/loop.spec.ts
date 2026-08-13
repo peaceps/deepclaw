@@ -6,7 +6,7 @@ import {
 } from '@deepclaw/core';
 import {type AgentConfig, type AgentMode} from '@deepclaw/config';
 import {type Logger} from '@deepclaw/node-utils';
-import {type LLMProtocol, type SystemPrompt} from '../../definitions/definitions';
+import {type LLMProtocol, type OneLoopContext, type SystemPrompt} from '../../definitions/definitions';
 import {type ToolUseDef, type ToolUseResult} from '../../definitions/tool-definitions';
 import {type LLMConstructor, type LLMModel} from '../../llm/llmgw';
 import {newTestAgentConfig, newTestRuntime} from '../../../test-support/one-loop-context';
@@ -340,7 +340,7 @@ describe('one turn', () => {
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('hi', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenCalledWith(
-            expect.objectContaining({id: 'a1'}), {id: 'a1', name: 'Ada'}, 'agent', '', false
+            expect.objectContaining({id: 'a1'}), {id: 'a1', name: 'Ada'}, 'agent', '', false, undefined
         );
         expect(llm.invoke.mock.calls[0]![1]).toEqual({cacheable: 'cacheable', dynamic: 'dynamic'});
     });
@@ -698,5 +698,90 @@ describe('sub loops', () => {
     test('refuses to nest another sub loop', () => {
         const {loop} = newLoop({subLoopId: 'sub1'});
         expect(() => loop.createSubLoop()).toThrow('Sub-loop cannot create a sub-loop');
+    });
+
+    test('builds the prompt of a task sub loop around its task', async () => {
+        const {loop} = newLoop();
+        const subLoop = loop.createSubLoop({projectId: 'p1', taskTitle: 'ship it'}) as TestLoop;
+        subLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await subLoop.runInvoke('go', {browserId: 'b1'});
+        expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
+            expect.anything(), expect.anything(), 'agent', '', true,
+            {projectId: 'p1', taskTitle: 'ship it'}
+        );
+    });
+
+    test('leaves the prompt of a sub loop without a task alone', async () => {
+        const {loop} = newLoop();
+        const subLoop = loop.newTestSubLoop();
+        subLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await subLoop.runInvoke('go', {browserId: 'b1'});
+        expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
+            expect.anything(), expect.anything(), 'agent', '', true, undefined
+        );
+    });
+
+    /** Whoever spawned the loop reads the pictures off it, the answer of a loop may not carry them. */
+    test('names the pictures that were drawn during the run', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1'), toolUse('tu2')]},
+            {transitionReason: 'endLoop', text: 'drawn'},
+        ];
+        mocks.executeToolCall.mockImplementation(async (def, context) => {
+            const actions = (context as OneLoopContext).actions;
+            actions.addFootPrint({type: 'image', content: `dcimg://agent.a1/${def.id}.png`});
+            actions.addFootPrint({type: 'toolUse', content: def.name});
+            return {result: {id: def.id, content: 'done'}, success: true};
+        });
+        await loop.runInvoke('draw two', {browserId: 'b1'});
+        expect(loop.getDrawnImages())
+            .toEqual(['dcimg://agent.a1/tu1.png', 'dcimg://agent.a1/tu2.png']);
+    });
+
+    test('has no pictures to hand over when none were drawn', () => {
+        expect(newLoop().loop.getDrawnImages()).toEqual([]);
+    });
+
+    /** The same prompt drawn twice lands on the same bytes, and one reference is enough. */
+    test('names a picture once even when it was drawn again', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1'), toolUse('tu2')]},
+            {transitionReason: 'endLoop', text: 'drawn'},
+        ];
+        mocks.executeToolCall.mockImplementation(async (def, context) => {
+            (context as OneLoopContext).actions
+                .addFootPrint({type: 'image', content: 'dcimg://agent.a1/same.png'});
+            return {result: {id: def.id, content: 'done'}, success: true};
+        });
+        await loop.runInvoke('draw it twice', {browserId: 'b1'});
+        expect(loop.getDrawnImages()).toEqual(['dcimg://agent.a1/same.png']);
+    });
+
+    /** A trace shared with the siblings would report the pictures of one of them over and over. */
+    test('keeps the pictures of a sub loop to itself', async () => {
+        const {loop} = newLoop();
+        mocks.executeToolCall.mockImplementation(async (def, context) => {
+            (context as OneLoopContext).actions
+                .addFootPrint({type: 'image', content: `dcimg://agent.a1/${def.name}.png`});
+            return {result: {id: def.id, content: 'drawn'}, success: true};
+        });
+        const first = loop.newTestSubLoop();
+        first.fakeLLM().responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1', 'first')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await first.runInvoke('draw one', {browserId: 'b1'});
+        const second = loop.newTestSubLoop();
+        second.fakeLLM().responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu2', 'second')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await second.runInvoke('draw another', {browserId: 'b1'});
+
+        expect(first.getDrawnImages()).toEqual(['dcimg://agent.a1/first.png']);
+        expect(second.getDrawnImages()).toEqual(['dcimg://agent.a1/second.png']);
+        expect(loop.getDrawnImages()).toEqual([]);
     });
 });

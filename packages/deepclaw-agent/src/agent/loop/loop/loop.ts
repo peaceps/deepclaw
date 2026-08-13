@@ -23,7 +23,7 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
-    FootPrint, LLMProtocol, LoopState, OneLoopContext,
+    AssignedTask, FootPrint, IMAGE_FOOT_PRINT, LLMProtocol, LoopState, OneLoopContext,
 } from '../../definitions/definitions';
 import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
@@ -55,6 +55,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private agentConfig: AgentConfig;
     private externalInterruptReason: ExternalInterruptReason | undefined;
     private subLoopId?: string;
+    private assignedTask?: AssignedTask;
 
     constructor(
         role: FlushAgentRole,
@@ -127,6 +128,16 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected isSubLoop(): boolean {
         return !!this.subLoopId;
+    }
+
+    /**
+     * A picture drawn inside a sub loop only reaches a user when the loop that spawned it names
+     * the reference, and a summary written by a model cannot be trusted to repeat a hash.
+     */
+    public getDrawnImages(): string[] {
+        return [...new Set(this.footPrints
+            .filter(footPrint => footPrint.type === IMAGE_FOOT_PRINT)
+            .map(footPrint => footPrint.content))];
     }
 
     public isOutdated(): boolean {
@@ -235,7 +246,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 }
                 state.oneLoopContext.system = PromptService.provideSystemPrompt(
                     this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
-                    this.role, this.projectId, this.isSubLoop()
+                    this.role, this.projectId, this.isSubLoop(), this.assignedTask
                 );
             }
             const goAround = await this.runOneTurn(state);
@@ -438,15 +449,17 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
 
-    public createSubLoop(): LoopAgent<I, O, LLM> {
+    public createSubLoop(assignedTask?: AssignedTask): LoopAgent<I, O, LLM> {
         if (this.isSubLoop()) {
             throw new Error('Sub-loop cannot create a sub-loop');
         }
-        return this.newSubLoop(this.role, this.agentId, this.projectId, {
+        const subLoop = this.newSubLoop(this.role, this.agentId, this.projectId, {
             onStreamText: () => {},
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
         }, randomUUID());
+        subLoop.assignedTask = assignedTask;
+        return subLoop;
     }
 
     protected abstract newSubLoop(
