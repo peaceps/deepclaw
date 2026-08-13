@@ -1,11 +1,12 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {type FlushAgent} from '@deepclaw/core';
-import {newTestContext} from '../../../test-support/one-loop-context';
+import {type FlushAgent, type TokenUsage} from '@deepclaw/core';
+import {newTestContext, newTestRuntime} from '../../../test-support/one-loop-context';
 import {type OneLoopContext} from '../../definitions/definitions';
 import {subLoopTool} from './sub-loop-tool';
 
 const mocks = vi.hoisted(() => ({
     deleteDir: vi.fn<(dir: string) => void>(() => undefined),
+    dropSession: vi.fn<(dir: string) => void>(() => undefined),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -14,9 +15,11 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
 }));
 
-function newSubLoop(text = 'sub loop answer') {
+vi.mock('../services/session-service', () => ({SessionService: {dropSession: mocks.dropSession}}));
+
+function newSubLoop(text = 'sub loop answer', usage: TokenUsage = newTestRuntime().usage) {
     return {
-        invoke: vi.fn(async () => ({text})),
+        invoke: vi.fn(async () => ({text, runtime: newTestRuntime({usage})})),
         getSessionDir: vi.fn(() => '.agents/a1/session/sub9'),
     };
 }
@@ -58,6 +61,24 @@ describe('subLoopTool invoke', () => {
         await expect(subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop)))
             .rejects.toThrow('sub loop crashed');
         expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith('.agents/a1/session/sub9');
+    });
+
+    test('forgets the session metadata of the sub loop as well', async () => {
+        const subLoop = newSubLoop();
+        await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+        expect(mocks.dropSession).toHaveBeenCalledExactlyOnceWith('.agents/a1/session/sub9');
+    });
+
+    test('bills the tokens the sub loop spent to its parent', async () => {
+        const subLoop = newSubLoop('done', {
+            cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3,
+        });
+        const context = contextWithSubLoop(subLoop);
+        context.runtime.usage = {cachedInputTokens: 10, noCachedInputTokens: 20, outputTokens: 30};
+        await subLoopTool.invoke({prompt: 'go'}, context);
+        expect(context.runtime.usage).toEqual({
+            cachedInputTokens: 11, noCachedInputTokens: 22, outputTokens: 33,
+        });
     });
 });
 

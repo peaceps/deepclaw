@@ -27,14 +27,23 @@ describe('runBackgroundCommandTool invoke', () => {
         runCommand.mockReturnValue(undefined);
     });
 
-    test('starts the command in the session directory as a running main command', async () => {
+    test('starts the command in the session directory owned by the loop', async () => {
         await runBackgroundCommandTool.invoke({title: 'build', command: 'npm run build'}, newTestContext());
         const [command, sessionDir] = runCommand.mock.calls[0]!;
-        expect(sessionDir).toBe('.agents/a1/session/s1');
+        expect(sessionDir).toBe('.agents/a1/session');
         expect(command).toMatchObject({
-            title: 'build', command: 'npm run build', creator: 'main', status: 'running',
+            title: 'build', command: 'npm run build', creator: 'agent.a1', status: 'running',
         });
         expect(new Date(command.createdAt).toISOString()).toBe(command.createdAt);
+    });
+
+    /** The folder of a sub loop is deleted while the command it started is still writing. */
+    test('keeps the output of a sub loop command out of the sub loop folder', async () => {
+        const context = newTestContext({isSubLoop: true, sessionDir: '/tmp/sub_loop/sub9'});
+        await runBackgroundCommandTool.invoke({title: 'build', command: 'npm run build'}, context);
+        const [command, sessionDir] = runCommand.mock.calls[0]!;
+        expect(sessionDir).toBe('.agents/a1/session');
+        expect(command.creator).toBe('agent.a1');
     });
 
     test('reports the generated id back to the agent', async () => {
@@ -63,7 +72,7 @@ describe('checkBackgroundCommandStatusTool invoke', () => {
         const info = {id: 'b1', title: 'build', status: 'completed' as const, preview: 'done'};
         getCommandStatus.mockReturnValue(info);
         const result = await checkBackgroundCommandStatusTool.invoke({commandId: 'b1'}, newTestContext());
-        expect(getCommandStatus).toHaveBeenCalledExactlyOnceWith('b1');
+        expect(getCommandStatus).toHaveBeenCalledExactlyOnceWith('b1', 'agent.a1');
         expect(result).toContain('Command "build" is currently completed.');
         expect(result).toContain(JSON.stringify(info));
     });
@@ -79,11 +88,12 @@ describe('checkBackgroundCommandStatusTool invoke', () => {
 
 describe('checkAllBackgroundCommandStatusTool invoke', () => {
 
-    test('lists every command the manager knows about', async () => {
+    test('lists only the commands of the asking loop', async () => {
         vi.clearAllMocks();
         const all = [{id: 'b1', title: 'build', status: 'running' as const}];
         getAllCommandsStatus.mockReturnValue(all);
         const result = await checkAllBackgroundCommandStatusTool.invoke(undefined, newTestContext());
+        expect(getAllCommandsStatus).toHaveBeenCalledExactlyOnceWith('agent.a1');
         expect(result).toContain(JSON.stringify(all));
     });
 });
@@ -105,7 +115,7 @@ describe('removeBackgroundCommand invoke', () => {
     test('drops a command that already completed', async () => {
         getCommandStatus.mockReturnValue({id: 'b1', title: 'build', status: 'completed'});
         const result = await removeBackgroundCommand.invoke({commandId: 'b1'}, newTestContext());
-        expect(removeCommand).toHaveBeenCalledExactlyOnceWith('b1');
+        expect(removeCommand).toHaveBeenCalledExactlyOnceWith('b1', 'agent.a1');
         expect(result).toBe('Command "b1" is removed');
     });
 });

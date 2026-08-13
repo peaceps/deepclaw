@@ -24,7 +24,7 @@ export const createCronTaskTool: ToolDesc<CreateCronTaskInput> = {
             required: ['title', 'cron', 'prompt'],
         },
     },
-    parallelSafe: false,
+    parallelSafe: true,
     agentMode: ['agent'],
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateCronTaskInput, context: OneLoopContext): Promise<string> {
@@ -58,7 +58,7 @@ export const updateCronTaskTool: ToolDesc<UpdateCronTaskInput> = {
             required: ['id'],
         },
     },
-    parallelSafe: false,
+    parallelSafe: true,
     agentMode: ['agent'],
     exclusiveInSubLoop: true,
     invoke: async function(input: UpdateCronTaskInput): Promise<string> {
@@ -107,7 +107,7 @@ and the file path will be set into the path field.`
             required: ['id', 'output'],
         },
     },
-    parallelSafe: false,
+    parallelSafe: true,
     agentMode: ['agent'],
     exclusiveInSubLoop: true,
     invoke: async function(input: UpdateCronOutputInput): Promise<string> {

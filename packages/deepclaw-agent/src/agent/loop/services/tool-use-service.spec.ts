@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {type ToolDesc, type ToolUseDef} from '../../definitions/tool-definitions';
+import {type ToolDesc, type ToolGuardResult, type ToolUseDef} from '../../definitions/tool-definitions';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {ToolUseService} from './tool-use-service';
 
@@ -149,8 +149,9 @@ describe('executeToolCall guard', () => {
         mocks.getToolDesc.mockReturnValue(tool);
         const context = newTestContext();
         vi.mocked(context.actions.agentHandler.onInteractionEvent).mockRejectedValue('interactionAfk');
-        const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
+        const {result, success, rerun} = await ToolUseService.executeToolCall(newToolUse(), context);
         expect(success).toBe(false);
+        expect(rerun).toBe(true);
         expect(context.runtime.agentBreakReason).toBe('interactionAfk');
         expect(result.content).toContain('Need rerun this tool');
     });
@@ -170,6 +171,39 @@ describe('executeToolCall guard', () => {
         expect(context.runtime.agentBreakReason).toBeUndefined();
     });
 
+    test('denies a question raised inside a sub loop instead of asking', async () => {
+        const tool = newTool({guard: () => ({
+            result: 'ask',
+            question: {type: 'input', content: 'may I?'},
+            checkAnswer: () => true,
+        })});
+        mocks.getToolDesc.mockReturnValue(tool);
+        const context = newTestContext({isSubLoop: true});
+        const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
+        expect(success).toBe(false);
+        expect(result.content).toBe(
+            'Tool run is not allowed: demo. a sub agent cannot ask the user, report back what you need instead of retrying.'
+        );
+        expect(context.actions.agentHandler.onInteractionEvent).not.toHaveBeenCalled();
+        expect(tool.invoke).not.toHaveBeenCalled();
+        expect(mocks.emitVisitor).toHaveBeenCalledWith('toolGuardDenied', context, {
+            toolUseDef: newToolUse(),
+            reason: 'a sub agent cannot ask the user, report back what you need instead of retrying',
+        });
+    });
+
+    test('still asks in a top level loop', async () => {
+        const tool = newTool({guard: () => ({
+            result: 'ask',
+            question: {type: 'input', content: 'may I?'},
+            checkAnswer: () => true,
+        })});
+        mocks.getToolDesc.mockReturnValue(tool);
+        const context = newTestContext({isSubLoop: false});
+        await ToolUseService.executeToolCall(newToolUse(), context);
+        expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalled();
+    });
+
     test('runs a tool whose guard allows it right away', async () => {
         const tool = newTool({guard: () => ({result: 'allowed'})});
         mocks.getToolDesc.mockReturnValue(tool);
@@ -177,6 +211,170 @@ describe('executeToolCall guard', () => {
         const {success} = await ToolUseService.executeToolCall(newToolUse(), context);
         expect(success).toBe(true);
         expect(context.actions.agentHandler.onInteractionEvent).not.toHaveBeenCalled();
+    });
+});
+
+/** Lets every pending promise callback run. */
+function flush(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function newAskingTool(guardResults: ToolGuardResult[]): ToolDesc<unknown> {
+    const ask: ToolGuardResult = {
+        result: 'ask',
+        question: {type: 'input', content: 'may I?'},
+        checkAnswer: () => true,
+    };
+    return newTool({guard: () => guardResults.shift() ?? ask});
+}
+
+describe('executeToolCall question queue', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    test('asks the questions of one loop one after the other', async () => {
+        mocks.getToolDesc.mockReturnValue(newAskingTool([]));
+        const context = newTestContext();
+        const answers: ((answer: string) => void)[] = [];
+        vi.mocked(context.actions.agentHandler.onInteractionEvent)
+            .mockImplementation(() => new Promise<string>(resolve => answers.push(resolve)));
+
+        const first = ToolUseService.executeToolCall(newToolUse(), context);
+        const second = ToolUseService.executeToolCall(newToolUse({id: 'tu2'}), context);
+        await flush();
+        expect(answers).toHaveLength(1);
+
+        answers[0]!('yes');
+        await first;
+        await flush();
+        expect(answers).toHaveLength(2);
+
+        answers[1]!('yes');
+        expect((await second).success).toBe(true);
+    });
+
+    test('lets another loop ask at the same time', async () => {
+        mocks.getToolDesc.mockReturnValue(newAskingTool([]));
+        const context = newTestContext();
+        const other = newTestContext({loopId: 'agent.a2'});
+        const answers: ((answer: string) => void)[] = [];
+        const pending = () => new Promise<string>(resolve => answers.push(resolve));
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockImplementation(pending);
+        vi.mocked(other.actions.agentHandler.onInteractionEvent).mockImplementation(pending);
+
+        const first = ToolUseService.executeToolCall(newToolUse(), context);
+        const second = ToolUseService.executeToolCall(newToolUse({id: 'tu2'}), other);
+        await flush();
+        expect(answers).toHaveLength(2);
+
+        answers.forEach(answer => answer('yes'));
+        expect((await first).success).toBe(true);
+        expect((await second).success).toBe(true);
+    });
+
+    /** Without this the whole turn waits for one interaction timeout per queued question. */
+    test('stops asking once the user was found to be away', async () => {
+        mocks.getToolDesc.mockReturnValue(newAskingTool([]));
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockRejectedValueOnce('interactionAfk');
+
+        const first = ToolUseService.executeToolCall(newToolUse(), context);
+        const second = ToolUseService.executeToolCall(newToolUse({id: 'tu2'}), context);
+        expect((await first).rerun).toBe(true);
+        expect((await second).rerun).toBe(true);
+        expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalledOnce();
+    });
+
+    test('keeps asking while the user is only slow to answer', async () => {
+        mocks.getToolDesc.mockReturnValue(newAskingTool([]));
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockResolvedValue('yes');
+
+        const first = ToolUseService.executeToolCall(newToolUse(), context);
+        const second = ToolUseService.executeToolCall(newToolUse({id: 'tu2'}), context);
+        expect((await first).success).toBe(true);
+        expect((await second).success).toBe(true);
+        expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalledTimes(2);
+    });
+
+    test('denies the tool when the guard withdrew the permission before the question was asked', async () => {
+        const tool = newAskingTool([
+            {result: 'ask', question: {type: 'input', content: 'may I?'}, checkAnswer: () => true},
+            {result: 'denied', reason: 'the file left the workspace'},
+        ]);
+        mocks.getToolDesc.mockReturnValue(tool);
+        const context = newTestContext();
+        const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
+        expect(success).toBe(false);
+        expect(result.content).toBe('Tool run is not allowed: demo. the file left the workspace.');
+        expect(context.actions.agentHandler.onInteractionEvent).not.toHaveBeenCalled();
+        expect(tool.invoke).not.toHaveBeenCalled();
+        expect(mocks.emitVisitor).toHaveBeenCalledWith('toolGuardDenied', context, {
+            toolUseDef: newToolUse(),
+            reason: 'the file left the workspace',
+        });
+    });
+
+    test('drops the question when the guard allows the tool by the time it is asked', async () => {
+        const tool = newAskingTool([
+            {result: 'ask', question: {type: 'input', content: 'may I?'}, checkAnswer: () => true},
+            {result: 'allowed'},
+        ]);
+        mocks.getToolDesc.mockReturnValue(tool);
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockResolvedValue('yes');
+        const {success} = await ToolUseService.executeToolCall(newToolUse(), context);
+        expect(success).toBe(true);
+        expect(context.actions.agentHandler.onInteractionEvent).not.toHaveBeenCalled();
+        expect(tool.invoke).toHaveBeenCalled();
+    });
+});
+
+describe('planExecutionGroups', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    test('puts parallel safe tool calls into a shared group', () => {
+        mocks.getToolDesc.mockReturnValue(newTool());
+        const defs = [newToolUse(), newToolUse({id: 'tu2'}), newToolUse({id: 'tu3'})];
+        expect(ToolUseService.planExecutionGroups(defs, newTestContext())).toEqual([defs]);
+    });
+
+    test('gives a tool call that is not parallel safe a group of its own', () => {
+        const safe = newTool();
+        const exclusive = newTool({parallelSafe: false});
+        mocks.getToolDesc.mockImplementation((_isSubLoop, _mode, name) => name === 'lonely' ? exclusive : safe);
+        const defs = [
+            newToolUse(), newToolUse({id: 'tu2', name: 'lonely'}), newToolUse({id: 'tu3'}),
+        ];
+        expect(ToolUseService.planExecutionGroups(defs, newTestContext()))
+            .toEqual([[defs[0]], [defs[1]], [defs[2]]]);
+    });
+
+    test('runs an unknown tool on its own', () => {
+        mocks.getToolDesc.mockReturnValue(undefined);
+        const defs = [newToolUse(), newToolUse({id: 'tu2'})];
+        expect(ToolUseService.planExecutionGroups(defs, newTestContext()))
+            .toEqual([[defs[0]], [defs[1]]]);
+    });
+
+    test('caps how many tool calls share a group', () => {
+        mocks.getToolDesc.mockReturnValue(newTool());
+        const defs = Array.from({length: 6}, (_unused, index) => newToolUse({id: `tu${index}`}));
+        expect(ToolUseService.planExecutionGroups(defs, newTestContext()))
+            .toEqual([defs.slice(0, 5), defs.slice(5)]);
+    });
+
+    test('looks the tools up for the current loop kind and agent mode', () => {
+        mocks.getToolDesc.mockReturnValue(newTool());
+        const context = newTestContext({isSubLoop: true});
+        context.loopConfig.mode = 'chat';
+        ToolUseService.planExecutionGroups([newToolUse()], context);
+        expect(mocks.getToolDesc).toHaveBeenCalledWith(true, 'chat', 'demo');
     });
 });
 

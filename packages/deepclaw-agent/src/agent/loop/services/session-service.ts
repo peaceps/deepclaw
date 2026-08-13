@@ -38,6 +38,11 @@ export class SessionService {
         }
     }
 
+    /** Called when a session folder is gone for good, otherwise its metadata would be kept forever. */
+    public static dropSession(sessionDir: string): void {
+        this.sessionMeta.delete(sessionDir);
+    }
+
     private static getMeta(sessionDir: string): SessionMetaData | null {
         const meta = this.sessionMeta.get(sessionDir);
         if (meta) return meta;

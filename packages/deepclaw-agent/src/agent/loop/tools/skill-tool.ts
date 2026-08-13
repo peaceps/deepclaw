@@ -117,7 +117,7 @@ e.g. vercel-labs/agent-skills@vercel-react-best-practices`,
         },
     },
     agentMode: ['agent'],
-    parallelSafe: true,
+    parallelSafe: false,
     invoke: async function(input: DownloadSkillInput): Promise<string> {
         return await trySkillsWithMirror('add', input.target);
     },

@@ -14,11 +14,14 @@ export type BackgroundCommand = BackGroundCommandInfo & {
     createdAt: string;
     completedAt?: string;
     output?: string;
+    /** The loopId that started the command. Sub loops share it with their parent on purpose:
+     *  a command usually outlives the sub loop and its result belongs to the loop that remains. */
     creator: string;
+    /** Set once the loop that started the command has been told that it finished. */
+    reported?: boolean;
 };
 
 export class BackgroundCommandManager {
-    private static completedCommands: Set<string> = new Set();
     private static commands: Map<string, BackgroundCommand> = new Map();
 
     public static runCommand(command: BackgroundCommand, sessionDir: string): void {
@@ -32,7 +35,6 @@ export class BackgroundCommandManager {
             command.output = `Error: ${e?.message || 'Unknown error'}`;
             command.preview = command.output;
         }).finally(() => {
-            this.completedCommands.add(id);
             command.completedAt = new Date().toISOString();
             command.status = 'completed';
             const outputPath = FileUtils.writeFile(command.outputPath!, command.output || '');
@@ -40,11 +42,53 @@ export class BackgroundCommandManager {
         });
     }
 
-    public static getCommandStatus(commandId: string): BackGroundCommandInfo {
+    public static getCommandStatus(commandId: string, creator: string): BackGroundCommandInfo {
+        return this.statusOf(this.ownedCommand(commandId, creator));
+    }
+
+    public static removeCommand(commandId: string, creator: string): void {
         const command = this.commands.get(commandId);
-        if (!command) {
+        if (!command || command.creator !== creator) {
+            return;
+        }
+        this.commands.delete(commandId);
+        if (command.outputPath) {
+            FileUtils.deleteFile(command.outputPath);
+        }
+    }
+
+    public static getAllCommandsStatus(creator: string): BackGroundCommandInfo[] {
+        return Array.from(this.commands.values())
+            .filter(command => command.creator === creator)
+            .map(command => this.statusOf(command));
+    }
+
+    /**
+     * Whether a finish was already reported is remembered on the command itself, so a result
+     * nobody ever came back for is forgotten together with the command instead of outliving it.
+     */
+    public static drainFinishedCommands(creator: string): BackGroundCommandInfo[] {
+        const finishedCommands: BackGroundCommandInfo[] = [];
+        for (const command of this.commands.values()) {
+            if (command.creator !== creator || command.status !== 'completed' || command.reported) {
+                continue;
+            }
+            command.reported = true;
+            finishedCommands.push(this.statusOf(command));
+        }
+        return finishedCommands;
+    }
+
+    /** A command of another loop is reported as missing rather than as forbidden. */
+    private static ownedCommand(commandId: string, creator: string): BackgroundCommand {
+        const command = this.commands.get(commandId);
+        if (!command || command.creator !== creator) {
             throw new Error(`Command not found: ${commandId}`);
         }
+        return command;
+    }
+
+    private static statusOf(command: BackgroundCommand): BackGroundCommandInfo {
         return {
             id: command.id,
             title: command.title,
@@ -52,37 +96,5 @@ export class BackgroundCommandManager {
             outputPath: command.outputPath,
             status: command.status
         };
-    }
-
-    public static removeCommand(commandId: string): void {
-        const command = this.commands.get(commandId);
-        this.completedCommands.delete(commandId);
-        this.commands.delete(commandId);
-        if (command?.outputPath) {
-            FileUtils.deleteFile(command.outputPath);
-        }
-    }
-
-    public static getAllCommandsStatus(): BackGroundCommandInfo[] {
-        const allCommands: BackGroundCommandInfo[] = [];
-        for (const command of this.commands.values()) {
-            allCommands.push({
-                id: command.id,
-                title: command.title,
-                preview: command.preview,
-                outputPath: command.outputPath,
-                status: command.status
-            });
-        }
-        return allCommands;
-    }
-
-    public static drainFinishedCommands(): BackGroundCommandInfo[] {
-        const finishedCommands: BackGroundCommandInfo[] = [];
-        for (const id of Array.from(this.completedCommands)) {
-            finishedCommands.push(this.getCommandStatus(id));
-        }
-        this.completedCommands.clear();
-        return finishedCommands;
     }
 }

@@ -99,4 +99,9 @@ describe('memory tool metadata', () => {
         expect(saveMemoryTool.agentMode).toEqual(['agent', 'chat']);
         expect(saveMemoryTool.tool.schema.required).toEqual(['type', 'name', 'description', 'content', 'scope']);
     });
+
+    test('both memory tools run next to other tool calls', () => {
+        expect(saveMemoryTool.parallelSafe).toBe(true);
+        expect(readMemoryDetailTool.parallelSafe).toBe(true);
+    });
 });

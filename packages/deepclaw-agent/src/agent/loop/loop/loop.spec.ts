@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     emitVisitor: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
     emitInterceptor: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({result: 'continue'})),
     executeToolCall: vi.fn<(toolUseDef: ToolUseDef, context: unknown) => Promise<unknown>>(),
+    planExecutionGroups: vi.fn<(toolUseDefs: ToolUseDef[], context: unknown) => ToolUseDef[][]>(),
     compactOldResults: vi.fn(),
     compactFullHistory: vi.fn(async () => undefined),
 }));
@@ -66,7 +67,10 @@ vi.mock('../services/hook-manager', () => ({
 }));
 
 vi.mock('../services/tool-use-service', () => ({
-    ToolUseService: {executeToolCall: mocks.executeToolCall},
+    ToolUseService: {
+        executeToolCall: mocks.executeToolCall,
+        planExecutionGroups: mocks.planExecutionGroups,
+    },
 }));
 
 vi.mock('../compactor/messages-compactor', () => ({
@@ -219,6 +223,7 @@ beforeEach(() => {
     mocks.executeToolCall.mockImplementation(async (def) => ({
         result: {id: def.id, content: `${def.name} done`}, success: true
     }));
+    mocks.planExecutionGroups.mockImplementation(defs => defs.map(def => [def]));
 });
 
 describe('construction', () => {
@@ -446,7 +451,7 @@ describe('tool use', () => {
         llm.responses = [{transitionReason: 'toolUse', toolUses: [toolUse('tu1'), toolUse('tu2')]}];
         mocks.executeToolCall.mockImplementationOnce(async (def, context) => {
             (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'interactionAfk';
-            return {result: {id: def.id, content: 'needs the user'}, success: false};
+            return {result: {id: def.id, content: 'needs the user'}, success: false, rerun: true};
         });
         const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
         expect(runtime.breakPoint.point).toBe(BREAK_POINTS.toolUse);
@@ -459,10 +464,75 @@ describe('tool use', () => {
         llm.responses = [{transitionReason: 'toolUse', toolUses: [toolUse('tu1')]}];
         mocks.executeToolCall.mockImplementationOnce(async (def, context) => {
             (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'interactionAfk';
-            return {result: {id: def.id, content: 'needs the user'}, success: false};
+            return {result: {id: def.id, content: 'needs the user'}, success: false, rerun: true};
         });
         const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
         expect(runtime.usage).toEqual({cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0});
+    });
+});
+
+describe('parallel tool use', () => {
+
+    test('runs the tool calls of one group at the same time', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1'), toolUse('tu2', 'other')]},
+            {transitionReason: 'endLoop', text: 'finished'},
+        ];
+        mocks.planExecutionGroups.mockImplementation(defs => [defs]);
+        let running = 0;
+        let overlapped = false;
+        mocks.executeToolCall.mockImplementation(async (def) => {
+            running++;
+            await Promise.resolve();
+            overlapped ||= running > 1;
+            running--;
+            return {result: {id: def.id, content: `${def.name} done`}, success: true};
+        });
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(overlapped).toBe(true);
+        expect(savedHistory().filter(message => message.role === 'tool').map(message => message.text))
+            .toEqual(['demo done', 'other done']);
+    });
+
+    test('waits for a group before starting the next one', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1'), toolUse('tu2')]},
+            {transitionReason: 'endLoop', text: 'finished'},
+        ];
+        mocks.planExecutionGroups.mockImplementation(defs => defs.map(def => [def]));
+        let running = 0;
+        let overlapped = false;
+        mocks.executeToolCall.mockImplementation(async (def) => {
+            running++;
+            await Promise.resolve();
+            overlapped ||= running > 1;
+            running--;
+            return {result: {id: def.id, content: `${def.name} done`}, success: true};
+        });
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(overlapped).toBe(false);
+    });
+
+    test('keeps the results of the siblings of a tool call the user has to answer for', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [{
+            transitionReason: 'toolUse',
+            toolUses: [toolUse('tu1'), toolUse('tu2'), toolUse('tu3')],
+        }];
+        mocks.planExecutionGroups.mockImplementation(defs => [defs.slice(0, 2), defs.slice(2)]);
+        mocks.executeToolCall.mockImplementation(async (def, context) => {
+            if (def.id !== 'tu1') {
+                return {result: {id: def.id, content: `${def.id} done`}, success: true};
+            }
+            (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'interactionAfk';
+            return {result: {id: def.id, content: 'needs the user'}, success: false, rerun: true};
+        });
+        const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(runtime.breakPoint.input).toEqual([toolUse('tu1'), toolUse('tu3')]);
+        expect(savedHistory().filter(message => message.role === 'tool').map(message => message.text))
+            .toEqual(['tu2 done']);
     });
 });
 

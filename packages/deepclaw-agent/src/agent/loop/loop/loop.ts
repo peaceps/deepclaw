@@ -36,6 +36,12 @@ import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
 import { SessionService } from '../services/session-service';
 
+type ToolRun = {
+    toolUseDef: ToolUseDef;
+    result: ToolUseResult;
+    rerun?: boolean;
+}
+
 export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionReason },
     LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
     protected llm: LLM;
@@ -347,43 +353,55 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
-        for (let i = 0; i < toolUseDefs.length; i++) {
-            const toolUseDef = toolUseDefs[i]!;
-            const breakReason = context.runtime.agentBreakReason;
-            if (isAgentStopReason(breakReason) || isExternalInterruptReason(breakReason)) {
-                const stopType = isAgentStopReason(breakReason) ? 'agentStop' : 'externalInterrupt';
-                const stopText = i18nInstance.t(`agent.agentBreak.${stopType}.${breakReason}.llm`);
-                const toolResult = {
-                    result: {
-                        id: toolUseDef.id,
-                        content: `Tool call execution skipped because loop terminated due to: ${stopText}`
-                    }
-                };
-                results.push(toolResult.result);
-                continue;
-            }
-            await HookManager.emitVisitor('preEachToolUse', context, toolUseDef);
-            const result = await HookManager.emitInterceptor('preEachToolUse', context, toolUseDef);
-            if (result && result.result === 'stop') {
-                results.push({
-                    id: toolUseDef.id,
-                    content: result.stopReason || 'Tool use rejected by hook.',
-                });
-            } else {
-                const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
-                if (isInternalInterruptReason(context.runtime.agentBreakReason)) {
-                    context.runtime.breakPoint = {
-                        point: BREAK_POINTS.toolUse,
-                        input: toolUseDefs.slice(i),
-                        break: true
-                    }
-                    return results;
+        const groups = ToolUseService.planExecutionGroups(toolUseDefs, context);
+        const ran = new Set<string>();
+        for (const group of groups) {
+            const runs = await Promise.all(group.map(toolUseDef => this.runOneTool(toolUseDef, context)));
+            group.forEach(toolUseDef => ran.add(toolUseDef.id));
+            results.push(...runs.filter(run => !run.rerun).map(run => run.result));
+            const pending = runs.filter(run => run.rerun).map(run => run.toolUseDef);
+            if (pending.length > 0) {
+                // Whatever never ran is taken from the whole list rather than from the groups
+                // behind this one, so the break point holds every call however they were grouped.
+                const untouched = toolUseDefs.filter(toolUseDef => !ran.has(toolUseDef.id));
+                context.runtime.breakPoint = {
+                    point: BREAK_POINTS.toolUse,
+                    input: [...pending, ...untouched],
+                    break: true
                 }
-                results.push(toolResult.result);
-                await HookManager.emitVisitor('postEachToolUse', context, {toolUseDef, result: toolResult});
+                return results;
             }
         }
         return results;
+    }
+
+    private async runOneTool(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolRun> {
+        const breakReason = context.runtime.agentBreakReason;
+        if (isAgentStopReason(breakReason) || isExternalInterruptReason(breakReason)) {
+            const stopType = isAgentStopReason(breakReason) ? 'agentStop' : 'externalInterrupt';
+            const stopText = i18nInstance.t(`agent.agentBreak.${stopType}.${breakReason}.llm`);
+            return {
+                toolUseDef,
+                result: {
+                    id: toolUseDef.id,
+                    content: `Tool call execution skipped because loop terminated due to: ${stopText}`
+                }
+            };
+        }
+        await HookManager.emitVisitor('preEachToolUse', context, toolUseDef);
+        const result = await HookManager.emitInterceptor('preEachToolUse', context, toolUseDef);
+        if (result && result.result === 'stop') {
+            return {
+                toolUseDef,
+                result: {id: toolUseDef.id, content: result.stopReason || 'Tool use rejected by hook.'}
+            };
+        }
+        const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
+        if (toolResult.rerun) {
+            return {toolUseDef, result: toolResult.result, rerun: true};
+        }
+        await HookManager.emitVisitor('postEachToolUse', context, {toolUseDef, result: toolResult});
+        return {toolUseDef, result: toolResult.result};
     }
 
     protected addStringMessage(message: string, user: boolean = true): void {

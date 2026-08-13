@@ -8,6 +8,10 @@ type CallToolResult = {content?: unknown; isError?: boolean};
 
 const ADDR = 'http://localhost:3000/mcp';
 const OTHER_ADDR = 'http://localhost:4000/mcp';
+const RETRY_LIMIT = 3;
+const RETRY_DELAY_MS = 200;
+const RECONNECT_DELAY_MS = 30 * 1000;
+const DRAIN_TIMEOUT_MS = 60 * 1000;
 
 const mocks = vi.hoisted(() => ({
     loadConfig: vi.fn<(key: string) => string>(() => ''),
@@ -24,6 +28,8 @@ const mocks = vi.hoisted(() => ({
     callTool: vi.fn<(params: {name: string; arguments: unknown}) => Promise<CallToolResult>>(
         async () => ({content: []})
     ),
+    /** Every client that was built, so that a test can drop the connection of one of them. */
+    clients: [] as {onclose: (() => void) | undefined}[],
 }));
 
 vi.mock('@modelcontextprotocol/sdk/client', () => ({
@@ -33,9 +39,11 @@ vi.mock('@modelcontextprotocol/sdk/client', () => ({
         public getServerVersion = mocks.serverVersion;
         public listTools = mocks.listTools;
         public callTool = mocks.callTool;
+        public onclose: (() => void) | undefined = undefined;
 
         constructor(...args: [unknown, unknown]) {
             mocks.newClient(args[0]);
+            mocks.clients.push(this);
         }
     },
 }));
@@ -57,7 +65,9 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
 }));
 
 function primeMocks(): void {
+    vi.useRealTimers();
     vi.clearAllMocks();
+    mocks.clients.length = 0;
     mocks.loadConfig.mockReturnValue('');
     mocks.connect.mockResolvedValue(undefined);
     mocks.close.mockResolvedValue(undefined);
@@ -74,6 +84,11 @@ async function connectTo(addr: string, tools: McpTool[] = []): Promise<void> {
 
 function toolNames(): string[] {
     return Object.keys(MCPService.getTools());
+}
+
+/** Lets every pending promise callback run. */
+function flush(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 async function invokeTool(name: string, input: unknown): Promise<string> {
@@ -122,12 +137,39 @@ describe('connect', () => {
         expect(toolNames()).toEqual(['MCP_srv_ping']);
     });
 
-    test('closes the old client before connecting to a new address', async () => {
+    test('closes the old client once the new address answered', async () => {
         await connectTo(ADDR);
         await connectTo(OTHER_ADDR);
         expect(mocks.close).toHaveBeenCalledOnce();
         expect(mocks.newTransport.mock.calls[1]![0].href).toBe(OTHER_ADDR);
         expect(mocks.connect).toHaveBeenCalledTimes(2);
+    });
+
+    test('keeps serving the tools of the old server while the new one connects', async () => {
+        await connectTo(ADDR, [{name: 'ping'}]);
+        let letConnect = () => undefined as void;
+        mocks.connect.mockImplementationOnce(() => new Promise(resolve => {
+            letConnect = () => resolve();
+        }));
+        mocks.loadConfig.mockReturnValue(OTHER_ADDR);
+        mocks.listTools.mockResolvedValue({tools: [{name: 'pong'}]});
+
+        const connecting = MCPService.connect();
+        await flush();
+        expect(toolNames()).toEqual(['MCP_srv_ping']);
+        expect(mocks.close).not.toHaveBeenCalled();
+
+        letConnect();
+        await connecting;
+        expect(toolNames()).toEqual(['MCP_srv_pong']);
+    });
+
+    test('gives up the old tools when the new address cannot be reached', async () => {
+        await connectTo(ADDR, [{name: 'ping'}]);
+        mocks.connect.mockRejectedValue(new Error('refused'));
+        await connectTo(OTHER_ADDR);
+        expect(MCPService.getTools()).toEqual({});
+        expect(mocks.close).toHaveBeenCalledOnce();
     });
 
     test('drops the client when the server is removed from the config', async () => {
@@ -169,8 +211,84 @@ describe('connect', () => {
         });
         mocks.loadConfig.mockReturnValueOnce(ADDR).mockReturnValue(OTHER_ADDR);
         await Promise.all([MCPService.connect(), MCPService.connect()]);
-        expect(order).toEqual(['connect', 'close', 'connect']);
+        expect(order).toEqual(['connect', 'connect', 'close']);
         expect(mocks.newTransport.mock.calls.map(([url]) => url.href)).toEqual([ADDR, OTHER_ADDR]);
+    });
+
+    test('keeps trying in the background after it gave up on the server', async () => {
+        vi.useFakeTimers();
+        mocks.connect.mockRejectedValue(new Error('refused'));
+        mocks.loadConfig.mockReturnValue(ADDR);
+        const givingUp = MCPService.connect();
+        await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * RETRY_LIMIT);
+        await givingUp;
+        expect(mocks.connect).toHaveBeenCalledTimes(RETRY_LIMIT);
+
+        mocks.connect.mockResolvedValue(undefined);
+        mocks.listTools.mockResolvedValue({tools: [{name: 'ping'}]});
+        await vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS);
+        expect(toolNames()).toEqual(['MCP_srv_ping']);
+    });
+
+    test('stops the background retry once the server is removed from the config', async () => {
+        vi.useFakeTimers();
+        mocks.connect.mockRejectedValue(new Error('refused'));
+        mocks.loadConfig.mockReturnValue(ADDR);
+        const givingUp = MCPService.connect();
+        await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * RETRY_LIMIT);
+        await givingUp;
+
+        mocks.loadConfig.mockReturnValue('');
+        await MCPService.connect();
+        mocks.connect.mockClear();
+        await vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS * 10);
+        expect(mocks.connect).not.toHaveBeenCalled();
+    });
+});
+
+describe('a connection that dropped on its own', () => {
+
+    /** The client the service is serving the tools of, as the sdk hands it the close event. */
+    function lastClient(): {onclose: (() => void) | undefined} {
+        return mocks.clients[mocks.clients.length - 1]!;
+    }
+
+    test('is built again while the config still asks for that server', async () => {
+        await connectTo(ADDR, [{name: 'ping'}]);
+        const dropped = lastClient();
+        mocks.listTools.mockResolvedValue({tools: [{name: 'pong'}]});
+
+        dropped.onclose!();
+        await MCPService.connect();
+
+        expect(mocks.connect).toHaveBeenCalledTimes(2);
+        expect(toolNames()).toEqual(['MCP_srv_pong']);
+    });
+
+    test('leaves no tools behind when the server stays unreachable', async () => {
+        await connectTo(ADDR, [{name: 'ping'}]);
+        const dropped = lastClient();
+        mocks.connect.mockRejectedValue(new Error('refused'));
+        vi.useFakeTimers();
+
+        dropped.onclose!();
+        await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * RETRY_LIMIT);
+
+        expect(MCPService.getTools()).toEqual({});
+    });
+
+    test('is not built again when the service closed it on purpose', async () => {
+        await connectTo(ADDR, [{name: 'ping'}]);
+        const retired = lastClient();
+        mocks.loadConfig.mockReturnValue('');
+        await MCPService.connect();
+        mocks.connect.mockClear();
+
+        retired.onclose!();
+        await flush();
+
+        expect(mocks.connect).not.toHaveBeenCalled();
+        expect(MCPService.getTools()).toEqual({});
     });
 });
 
@@ -242,10 +360,10 @@ describe('tool listing', () => {
         expect(MCPService.getTools()['MCP_srv_ping']!.tool.description).toBe('');
     });
 
-    test('marks every tool as agent only and not parallel safe', async () => {
+    test('marks every tool as agent only and parallel safe', async () => {
         await connectTo(ADDR, [{name: 'ping'}]);
         const tool = MCPService.getTools()['MCP_srv_ping']!;
-        expect(tool.parallelSafe).toBe(false);
+        expect(tool.parallelSafe).toBe(true);
         expect(tool.agentMode).toEqual(['agent']);
         expect(tool.exclusiveInSubLoop).toBe(false);
     });
@@ -311,5 +429,51 @@ describe('callTool', () => {
     test('lets a failure of the transport bubble up', async () => {
         mocks.callTool.mockRejectedValue(new Error('connection lost'));
         await expect(invokeTool('MCP_srv_ping', {})).rejects.toThrow('connection lost');
+    });
+});
+
+describe('callTool while the client is replaced', () => {
+
+    /** Resolves the pending call the tool made, and hands over the promise of that call. */
+    function callInFlight(): {answer: (text: string) => void; result: Promise<string>} {
+        let answer: (text: string) => void = () => undefined;
+        mocks.callTool.mockImplementationOnce(() => new Promise(resolve => {
+            answer = (text: string) => resolve({content: [{type: 'text', text}]});
+        }));
+        return {answer: (text: string) => answer(text), result: invokeTool('MCP_srv_ping', {})};
+    }
+
+    beforeEach(async () => {
+        await connectTo(ADDR, [{name: 'ping'}]);
+    });
+
+    test('keeps the old connection open until the running call answered', async () => {
+        const {answer, result} = callInFlight();
+        await flush();
+        await connectTo(OTHER_ADDR, [{name: 'pong'}]);
+        expect(mocks.close).not.toHaveBeenCalled();
+
+        answer('late but complete');
+        await expect(result).resolves.toBe('late but complete');
+        await flush();
+        expect(mocks.close).toHaveBeenCalledOnce();
+    });
+
+    test('drops the old connection when the running call overstays the drain timeout', async () => {
+        callInFlight();
+        await flush();
+        vi.useFakeTimers();
+        await connectTo(OTHER_ADDR, [{name: 'pong'}]);
+        expect(mocks.close).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(DRAIN_TIMEOUT_MS);
+        expect(mocks.close).toHaveBeenCalledOnce();
+    });
+
+    test('refuses a call handed out before the server was replaced', async () => {
+        const stale = MCPService.getTools()['MCP_srv_ping']!;
+        await connectTo(OTHER_ADDR, [{name: 'pong'}]);
+        await expect(stale.invoke({}, newTestContext()))
+            .rejects.toThrow('MCP server changed while ping was pending, call the tool again');
+        expect(mocks.callTool).not.toHaveBeenCalled();
     });
 });

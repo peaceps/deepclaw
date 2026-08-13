@@ -167,5 +167,7 @@ describe('skill tool metadata', () => {
         expect(downloadSkillTool.agentMode).toEqual(['agent']);
         expect(removeSkillTool.parallelSafe).toBe(false);
         expect(createSkillTool.parallelSafe).toBe(false);
+        expect(downloadSkillTool.parallelSafe).toBe(false);
+        expect(loadSkillDetailsTool.parallelSafe).toBe(true);
     });
 });

@@ -1,7 +1,9 @@
 import { FileUtils } from '@deepclaw/node-utils';
+import { addTokenUsage } from '@deepclaw/core';
 import { OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
 import { LoopAgent } from '../loop/loop';
+import { SessionService } from '../services/session-service';
 
 type SubLoopInput = {
     prompt: string;
@@ -26,9 +28,13 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
         const subLoop = context.actions.newSubLoop() as LoopAgent<any, any, any>;
         try {
             const result = await subLoop.invoke(input.prompt, { browserId: context.browserId });
+            // The sub loop keeps no session of its own, so its tokens are only ever counted here.
+            addTokenUsage(context.runtime.usage, result.runtime.usage);
             return result.text;
         } finally {
-            FileUtils.deleteDir(subLoop.getSessionDir());
+            const sessionDir = subLoop.getSessionDir();
+            FileUtils.deleteDir(sessionDir);
+            SessionService.dropSession(sessionDir);
         }
     },
 }

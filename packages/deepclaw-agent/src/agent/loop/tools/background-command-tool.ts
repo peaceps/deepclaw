@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { BackgroundCommand, BackgroundCommandManager } from '../services/background-command-manager';
+import { SessionService } from '../services/session-service';
 import { OneLoopContext } from '../../definitions/definitions';
 
 type RunBackgroundCommandInput = {
@@ -42,10 +43,14 @@ and the agent can check the result of the background command later.`,
             command,
             title,
             createdAt: new Date().toISOString(),
-            creator: 'main',
+            creator: context.loopId,
             status: 'running',
         };
-        BackgroundCommandManager.runCommand(backgroundCommand, context.sessionDir);
+        // Never the session dir of a sub loop: that folder is deleted the moment the sub loop
+        // returns, while the command keeps running and still has to write its output somewhere.
+        BackgroundCommandManager.runCommand(backgroundCommand, SessionService.getSessionDir(
+            context.role, context.agentId, context.projectId
+        ));
         return `Background command "${title}" created with ID: ${id} starts to run. You can check the status of this command later with check_background_command_status tool.`;
     }
 }
@@ -73,9 +78,9 @@ export const checkBackgroundCommandStatusTool: ToolDesc<CheckBackgroundCommandSt
     agentMode: ['agent'],
     parallelSafe: true,
     exclusiveInSubLoop: false,
-    invoke: async function(input: CheckBackgroundCommandStatusInput): Promise<string> {
+    invoke: async function(input: CheckBackgroundCommandStatusInput, context: OneLoopContext): Promise<string> {
         const { commandId } = input;
-        const command = BackgroundCommandManager.getCommandStatus(commandId);
+        const command = BackgroundCommandManager.getCommandStatus(commandId, context.loopId);
         return `Command "${command.title}" is currently ${command.status}. 
 Detailed Info: ${JSON.stringify(command)}`;
     }
@@ -96,8 +101,8 @@ export const checkAllBackgroundCommandStatusTool: ToolDesc<void> = {
     agentMode: ['agent'],
     parallelSafe: true,
     exclusiveInSubLoop: false,
-    invoke: async function(): Promise<string> {
-        const commands = BackgroundCommandManager.getAllCommandsStatus();
+    invoke: async function(_input: void, context: OneLoopContext): Promise<string> {
+        const commands = BackgroundCommandManager.getAllCommandsStatus(context.loopId);
         let response = `All background commands status:
 ${JSON.stringify(commands)}`;
         return response;
@@ -128,13 +133,13 @@ export const removeBackgroundCommand: ToolDesc<RemoveBackgroundCommandInput> = {
     agentMode: ['agent'],
     parallelSafe: true,
     exclusiveInSubLoop: false,
-    invoke: async function(input: RemoveBackgroundCommandInput): Promise<string> {
+    invoke: async function(input: RemoveBackgroundCommandInput, context: OneLoopContext): Promise<string> {
         const { commandId } = input;
-        const command = BackgroundCommandManager.getCommandStatus(commandId);
+        const command = BackgroundCommandManager.getCommandStatus(commandId, context.loopId);
         if (command.status === 'running') {
             return `Command ${commandId} is running, cannot remove.`;
         }
-        BackgroundCommandManager.removeCommand(commandId);
+        BackgroundCommandManager.removeCommand(commandId, context.loopId);
         return `Command "${commandId}" is removed`;
     }
 }

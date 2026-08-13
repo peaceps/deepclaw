@@ -579,7 +579,7 @@ describe('generateImageTool metadata', () => {
 
     test('draws for a chat as well, but never from inside a sub loop', () => {
         expect(generateImageTool.agentMode).toEqual(['agent', 'chat']);
-        expect(generateImageTool.parallelSafe).toBe(false);
+        expect(generateImageTool.parallelSafe).toBe(true);
         expect(generateImageTool.exclusiveInSubLoop).toBe(true);
     });
 

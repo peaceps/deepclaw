@@ -211,7 +211,16 @@ describe('project tool metadata', () => {
         expect(createProjectTool.exclusiveInSubLoop).toBe(true);
         expect(createSimpleTaskTool.exclusiveInSubLoop).toBe(true);
         expect(updateTaskTool.exclusiveInSubLoop).toBe(false);
-        expect(updateTaskCurrentStepTool.parallelSafe).toBe(true);
+    });
+
+    /** Ending the loop mid group would let the siblings of the call run past the stop. */
+    test('only the tools that can end the loop run on their own', () => {
         expect(createProjectTool.parallelSafe).toBe(false);
+        expect(createSimpleTaskTool.parallelSafe).toBe(false);
+        expect(updateTaskTool.parallelSafe).toBe(false);
+        expect(updateProjectTool.parallelSafe).toBe(true);
+        expect(updateTaskCurrentStepTool.parallelSafe).toBe(true);
+        expect(getProjectListTool.parallelSafe).toBe(true);
+        expect(getProjectDetailTool.parallelSafe).toBe(true);
     });
 });

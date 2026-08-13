@@ -267,7 +267,7 @@ All steps should be done when task is going to be marked as done.`,
         }
     },
     agentMode: ['agent'],
-    parallelSafe: false,
+    parallelSafe: true,
     exclusiveInSubLoop: false,
     invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
         const {projectId, tasks, ...patch} =  input;
@@ -442,7 +442,7 @@ closed projects will also be included.`,
         },
     },
     agentMode: ['agent'],
-    parallelSafe: false,
+    parallelSafe: true,
     exclusiveInSubLoop: false,
     invoke: async function(input: GetProjectListInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectList(input.includingClosed));
@@ -467,7 +467,7 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
         },
     },
     agentMode: ['agent'],
-    parallelSafe: false,
+    parallelSafe: true,
     exclusiveInSubLoop: false,
     invoke: async function(input: GetProjectDetailInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectDetail(input.projectId));

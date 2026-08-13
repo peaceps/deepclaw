@@ -123,12 +123,16 @@ describe('file tool guard', () => {
 
 describe('file tool metadata', () => {
 
-    test('only reading is parallel safe and allowed inside a sub loop', () => {
-        expect(readFileTool.parallelSafe).toBe(true);
+    test('only reading is allowed inside a sub loop', () => {
         expect(readFileTool.exclusiveInSubLoop).toBeUndefined();
-        expect(writeFileTool.parallelSafe).toBe(false);
         expect(writeFileTool.exclusiveInSubLoop).toBe(true);
-        expect(editFileTool.parallelSafe).toBe(false);
         expect(editFileTool.exclusiveInSubLoop).toBe(true);
+    });
+
+    /** Every file operation runs to its end without awaiting, so none of them can interleave. */
+    test('all file tools run next to other tool calls', () => {
+        expect(readFileTool.parallelSafe).toBe(true);
+        expect(writeFileTool.parallelSafe).toBe(true);
+        expect(editFileTool.parallelSafe).toBe(true);
     });
 });

@@ -108,6 +108,7 @@ function newAgentConfig(id: string): AgentConfig {
         mode: 'agent',
         im: {enabled: false},
         llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model'},
+        multimodal: {},
     };
 }
 
@@ -399,12 +400,12 @@ describe('interactions', () => {
         await expect(answer).rejects.toBe('disconnected');
     });
 
-    test('cancels a question that stayed unanswered for too long', async () => {
+    test('cancels a question that stayed unanswered for too long as an absent user', async () => {
         vi.useFakeTimers();
         const {loopId} = nextLoop();
         const answer = askQuestion(loopId);
         vi.advanceTimersByTime(INTERACTION_TIMEOUT);
-        await expect(answer).rejects.toBe('timeout');
+        await expect(answer).rejects.toBe('interactionAfk');
         expect(events).toContainEqual({eventType: 'cancelInteraction', loopId, browserId: 'b1'});
     });
 

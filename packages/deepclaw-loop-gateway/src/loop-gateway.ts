@@ -98,7 +98,9 @@ class LoopGatewayImpl {
                 this.waitingInteractions.get(clientKey)!.timer = timer;
             }).then(() => {
                 this.fireSSEEvent({ eventType: 'cancelInteraction', loopId: e.loopId, browserId: e.browserId });
-                this.cancelInteraction(e.browserId, e.loopId, 'timeout');
+                // Ten minutes without an answer means the user is away, same as an unattended
+                // page: the loop keeps its runtime and replays the tool once the user is back.
+                this.cancelInteraction(e.browserId, e.loopId, 'interactionAfk');
             });
             const result = await Promise.race([waiting, timeout]);
             return result || '';

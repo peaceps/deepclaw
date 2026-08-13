@@ -97,7 +97,7 @@ export const readMemoryDetailTool: ToolDesc<ReadMemoryDetailInput> = {
     },
     agentMode: ['agent', 'chat'],
     exclusiveInSubLoop: false,
-    parallelSafe: false,
+    parallelSafe: true,
     invoke: async (input: ReadMemoryDetailInput, context: OneLoopContext): Promise<string> => {
         const { agentId, projectId } = parseScope(input.scope, context);
         if (input.scope === 'project' && !projectId) {
