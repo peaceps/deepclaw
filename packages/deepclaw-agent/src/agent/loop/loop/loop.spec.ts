@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     provideSystemPrompt: vi.fn<(...args: unknown[]) => unknown>(
         () => ({cacheable: 'cacheable', dynamic: 'dynamic'})
     ),
+    taskAssignee: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
     getAgent: vi.fn<(agentId: string) => unknown>(() => ({id: 'a1', name: 'Ada'})),
     emitVisitor: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
     emitInterceptor: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({result: 'continue'})),
@@ -55,7 +56,10 @@ vi.mock('../services/session-service', () => ({
 }));
 
 vi.mock('../services/prompt-service', () => ({
-    PromptService: {provideSystemPrompt: mocks.provideSystemPrompt},
+    PromptService: {
+        provideSystemPrompt: mocks.provideSystemPrompt,
+        taskAssignee: mocks.taskAssignee,
+    },
 }));
 
 vi.mock('../services/agent-identity-manager', () => ({
@@ -217,6 +221,7 @@ beforeEach(() => {
     mocks.getSessionDir.mockReturnValue('.agents/a1/session/s1');
     mocks.loadSession.mockReturnValue({history: [], outdated: false});
     mocks.provideSystemPrompt.mockReturnValue({cacheable: 'cacheable', dynamic: 'dynamic'});
+    mocks.taskAssignee.mockReturnValue(undefined);
     mocks.getAgent.mockReturnValue({id: 'a1', name: 'Ada'});
     mocks.emitVisitor.mockResolvedValue(undefined);
     mocks.emitInterceptor.mockResolvedValue({result: 'continue'});
@@ -718,6 +723,35 @@ describe('sub loops', () => {
         await subLoop.runInvoke('go', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
             expect.anything(), expect.anything(), 'agent', '', true, undefined
+        );
+    });
+
+    /** The tools read the borrowed agent off the context, the prompt only tells the model about it. */
+    test('tells the tools of a task sub loop which agent it stands in for', async () => {
+        const {loop} = newLoop();
+        mocks.taskAssignee.mockReturnValue({id: 'a2', name: 'Bob'});
+        const subLoop = loop.createSubLoop({projectId: 'p1', taskTitle: 'ship it'}) as TestLoop;
+        subLoop.fakeLLM().responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await subLoop.runInvoke('go', {browserId: 'b1'});
+        expect(mocks.taskAssignee).toHaveBeenCalledWith({projectId: 'p1', taskTitle: 'ship it'});
+        expect(mocks.executeToolCall).toHaveBeenCalledWith(
+            toolUse('tu1'), expect.objectContaining({personaId: 'a2', agentId: 'a1'})
+        );
+    });
+
+    test('leaves the tools of a sub loop on a task nobody owns with their own agent', async () => {
+        const {loop} = newLoop();
+        const subLoop = loop.createSubLoop({projectId: 'p1', taskTitle: 'ship it'}) as TestLoop;
+        subLoop.fakeLLM().responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await subLoop.runInvoke('go', {browserId: 'b1'});
+        expect(mocks.executeToolCall).toHaveBeenCalledWith(
+            toolUse('tu1'), expect.objectContaining({personaId: undefined, agentId: 'a1'})
         );
     });
 

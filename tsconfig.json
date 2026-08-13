@@ -13,6 +13,6 @@
         { "path": "./packages/deepclaw-loop-gateway" },
         { "path": "./apps/deepclaw-tui" },
         { "path": "./apps/deepclaw-web" },
-        { "path": "./apps/deepclaw-deepclaw" }
+        { "path": "./apps/sacephor-deepclaw" }
     ]
 }

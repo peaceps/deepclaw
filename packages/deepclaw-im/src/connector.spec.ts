@@ -21,6 +21,7 @@ function newAgent(im: Partial<AgentConfig['im']> = {}): AgentConfig {
         mode: 'agent',
         im: {enabled: true, engine: 'dingtalk', appId: 'app-id', secret: 'app-secret', ...im},
         llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model'},
+        multimodal: {},
     };
 }
 

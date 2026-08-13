@@ -171,25 +171,33 @@ describe('executeToolCall guard', () => {
         expect(context.runtime.agentBreakReason).toBeUndefined();
     });
 
-    test('denies a question raised inside a sub loop instead of asking', async () => {
+    /** The answer of the guard is never consulted, so this one would refuse whatever came in. */
+    test('runs a tool whose guard asks inside a sub loop without asking anyone', async () => {
         const tool = newTool({guard: () => ({
             result: 'ask',
             question: {type: 'input', content: 'may I?'},
-            checkAnswer: () => true,
+            checkAnswer: () => false,
         })});
         mocks.getToolDesc.mockReturnValue(tool);
         const context = newTestContext({isSubLoop: true});
         const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
-        expect(success).toBe(false);
-        expect(result.content).toBe(
-            'Tool run is not allowed: demo. a sub agent cannot ask the user, report back what you need instead of retrying.'
-        );
+        expect(success).toBe(true);
+        expect(result.content).toBe('tool output');
         expect(context.actions.agentHandler.onInteractionEvent).not.toHaveBeenCalled();
+        expect(tool.invoke).toHaveBeenCalled();
+        expect(mocks.emitVisitor).not.toHaveBeenCalledWith(
+            'toolGuardDenied', expect.anything(), expect.anything()
+        );
+    });
+
+    test('still denies a sub loop tool that the guard refused outright', async () => {
+        const tool = newTool({guard: () => ({result: 'denied', reason: 'outside workspace'})});
+        mocks.getToolDesc.mockReturnValue(tool);
+        const {success} = await ToolUseService.executeToolCall(
+            newToolUse(), newTestContext({isSubLoop: true})
+        );
+        expect(success).toBe(false);
         expect(tool.invoke).not.toHaveBeenCalled();
-        expect(mocks.emitVisitor).toHaveBeenCalledWith('toolGuardDenied', context, {
-            toolUseDef: newToolUse(),
-            reason: 'a sub agent cannot ask the user, report back what you need instead of retrying',
-        });
     });
 
     test('still asks in a top level loop', async () => {

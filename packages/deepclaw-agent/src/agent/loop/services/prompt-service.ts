@@ -29,12 +29,13 @@ export class PromptService {
         }
         const isCron = role === 'cron';
         const identityKey = isSubLoop ? 'subloop' : isCron ? 'cron' : 'loop';
-        // A sub loop working on a task speaks as the agent the task belongs to, not as the one
-        // that handed it over, and that is the only case where a sub loop has a personality. Only
-        // the wording is borrowed: memory and skills stay with the agent that runs the loop,
-        // because the memory tools resolve their scope from the loop and not from the name.
-        const assignee = this.assignee(assignedTask);
+        // A sub loop working on a task speaks as the agent the task belongs to, not as the one that
+        // handed it over, and that is the only case where a sub loop has a personality. The memory
+        // and the skills of that agent come along, so that the borrowed name is one the run can
+        // work under: the tools read the same borrowed id off the context.
+        const assignee = this.taskAssignee(assignedTask);
         const persona = isCron || (isSubLoop && !assignee) ? undefined : assignee ?? agentIdentity;
+        const personaId = assignee?.id ?? agentConfig.id;
         const cacheable = `
 # Platform
 ${this.platformPrompt}
@@ -58,10 +59,10 @@ ${this.agentMode(agentConfig.mode)}
 ${this.projectManagement(agentConfig.mode, !isCron && !isSubLoop && !!projectId)}
 
 # Memory
-${this.memory(role, agentConfig.id, projectId)}
+${this.memory(role, personaId, projectId)}
 
 # Skills
-${this.availableSkills(agentConfig.id)}`;
+${this.availableSkills(personaId)}`;
 
         const dynamic = isCron
             ? `
@@ -84,8 +85,11 @@ ${this.projectCurrentProject(assignedTask?.projectId || projectId)}${this.assign
 ${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskTitle)}`;
     }
 
-    /** The agent a task belongs to, which is the one a sub loop impersonates while working on it. */
-    private static assignee(assignedTask?: AssignedTask): AgentIdentity | undefined {
+    /**
+     * The agent a task belongs to, which is the one a sub loop stands in for while working on it.
+     * The loop asks for it too, to tell the tools of the run which agent they work for.
+     */
+    public static taskAssignee(assignedTask?: AssignedTask): AgentIdentity | undefined {
         if (!assignedTask) {
             return undefined;
         }

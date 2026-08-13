@@ -1,4 +1,4 @@
-import { OneLoopContext } from "../../definitions/definitions";
+import { OneLoopContext, personaOf } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { MEMORY_SCOPES, MEMORY_TYPES, MemoryManager, MemoryScope, MemoryType } from "../services/memory-manager";
 
@@ -108,7 +108,9 @@ export const readMemoryDetailTool: ToolDesc<ReadMemoryDetailInput> = {
 }
 
 function parseScope(scope: MemoryScope, context: OneLoopContext): { agentId?: string, projectId?: string } {
-    const agentId = scope !== 'global' ? context.agentId : undefined;
+    // The agent scope belongs to whoever the run stands for, which is the agent whose memories the
+    // prompt listed: reading a name off that index has to land in the folder it came from.
+    const agentId = scope !== 'global' ? personaOf(context) : undefined;
     const projectId = scope === 'project' ? context.projectId : undefined;
     return { agentId, projectId };
 }

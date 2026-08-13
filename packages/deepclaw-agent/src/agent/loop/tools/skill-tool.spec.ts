@@ -54,6 +54,12 @@ describe('refreshSkillsTool invoke', () => {
         expect(getAvailableSkillsPrompt).toHaveBeenCalledExactlyOnceWith('a1');
         expect(result).toBe('Skills refreshed.\nAvailable skills:\n- demo: a demo skill\n');
     });
+
+    /** The prompt of the run listed the skills of the borrowed agent, this list has to match it. */
+    test('lists the skills of the agent the run stands for', async () => {
+        await refreshSkillsTool.invoke(undefined, newTestContext({isSubLoop: true, personaId: 'a2'}));
+        expect(getAvailableSkillsPrompt).toHaveBeenCalledExactlyOnceWith('a2');
+    });
 });
 
 describe('searchOnlineSkillsTool invoke', () => {

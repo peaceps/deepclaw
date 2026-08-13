@@ -23,7 +23,10 @@ vi.mock('@deepclaw/config', async (importOriginal) => ({
 }));
 
 vi.mock('../services/prompt-service', () => ({
-    PromptService: {provideSystemPrompt: () => ({cacheable: '', dynamic: ''})},
+    PromptService: {
+        provideSystemPrompt: () => ({cacheable: '', dynamic: ''}),
+        taskAssignee: () => undefined,
+    },
 }));
 
 vi.mock('../services/session-service', () => ({

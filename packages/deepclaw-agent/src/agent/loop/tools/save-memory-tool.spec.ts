@@ -85,6 +85,19 @@ describe('readMemoryDetailTool invoke', () => {
         expect(getMemoryDetail).not.toHaveBeenCalled();
     });
 
+    /** The index a sub loop was given lists the memories of the agent it stands in for. */
+    test('reads an agent memory of the agent the run stands for', async () => {
+        const context = newTestContext({isSubLoop: true, personaId: 'a2'});
+        await readMemoryDetailTool.invoke({name: 'coding_style', scope: 'agent'}, context);
+        expect(getMemoryDetail).toHaveBeenCalledExactlyOnceWith('coding_style', 'agent', 'a2', undefined);
+    });
+
+    test('leaves a global memory out of the borrowed identity', async () => {
+        const context = newTestContext({isSubLoop: true, personaId: 'a2'});
+        await readMemoryDetailTool.invoke({name: 'coding_style', scope: 'global'}, context);
+        expect(getMemoryDetail).toHaveBeenCalledExactlyOnceWith('coding_style', 'agent', undefined, undefined);
+    });
+
     test('does not validate the memory name before asking the manager', async () => {
         await readMemoryDetailTool.invoke({name: 'not a valid name!', scope: 'global'}, newTestContext());
         expect(getMemoryDetail).toHaveBeenCalledExactlyOnceWith('not a valid name!', 'agent', undefined, undefined);

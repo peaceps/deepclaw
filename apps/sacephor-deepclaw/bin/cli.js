@@ -19,7 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const entry = path.join(__dirname, '..', 'dist', 'deepclaw.js');
 if (!fs.existsSync(entry)) {
     console.error(
-        `deepclaw-deepclaw: missing ${entry}. Build the package first (e.g. pnpm --filter @deepclaw/deepclaw build).`
+        `sacephor-deepclaw: missing ${entry}. Build the package first (e.g. pnpm --filter @sacephor/deepclaw build).`
     );
     process.exit(1);
 }

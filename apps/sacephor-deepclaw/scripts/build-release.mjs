@@ -39,7 +39,7 @@ function build() {
     run('pnpm exec tsc -b');
     run('pnpm --filter @deepclaw/web build');
     run('pnpm --filter @deepclaw/tui build');
-    run('pnpm --filter @deepclaw/deepclaw build');
+    run('pnpm --filter @sacephor/deepclaw build');
 }
 
 function assemble() {

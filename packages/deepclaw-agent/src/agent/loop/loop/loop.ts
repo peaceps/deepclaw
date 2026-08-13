@@ -207,6 +207,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             loopId: this.getId(),
             isSubLoop: this.isSubLoop(),
             agentId: this.agentId,
+            // Read once, so the whole run works with the memory and the skills it started with even
+            // if the task is handed to somebody else while it is on.
+            personaId: PromptService.taskAssignee(this.assignedTask)?.id,
             projectId: this.projectId,
             loopConfig: this.agentConfig,
             browserId: options.browserId,

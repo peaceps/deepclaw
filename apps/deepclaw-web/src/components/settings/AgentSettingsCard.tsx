@@ -179,6 +179,7 @@ export function AgentSettingsCard({
                 value={agent.multimodal.imageApiKey ?? ''}
                 onInput={(e) => onUpdateMultimodal(index, { imageApiKey: e.target.value })}
                 placeholder="sk-..."
+                required={!!agent.multimodal.imageModel}
               />
             )}
           </div>

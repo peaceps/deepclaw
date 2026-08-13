@@ -106,9 +106,9 @@ export const subLoopTool: ToolDesc<SubLoopInput> = {
     tool: {
         name: 'sub_loop',
         description: `Spawn a subagent with fresh context. It shares the filesystem but not conversation history.
-Name a task of the project of this session to let the subagent work on that task alone: it answers
-under the name of the agent the task is assigned to and gets the description and the steps of the
-task in its prompt.
+Name a task of the project of this session to let the subagent work on that task alone: it works as
+the agent the task is assigned to, with the memory and the skills of that agent, and gets the
+description and the steps of the task in its prompt.
 Nothing the subagent says reaches the user, only what you write down out of what it hands back.`,
         schema: {
             type: 'object',

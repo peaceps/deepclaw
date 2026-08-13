@@ -285,6 +285,21 @@ describe('a sub loop working on a task', () => {
         expect(cacheable).not.toContain('Your name is');
     });
 
+    test('works with the memory and the skills of the agent it stands in for', async () => {
+        const {PromptService, memoryPrompt, skillPrompt} = await loadServiceWithAssignee();
+        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', true, TASK);
+        expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a2', 'p1');
+        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a2');
+    });
+
+    test('keeps its own memory and skills when the task has no assignee', async () => {
+        const {PromptService, getTask, memoryPrompt, skillPrompt} = await loadServiceWithAssignee();
+        getTask.mockReturnValue({title: 'ship it'} as Task);
+        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', true, TASK);
+        expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a1', 'p1');
+        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a1');
+    });
+
     test('keeps the emotions of the assignee out of its report', async () => {
         const {PromptService} = await loadServiceWithAssignee();
         const {cacheable} = PromptService.provideSystemPrompt(

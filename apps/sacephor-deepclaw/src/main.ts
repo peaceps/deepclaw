@@ -37,7 +37,7 @@ const cli = meow(`
 
 /**
  * The folder the launcher was shipped in: `<package>` for an installed build, where this file
- * runs as `dist/deepclaw.js`, and `apps/deepclaw-deepclaw` in a checkout.
+ * runs as `dist/deepclaw.js`, and `apps/sacephor-deepclaw` in a checkout.
  */
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 

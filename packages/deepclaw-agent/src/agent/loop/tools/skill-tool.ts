@@ -1,5 +1,5 @@
 import { runCommand } from "@deepclaw/node-utils";
-import { OneLoopContext } from "../../definitions/definitions";
+import { OneLoopContext, personaOf } from "../../definitions/definitions";
 import { ToolDesc, ToolGuardResult } from "../../definitions/tool-definitions";
 import { SkillsManager } from "../services/skills-manager";
 import { loadLang } from "@deepclaw/config";
@@ -44,7 +44,7 @@ export const refreshSkillsTool: ToolDesc<void> = {
         SkillsManager.reloadSkills();
         return `Skills refreshed.
 Available skills:
-${SkillsManager.getAvailableSkillsPrompt(context.agentId)}`;
+${SkillsManager.getAvailableSkillsPrompt(personaOf(context))}`;
     },
 };
 
@@ -227,7 +227,7 @@ Rules:
         }
         return `Skill ${name} created.
 Available skills:
-${SkillsManager.getAvailableSkillsPrompt(context.agentId)}`;
+${SkillsManager.getAvailableSkillsPrompt(personaOf(context))}`;
     },
 }
 

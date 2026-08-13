@@ -39,6 +39,11 @@ export type AssignedTask = {
 export type OneLoopContext = {
     role: FlushAgentRole;
     agentId: string;
+    /**
+     * The agent a sub loop stands in for while it works on a task assigned to that agent. Unset
+     * wherever nothing is borrowed, which is every loop but that one.
+     */
+    personaId?: string;
     projectId: string;
     loopId: string;
     browserId: string;
@@ -54,6 +59,15 @@ export type OneLoopContext = {
         addStringMessage: (message: string) => void;
     },
     runtime: AgentRuntime
+}
+
+/**
+ * The agent whose memory and skills a run works with: the one it stands in for where there is such
+ * an agent, and the one running the loop everywhere else. Everything the loop owns on disk stays
+ * with `agentId` instead, a borrowed name does not move session files or ownership around.
+ */
+export function personaOf(context: OneLoopContext): string {
+    return context.personaId ?? context.agentId;
 }
 
 export type LoopSessionStatus = 'running' | 'paused' | 'idle' | 'error';

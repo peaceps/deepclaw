@@ -310,8 +310,8 @@ A subloop agent cannot update a task, it only moves the step index of the task i
     public static promptTaskDelegation(): string {
         return `## Run the tasks through subagents
 You run this project, you do not work through its tasks yourself. Hand every task that is ready to
-a subagent: call the sub_loop tool with the title of the task, and the subagent answers under the
-name of the agent the task is assigned to, with the description and the steps of it in front of it.
+a subagent: call the sub_loop tool with the title of the task, and the subagent works as the agent
+the task is assigned to, with the description and the steps of it in front of it.
 Tasks that block nothing and wait for nothing can go out at the same time, one sub_loop call each.
 Handing a task over marks it ongoing; you mark it done once you accepted what came back, the
 subagent itself only moves the step index inside the task.
