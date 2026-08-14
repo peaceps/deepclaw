@@ -7,7 +7,7 @@ import {
 import { AgentHeader } from './AgentDetailHeader';
 import { AgentDetailPersonality } from './AgentDetailPersonality';
 import { AgentDetailExpertise } from './AgentDetailExpertise';
-import { AgentDetailWorkStatus } from './AgentDetailWorkStatus';
+import { AgentDetailCurrentProject } from './AgentDetailCurrentProject';
 import { AgentDetailRunningTasks } from './AgentDetailRunningTasks';
 import { AgentDetailCrons } from './AgentDetailCrons';
 import { useTranslation } from 'react-i18next';
@@ -63,8 +63,7 @@ export function AgentDetail({agent}: {
 
         <AgentDetailRunningTasks agent={agent} />
 
-        {/* Work Style */}
-        <AgentDetailWorkStatus agent={agent} />
+        <AgentDetailCurrentProject agent={agent} />
 
         <AgentDetailCrons agent={agent} />
       </div>

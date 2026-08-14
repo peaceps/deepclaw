@@ -117,25 +117,25 @@ export function AgentHeader({ agent, onUpdate }: {
             <div className="flex gap-4 sm:gap-6">
               <div className="flex items-center gap-3">
                 <div
-                  title={t('web.pages.projects.status.todo')}
-                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-gray-50 text-gray-500
+                  title={projectStats.todo.length > 0 ? projectStats.todo.join(', ') : ''}
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-gray-50 text-gray-500 cursor-pointer
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
-                  <span>{t('web.pages.projects.status.todo')}&nbsp;{projectStats.todo}</span>
+                  <span>{t('web.pages.projects.status.todo')}&nbsp;{projectStats.todo.length}</span>
                 </div>
                 <div
-                  title={t('web.pages.projects.status.ongoing')}
-                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-sky-50 text-sky-500
+                  title={projectStats.ongoing.length > 0 ? projectStats.ongoing.join(', ') : ''}
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-sky-50 text-sky-500 cursor-pointer
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
-                  <span>{t('web.pages.projects.status.ongoing')}&nbsp;{projectStats.ongoing}</span>
+                  <span>{t('web.pages.projects.status.ongoing')}&nbsp;{projectStats.ongoing.length}</span>
                 </div>
                 <div
-                  title={t('web.pages.projects.status.done')}
-                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-green-50 text-green-600
+                  title={projectStats.done.length > 0 ? projectStats.done.join(', ') : ''}
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-green-50 text-green-600 cursor-pointer
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
-                  <span>{t('web.pages.projects.status.done')}&nbsp;{projectStats.done}</span>
+                  <span>{t('web.pages.projects.status.done')}&nbsp;{projectStats.done.length}</span>
                 </div>
               </div>
             </div>

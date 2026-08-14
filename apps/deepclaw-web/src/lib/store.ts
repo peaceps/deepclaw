@@ -32,13 +32,13 @@ export function useAgentActivity(): AgentActivity {
 export function deriveAgentSummary(
   agent: AgentEmployee | undefined, projects: Project[], activity: AgentActivity
 ): AgentSummary {
-  const stats: AgentProjectStats = { todo: 0, ongoing: 0, done: 0 };
+  const stats: AgentProjectStats = { todo: [], ongoing: [], done: [] };
   if (!agent) {
     return { status: 'fired', stats };
   }
   for (const project of projects) {
     if (project.creator === agent.id) {
-      stats[getProjectStatus(project)]++;
+      stats[getProjectStatus(project)].push(project.title);
     }
   }
   if (agent.fired) {

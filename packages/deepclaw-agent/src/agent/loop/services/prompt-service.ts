@@ -158,18 +158,25 @@ to summarize what happened and why.
     }
 
     private static personality(agentIdentity: AgentIdentity): string {
+        let prompt = '';
+        if (AgentIdentityManager.isPersonalityChanged(agentIdentity.id)) {
+            prompt += `
+The user has changed your personality settings, please follow the new personalities and ignore the old ones.`;
+        }
         const personalities = agentIdentity.personalities.join(',');
-        return `Your name is ${agentIdentity.name}, your role is ${agentIdentity.role}.
+        prompt += `Your name is ${agentIdentity.name}, your role is ${agentIdentity.role}.
 ${personalities ? `You have the following personalities: ${personalities}.` : ""}
 ${agentIdentity.description ? `You are described as: ${agentIdentity.description}.` : ""}
 Of course you should always focus on the tasks to do, personalities are just for your reference.`;
+        return prompt;
     }
 
     private static emotions(): string {
-        return `You can add your own emotions and feelings about the task as well as your comments.
-It's not something talked to the user, but can help you feel more real.
-For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
-You can wrap them in <emotion> tag.`;
+//         return `You can add your own emotions and feelings about the task as well as your comments.
+// It's not something talked to the user, but can help you feel more real.
+// For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
+// You can wrap them in <emotion> tag.`;
+        return '';
     }
 
     private static agentMode(agentMode: AgentMode): string {

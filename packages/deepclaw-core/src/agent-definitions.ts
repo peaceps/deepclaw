@@ -16,9 +16,9 @@ export type AgentIdentity = AgentSoulIdentity & {
 export type AgentStatus = 'busy' | 'idle' | 'fired';
 
 export type AgentProjectStats = {
-  todo: number;
-  ongoing: number;
-  done: number;
+  todo: string[];
+  ongoing: string[];
+  done: string[];
 }
 
 export type AgentMood = {

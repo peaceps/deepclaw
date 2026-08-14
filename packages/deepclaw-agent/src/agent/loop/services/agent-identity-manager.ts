@@ -8,6 +8,7 @@ export class AgentIdentityManager {
 
     private static agentMap: Map<string, AgentIdentity> = new Map();
     private static initialized: boolean = false;
+    private static changedPersonalities: Set<string> = new Set();
 
     public static getAgents(): AgentIdentity[] {
         this.ensureInitialized();
@@ -98,6 +99,9 @@ export class AgentIdentityManager {
             };
             FileUtils.writeFile(`${AGENTS_DIR}/${id}/${AGENT_SOUL_JSON}`, JSON.stringify(soul, null, 2));
         }
+        if ('name' in rest || 'role' in rest || 'personalities' in rest || 'description' in rest) {
+            this.changedPersonalities.add(id);
+        }
     }
 
     private static updateAgentDescription(id: string, description: string): void {
@@ -108,5 +112,11 @@ export class AgentIdentityManager {
         current.description = description;
         this.agentMap.set(id, current);
         FileUtils.writeFile(`${AGENTS_DIR}/${id}/${AGENT_MD}`, description);
+    }
+
+    public static isPersonalityChanged(agentId: string): boolean {
+        const changed = this.changedPersonalities.has(agentId);
+        this.changedPersonalities.delete(agentId);
+        return changed;
     }
 }

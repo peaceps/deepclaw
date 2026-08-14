@@ -8,7 +8,7 @@ import { priorityStyles} from '../../styles-mapping';
 import { useAppStore } from "@/lib/store";
 import { formatDate } from "@/components/component-utils";
 
-export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
+export function AgentDetailCurrentProject({ agent }: { agent: AgentEmployee }) {
   const {t, i18n} = useTranslation();
   const projects = useAppStore(s => s.projects);
   const currentProjects = agent.id
@@ -18,13 +18,10 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
     : [];
 
   return (
-    <InfoCard title="web.pages.agents.details.workStatus.title" icon={<Target size={20} />} color="lime">
+    <InfoCard title="web.pages.agents.details.currentProject.title" icon={<Target size={20} />} color="lime">
       <div className="space-y-4">
         {/* 当前项目 */}
         <div>
-          <label className="text-sm text-gray-500 mb-2 block">
-            {t('web.pages.agents.details.workStatus.currentProject')}
-          </label>
           {currentProjects.length > 0 ? (
           // Room for about three projects, the rest is a scroll away so the card stays a card.
           <div className="space-y-4 mt-4 max-h-[450px] overflow-y-auto">
@@ -61,7 +58,7 @@ export function AgentDetailWorkStatus({ agent }: { agent: AgentEmployee }) {
           </div>
           ) : (
             <div className="text-sm text-gray-400 italic">
-              {t('web.pages.agents.details.workStatus.noProject')}
+              {t('web.pages.agents.details.currentProject.noProject')}
             </div>
           )}
         </div>

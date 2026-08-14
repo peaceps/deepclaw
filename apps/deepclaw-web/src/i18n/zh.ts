@@ -107,9 +107,8 @@ export const zh = {
                         title: '简介',
                         noContent: '我是谁？',
                     },
-                    workStatus: {
-                        title: '工作状态',
-                        currentProject: '当前项目',
+                    currentProject: {
+                        title: '当前项目',
                         noProject: '暂无进行中的项目',
                     },
                     runningTasks: {

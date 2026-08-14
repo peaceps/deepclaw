@@ -107,9 +107,8 @@ export const en = {
                         title: 'Description',
                         noContent: 'Who am I?',
                     },
-                    workStatus: {
-                        title: 'Working Status',
-                        currentProject: 'Current Project',
+                    currentProject: {
+                        title: 'Current Project',
                         noProject: 'No project ongoing',
                     },
                     runningTasks: {

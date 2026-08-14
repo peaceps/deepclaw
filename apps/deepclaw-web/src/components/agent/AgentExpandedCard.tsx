@@ -55,9 +55,9 @@ export function AgentExpandedCard({
                 {t(`web.pages.agents.status.${agentStatus}`)}
               </span>
               <div className="text-gray-400 flex justify-between gap-2">
-                <span className="text-gray-400"><AlarmClock size={14} className="inline mr-1 mb-1"/>{projectStats.todo}</span>
-                <span className="text-sky-500"><Clock size={14} className="inline mr-1 mb-1"/>{projectStats.ongoing}</span>
-                <span className="text-lime-600"><CheckCircle2 size={14} className="inline mr-1 mb-1"/>{projectStats.done}</span>
+                <span className="text-gray-400"><AlarmClock size={14} className="inline mr-1 mb-1"/>{projectStats.todo.length}</span>
+                <span className="text-sky-500"><Clock size={14} className="inline mr-1 mb-1"/>{projectStats.ongoing.length}</span>
+                <span className="text-lime-600"><CheckCircle2 size={14} className="inline mr-1 mb-1"/>{projectStats.done.length}</span>
               </div>
             </div>
           </div>

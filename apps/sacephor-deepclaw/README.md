@@ -3,6 +3,8 @@
 An agent platform you run yourself. Create agents, give them skills, chat with them, and let them
 execute projects and scheduled tasks — with a web UI and a terminal UI.
 
+Web UI use Kanban to manage your projects, you can view familiar task status through Kanban board.
+
 ## Install
 
 Node 21 or newer is required.
