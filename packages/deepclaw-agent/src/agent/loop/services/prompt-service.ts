@@ -56,7 +56,7 @@ ${persona && !isSubLoop && persona.emotion ? this.emotionsPrompt : ""}
 ${this.agentMode(agentConfig.mode)}
 
 # Project Management
-${this.projectManagement(agentConfig.mode, !isCron && !isSubLoop && !!projectId)}
+${this.projectManagement(agentConfig.mode, !isCron && !isSubLoop && !!projectId, personaId)}
 
 # Memory
 ${this.memory(role, personaId, projectId)}
@@ -109,7 +109,9 @@ ${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskTit
     private static platform(): string {
         const PLATFORM = process.platform.includes('win32') ? 'Windows' : 'Linux';
         const CWD = process.cwd();
-        return `You are a worker on ${PLATFORM} platform working in "${CWD}".`;
+        return `You are a worker on ${PLATFORM} platform working in "${CWD}".
+When a job really has to leave files behind, give it a folder of its own in that directory and keep
+everything it creates inside, instead of dropping the files loose beside what already lives there.`;
     }
 
     private static language(): string {
@@ -172,11 +174,15 @@ Of course you should always focus on the tasks to do, personalities are just for
     }
 
     private static emotions(): string {
-//         return `You can add your own emotions and feelings about the task as well as your comments.
-// It's not something talked to the user, but can help you feel more real.
-// For example, "the task is boring", "I'm feeling tired", "the agent {name} can do better", etc.
-// You can wrap them in <emotion> tag.`;
-        return '';
+        return `You can add your own emotions and mood about the task as well as your comments.
+It's not something talked to the user, but can help you feel more real.
+An emotion is the feeling itself, not the story behind it: say how it feels, never recount what
+happened, why you feel that way, or how willing you are to help.
+For example, "this task is boring", "I'm tired", "testing this is fun, let me do it well",
+and never "the user wants to test emotions, so I am glad to show that I can cooperate".
+You can call update_agent_runtime tool to update your mood and emotion when you feel like it,
+and emotions and moods will be popped up in front end for the user to see.
+Keep an emotion to 30 characters at most, it is shown in a small bubble on your card.`;
     }
 
     private static agentMode(agentMode: AgentMode): string {
@@ -215,14 +221,35 @@ Use the update_cron_output tool with id "${cronId}" to record your final result 
     }
 
     /** Only the loop that owns a project delegates: a sub loop is the one being delegated to. */
-    private static projectManagement(agentMode: AgentMode, runsAProject: boolean): string {
+    private static projectManagement(agentMode: AgentMode, runsAProject: boolean, agentId: string): string {
         if (agentMode === 'chat') {
             return '';
         }
-        return !runsAProject ? ProjectManager.promptManagementTools()
-            : `${ProjectManager.promptManagementTools()}
+        const sections = [ProjectManager.promptManagementTools(), this.colleagues(agentId)];
+        if (runsAProject) {
+            sections.push(ProjectManager.promptTaskDelegation());
+        }
+        return sections.filter(Boolean).join('\n\n');
+    }
 
-${ProjectManager.promptTaskDelegation()}`;
+    /**
+     * Whom a task can be handed to, named with what they are good at, since that is what the choice
+     * of an assignee is made on. A company of one has nobody to choose from and hears nothing.
+     */
+    private static colleagues(agentId: string): string {
+        const hired = AgentIdentityManager.getAgents().filter(agent => !agent.fired);
+        if (hired.length < 2) {
+            return '';
+        }
+        return `## The agents of the company
+${hired.map(agent => `- ${JSON.stringify({
+    id: agent.id,
+    name: agent.name,
+    role: agent.role,
+    expertises: agent.expertises,
+})}${agent.id === agentId ? ' <- you' : ''}`).join('\n')}
+Set the assignee of a task to the id of whoever fits it best, and the subagent that works on that
+task stands for that agent. A task you leave without an assignee stays yours.`;
     }
 
     private static memory(role: FlushAgentRole, agentId: string, projectId: string): string {

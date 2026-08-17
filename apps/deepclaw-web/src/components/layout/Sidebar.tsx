@@ -65,12 +65,14 @@ export function Sidebar({manager}: SidebarProps) {
       )}
 
       {/* Mobile Menu Drawer */}
+      {/* top-[57px] + bottom-0 already pin the height; no 100vh math needed
+          (100vh on mobile includes the area behind the URL bar) */}
       <aside
         className={`
           lg:hidden fixed top-[57px] left-0 bottom-0 z-40 bg-white border-r border-gray-200 flex flex-col
           transition-transform duration-300 ease-in-out
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-          w-64 h-[calc(100vh-57px)]
+          w-64
         `}
       >
         <nav className="flex-1 p-2">

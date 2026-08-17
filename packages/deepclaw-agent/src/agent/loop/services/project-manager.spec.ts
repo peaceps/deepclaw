@@ -36,7 +36,8 @@ async function loadManager(files: Record<string, {dir: string; content: string}>
 await loadManager();
 
 function newTask(
-    manager: ProjectManagerType, title: string, extra: {steps?: string[]; blockedBy?: string[]} = {}
+    manager: ProjectManagerType, title: string,
+    extra: {steps?: string[]; blockedBy?: string[]; assignee?: string} = {}
 ): Task {
     return manager.createTask({
         agentId: 'a1', title, description: `${title} description`, priority: 'low', ...extra
@@ -140,6 +141,11 @@ describe('createTask', () => {
             blocks: [],
             stepsStatus: undefined,
         });
+    });
+
+    /** Planning a task is not working on it: it falls to whoever it was handed to. */
+    test('assigns the task to the named agent instead of the one creating it', () => {
+        expect(newTask(manager, 'write', {assignee: 'a2'}).assignee).toBe('a2');
     });
 
     test('keeps the given steps with no step started yet', () => {

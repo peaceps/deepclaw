@@ -1,4 +1,4 @@
-import { AgentEmployee } from "./agent-definitions";
+import { AgentEmployee, AgentRuntimeStatus } from "./agent-definitions";
 import { FlushAgentRole } from "./flush-agent-types";
 import { Project, RunningTask } from "./project-definitions";
 import { DistributiveOmit, UpdateContent } from "@deepclaw/utils";
@@ -70,6 +70,19 @@ export type AgentAgentInfoEvent = AgentInfoEvent & {
 export type AgentCronInfoEvent = AgentInfoEvent & {
     eventType: 'updateCron',
     content: UpdateContent<CronTask>
+}
+
+/**
+ * A run only reports what it just felt; the gateway folds that into the status it keeps and passes
+ * the whole of it on, so that a browser never has to guess what the other tabs were told.
+ */
+export type AgentRuntimeStatusInfoEvent = AgentInfoEvent & {
+    eventType: 'updateAgentRuntime',
+    content: Partial<AgentRuntimeStatus> & {
+        agentId: string;
+        /** The feeling that just arrived, the one worth popping up; the rest is history. */
+        emotion?: string;
+    }
 }
 
 /** The whole list every time: it is a handful of entries and a lost delta would strand one of them. */

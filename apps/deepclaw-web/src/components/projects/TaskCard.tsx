@@ -27,6 +27,8 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
   // An ongoing task only says the work was taken up, this says a subagent is on it right now.
   const running = useAppStore(s => s.runningTasks)
     .some(run => run.projectId === projectId && run.taskTitle === task.title);
+  // The loop already stopped at the gate, so lifting the pause frees nothing, only a verdict does.
+  const awaitingVerify = !!task.pause && task.verified === false;
 
   const handleAssigneeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -34,12 +36,13 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
   };
 
   const handlePauseClick = useCallback(() => {
+    if (awaitingVerify) return;
     const next = !task.pause;
     updateProjectTask(projectId, { title: task.title, pause: next });
     updateProjectTaskToServer(projectId, { title: task.title, pause: next }).catch(() => {
       updateProjectTask(projectId, { title: task.title, pause: !next });
     });
-  }, [projectId, task.title, task.pause, updateProjectTask]);
+  }, [projectId, task.title, task.pause, awaitingVerify, updateProjectTask]);
 
   const handleVerifiedClick = useCallback(() => {
     if (!task.pause || task.status !== 'ongoing') return;
@@ -85,8 +88,10 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           <div className='flex-1'></div>
           {task.status !== 'done' && <button
               onClick={handlePauseClick}
-              className='mr-1 flex-shrink-0 cursor-pointer'
-              title={t(`web.pages.projects.task.pause.title.${task.pause ? 'on' : 'off'}`)}>
+              disabled={awaitingVerify}
+              className='mr-1 flex-shrink-0 cursor-pointer disabled:cursor-not-allowed'
+              title={t(`web.pages.projects.task.pause.title.${
+                awaitingVerify ? 'locked' : task.pause ? 'on' : 'off'}`)}>
             <CirclePause size={18} className={`${task.pause ? 'text-yellow-500' : 'text-gray-200'}`} />
           </button>}
           {task.status === 'ongoing' && task.pause && typeof task.verified === 'boolean' && <button

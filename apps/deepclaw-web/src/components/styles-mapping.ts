@@ -18,7 +18,7 @@ export const moodEmojis: Record<AgentEmployee['mood'], string> = {
     focused: '🎯',
     tired: '😴',
     confused: '🤔',
-    none: '🙃',
+    none: '😑',
 };
 
 export const statusColors: Record<AgentStatus, string> = {

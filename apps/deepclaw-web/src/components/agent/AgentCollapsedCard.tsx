@@ -1,6 +1,7 @@
 import { AgentEmployee } from "@deepclaw/core";
 import { avatarBG, statusColors } from "../styles-mapping";
 import { useAgentCard } from "./use-agent-card";
+import { EmotionTooltip } from "./EmotionTooltip";
 import { deriveAgentSummary, useAgentActivity, useAppStore } from "@/lib/store";
 
 export function AgentCollapsedCard({
@@ -38,12 +39,7 @@ export function AgentCollapsedCard({
             <span className="w-full text-xs text-center text-gray-700 truncate">{agent.name}</span>
         </div>
 
-        {/* <AgentTooltip
-            agent={agent}
-            visible={tooltipVisible}
-            anchorRef={cardRef}
-            onClose={() => setTooltipVisible(false)}
-        /> */}
+        <EmotionTooltip agentId={agent.id} anchorRef={cardRef}/>
       </>
     );
 }

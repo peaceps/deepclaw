@@ -9,7 +9,8 @@ import { useToastStore } from '@/lib/toast-store';
 import { ToastService } from '@/lib/toast-service';
 import {
   AgentAgentInfoEvent, AgentBusyLoopsInfoEvent, AgentCronInfoEvent, AgentProjectInfoEvent,
-  AgentRunningTasksInfoEvent
+  AgentRunningTasksInfoEvent,
+  AgentRuntimeStatusInfoEvent
 } from '@deepclaw/core';
 
 const logger = getLogger('InfoClient');
@@ -21,6 +22,7 @@ export function InfoClient() {
   const getAgents = useAppStore(s => s.getAgents);
   const getProjects = useAppStore(s => s.getProjects);
   const updateAgentEmployee = useAppStore(s => s.updateAgentEmployee);
+  const showEmotionPopup = useAppStore(s => s.showEmotionPopup);
   const setRunningTasks = useAppStore(s => s.setRunningTasks);
   const setBusyLoops = useAppStore(s => s.setBusyLoops);
   const updateCronTask = useAppStore(s => s.updateCronTask);
@@ -72,6 +74,22 @@ export function InfoClient() {
           updateCronTask(content);
         },
       ),
+      sseClient.subscribe<AgentRuntimeStatusInfoEvent>(
+        INFO_SSE_URL,
+        'updateAgentRuntime',
+        ({content: {agentId, emotion, ...status}}) => {
+          if (!getAgents().some(agent => agent.id === agentId)) {
+            logger.warn(`Agent ${agentId} not found for runtime update.`);
+            return;
+          }
+          // The gateway keeps the moods and the emotions, so its status is taken as it comes.
+          updateAgentEmployee({ id: agentId, ...status });
+          if (emotion) {
+            // pop the emotion up on the agent's card in the list
+            showEmotionPopup(agentId, emotion);
+          }
+        },
+      ),
       sseClient.subscribe<SSEToastEvent>(
         INFO_SSE_URL,
         'toast',
@@ -88,8 +106,8 @@ export function InfoClient() {
       unsubscribers.forEach(unsubscribe => unsubscribe());
     };
   }, [
-    sseClient, updateProject, updateAgentEmployee, setRunningTasks, setBusyLoops, updateCronTask,
-    browserId, getAgents, getProjects, show,
+    sseClient, updateProject, updateAgentEmployee, showEmotionPopup, setRunningTasks, setBusyLoops,
+    updateCronTask, browserId, getAgents, getProjects, show,
   ]);
 
   return <></>;

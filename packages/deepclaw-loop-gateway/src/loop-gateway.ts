@@ -1,5 +1,6 @@
 import type {
     AgentHandler, AgentEmployee, Project, Task, AgentIdentity,
+    AgentInfoEvent,
     AgentInteractionEvent,
     ChatMessage,
     InvalidInteractionReason,
@@ -22,8 +23,12 @@ import {
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
+import { AgentRuntimeService } from "./agent-runtime-service";
 import { storeImages } from "./image-refs";
-import { LoopInfo, InvokeSource, LoopGatewayEvent, getClientKey, InvokeOption } from "./loop-gateway-types";
+import {
+    LoopInfo, InvokeSource, LoopGatewayEvent, getClientKey, InvokeOption,
+    isAgentRuntimeStatusInfoEvent,
+} from "./loop-gateway-types";
 import { i18nInstance } from "@deepclaw/i18n";
 import { getLogger } from "@deepclaw/node-utils";
 
@@ -72,8 +77,23 @@ class LoopGatewayImpl {
             this.fireSSEEvent(e)
         },
         onInteractionEvent: (e) => this.fireWaitedSSEEvent(e),
-        onInfoEvent: (e) => this.fireSSEEvent(e)
+        onInfoEvent: (e) => this.fireInfoEvent(e)
     };
+
+    /**
+     * A mood is nowhere on disk, so the gateway is the one that remembers it: the run says what it
+     * just felt, this folds it into the status and hands the whole of it to the browsers, which is
+     * the same thing a page that loads later is given.
+     */
+    private static fireInfoEvent(e: AgentInfoEvent): void {
+        if (isAgentRuntimeStatusInfoEvent(e)) {
+            const {agentId, mood, emotion} = e.content;
+            const status = AgentRuntimeService.update(agentId, mood, emotion);
+            this.fireSSEEvent({...e, content: {...e.content, ...status}});
+            return;
+        }
+        this.fireSSEEvent(e);
+    }
 
     private static fireSSEEvent(e: LoopGatewayEvent) {
         this.sseSubscribers.forEach(cb => cb(e));
@@ -311,7 +331,7 @@ class LoopGatewayImpl {
         const identity = AgentIdentityManager.newAgentIdentity(id);
         const newAgent = {
             ...identity,
-            mood: 'none' as const,
+            ...AgentRuntimeService.getStatus(id),
         };
         this.fireSSEEvent({ eventType: 'updateAgent', content: newAgent });
         return newAgent;
@@ -395,11 +415,12 @@ class LoopGatewayImpl {
         return res;
     }
 
+    /** The moods and the emotions come along: a tab that connects later sees what the others saw. */
     private static getAgents(): AgentEmployee[] {
         return AgentIdentityManager.getAgents().map(agent => {
             return {
                 ...agent,
-                mood: 'none',
+                ...AgentRuntimeService.getStatus(agent.id),
             }
         });
     }

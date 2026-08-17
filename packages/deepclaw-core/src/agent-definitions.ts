@@ -21,11 +21,12 @@ export type AgentProjectStats = {
   done: string[];
 }
 
-export type AgentMood = {
+export type AgentRuntimeStatus = {
   mood: 'happy' | 'focused' | 'tired' | 'confused' | 'none';
+  emotions?: string[];
 }
 
-export type AgentEmployee = AgentIdentity & AgentMood;
+export type AgentEmployee = AgentIdentity & AgentRuntimeStatus;
 
 export type TokenUsage = {
     cachedInputTokens: number;

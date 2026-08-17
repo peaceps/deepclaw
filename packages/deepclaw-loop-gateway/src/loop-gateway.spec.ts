@@ -24,6 +24,10 @@ const mocks = vi.hoisted(() => ({
     getSkillList: vi.fn(),
     updateSkillAgents: vi.fn(),
     getRunningTasks: vi.fn<() => unknown[]>(() => []),
+    getAgentRuntimeStatus: vi.fn<(agentId: string) => unknown>(() => ({mood: 'none', emotions: []})),
+    updateAgentRuntimeStatus: vi.fn<(agentId: string, mood?: string, emotion?: string) => unknown>(
+        () => ({mood: 'none', emotions: []})
+    ),
     getCronTasks: vi.fn<() => unknown[]>(() => []),
     getCronHistories: vi.fn(),
     updateCronTaskStatus: vi.fn(),
@@ -57,6 +61,13 @@ vi.mock('@deepclaw/agent', () => ({
     },
     SkillsManager: {getSkillList: mocks.getSkillList, updateSkillAgents: mocks.updateSkillAgents},
     RunningTaskService: {getRunningTasks: mocks.getRunningTasks},
+}));
+
+vi.mock('./agent-runtime-service', () => ({
+    AgentRuntimeService: {
+        getStatus: mocks.getAgentRuntimeStatus,
+        update: mocks.updateAgentRuntimeStatus,
+    },
 }));
 
 vi.mock('./ui-chat-service', () => ({
@@ -233,6 +244,24 @@ describe('initLoop', () => {
         LoopGateway.initLoop(loopId, {onStreamText: vi.fn()});
         capturedHandler().onInfoEvent({eventType: 'updateAgent', content: {id: 'a1'}});
         expect(events).toContainEqual({eventType: 'updateAgent', content: {id: 'a1'}});
+    });
+
+    /**
+     * A mood is nowhere on disk: the run reports what it felt, the gateway is what remembers it and
+     * what tells the browsers the whole of it.
+     */
+    test('folds a reported feeling into the status it keeps', () => {
+        const {loopId} = nextLoop();
+        mocks.updateAgentRuntimeStatus.mockReturnValue({mood: 'happy', emotions: ['older', 'fresh']});
+        LoopGateway.initLoop(loopId);
+        capturedHandler().onInfoEvent({
+            eventType: 'updateAgentRuntime', content: {agentId: 'a1', mood: 'happy', emotion: 'fresh'},
+        });
+        expect(mocks.updateAgentRuntimeStatus).toHaveBeenCalledExactlyOnceWith('a1', 'happy', 'fresh');
+        expect(events).toContainEqual({
+            eventType: 'updateAgentRuntime',
+            content: {agentId: 'a1', mood: 'happy', emotions: ['older', 'fresh'], emotion: 'fresh'},
+        });
     });
 });
 
@@ -539,8 +568,18 @@ describe('data updates', () => {
         mocks.getProjectList.mockReturnValue({projects: {open: [{id: 'p1'}], closed: [{id: 'p2'}]}});
         mocks.getProjectDetail.mockImplementation((id: string) => ({id, title: `title of ${id}`}));
         const info = LoopGateway.getDataInfo();
-        expect(info.agents).toEqual([{id: 'a1', name: 'Ada', mood: 'none'}]);
+        expect(info.agents).toEqual([{id: 'a1', name: 'Ada', mood: 'none', emotions: []}]);
         expect(info.projects.map(project => project.id)).toEqual(['p1', 'p2']);
+    });
+
+    /** Moods live in memory only, so a tab that connects later has to be told how everyone feels. */
+    test('collects the mood and the emotions each agent holds right now', () => {
+        mocks.getAgents.mockReturnValue([{id: 'a1', name: 'Ada'}]);
+        mocks.getProjectList.mockReturnValue({projects: {open: [], closed: []}});
+        mocks.getAgentRuntimeStatus.mockReturnValue({mood: 'tired', emotions: ['a long day']});
+        expect(LoopGateway.getDataInfo().agents)
+            .toEqual([{id: 'a1', name: 'Ada', mood: 'tired', emotions: ['a long day']}]);
+        expect(mocks.getAgentRuntimeStatus).toHaveBeenCalledWith('a1');
     });
 
     /** A page that just loaded has seen no event yet, so the running tasks travel with it. */

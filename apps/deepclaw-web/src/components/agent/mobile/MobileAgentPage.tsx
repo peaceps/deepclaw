@@ -38,6 +38,7 @@ export function MobileAgentPage({selectedAgent}: {
                 <ChatPanel
                   projectId=""
                   agent={selectedAgent}
+                  fitContainer
                 />
             </div>
           )}

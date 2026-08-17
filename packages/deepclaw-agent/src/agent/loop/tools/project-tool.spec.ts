@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {type Project, type Task, type TaskStepsContext} from '@deepclaw/core';
+import {type AgentIdentity, type Project, type Task, type TaskStepsContext} from '@deepclaw/core';
 import {newTestContext} from '../../../test-support/one-loop-context';
+import {AgentIdentityManager} from '../services/agent-identity-manager';
 import {ProjectManager} from '../services/project-manager';
 import {
     createProjectTool,
@@ -12,7 +13,10 @@ import {
     updateTaskCurrentStepTool,
 } from './project-tool';
 
-vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
+vi.mock('@deepclaw/i18n', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@deepclaw/i18n')>()),
+    i18nInstance: {t: (key: string) => key},
+}));
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
     FileUtils: {readDir: vi.fn(() => ({})), writeFile: vi.fn(), exists: vi.fn(() => false)},
@@ -26,9 +30,15 @@ const updateTask = vi.spyOn(ProjectManager, 'updateTask');
 const updateCurrentStep = vi.spyOn(ProjectManager, 'updateCurrentStep');
 const getProjectList = vi.spyOn(ProjectManager, 'getProjectList');
 const getProjectDetail = vi.spyOn(ProjectManager, 'getProjectDetail');
+const getAgent = vi.spyOn(AgentIdentityManager, 'getAgent');
+const getAgents = vi.spyOn(AgentIdentityManager, 'getAgents');
 
 function newTask(title: string): Task {
     return {title, description: `${title} desc`, priority: 'medium', status: 'todo'} as Task;
+}
+
+function newIdentity(id: string, fired = false): AgentIdentity {
+    return {id, fired, name: id, role: 'engineer'} as AgentIdentity;
 }
 
 function newProject(overrides: Partial<Project> = {}): Project {
@@ -41,6 +51,8 @@ beforeEach(() => {
     createProject.mockReturnValue(newProject());
     updateProject.mockReturnValue(newProject());
     getProjectDetail.mockReturnValue(newProject());
+    getAgent.mockImplementation(id => newIdentity(id));
+    getAgents.mockReturnValue([newIdentity('a1'), newIdentity('a2'), newIdentity('a3', true)]);
 });
 
 describe('createProjectTool invoke', () => {
@@ -63,6 +75,40 @@ describe('createProjectTool invoke', () => {
             {agentId: 'a1', title: 'ship it', description: 'ship the thing', priority: 'high'},
             [newTask('design'), newTask('build')]
         );
+    });
+
+    test('files a task under the agent it was handed to', async () => {
+        await createProjectTool.invoke({
+            title: 'ship it',
+            description: 'ship the thing',
+            priority: 'high',
+            tasks: [{title: 'design', description: 'design it', priority: 'medium', assignee: 'a2'}],
+        }, newTestContext());
+        expect(createTask).toHaveBeenCalledExactlyOnceWith({
+            title: 'design', description: 'design it', priority: 'medium', assignee: 'a2', agentId: 'a1',
+        });
+    });
+
+    /** An id nobody has would send the subagent of the task out as a stranger. */
+    test('refuses a task handed to somebody who does not work here', async () => {
+        getAgent.mockReturnValue(undefined);
+        await expect(createProjectTool.invoke({
+            title: 'ship it',
+            description: 'ship the thing',
+            priority: 'high',
+            tasks: [{title: 'design', description: 'design it', priority: 'medium', assignee: 'ghost'}],
+        }, newTestContext())).rejects.toThrow('No agent "ghost" works here, assign the task to one of: a1, a2.');
+        expect(createProject).not.toHaveBeenCalled();
+    });
+
+    test('refuses a task handed to an agent that was fired', async () => {
+        getAgent.mockImplementation(id => newIdentity(id, true));
+        await expect(createProjectTool.invoke({
+            title: 'ship it',
+            description: 'ship the thing',
+            priority: 'high',
+            tasks: [{title: 'design', description: 'design it', priority: 'medium', assignee: 'a3'}],
+        }, newTestContext())).rejects.toThrow('No agent "a3" works here');
     });
 
     test('announces the new project and pauses the loop for a review', async () => {
@@ -115,6 +161,25 @@ describe('updateProjectTool invoke', () => {
         expect(updateProject).toHaveBeenCalledExactlyOnceWith({id: 'pr1'}, [newTask('design')]);
     });
 
+    test('keeps the assignee of every rebuilt task', async () => {
+        await updateProjectTool.invoke({
+            projectId: 'pr1',
+            tasks: [{title: 'design', description: 'design it', priority: 'low', assignee: 'a2'}],
+        }, newTestContext());
+        expect(createTask).toHaveBeenCalledExactlyOnceWith({
+            title: 'design', description: 'design it', priority: 'low', assignee: 'a2', agentId: 'a1',
+        });
+    });
+
+    test('refuses a rebuilt task handed to somebody who does not work here', async () => {
+        getAgent.mockReturnValue(undefined);
+        await expect(updateProjectTool.invoke({
+            projectId: 'pr1',
+            tasks: [{title: 'design', description: 'design it', priority: 'low', assignee: 'ghost'}],
+        }, newTestContext())).rejects.toThrow('No agent "ghost" works here');
+        expect(updateProject).not.toHaveBeenCalled();
+    });
+
     test('reports the project back and notifies the ui', async () => {
         const context = newTestContext();
         const result = await updateProjectTool.invoke({projectId: 'pr1'}, context);
@@ -145,6 +210,14 @@ describe('updateTaskTool invoke', () => {
         expect(updateTask).toHaveBeenCalledExactlyOnceWith(
             'pr1', {title: 'design', assignee: 'a2', output}, ['one', 'two']
         );
+    });
+
+    test('refuses to reassign a task to somebody who does not work here', async () => {
+        getAgent.mockReturnValue(undefined);
+        await expect(updateTaskTool.invoke(
+            {projectId: 'pr1', taskTitle: 'design', assignee: 'ghost'}, newTestContext()
+        )).rejects.toThrow('No agent "ghost" works here');
+        expect(updateTask).not.toHaveBeenCalled();
     });
 
     test('breaks the loop when the task still waits for a user verification', async () => {

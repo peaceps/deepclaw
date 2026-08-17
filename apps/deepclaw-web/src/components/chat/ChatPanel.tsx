@@ -16,6 +16,13 @@ import { useScroll } from "./use-scroll-hooks";
 type ChatPanelProps = {
   agent: AgentEmployee;
   projectId: string;
+  /**
+   * Fit exactly into the parent container instead of enforcing the 560px
+   * minimum height. Use when the parent has a definite height and
+   * overflow-hidden (e.g. the mobile agent page), where a fixed minimum
+   * height would push the input row out of the visible area.
+   */
+  fitContainer?: boolean;
 };
 
 // as many as an image model takes as the pictures to draw from
@@ -34,7 +41,7 @@ function fileToImageContent(file: File): Promise<ImageContent> {
     });
 }
 
-export function ChatPanel({ agent, projectId }: ChatPanelProps) {
+export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelProps) {
   const { t, i18n } = useTranslation();
   const role = !projectId ? 'agent' : 'project';
   const loopId = getLoopId(role, agent.id, projectId);
@@ -94,7 +101,7 @@ export function ChatPanel({ agent, projectId }: ChatPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white min-h-140">
+    <div className={`flex flex-col h-full bg-white ${fitContainer ? '' : 'min-h-140'}`}>
       {<ChatHeader agent={agent} tokenUsage={tokenUsage}/>}
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
         {!agentMessages?.length ? (

@@ -11,7 +11,7 @@ const keyRegex = /^(?:[a-zA-Z0-9._-]+\/)?[a-f0-9]+\.[a-z0-9]+$/;
 export class ImageStore {
 
     public static save(bytes: Buffer, extension: string, loopId: string): string {
-        const folder = folderOf(loopId);
+        const folder = this.folderOf(loopId);
         const name = `${FileUtils.hashString(bytes)}.${extension}`;
         const key = folder ? `${folder}/${name}` : name;
         if (!FileUtils.exists(this.pathOf(key))) {
@@ -35,9 +35,9 @@ export class ImageStore {
     private static pathOf(key: string): string {
         return `${IMAGE_DIR}/${key}`;
     }
-}
 
-/** A loop id is made of ids and dots, but a folder has to survive whatever else reaches it. */
-function folderOf(loopId: string): string {
-    return loopId.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.{2,}/g, '_');
+    /** A loop id is made of ids and dots, but a folder has to survive whatever else reaches it. */
+    private static folderOf(loopId: string): string {
+        return loopId.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.{2,}/g, '_');
+    }
 }

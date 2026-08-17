@@ -2,6 +2,7 @@ import type { AgentEmployee } from "@deepclaw/core";
 import { avatarBG, moodEmojis, statusColors } from "../styles-mapping";
 import { useTranslation } from "react-i18next";
 import { useAgentCard } from "./use-agent-card";
+import { EmotionTooltip } from "./EmotionTooltip";
 import { AlarmClock, CheckCircle2, Clock } from "lucide-react";
 import { deriveAgentSummary, useAgentActivity, useAppStore } from "@/lib/store";
 
@@ -61,13 +62,8 @@ export function AgentExpandedCard({
               </div>
             </div>
           </div>
-    
-          {/* <AgentTooltip
-            agent={agent}
-            visible={tooltipVisible}
-            anchorRef={cardRef}
-            onClose={() => setTooltipVisible(false)}
-          /> */}
+
+          <EmotionTooltip agentId={agent.id} anchorRef={cardRef}/>
         </>
     );
 }

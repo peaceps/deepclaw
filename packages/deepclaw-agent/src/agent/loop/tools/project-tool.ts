@@ -4,18 +4,89 @@ import { type LLMTaskOutput, type MissionPriority, type MissionStatus, PROJECT_C
 import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
+import { AgentIdentityManager } from "../services/agent-identity-manager";
+
+type ProjectTaskInput = {
+    title: string;
+    description: string;
+    priority: MissionPriority;
+    steps?: string[];
+    blockedBy?: string[];
+    assignee?: string;
+};
+
+const taskItemSchema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        title: {
+            type: 'string',
+            description: 'The title of the task, will display to the user. It should be unique across tasks in this project.',
+            minLength: 1,
+            maxLength: 50,
+        },
+        description: {
+            type: 'string',
+            description: 'A short description of the task, will display to the user.',
+            minLength: 1,
+            maxLength: 100,
+        },
+        priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'urgent'],
+            description: 'The priority of the task.'
+        },
+        steps: {
+            type: 'array',
+            items: {type: 'string'},
+            description: `The detailed steps to complete the task. Max step count is ${PROJECT_CONFIG.maxTaskStepsCount}.
+You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
+All steps should be done when task is going to be marked as done.`,
+            maxItems: PROJECT_CONFIG.maxTaskStepsCount,
+        },
+        blockedBy: {
+            type: 'array',
+            items: {type: 'string'},
+            description: 'The task title of the tasks that this task is blocked by.'
+        },
+        assignee: {
+            type: 'string',
+            description: `The id of the agent that has to work on this task, pick the one whose role and
+expertises fit it. Leave it out to keep the task yourself. The subagent you hand the task over to
+works as its assignee, with the memory and the skills of that agent.`,
+        },
+    },
+    required: ['title', 'description', 'priority'],
+};
+
+/**
+ * An id that belongs to nobody would hand the task to a name the company does not know: the
+ * subagent working on it would run as a stranger and its work would be filed under one as well.
+ */
+function requireHiredAssignee(assignee: string | undefined): void {
+    if (!assignee) {
+        return;
+    }
+    const agent = AgentIdentityManager.getAgent(assignee);
+    if (agent && !agent.fired) {
+        return;
+    }
+    const hired = AgentIdentityManager.getAgents().filter(one => !one.fired).map(one => one.id);
+    throw new Error(`No agent "${assignee}" works here, assign the task to one of: ${hired.join(', ')}.`);
+}
+
+function buildTasks(tasks: ProjectTaskInput[], context: OneLoopContext): Task[] {
+    return tasks.map(task => {
+        requireHiredAssignee(task.assignee);
+        return ProjectManager.createTask({...task, agentId: context.agentId});
+    });
+}
 
 type CreateProjectInput = {
     title: string;
     description: string;
     priority: MissionPriority;
-    tasks: {
-        title: string;
-        description: string;
-        priority: MissionPriority;
-        steps?: string[];
-        blockedBy?: string[];
-    }[];
+    tasks: ProjectTaskInput[];
 };
 
 export const createProjectTool: ToolDesc<CreateProjectInput> = {
@@ -47,43 +118,7 @@ so do not call tools updating project/tasks immediately with create_project`,
                 },
                 tasks: {
                     type: 'array',
-                    items: {
-                        type: 'object',
-                        additionalProperties: false,
-                        properties: {
-                            title: {
-                                type: 'string',
-                                description: 'The title of the task, will display to the user. It should be unique across tasks in this project.',
-                                minLength: 1,
-                                maxLength: 50,
-                            },
-                            description: {
-                                type: 'string',
-                                description: 'A short description of the task, will display to the user.',
-                                minLength: 1,
-                                maxLength: 100,
-                            },
-                            priority: {
-                                type: 'string',
-                                enum: ['low', 'medium', 'high', 'urgent'],
-                                description: 'The priority of the task.'
-                            },
-                            steps: {
-                                type: 'array',
-                                items: {type: 'string'},
-                                description: `The detailed steps to complete the task. Max step count is ${PROJECT_CONFIG.maxTaskStepsCount}.
-You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
-All steps should be done when task is going to be marked as done.`,
-                                maxItems: PROJECT_CONFIG.maxTaskStepsCount,
-                            },
-                            blockedBy: {
-                                type: 'array',
-                                items: {type: 'string'},
-                                description: 'The task title of the tasks that this task is blocked by.'
-                            },
-                        },
-                        required: ['title', 'description', 'priority'],
-                    },
+                    items: taskItemSchema,
                     maxItems: PROJECT_CONFIG.maxTasksCount,
                 },
             },
@@ -94,10 +129,7 @@ All steps should be done when task is going to be marked as done.`,
     parallelSafe: false,
     exclusiveInSubLoop: true,
     invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
-        const tasks = input.tasks.map(task => ProjectManager.createTask({
-            ...task,
-            agentId: context.agentId,
-        }))
+        const tasks = buildTasks(input.tasks, context);
         const project = ProjectManager.createProject({
             agentId: context.agentId,
             title: input.title,
@@ -185,13 +217,7 @@ type UpdateProjectInput = {
     title?: string;
     description?: string;
     priority?: MissionPriority;
-    tasks?: {
-        title: string;
-        description: string;
-        priority: MissionPriority;
-        steps?: string[];
-        blockedBy?: string[];
-    }[];
+    tasks?: ProjectTaskInput[];
 };
 
 export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
@@ -223,43 +249,7 @@ export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
                 tasks: {
                     type: 'array',
                     description: 'Full tasks of the project',
-                    items: {
-                        type: 'object',
-                        additionalProperties: false,
-                        properties: {
-                            title: {
-                                type: 'string',
-                                description: 'The title of the task, will display to the user. It should be unique across tasks in this project.',
-                                minLength: 1,
-                                maxLength: 50,
-                            },
-                            description: {
-                                type: 'string',
-                                description: 'A short description of the task, will display to the user.',
-                                minLength: 1,
-                                maxLength: 100,
-                            },
-                            priority: {
-                                type: 'string',
-                                enum: ['low', 'medium', 'high', 'urgent'],
-                                description: 'The priority of the task.'
-                            },
-                            steps: {
-                                type: 'array',
-                                items: {type: 'string'},
-                                description: `The detailed steps to complete the task. Max step count is ${PROJECT_CONFIG.maxTaskStepsCount}.
-You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
-All steps should be done when task is going to be marked as done.`,
-                                maxItems: PROJECT_CONFIG.maxTaskStepsCount,
-                            },
-                            blockedBy: {
-                                type: 'array',
-                                items: {type: 'string'},
-                                description: 'The task title of the tasks that this task is blocked by.'
-                            },
-                        },
-                        required: ['title', 'description', 'priority'],
-                    },
+                    items: taskItemSchema,
                     maxItems: PROJECT_CONFIG.maxTasksCount,
                 },
             },
@@ -271,10 +261,7 @@ All steps should be done when task is going to be marked as done.`,
     exclusiveInSubLoop: true,
     invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
         const {projectId, tasks, ...patch} =  input;
-        const projectTasks = tasks?.map(task => ProjectManager.createTask({
-            ...task,
-            agentId: context.agentId,
-        }));
+        const projectTasks = tasks && buildTasks(tasks, context);
         ProjectManager.updateProject({
             id: projectId,
             ...patch,
@@ -320,12 +307,20 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
 They shoudl be short descriptions of each step, should not be too long for user to read.`,
                     maxItems: PROJECT_CONFIG.maxTaskStepsCount,
                 },
-                assignee: {type: 'string', description: 'The id of the agent the task is assigned to.'},
+                assignee: {
+                    type: 'string',
+                    description: `The id of the agent the task is assigned to, it works on the task
+through a subagent that stands for it.`,
+                },
                 output: {
                     type: 'object',
                     additionalProperties: false,
-                    description: `The output of the task, for coding task you can give the source dir of the task,
-also you can start the dev server and provide the access address if possible.`,
+                    description: `The output of the task. Whatever the user can just read -- a report, a
+summary, a plan, a table -- belongs in the content itself: write it out here instead of saving it to a
+file and handing over the path, a file the user has to go and open is worse than the thing itself.
+Large content is filed away for you, so there is no size to work around.
+Name a path only for what a readable document cannot carry: for coding task you can give the source
+dir of the task, also you can start the dev server and provide the access address if possible.`,
                     properties: {
                         type: {
                             type: 'string', enum: ['markdown', 'text', 'binary'],
@@ -356,6 +351,7 @@ and the file path will be set into the path field.`
     exclusiveInSubLoop: true,
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
         const taskInfo: UpdateContent<Task, 'title'> = {title: input.taskTitle};
+        requireHiredAssignee(input.assignee);
         if (input.assignee) taskInfo.assignee = input.assignee;
         if (input.status) taskInfo.status = input.status;
         if (input.output) taskInfo.output = input.output;

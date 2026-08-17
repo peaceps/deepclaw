@@ -1,6 +1,6 @@
 import {
     AgentAgentInfoEvent, AgentBusyLoopsInfoEvent, AgentCronInfoEvent, AgentEvent, AgentInfoEvent,
-    AgentInteractionEvent, AgentLoopEvent, AgentProjectInfoEvent,
+    AgentInteractionEvent, AgentLoopEvent, AgentProjectInfoEvent, AgentRuntimeStatusInfoEvent,
     AgentRunningTasksInfoEvent, AgentStreamEvent, ChatMessage,
     FlushAgentRole,
     ImageContent,
@@ -74,6 +74,9 @@ export function isAgentInfoEvent(event: AgentEvent): event is AgentAgentInfoEven
 export function isCronInfoEvent(event: AgentEvent): event is AgentCronInfoEvent {
     return event.eventType === 'updateCron';
 }
+export function isAgentRuntimeStatusInfoEvent(event: AgentEvent): event is AgentRuntimeStatusInfoEvent {
+    return event.eventType === 'updateAgentRuntime';
+}
 export function isRunningTasksInfoEvent(event: AgentEvent): event is AgentRunningTasksInfoEvent {
     return event.eventType === 'updateRunningTasks';
 }
@@ -87,7 +90,7 @@ export function isLoopEvent(event: AgentEvent): event is AgentLoopEvent {
 }
 export function isInfoEvent(event: AgentEvent): event is AgentInfoEvent {
     return isProjectInfoEvent(event) || isAgentInfoEvent(event) || isCronInfoEvent(event)
-        || isRunningTasksInfoEvent(event) || isBusyLoopsInfoEvent(event);
+        || isRunningTasksInfoEvent(event) || isBusyLoopsInfoEvent(event) || isAgentRuntimeStatusInfoEvent(event);
 }
 
 export function getClientKey(browserId: string, loopId?: string): string {

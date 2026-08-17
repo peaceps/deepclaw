@@ -92,6 +92,8 @@ export const zh = {
                         projectsCompleted: '已完成项目数',
                         changeAvatar: '更换头像',
                         editRole: '编辑职位',
+                        emotions: '情绪记录',
+                        noEmotions: '还没有情绪记录',
                     },
                     labels: {
                         save: '按回车保存',
@@ -155,6 +157,7 @@ export const zh = {
                         title: {
                             on: '在完成此任务后暂停',
                             off: '不会在完成此任务后暂停',
+                            locked: '已暂停并等待你验证，此时不能取消暂停',
                         }
                     },
                     verified: {

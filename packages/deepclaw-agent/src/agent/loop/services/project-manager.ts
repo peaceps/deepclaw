@@ -25,6 +25,8 @@ type TaskInitInfo = {
     priority: MissionPriority;
     steps?: string[];
     blockedBy?: string[];
+    /** Whoever has to work on the task, the agent that plans it when nobody else was named. */
+    assignee?: string;
 };
 
 export class ProjectManager {
@@ -132,7 +134,7 @@ export class ProjectManager {
             description: taskInfo.description,
             priority: taskInfo.priority,
             status: 'todo',
-            assignee: taskInfo.agentId,
+            assignee: taskInfo.assignee || taskInfo.agentId,
             blockedBy: taskInfo.blockedBy || [],
             blocks: [],
             stepsStatus: !taskInfo.steps?.length ? undefined : {
@@ -339,7 +341,9 @@ work further than the description asks for. If something outside the task turns 
 report it instead of doing it.${task.stepsStatus?.steps.length ? `
 Keep the step index up to date with the update_task_current_step tool as you go through the steps.` : ''}
 Close your run with a summary of what you did and what came out of it, that summary is what the
-agent who assigned the task gets to see.`;
+agent who assigned the task gets to see. If what the task produced is something to read, put it in
+that summary whole rather than in a file of its own: the agent who assigned it has to hand the result
+on, and it can only hand on what it was given.`;
     }
 
     public static promptCurrentProject(projectId: string): string {

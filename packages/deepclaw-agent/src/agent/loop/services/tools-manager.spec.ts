@@ -37,6 +37,7 @@ function names(isSubLoop: boolean, mode: AgentMode): string[] {
 // ever being applied, which quietly hands the real mcp service to every test below.
 function toolModules(): Promise<Record<string, unknown>[]> {
     return Promise.all([
+        import('../tools/agent-runtime-tool'),
         import('../tools/background-command-tool'),
         import('../tools/cron-tool'),
         import('../tools/encode-decode-tool'),

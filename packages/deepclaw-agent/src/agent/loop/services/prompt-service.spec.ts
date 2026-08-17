@@ -48,6 +48,7 @@ async function loadService(setup: () => void = () => undefined) {
         assignedTaskPrompt: vi.spyOn(ProjectManager, 'promptAssignedTask')
             .mockReturnValue('the assigned task'),
         getAgent: vi.spyOn(AgentIdentityManager, 'getAgent').mockReturnValue(undefined),
+        getAgents: vi.spyOn(AgentIdentityManager, 'getAgents').mockReturnValue([]),
         memoryPrompt: vi.spyOn(MemoryManager, 'getMemoryPrompt').mockReturnValue('the memory prompt'),
         skillPrompt: vi.spyOn(SkillsManager, 'generateSkillPrompt').mockReturnValue('the skills prompt'),
         currentProject: vi.spyOn(ProjectManager, 'promptCurrentProject')
@@ -86,6 +87,12 @@ describe('platform and language', () => {
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
         const platform = process.platform.includes('win32') ? 'Windows' : 'Linux';
         expect(cacheable).toContain(`You are a worker on ${platform} platform working in "${process.cwd()}".`);
+    });
+
+    test('asks for a folder of its own instead of files left loose in that folder', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        expect(cacheable).toContain('give it a folder of its own in that directory');
     });
 
     test('asks the model to answer in the configured language', async () => {
@@ -222,13 +229,26 @@ describe('personality and emotions', () => {
         const {cacheable} = PromptService.provideSystemPrompt(
             newTestAgentConfig(), newIdentity(), 'agent', '', false
         );
-        expect(cacheable).toContain('You can add your own emotions and feelings about the task');
+        expect(cacheable).toContain('You can add your own emotions and mood about the task');
+        // Left to itself a model narrates the situation instead of feeling anything about it.
+        expect(cacheable).toContain('the feeling itself, not the story behind it');
+        // The bubble on the agent card is a narrow one, a long feeling would be cut off in it.
+        expect(cacheable).toContain('30 characters at most');
     });
 
     test('omits the emotions when the identity switched them off', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
             newTestAgentConfig(), newIdentity({emotion: false}), 'agent', '', false
+        );
+        expect(cacheable).not.toContain('You can add your own emotions');
+    });
+
+    /** Nobody is watching a scheduled run, so it is told nothing about having feelings. */
+    test('omits the emotions for a scheduled run', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'cron', 'c1', false
         );
         expect(cacheable).not.toContain('You can add your own emotions');
     });
@@ -364,6 +384,45 @@ describe('agent mode and project management', () => {
         );
         expect(cacheable).not.toContain('the project tools');
         expect(managementTools).not.toHaveBeenCalled();
+    });
+
+    test('names the agents a task can be handed to and marks the one running', async () => {
+        const {PromptService, getAgents} = await loadService();
+        getAgents.mockReturnValue([
+            newIdentity(), newIdentity({id: 'a2', name: 'Bob', role: 'designer', expertises: ['figma']}),
+        ]);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', false);
+        expect(cacheable).toContain('## The agents of the company');
+        expect(cacheable).toContain('"id":"a1","name":"Ada","role":"engineer","expertises":["typescript"]} <- you');
+        expect(cacheable).toContain('"id":"a2","name":"Bob","role":"designer","expertises":["figma"]}');
+        expect(cacheable).toContain('Set the assignee of a task to the id of whoever fits it best');
+    });
+
+    test('leaves a fired agent out of the list', async () => {
+        const {PromptService, getAgents} = await loadService();
+        getAgents.mockReturnValue([
+            newIdentity(), newIdentity({id: 'a2', name: 'Bob'}), newIdentity({id: 'a3', name: 'Eve', fired: true}),
+        ]);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', false);
+        expect(cacheable).toContain('"id":"a2"');
+        expect(cacheable).not.toContain('"id":"a3"');
+    });
+
+    /** There is nothing to pick from in a company of one, and no assignee to spell out either. */
+    test('says nothing about colleagues when nobody else works here', async () => {
+        const {PromptService, getAgents} = await loadService();
+        getAgents.mockReturnValue([newIdentity()]);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', false);
+        expect(cacheable).not.toContain('## The agents of the company');
+    });
+
+    test('hides the list of agents in chat mode', async () => {
+        const {PromptService, getAgents} = await loadService();
+        getAgents.mockReturnValue([newIdentity(), newIdentity({id: 'a2'})]);
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig({mode: 'chat'}), newIdentity(), 'agent', '', false
+        );
+        expect(cacheable).not.toContain('## The agents of the company');
     });
 
     test('asks the loop that owns a project to delegate its tasks', async () => {

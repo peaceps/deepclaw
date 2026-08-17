@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     updateGatewayConfig: vi.fn<(config: DeepclawConfig) => void>(),
     resetIM: vi.fn<() => void>(),
     revalidatePath: vi.fn<(path: string, type: string) => void>(),
+    changeLanguage: vi.fn<(lang: string) => Promise<void>>(),
 }));
 
 vi.mock('@deepclaw/config', () => ({
@@ -28,6 +29,8 @@ vi.mock('@deepclaw/loop-gateway', () => ({
 }));
 
 vi.mock('next/cache', () => ({revalidatePath: mocks.revalidatePath}));
+
+vi.mock('@deepclaw/i18n', () => ({i18nInstance: {changeLanguage: mocks.changeLanguage}}));
 
 vi.mock('@/im/im-service', () => ({IMService: {reset: mocks.resetIM}}));
 
@@ -52,13 +55,16 @@ function newConfig(agents: AgentConfig[] = [newAgent()]): DeepclawConfig {
     };
 }
 
-function onDisk(agents: AgentConfig[], avatar?: string): void {
+function onDisk(agents: AgentConfig[], avatar?: string, lang = 'en'): void {
     mocks.loadConfig.mockImplementation(key => {
         if (key === 'agents') {
             return agents;
         }
         if (key === 'manager.avatar') {
             return avatar;
+        }
+        if (key === 'ui.lang') {
+            return lang;
         }
         return newConfig(agents);
     });
@@ -150,6 +156,18 @@ describe('saveFullConfig', () => {
         expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
         expect(mocks.newAgentIdentity).not.toHaveBeenCalled();
         expect(mocks.updateGatewayConfig).toHaveBeenCalledOnce();
+    });
+
+    /** The server side translations are loaded once, so a new language has to be switched by hand. */
+    test('switches the interface language when the config brings another one', async () => {
+        onDisk([newAgent()], '🐋', 'zh');
+        await saveFullConfig(newConfig());
+        expect(mocks.changeLanguage).toHaveBeenCalledExactlyOnceWith('en');
+    });
+
+    test('leaves the language alone when it did not change', async () => {
+        await saveFullConfig(newConfig());
+        expect(mocks.changeLanguage).not.toHaveBeenCalled();
     });
 });
 

@@ -64,12 +64,19 @@ type AppState = {
   busyChatKeys: Record<string, boolean>;
   selectedAgentId: string | null;
   initializedChat: Record<string, boolean>;
+  /**
+   * Transient emotion bubble anchored to an agent card; a bump of seq re-arms its timer, and at
+   * tells a card that mounts later how old the emotion is, so it does not pop a stale one.
+   */
+  emotionPopup: Record<string, { text: string; seq: number; at: number }>;
 
   // Actions
   getAgents: () => AgentEmployee[];
   getAgentById: (id: string) => AgentEmployee | undefined;
   setAgents: (agents: AgentEmployee[]) => void;
   updateAgentEmployee: (employee: UpdateContent<AgentEmployee>) => void;
+  showEmotionPopup: (agentId: string, text: string) => void;
+  dismissEmotionPopup: (agentId: string) => void;
   getProjects: () => Project[];
   setProjects: (projects: Project[]) => void;
   updateProject: (project: UpdateContent<Project>) => void;
@@ -101,6 +108,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   busyChatKeys: {},
   selectedAgentId: null,
   initializedChat: {},
+  emotionPopup: {},
 
   getAgents: () => get().agents,
   getAgentById: (id: string) => get().agents.find(a => a.id === id),
@@ -116,6 +124,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     selectFirstActiveAgent(get, set);
   },
+  showEmotionPopup: (agentId, text) => set((state) => ({
+    emotionPopup: {
+      ...state.emotionPopup,
+      [agentId]: { text, seq: (state.emotionPopup[agentId]?.seq ?? 0) + 1, at: Date.now() },
+    },
+  })),
+  dismissEmotionPopup: (agentId) => set((state) => {
+    if (!state.emotionPopup[agentId]) {
+      return {};
+    }
+    const emotionPopup = { ...state.emotionPopup };
+    delete emotionPopup[agentId];
+    return { emotionPopup };
+  }),
   getProjects: () => get().projects,
   setProjects: (projects) => set({ projects }),
   updateProject: (project: UpdateContent<Project>): void => {

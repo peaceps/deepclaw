@@ -94,24 +94,24 @@ describe('deriveAgentSummary', () => {
 
     test('reports a missing agent as fired with an empty count', () => {
         expect(deriveAgentSummary(undefined, [newProject()], idle()))
-            .toEqual({status: 'fired', stats: {todo: 0, ongoing: 0, done: 0}});
+            .toEqual({status: 'fired', stats: {todo: [], ongoing: [], done: []}});
     });
 
-    test('counts only the projects the agent created', () => {
-        const projects = [newProject(), newProject({id: 'p2', creator: 'a2'})];
+    test('lists only the projects the agent created', () => {
+        const projects = [newProject(), newProject({id: 'p2', creator: 'a2', title: 'Not mine'})];
         expect(deriveAgentSummary(newAgent(), projects, idle()).stats)
-            .toEqual({todo: 1, ongoing: 0, done: 0});
+            .toEqual({todo: ['Ship it'], ongoing: [], done: []});
     });
 
     test('sorts the projects into todo, ongoing and done', () => {
         const projects = [
             newProject(),
-            newProject({id: 'p2', ongoingTasks: ['t1']}),
-            newProject({id: 'p3', completedTasks: ['t1']}),
-            newProject({id: 'p4', closedAt: '2024-02-01T00:00:00.000Z'}),
+            newProject({id: 'p2', title: 'Half way', ongoingTasks: ['t1']}),
+            newProject({id: 'p3', title: 'Nearly there', completedTasks: ['t1']}),
+            newProject({id: 'p4', title: 'All done', closedAt: '2024-02-01T00:00:00.000Z'}),
         ];
         expect(deriveAgentSummary(newAgent(), projects, idle()).stats)
-            .toEqual({todo: 1, ongoing: 2, done: 1});
+            .toEqual({todo: ['Ship it'], ongoing: ['Half way', 'Nearly there'], done: ['All done']});
     });
 
     test('is idle with nothing running', () => {
@@ -148,7 +148,7 @@ describe('deriveAgentSummary', () => {
             newAgent({fired: true}), [newProject({ongoingTasks: ['t1']})],
             idle({runningTasks: [newRunningTask()]})
         );
-        expect(summary).toEqual({status: 'fired', stats: {todo: 0, ongoing: 1, done: 0}});
+        expect(summary).toEqual({status: 'fired', stats: {todo: [], ongoing: ['Ship it'], done: []}});
     });
 });
 
@@ -164,6 +164,7 @@ describe('app store', () => {
             busyChatKeys: {},
             selectedAgentId: null,
             initializedChat: {},
+            emotionPopup: {},
         });
     });
 
@@ -289,6 +290,54 @@ describe('app store', () => {
             store().setAgents([]);
             store().updateAgentEmployee({id: 'a9', name: 'Newcomer', fired: true});
             expect(store().selectedAgentId).toBeNull();
+        });
+    });
+
+    describe('emotion popup', () => {
+
+        test('holds the emotion of an agent with the moment it arrived', () => {
+            const before = Date.now();
+            store().showEmotionPopup('a1', 'this is fun');
+            const popup = store().emotionPopup['a1'];
+            expect(popup).toMatchObject({text: 'this is fun', seq: 1});
+            expect(popup!.at).toBeGreaterThanOrEqual(before);
+        });
+
+        /** The bubble is keyed by seq, so the bump is what replays it for a second emotion. */
+        test('bumps the seq for every emotion of the same agent', () => {
+            store().showEmotionPopup('a1', 'this is fun');
+            store().showEmotionPopup('a1', 'now it is not');
+            expect(store().emotionPopup['a1']).toMatchObject({text: 'now it is not', seq: 2});
+        });
+
+        test('counts the emotions of each agent on its own', () => {
+            store().showEmotionPopup('a1', 'this is fun');
+            store().showEmotionPopup('a2', 'mine too');
+            expect(store().emotionPopup['a1']).toMatchObject({seq: 1});
+            expect(store().emotionPopup['a2']).toMatchObject({text: 'mine too', seq: 1});
+        });
+
+        test('drops the popup of the dismissed agent alone', () => {
+            store().showEmotionPopup('a1', 'this is fun');
+            store().showEmotionPopup('a2', 'mine too');
+            store().dismissEmotionPopup('a1');
+            expect(store().emotionPopup['a1']).toBeUndefined();
+            expect(store().emotionPopup['a2']).toBeDefined();
+        });
+
+        /** Two cards of the same agent can both dismiss, the second one has nothing left to do. */
+        test('leaves the popups untouched when there is nothing to dismiss', () => {
+            store().showEmotionPopup('a1', 'this is fun');
+            const before = store().emotionPopup;
+            store().dismissEmotionPopup('a2');
+            expect(store().emotionPopup).toBe(before);
+        });
+
+        test('starts the seq over once a dismissed agent feels something again', () => {
+            store().showEmotionPopup('a1', 'this is fun');
+            store().dismissEmotionPopup('a1');
+            store().showEmotionPopup('a1', 'back again');
+            expect(store().emotionPopup['a1']).toMatchObject({text: 'back again', seq: 1});
         });
     });
 

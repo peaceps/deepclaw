@@ -6,6 +6,7 @@ import { avatarBG, moodEmojis, statusColors } from "../../styles-mapping";
 import { EmojiPicker } from "@/laf/emoji-picker";
 import { deriveAgentSummary, useAgentActivity, useAppStore } from "@/lib/store";
 import { AgentActionMenu } from "../AgentActionMenu";
+import { AgentDetailEmotions } from "./AgentDetailEmotions";
 import { UpdateContent } from "@deepclaw/utils";
 
 export function AgentHeader({ agent, onUpdate }: {
@@ -74,6 +75,7 @@ export function AgentHeader({ agent, onUpdate }: {
             <div className="flex items-center gap-2 sm:gap-3 mb-2">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{agent.name}</h1>
               <span className="text-xl sm:text-2xl">{moodEmojis[agent.mood]}</span>
+              <AgentDetailEmotions emotions={agent.emotions}/>
               <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium
                 text-white ${statusColors[agentStatus]}`}>
                 {t(`web.pages.agents.status.${agentStatus}`)}

@@ -92,6 +92,8 @@ export const en = {
                         projectsCompleted: 'Projects Completed',
                         changeAvatar: 'Change avatar',
                         editRole: 'Edit role',
+                        emotions: 'Emotions',
+                        noEmotions: 'No emotions yet',
                     },
                     labels: {
                         save: 'Press Enter to save',
@@ -154,7 +156,8 @@ export const en = {
                     pause: {
                         title: {
                             on: 'Pause after this task done.',
-                            off: 'Will not pause after this task done.'
+                            off: 'Will not pause after this task done.',
+                            locked: 'Paused and waiting for your verification, cannot be lifted now.',
                         }
                     },
                     verified: {
