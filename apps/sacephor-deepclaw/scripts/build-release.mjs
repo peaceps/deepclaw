@@ -217,6 +217,7 @@ function writeManifest() {
         type: 'module',
         engines: manifest.engines,
         bin: { deepclaw: 'bin/cli.js' },
+        repository: manifest.repository,
         dependencies,
     }, null, 2)}\n`);
     return dependencies;
