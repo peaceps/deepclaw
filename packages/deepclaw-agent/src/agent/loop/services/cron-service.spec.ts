@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, test, vi, type Mock} from 'vitest';
 import {type CronTask, type TokenUsage} from '@deepclaw/core';
-import {CRON_DIR, CRON_HISTORY_JSONL, CRON_TASK_JSON} from '../../paths';
+import {CRON_DIR, CRON_HISTORY_JSONL, CRON_OUTPUT_DIR, CRON_TASK_JSON, PUBLIC} from '../../paths';
 import {MAX_DISPLAY_HISTORIES} from './cron-service';
 
 type LoopResult = {text: string; runtime: {usage: TokenUsage; transitionReason: string}};
@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
     appendFile: vi.fn<(path: string, content: string) => void>(() => undefined),
     deleteDir: vi.fn<(path: string) => void>(() => undefined),
     hashString: vi.fn<(text: string) => string>(() => 'titlehash'),
+    readBuffer: vi.fn<(path: string) => Buffer>(path => Buffer.from(`bytes of ${path}`)),
+    isPathInWorkspace: vi.fn<(path: string) => boolean>(() => true),
     getLoop: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
     invoke: vi.fn<(prompt: string, options: {browserId: string}) => Promise<LoopResult>>(),
     getSessionDir: vi.fn<() => string>(() => '.agents/a1/session/cron1'),
@@ -57,6 +59,8 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
         appendFile: mocks.appendFile,
         deleteDir: mocks.deleteDir,
         hashString: mocks.hashString,
+        readBuffer: mocks.readBuffer,
+        isPathInWorkspace: mocks.isPathInWorkspace,
     },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
@@ -70,6 +74,8 @@ function primeMocks(): void {
     mocks.isValidCron.mockReturnValue(true);
     mocks.nextRun.mockReturnValue(NEXT_RUN);
     mocks.writeFile.mockImplementation((path: string) => path);
+    mocks.readBuffer.mockImplementation((path: string) => Buffer.from(`bytes of ${path}`));
+    mocks.isPathInWorkspace.mockReturnValue(true);
     mocks.getSessionDir.mockReturnValue(SESSION_DIR);
     mocks.getLoop.mockReturnValue({invoke: mocks.invoke, getSessionDir: mocks.getSessionDir});
     mocks.invoke.mockResolvedValue({text: 'result', runtime: {usage: newUsage(1), transitionReason: 'end'}});
@@ -555,6 +561,32 @@ describe('updateCronOutput', () => {
         expect(mocks.hashString).toHaveBeenCalledWith('nightly');
         expect(mocks.exists).toHaveBeenCalledWith('public');
         expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    /** A scheduled run hands its files over the way a task does, only nobody is there to see it. */
+    test('copies the files of the run where the user can reach them', async () => {
+        const {id} = newTask(service);
+        const {release, finished} = await startRun();
+        mocks.exists.mockImplementation((path: string) => path === PUBLIC);
+        const output = {type: 'markdown' as const, content: '# digest'};
+        expect(service.updateCronOutput(id, output, ['out/digest.csv'])).toEqual({skipped: []});
+        release();
+        await finished;
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            `${CRON_OUTPUT_DIR}/${id}/titlehash/digest.csv`, Buffer.from('bytes of out/digest.csv')
+        );
+        expect(output.content).toContain(`- [digest.csv](/cron/${id}/titlehash/digest.csv)`);
+    });
+
+    test('reports a file it could not hand over', async () => {
+        const {id} = newTask(service);
+        const {release, finished} = await startRun();
+        mocks.exists.mockImplementation((path: string) => path === PUBLIC);
+        mocks.isPathInWorkspace.mockReturnValue(false);
+        expect(service.updateCronOutput(id, {type: 'markdown', content: '# digest'}, ['/tmp/x.pdf']))
+            .toEqual({skipped: ['/tmp/x.pdf']});
+        release();
+        await finished;
     });
 
     test('throws when the task never ran', () => {

@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
-    imageKeyExtension, imageKeyMediaType, imageRefKey, isImageRef, newImageRef, parseDataUrl
+    imageExtensionOf, imageKeyExtension, imageKeyMediaType, imageRefKey, isImageRef, newImageRef,
+    parseDataUrl
 } from './image-ref';
 
 describe('image references', () => {
@@ -39,6 +40,18 @@ describe('image types', () => {
 
     test('answers with a neutral type for a key it cannot place', () => {
         expect(imageKeyMediaType('abc123.bin')).toBe('application/octet-stream');
+    });
+
+    test('names the extension a picture would be stored under', () => {
+        expect(imageExtensionOf('out/chart.png')).toBe('png');
+        expect(imageExtensionOf('shot.JPEG')).toBe('jpg');
+        expect(imageExtensionOf('loop.gif')).toBe('gif');
+    });
+
+    test('answers with nothing for a file that is no picture', () => {
+        expect(imageExtensionOf('report.pdf')).toBeNull();
+        expect(imageExtensionOf('sheet.csv')).toBeNull();
+        expect(imageExtensionOf('README')).toBeNull();
     });
 });
 

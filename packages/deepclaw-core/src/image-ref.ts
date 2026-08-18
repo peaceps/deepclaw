@@ -44,6 +44,15 @@ export function imageKeyMediaType(key: string): string {
     return MEDIA_TYPES[extension] || 'application/octet-stream';
 }
 
+/**
+ * The extension a file of this name would be stored under, or null for a name that is no picture.
+ * A jpeg and a jpg are the same picture to everything downstream, so both arrive as one extension.
+ */
+export function imageExtensionOf(name: string): string | null {
+    const mediaType = MEDIA_TYPES[name.split('.').pop()?.toLowerCase() || ''];
+    return mediaType ? EXTENSIONS[mediaType]! : null;
+}
+
 /** Splits `data:image/png;base64,QUJD` into its media type and its payload. */
 export function parseDataUrl(url: string): {mediaType: string, base64: string} | null {
     const dataUrl = dataUrlRegex.exec(url);

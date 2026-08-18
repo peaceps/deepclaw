@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
     hashString: vi.fn<(text: string) => string>(() => 'hash1234'),
     readBuffer: vi.fn<(path: string) => Buffer>(path => Buffer.from(`bytes of ${path}`)),
     isPathInWorkspace: vi.fn<(path: string) => boolean>(() => true),
+    saveImage: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
+        (_bytes, extension, loopId) => `${loopId}/imagehash.${extension}`
+    ),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -17,6 +20,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
         exists: mocks.exists, writeFile: mocks.writeFile, hashString: mocks.hashString,
         readBuffer: mocks.readBuffer, isPathInWorkspace: mocks.isPathInWorkspace,
     },
+    ImageStore: {save: mocks.saveImage},
 }));
 
 vi.mock('@deepclaw/i18n', async (importOriginal) => ({
@@ -125,6 +129,9 @@ describe('publishGeneratedFiles', () => {
         mocks.hashString.mockReturnValue('hash1234');
         mocks.readBuffer.mockImplementation(path => Buffer.from(`bytes of ${path}`));
         mocks.isPathInWorkspace.mockReturnValue(true);
+        mocks.saveImage.mockImplementation(
+            (_bytes, extension, loopId) => `${loopId}/imagehash.${extension}`
+        );
     });
 
     test('copies the file into a folder of that task', () => {
@@ -145,9 +152,40 @@ describe('publishGeneratedFiles', () => {
 
     test('links every file it was given', () => {
         const output = newOutput({type: 'markdown'});
-        publish(output, ['a/one.csv', 'b/two.png']);
+        publish(output, ['a/one.csv', 'b/two.zip']);
         expect(output.content).toContain('- [one.csv](/projects/t1/hash1234/one.csv)');
-        expect(output.content).toContain('- [two.png](/projects/t1/hash1234/two.png)');
+        expect(output.content).toContain('- [two.zip](/projects/t1/hash1234/two.zip)');
+    });
+
+    test('shows a picture in the output instead of linking it', () => {
+        const output = newOutput({type: 'markdown', content: 'the report'});
+        expect(publish(output, ['out/chart.png']).published).toEqual(['out/chart.png']);
+        expect(mocks.saveImage).toHaveBeenCalledExactlyOnceWith(
+            Buffer.from('bytes of out/chart.png'), 'png', 't1'
+        );
+        expect(output.content).toBe(`the report
+
+## ${HEADLINE}
+- ![chart.png](dcimg://t1/imagehash.png)`);
+    });
+
+    test('keeps a picture out of the public folder, the store holds it', () => {
+        publish(newOutput({type: 'markdown'}), ['out/chart.png']);
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    test('links a picture beside a report that has no markdown to show it in', () => {
+        const output = newOutput({content: 'the report'});
+        publish(output, ['out/chart.png']);
+        expect(mocks.saveImage).not.toHaveBeenCalled();
+        expect(output.content).toContain('- chart.png: /projects/t1/hash1234/chart.png');
+    });
+
+    test('tells a picture apart by its name, whatever else was handed over', () => {
+        const output = newOutput({type: 'markdown'});
+        publish(output, ['a/shot.jpeg', 'b/sheet.csv']);
+        expect(output.content).toContain('- ![shot.jpeg](dcimg://t1/imagehash.jpg)');
+        expect(output.content).toContain('- [sheet.csv](/projects/t1/hash1234/sheet.csv)');
     });
 
     test('names the file plainly for a text output, where a link would not be one', () => {

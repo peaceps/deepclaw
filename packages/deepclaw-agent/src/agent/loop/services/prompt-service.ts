@@ -57,6 +57,9 @@ ${persona && !spawned && persona.emotion ? this.emotionsPrompt : ""}
 # Agent Mode
 ${this.agentMode(agentConfig.mode)}
 
+# Handing Work Over
+${this.handOver(agentConfig.mode, loopKind, isCron, !isCron && !spawned && !!projectId)}
+
 # Project Management
 ${this.projectManagement(agentConfig.mode, !isCron && !spawned && !!projectId, personaId)}
 
@@ -215,6 +218,38 @@ If user ask you to do something, you should refuse and tell the user that you ca
 But you can call tools to write files owned by the agent program itself, such as save_memory tool.`;
         }
         return prompt;
+    }
+
+    /**
+     * Where the work of a run comes out. A file on this filesystem is nothing the user can open, so
+     * the way out of the machine belongs beside the work itself: told only by the tool that happens
+     * to take a file, it is heard after the run already decided to write a path down instead.
+     */
+    private static handOver(
+        agentMode: AgentMode, loopKind: LoopKind, isCron: boolean, runsAProject: boolean
+    ): string {
+        const picture = `A picture you drew with generate_image comes back as a dcimg:// reference.
+Naming it as ![alt](dcimg://...) is what carries it to whoever reads you, and it is only ever seen
+where you named it.`;
+        if (agentMode === 'chat') {
+            return picture;
+        }
+        if (isSpawnedLoop(loopKind)) {
+            return `${picture}
+You hand your work to the agent that spawned you, never to the user, and it can only pass on what
+your summary names. List the files the user should end up with by their path in the workspace, so
+that agent can hand them over, and mark which of them are pictures.`;
+        }
+        return `${picture}
+Whatever the user can simply read -- a report, a summary, a table -- belongs written out where you
+say it. Never save that to a file and hand the path over: a path is a dead end, they cannot open it.
+${runsAProject || isCron ? `A file the work really produced -- a spreadsheet, a document, an archive
+-- reaches them through the generatedFiles of ${isCron ? 'update_cron_output' : 'a task output'},
+which copies it where they can reach it and links it under the content. A picture handed over that
+way is shown in the output instead of linked under it.`
+: `Nothing on this filesystem reaches the user by being written, and with neither a task nor a
+scheduled run to file a file under, there is nowhere to hand one over: keep what matters of it in
+what you say, and name where the file lies for the next run rather than for them.`}`;
     }
 
     private static projectCurrentProject(projectId: string): string {

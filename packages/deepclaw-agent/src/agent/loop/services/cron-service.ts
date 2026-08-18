@@ -1,6 +1,6 @@
 import { CronJob } from 'cron';
 import { addTokenUsage, type CronTask, type CronJobHistory, type LLMTaskOutput } from "@deepclaw/core";
-import { saveToPublic } from '../../loop-utils';
+import { publishGeneratedFiles, saveToPublic } from '../../loop-utils';
 import { CRON_DIR, CRON_HISTORY_JSONL, CRON_OUTPUT_DIR, CRON_TASK_JSON } from '../../paths';
 import { FileUtils, UpdateContent, getLogger } from '@deepclaw/node-utils';
 import { randomUUID } from 'node:crypto';
@@ -182,7 +182,13 @@ class CronServiceImpl {
         return task;
     }
 
-    public static updateCronOutput(id: string, output: LLMTaskOutput): void {
+    /**
+     * The files of a scheduled run reach the user the way those of a task do, and the run has to
+     * hear which of them did not: nobody is watching it to notice an empty hand over.
+     */
+    public static updateCronOutput(
+        id: string, output: LLMTaskOutput, generatedFiles?: string[]
+    ): {skipped: string[]} {
         const cronTask = this.getCronTask(id);
         const history = cronTask.histories[cronTask.histories.length - 1];
         if (!history) {
@@ -192,9 +198,15 @@ class CronServiceImpl {
             throw new Error('Cron task already completed.');
         }
         history.output = output;
-        if (output) {
-            saveToPublic(id, output, `${FileUtils.hashString(cronTask.title)}/${history.start}`, CRON_OUTPUT_DIR);
+        if (!output) {
+            return {skipped: generatedFiles ?? []};
         }
+        const run = `${FileUtils.hashString(cronTask.title)}/${history.start}`;
+        // The links go in before the output is filed away, so the saved report carries them.
+        const skipped = generatedFiles?.length
+            ? publishGeneratedFiles(id, output, run, generatedFiles, CRON_OUTPUT_DIR).skipped : [];
+        saveToPublic(id, output, run, CRON_OUTPUT_DIR);
+        return {skipped};
     }
 
     public static updateCronTaskStatus({id, pause, close}: {id: string, pause?: boolean; close?: boolean}) {

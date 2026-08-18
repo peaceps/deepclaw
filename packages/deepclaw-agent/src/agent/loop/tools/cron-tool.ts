@@ -2,6 +2,7 @@ import type { LLMTaskOutput } from "@deepclaw/core";
 import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
+import { MAX_GENERATED_FILES, skippedFilesNote } from "../../loop-utils";
 
 type CreateCronTaskInput = {
     title: string;
@@ -70,7 +71,8 @@ ${JSON.stringify(CronService.getCronTaskDetail(cronTask.id))}`;
 
 type UpdateCronOutputInput = {
     id: string;
-    output: LLMTaskOutput;
+    /** generatedFiles names what to hand over to the user, it is no part of the kept output. */
+    output: LLMTaskOutput & {generatedFiles?: string[]};
 };
 
 export const updateCronOutputTool: ToolDesc<UpdateCronOutputInput> = {
@@ -99,6 +101,16 @@ and the file path will be set into the path field.`
                         ext: {
                             type: 'string',
                             description: 'A proper extension for the file, e.g. "txt", "md", "pdf", "jpg", "png", "mp4", etc.'
+                        },
+                        generatedFiles: {
+                            type: 'array',
+                            items: {type: 'string'},
+                            maxItems: MAX_GENERATED_FILES,
+                            description: `The files this run produced, by their path in the workspace.
+Each one is copied where the user can reach it and linked at the end of the content, so hand a file
+over here rather than writing its path into the content: a path in a report is nothing the user can
+open. A picture handed over this way is shown in the output rather than linked under it.
+Only files inside the workspace can be handed over, and only files, not folders.`
                         }
                     },
                     required: ['type', 'content'],
@@ -111,9 +123,9 @@ and the file path will be set into the path field.`
     agentMode: ['agent'],
     loopKinds: ['main'],
     invoke: async function(input: UpdateCronOutputInput): Promise<string> {
-        const {id, output} = input;
-        CronService.updateCronOutput(id, output);
+        const {generatedFiles, ...output} = input.output;
+        const {skipped} = CronService.updateCronOutput(input.id, output, generatedFiles);
         return `Cron output updated successfully, here\'s the detail with last max ${MAX_DISPLAY_HISTORIES} histories:
-${JSON.stringify(CronService.getCronTaskDetail(id))}`;
+${JSON.stringify(CronService.getCronTaskDetail(input.id))}${skippedFilesNote(skipped)}`;
     },
 }

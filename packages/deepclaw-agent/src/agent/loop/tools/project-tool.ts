@@ -5,10 +5,8 @@ import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
 import { AgentIdentityManager } from "../services/agent-identity-manager";
-import { publishGeneratedFiles } from "../../loop-utils";
+import { MAX_GENERATED_FILES, publishGeneratedFiles, skippedFilesNote } from "../../loop-utils";
 import { PROJECT_TASK_OUTPUT_DIR } from "../../paths";
-
-const MAX_GENERATED_FILES = 10;
 
 type ProjectTaskInput = {
     title: string;
@@ -351,7 +349,8 @@ and the file path will be set into the path field.`
                             description: `The files this task produced, by their path in the workspace.
 Each one is copied where the user can reach it and linked at the end of the content, so hand a file
 over here rather than writing its path into the content: a path in a report is nothing the user can
-open. Only files inside the workspace can be handed over, and only files, not folders.`
+open. A picture handed over this way is shown in the output rather than linked under it.
+Only files inside the workspace can be handed over, and only files, not folders.`
                         }
                     },
                     required: ['type', 'content'],
@@ -402,13 +401,7 @@ ${JSON.stringify(project)}`;
 Task is not set done because the user requires it to be verified before it can be marked done.
 After user set task.verified to true, it can be successfully set done.`;
         }
-        if (skippedFiles.length) {
-            res += `
-
-These files were not handed to the user, they are either no file, not there or outside the
-workspace: ${skippedFiles.join(', ')}. Copy what the user should get into the workspace first.`;
-        }
-        return res;
+        return res + skippedFilesNote(skippedFiles);
     },
 };
 

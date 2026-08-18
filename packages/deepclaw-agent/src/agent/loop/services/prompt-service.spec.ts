@@ -121,7 +121,7 @@ describe('platform and language', () => {
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable.split('\n').filter(line => line.startsWith('# '))).toEqual([
             '# Platform', '# Language', '# Main Identity', '# Personality', '# Emotions',
-            '# Agent Mode', '# Project Management', '# Memory', '# Skills',
+            '# Agent Mode', '# Handing Work Over', '# Project Management', '# Memory', '# Skills',
         ]);
     });
 });
@@ -487,6 +487,68 @@ describe('agent mode and project management', () => {
             newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', 'sub'
         );
         expect(cacheable).toContain('You are running at chat mode.');
+    });
+});
+
+describe('handing work over', () => {
+
+    test('tells every kind of loop how a picture reaches whoever reads it', async () => {
+        const {PromptService} = await loadService();
+        for (const loopKind of ['main', 'task', 'sub'] as const) {
+            const {cacheable} = PromptService.provideSystemPrompt(
+                newTestAgentConfig(), undefined, 'agent', '', loopKind
+            );
+            expect(cacheable).toContain('![alt](dcimg://...)');
+        }
+    });
+
+    test('names the task output as the way a file reaches the user of a project', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'project', 'p1', 'main'
+        );
+        expect(cacheable).toContain('the generatedFiles of a task output');
+        expect(cacheable).toContain('a path is a dead end');
+    });
+
+    test('names update_cron_output as the way a scheduled run hands a file over', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'cron', 'c1', 'main'
+        );
+        expect(cacheable).toContain('the generatedFiles of update_cron_output');
+    });
+
+    /** Promising a file the session has nowhere to file is worse than saying there is no way. */
+    test('says there is nowhere to hand a file over without a task or a schedule', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'agent', '', 'main'
+        );
+        expect(cacheable).toContain('there is nowhere to hand one over');
+        expect(cacheable).not.toContain('generatedFiles');
+    });
+
+    test('asks a spawned loop to name the files in the summary it reports back', async () => {
+        const {PromptService} = await loadService();
+        for (const loopKind of ['task', 'sub'] as const) {
+            const {cacheable} = PromptService.provideSystemPrompt(
+                newTestAgentConfig(), undefined, 'project', 'p1', loopKind
+            );
+            expect(cacheable).toContain('by their path in the workspace');
+            expect(cacheable).not.toContain('generatedFiles');
+        }
+    });
+
+    /** A chat agent writes no files, so the only thing it can hand over is a picture it drew. */
+    test('tells a chat agent about pictures and nothing else', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', 'main'
+        );
+        expect(cacheable).toContain('![alt](dcimg://...)');
+        expect(cacheable).not.toContain('generatedFiles');
+        expect(cacheable).not.toContain('a path is a dead end');
     });
 });
 

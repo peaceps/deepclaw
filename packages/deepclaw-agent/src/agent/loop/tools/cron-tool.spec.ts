@@ -68,14 +68,14 @@ describe('updateCronOutputTool invoke', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        updateCronOutput.mockReturnValue(undefined);
+        updateCronOutput.mockReturnValue({skipped: []});
         getCronTaskDetail.mockReturnValue(cronTask({histories: []}));
     });
 
     test('stores the output on the task', async () => {
         const output = {type: 'markdown' as const, content: '# report'};
         await updateCronOutputTool.invoke({id: 'c1', output}, newTestContext());
-        expect(updateCronOutput).toHaveBeenCalledExactlyOnceWith('c1', output);
+        expect(updateCronOutput).toHaveBeenCalledExactlyOnceWith('c1', output, undefined);
     });
 
     test('tells the agent how many histories the detail contains', async () => {
@@ -83,6 +83,27 @@ describe('updateCronOutputTool invoke', () => {
             {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
         );
         expect(result).toContain(`last max ${MAX_DISPLAY_HISTORIES} histories`);
+    });
+
+    /** The files are what to hand over, the output is what is kept: they travel apart. */
+    test('hands the files of the run over beside the output it keeps', async () => {
+        await updateCronOutputTool.invoke({
+            id: 'c1',
+            output: {type: 'markdown', content: '# report', generatedFiles: ['out/digest.csv']},
+        }, newTestContext());
+        expect(updateCronOutput).toHaveBeenCalledExactlyOnceWith(
+            'c1', {type: 'markdown', content: '# report'}, ['out/digest.csv']
+        );
+    });
+
+    test('says which files never reached the user', async () => {
+        updateCronOutput.mockReturnValue({skipped: ['/tmp/secret.pdf']});
+        const result = await updateCronOutputTool.invoke({
+            id: 'c1',
+            output: {type: 'markdown', content: '# report', generatedFiles: ['/tmp/secret.pdf']},
+        }, newTestContext());
+        expect(result).toContain('These files were not handed to the user');
+        expect(result).toContain('/tmp/secret.pdf');
     });
 });
 

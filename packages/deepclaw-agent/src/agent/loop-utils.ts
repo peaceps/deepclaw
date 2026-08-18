@@ -1,9 +1,12 @@
-import type { LLMTaskOutput } from "@deepclaw/core";
-import { FileUtils } from "@deepclaw/node-utils";
+import { imageExtensionOf, newImageRef, type LLMTaskOutput } from "@deepclaw/core";
+import { FileUtils, ImageStore } from "@deepclaw/node-utils";
 import { i18nInstance } from "@deepclaw/i18n";
 import { PUBLIC } from "./paths";
 
 const OUTPUT_LENGTH_LIMIT = 1500;
+
+/** More files than this in one output is a folder, and a folder is not a hand over. */
+export const MAX_GENERATED_FILES = 10;
 
 export function saveToPublic(
     id: string, output: NonNullable<LLMTaskOutput>, title: string, targetFolder: string
@@ -25,7 +28,7 @@ export function saveToPublic(
 /**
  * A file a task produced lies where only the agent can reach it, so a path to it in the output is
  * a dead end for the user. Copied beside the output and linked from it, the file becomes something
- * they can just click.
+ * they can just click, and a picture is shown in the output instead of linked under it.
  */
 export function publishGeneratedFiles(
     id: string, output: NonNullable<LLMTaskOutput>, title: string,
@@ -38,7 +41,7 @@ export function publishGeneratedFiles(
     const folder = `${targetFolder}/${id}/${FileUtils.hashString(title)}`;
     const published: string[] = [];
     const skipped: string[] = [];
-    const links: string[] = [];
+    const lines: string[] = [];
     const names = new Set<string>();
     for (const file of new Set(files)) {
         // Everything the agent can read is not what the browser may be handed: only the workspace.
@@ -48,19 +51,46 @@ export function publishGeneratedFiles(
         }
         const name = freeName(file, names);
         try {
-            const copied = FileUtils.writeFile(`${folder}/${name}`, FileUtils.readBuffer(file));
-            links.push(linkOf(output.type, name, `/${copied.substring(PUBLIC.length + 1)}`));
+            lines.push(lineOf(output.type, id, folder, name, FileUtils.readBuffer(file)));
             published.push(file);
         } catch {
             // A folder, a file that is not there, a file that cannot be read: none to hand over.
             skipped.push(file);
         }
     }
-    if (links.length) {
+    if (lines.length) {
         const headline = headlineOf(output.type);
-        output.content = `${output.content}\n\n${headline}\n${links.join('\n')}`;
+        output.content = `${output.content}\n\n${headline}\n${lines.join('\n')}`;
     }
     return {published, skipped};
+}
+
+/**
+ * A picture is worth more shown than offered: it goes into the store every picture of a chat
+ * travels through, and the reference to it is what draws it where the output is read. Only a
+ * markdown output can show one, a text output has nowhere to put a picture but a path.
+ */
+function lineOf(
+    outputType: NonNullable<LLMTaskOutput>['type'], id: string, folder: string,
+    name: string, bytes: Buffer
+): string {
+    const extension = imageExtensionOf(name);
+    if (outputType === 'markdown' && extension) {
+        return `- ![${name}](${newImageRef(ImageStore.save(bytes, extension, id))})`;
+    }
+    const copied = FileUtils.writeFile(`${folder}/${name}`, bytes);
+    return linkOf(outputType, name, `/${copied.substring(PUBLIC.length + 1)}`);
+}
+
+/** What never reached the user has to be said, or the run carries on believing it was handed over. */
+export function skippedFilesNote(skipped: string[]): string {
+    if (!skipped.length) {
+        return '';
+    }
+    return `
+
+These files were not handed to the user, they are either no file, not there or outside the
+workspace: ${skipped.join(', ')}. Copy what the user should get into the workspace first.`;
 }
 
 function headlineOf(outputType: NonNullable<LLMTaskOutput>['type']): string {
