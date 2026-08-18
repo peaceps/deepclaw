@@ -177,6 +177,8 @@ wait for confirmation. Make reasonable assumptions and complete the task autonom
 When you produce the final result, record it by calling the update_cron_output tool with the cron
 task id so it can be reviewed later. If the task cannot be completed, still call update_cron_output
 to summarize what happened and why.
+Nothing of the runs before you is in this prompt: what they reported went to the user. Read it with
+get_cron_histories whenever your work stands on it, as saying what changed since the last run does.
 `
         };
     }

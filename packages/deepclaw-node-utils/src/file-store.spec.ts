@@ -61,6 +61,18 @@ describe('FileStore', () => {
         expect(FileStore.read(FileStore.keyOf(url)!)?.toString()).toBe('a,b');
     });
 
+    /** Whoever reads the file rather than fetching it needs the path, a link is for a browser. */
+    test('names the file a url of ours was made from', () => {
+        const path = '.projects/p1/files/Q3 report.pdf';
+        expect(FileStore.fileOf(FileStore.urlOf(path))).toBe(path);
+    });
+
+    test('names no file for a url that leads out of what it serves', () => {
+        expect(FileStore.fileOf('/api/image/abc123.png')).toBeNull();
+        expect(FileStore.fileOf('/api/file/agents/a1/SOUL.json')).toBeNull();
+        expect(FileStore.fileOf('/api/file/projects/p1/files/../../../etc/passwd')).toBeNull();
+    });
+
     test('takes no key out of a url that is none of ours', () => {
         expect(FileStore.keyOf('/api/image/abc123.png')).toBeNull();
         expect(FileStore.keyOf('https://host/api/file/projects/p1/files/report.pdf')).toBeNull();

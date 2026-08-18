@@ -166,6 +166,14 @@ describe('main identity', () => {
         expect(cacheable).toContain('never ask clarifying questions');
     });
 
+    /** A run starts from the prompt of the task alone, so it has to be told where the rest is. */
+    test('tells a cron loop how to read what the runs before it reported', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', 'main');
+        expect(cacheable).toContain('Nothing of the runs before you is in this prompt');
+        expect(cacheable).toContain('get_cron_histories');
+    });
+
     test('gives a main loop the plain identity only', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');

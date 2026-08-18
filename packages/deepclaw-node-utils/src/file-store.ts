@@ -56,6 +56,15 @@ export class FileStore {
         }
     }
 
+    /**
+     * The path a url of ours was made from, or null for any other url. A link is how a file
+     * reaches the user, and nothing an agent can follow: it opens the file where it lies.
+     */
+    public static fileOf(url: string): string | null {
+        const key = this.keyOf(url);
+        return key && this.pathOf(key) ? `.${key}` : null;
+    }
+
     public static read(key: string): Buffer | null {
         const path = this.pathOf(key);
         if (!path) {

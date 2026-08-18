@@ -2,7 +2,9 @@ import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type CronJobHistory, type CronTask} from '@deepclaw/core';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {CronService, MAX_DISPLAY_HISTORIES} from '../services/cron-service';
-import {createCronTaskTool, updateCronOutputTool, updateCronTaskTool} from './cron-tool';
+import {
+    createCronTaskTool, getCronHistoriesTool, updateCronOutputTool, updateCronTaskTool
+} from './cron-tool';
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
@@ -14,6 +16,7 @@ const createCronTask = vi.spyOn(CronService, 'createCronTask');
 const updateCronTask = vi.spyOn(CronService, 'updateCronTask');
 const updateCronOutput = vi.spyOn(CronService, 'updateCronOutput');
 const getCronTaskDetail = vi.spyOn(CronService, 'getCronTaskDetail');
+const getCronHistories = vi.spyOn(CronService, 'getCronHistories');
 
 function cronTask(overrides: Partial<CronTask> = {}): CronTask {
     return {id: 'c1', title: 'nightly digest', cron: '0 0 * * *', prompt: 'digest', ...overrides} as CronTask;
@@ -79,7 +82,7 @@ describe('updateCronTaskTool invoke', () => {
         }));
         const result = await updateCronTaskTool.invoke({id: 'c1', cron: '0 9 * * 1'}, newTestContext());
         expect(result).not.toContain('the whole digest');
-        expect(result).toContain('<Output kept>');
+        expect(result).toContain('<Output kept, read it with get_cron_histories>');
     });
 });
 
@@ -128,8 +131,8 @@ describe('updateCronOutputTool invoke', () => {
             {id: 'c1', output: {type: 'markdown', content: '# the digest of tuesday'}}, newTestContext()
         );
         expect(result).not.toContain('the digest of monday');
-        expect(result).toContain('<Output kept>');
-        // What a run said of itself is short and is what the next one is told by, it stays.
+        expect(result).toContain('<Output kept, read it with get_cron_histories>');
+        // What a run said of itself is short, and short enough to say here what became of it.
         expect(result).toContain('nothing new to report');
     });
 
@@ -159,10 +162,87 @@ describe('updateCronOutputTool invoke', () => {
     });
 });
 
+describe('getCronHistoriesTool invoke', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        getCronHistories.mockReturnValue([]);
+    });
+
+    test('reads back what the runs before this one reported', async () => {
+        getCronHistories.mockReturnValue([newHistory({
+            completed: 1755000060000, output: {type: 'markdown', content: '# the digest of monday'},
+        })]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1'}, newTestContext());
+        expect(result).toContain('the digest of monday');
+    });
+
+    test('reads the latest runs of the task by default', async () => {
+        await getCronHistoriesTool.invoke({id: 'c1'}, newTestContext());
+        expect(getCronHistories).toHaveBeenCalledWith('c1', Number.MAX_SAFE_INTEGER, 4);
+    });
+
+    test('walks further back from the run the caller names', async () => {
+        await getCronHistoriesTool.invoke({id: 'c1', before: 1755000000000, limit: 2}, newTestContext());
+        expect(getCronHistories).toHaveBeenCalledWith('c1', 1755000000000, 3);
+    });
+
+    /** One answer carries every report it names, and a record of a year is no answer. */
+    test('reads back no more runs than one answer may carry', async () => {
+        await getCronHistoriesTool.invoke({id: 'c1', limit: 50}, newTestContext());
+        expect(getCronHistories).toHaveBeenCalledWith('c1', Number.MAX_SAFE_INTEGER, MAX_DISPLAY_HISTORIES + 1);
+    });
+
+    /**
+     * The run that asks is a history of its own by then, one that has nothing to report yet, and
+     * asking for one more than was wanted keeps it from taking the place of a run that has.
+     */
+    test('leaves the run that is still going out of the answer', async () => {
+        getCronHistories.mockReturnValue([
+            newHistory({start: 1755086400000}),
+            newHistory({completed: 1755000060000, finalText: 'the digest of monday'}),
+        ]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 1}, newTestContext());
+        expect(result).toContain('the digest of monday');
+        expect(JSON.parse(result)).toHaveLength(1);
+    });
+
+    test('says so when the task has nothing to read back', async () => {
+        expect(await getCronHistoriesTool.invoke({id: 'c1'}, newTestContext()))
+            .toBe('This cron task has no finished run to read back.');
+    });
+
+    /**
+     * A report too long to be kept in the record was filed, and what stands there is the link the
+     * user opens it by. An agent opens the file itself, and cannot fetch a route of the app.
+     */
+    test('names the file of a report that was filed away, not the link to it', async () => {
+        getCronHistories.mockReturnValue([newHistory({completed: 1755000060000, output: {
+            type: 'markdown',
+            content: '<Content saved to file>',
+            path: '/api/file/cron/c1/output/1755000000000.md',
+        }})]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1'}, newTestContext());
+        expect(result).toContain('"file":".cron/c1/output/1755000000000.md"');
+        expect(result).not.toContain('/api/file/');
+    });
+
+    test('leaves a report that is kept in the record as it lies', async () => {
+        getCronHistories.mockReturnValue([newHistory({
+            completed: 1755000060000, output: {type: 'text', content: 'nothing new'},
+        })]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1'}, newTestContext());
+        expect(result).toContain('"content":"nothing new"');
+        expect(result).not.toContain('"file"');
+    });
+});
+
 describe('cron tool metadata', () => {
 
     test('every cron tool is kept out of spawned loops but runs next to other tool calls', () => {
-        for (const tool of [createCronTaskTool, updateCronTaskTool, updateCronOutputTool]) {
+        for (const tool of [
+            createCronTaskTool, updateCronTaskTool, updateCronOutputTool, getCronHistoriesTool
+        ]) {
             expect(tool.parallelSafe).toBe(true);
             expect(tool.loopKinds).toEqual(['main']);
             expect(tool.agentMode).toEqual(['agent']);

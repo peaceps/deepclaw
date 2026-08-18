@@ -1,15 +1,15 @@
-import type { LLMTaskOutput } from "@deepclaw/core";
+import type { CronJobHistory, LLMTaskOutput } from "@deepclaw/core";
+import { FileStore } from "@deepclaw/node-utils";
 import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
 import { keptOutput, MAX_GENERATED_FILES, skippedFilesNote } from "../../loop-utils";
 
-/**
- * Where the report of a run stood in an answer that is not the one to ask for it. It names no way
- * to read it back because there is none: a run records its output as it ends, and what the runs
- * before it recorded goes to the user rather than to the next run.
- */
-const OUTPUT_KEPT = '<Output kept>';
+/** Where the report of a run stood in an answer that is not the one to ask for it. */
+const OUTPUT_KEPT = '<Output kept, read it with get_cron_histories>';
+
+/** How many runs are read back for a caller that does not say, out of a record of any length. */
+const HISTORIES_READ = 3;
 
 /** The task as an answer to a write of it, with what its runs reported left out. */
 function cronTaskAfterWrite(id: string): string {
@@ -147,3 +147,68 @@ Only files inside the workspace can be handed over, and only files, not folders.
 ${cronTaskAfterWrite(input.id)}${skippedFilesNote(skipped)}`;
     },
 }
+
+type GetCronHistoriesInput = {
+    id: string;
+    limit?: number;
+    before?: number;
+};
+
+export const getCronHistoriesTool: ToolDesc<GetCronHistoriesInput> = {
+    tool: {
+        name: 'get_cron_histories',
+        description: `Read what the earlier runs of a cron task reported, the newest one first.
+This is the only way a run hears of the ones before it: every run starts from the prompt of the task
+and nothing else, so read the earlier reports whenever the work builds on them, as a digest of what
+changed does. A report too long to be kept in the record lies in a file of its own, named in "file"
+and read from there.`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                id: {type: 'string', description: 'The id of the cron task'},
+                limit: {
+                    type: 'number',
+                    description: `How many runs to read back, ${HISTORIES_READ} by default and ${MAX_DISPLAY_HISTORIES} at most. Every report asked for is carried in the answer, so ask for the ones the work needs.`
+                },
+                before: {
+                    type: 'number',
+                    description: 'Read the runs started before this time (epoch ms) instead of the latest ones, to walk further back than one answer reaches.'
+                },
+            },
+            required: ['id'],
+        },
+    },
+    parallelSafe: true,
+    agentMode: ['agent'],
+    loopKinds: ['main'],
+    invoke: async function(input: GetCronHistoriesInput): Promise<string> {
+        const limit = Math.min(Math.max(input.limit || HISTORIES_READ, 1), MAX_DISPLAY_HISTORIES);
+        // The run that asks is a history of its own by then, and one with nothing to report yet.
+        const histories = CronService.getCronHistories(
+            input.id, input.before || Number.MAX_SAFE_INTEGER, limit + 1
+        ).filter(history => history.completed).slice(0, limit);
+        if (!histories.length) {
+            return 'This cron task has no finished run to read back.';
+        }
+        return JSON.stringify(histories.map(readable));
+    },
+}
+
+/**
+ * A run of the task as another run can use it. The report of one too long to be kept in the record
+ * lies in a file, and what stands in the record is the link the user opens it by: a route of the
+ * app is nothing an agent can fetch, the file it serves is right there to be read.
+ */
+function readable(history: CronJobHistory): CronJobHistory | ReadableHistory {
+    const file = !history.output?.path ? null : FileStore.fileOf(history.output.path);
+    if (!file) {
+        return history;
+    }
+    const output: ReadableOutput = {...history.output!, file};
+    delete output.path;
+    return {...history, output};
+}
+
+type ReadableOutput = NonNullable<LLMTaskOutput> & {file: string};
+type ReadableHistory = Omit<CronJobHistory, 'output'> & {output: ReadableOutput};
