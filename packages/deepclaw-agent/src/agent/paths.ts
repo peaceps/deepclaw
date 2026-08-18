@@ -38,8 +38,23 @@ export const CRON_HISTORY_JSONL = 'history.jsonl';
 export const GLOBAL_MEMORY_DIR = '.memory';
 export const DEEPCLAW_MD = 'DEEPCLAW.md';
 
-// Public resource
-export const PUBLIC = 'public';
-export const PROJECT_TASK_OUTPUT_DIR = `${PUBLIC}/projects`;
-export const CRON_OUTPUT_DIR = `${PUBLIC}/cron`;
-export const IMAGE_OUTPUT_DIR = `${PUBLIC}/images`;
+// What a run hands to the user, beside the project or the cron task it came out of. The files are
+// the ones the work produced, the output is the report of it, filed away when it grew too long.
+export const FILES_DIR = 'files';
+export const OUTPUT_DIR = 'output';
+
+export function projectFilesDir(projectId: string): string {
+    return `${PROJECT_DIR}/${projectId}/${FILES_DIR}`;
+}
+
+export function projectOutputDir(projectId: string): string {
+    return `${PROJECT_DIR}/${projectId}/${OUTPUT_DIR}`;
+}
+
+export function cronFilesDir(cronId: string): string {
+    return `${CRON_DIR}/${cronId}/${FILES_DIR}`;
+}
+
+export function cronOutputDir(cronId: string): string {
+    return `${CRON_DIR}/${cronId}/${OUTPUT_DIR}`;
+}

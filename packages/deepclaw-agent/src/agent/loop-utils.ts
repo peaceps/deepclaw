@@ -1,44 +1,42 @@
 import { imageExtensionOf, newImageRef, type LLMTaskOutput } from "@deepclaw/core";
-import { FileUtils, ImageStore } from "@deepclaw/node-utils";
+import { FileStore, FileUtils, ImageStore } from "@deepclaw/node-utils";
 import { i18nInstance } from "@deepclaw/i18n";
-import { PUBLIC } from "./paths";
 
 const OUTPUT_LENGTH_LIMIT = 1500;
 
 /** More files than this in one output is a folder, and a folder is not a hand over. */
 export const MAX_GENERATED_FILES = 10;
 
-export function saveToPublic(
-    id: string, output: NonNullable<LLMTaskOutput>, title: string, targetFolder: string
+/**
+ * A report too long to carry around is kept as a file of its own and read back when someone opens
+ * it, so what stays on the task is the reference rather than the whole of it.
+ */
+export function fileAwayOutput(
+    output: NonNullable<LLMTaskOutput>, folder: string, name: string
 ) {
-    if (!FileUtils.exists(PUBLIC)) return;
     const outputType = output.type;
     if (outputType === 'binary' || output.content.length > OUTPUT_LENGTH_LIMIT) {
         const content = outputType === 'binary' ? Buffer.from(output.content, 'base64')
             : output.content;
         const ext = output.ext || getOutputExt(outputType);
-        const path = FileUtils.writeFile(
-            `${targetFolder}/${id}/${FileUtils.hashString(title)}.${ext}`, content
-        );
+        const path = FileUtils.writeFile(`${folder}/${name}.${ext}`, content);
         output.content = '<Content saved to file>';
-        output.path = `/${path.substring(PUBLIC.length + 1)}`;
+        output.path = FileStore.urlOf(path);
     }
 }
 
 /**
  * A file a task produced lies where only the agent can reach it, so a path to it in the output is
- * a dead end for the user. Copied beside the output and linked from it, the file becomes something
- * they can just click, and a picture is shown in the output instead of linked under it.
+ * a dead end for the user. Linked from the folder the work of that project is handed over in, the
+ * file becomes something they can just click, and a picture is shown in the output instead.
  */
 export function publishGeneratedFiles(
-    id: string, output: NonNullable<LLMTaskOutput>, title: string,
-    files: string[], targetFolder: string
+    output: NonNullable<LLMTaskOutput>, files: string[], folder: string, imageOwner: string
 ): {published: string[], skipped: string[]} {
-    // Bytes have no room for a link, and without a public folder there is nowhere to copy to.
-    if (output.type === 'binary' || !FileUtils.exists(PUBLIC)) {
+    // Bytes have no room for a link, so a binary output has nowhere to hand a file over from.
+    if (output.type === 'binary') {
         return {published: [], skipped: files};
     }
-    const folder = `${targetFolder}/${id}/${FileUtils.hashString(title)}`;
     const published: string[] = [];
     // The schema of the tool asks for the cap, only a well behaved model keeps to what it asks.
     const wanted = [...new Set(files)];
@@ -51,9 +49,8 @@ export function publishGeneratedFiles(
             skipped.push(file);
             continue;
         }
-        const name = freeName(file, names);
         try {
-            lines.push(lineOf(output.type, id, folder, name, FileUtils.readBuffer(file)));
+            lines.push(lineOf(output.type, file, folder, names, imageOwner));
             published.push(file);
         } catch {
             // A folder, a file that is not there, a file that cannot be read: none to hand over.
@@ -73,15 +70,28 @@ export function publishGeneratedFiles(
  * markdown output can show one, a text output has nowhere to put a picture but a path.
  */
 function lineOf(
-    outputType: NonNullable<LLMTaskOutput>['type'], id: string, folder: string,
-    name: string, bytes: Buffer
+    outputType: NonNullable<LLMTaskOutput>['type'], file: string, folder: string,
+    taken: Set<string>, imageOwner: string
 ): string {
-    const extension = imageExtensionOf(name);
+    const inPlace = pathInFolder(file, folder);
+    const base = FileUtils.sanitizeFileName(baseName(inPlace ?? file));
+    const extension = imageExtensionOf(base);
     if (outputType === 'markdown' && extension) {
-        return `- ![${name}](${newImageRef(ImageStore.save(bytes, extension, id))})`;
+        const bytes = FileUtils.readBuffer(file);
+        return `- ![${base}](${newImageRef(ImageStore.save(bytes, extension, imageOwner))})`;
     }
+    // A file written where the hand over lives is handed over as it lies: a copy beside itself
+    // is a second file to keep in step with the first.
+    if (inPlace) {
+        if (!FileUtils.isFile(file)) {
+            throw new Error(`${file} is no file to hand over.`);
+        }
+        return linkOf(outputType, base, FileStore.urlOf(inPlace));
+    }
+    const bytes = FileUtils.readBuffer(file);
+    const name = freeName(base, file, bytes, folder, taken);
     const copied = FileUtils.writeFile(`${folder}/${name}`, bytes);
-    return linkOf(outputType, name, `/${copied.substring(PUBLIC.length + 1)}`);
+    return linkOf(outputType, name, FileStore.urlOf(copied));
 }
 
 /** What never reached the user has to be said, or the run carries on believing it was handed over. */
@@ -102,20 +112,49 @@ function headlineOf(outputType: NonNullable<LLMTaskOutput>['type']): string {
 }
 
 function linkOf(outputType: NonNullable<LLMTaskOutput>['type'], name: string, url: string): string {
-    const href = url.split('/').map(encodeURIComponent).join('/');
-    return outputType === 'markdown' ? `- [${name}](${href})` : `- ${name}: ${href}`;
+    return outputType === 'markdown' ? `- [${name}](${url})` : `- ${name}: ${url}`;
 }
 
 /**
- * Two files of one task can be named alike, and the later one must not bury the earlier. What a
- * name comes down to on disk is what has to be kept apart here: two names that differ only in a
- * character a path cannot carry are one file once they are written, and one link either way.
+ * The path of a file that already lies in the folder the hand over goes to, written the way that
+ * folder names it, or null for a file from anywhere else. A relative path is read against the data
+ * root rather than against the folder, which is where the agent read it from too.
  */
-function freeName(file: string, taken: Set<string>): string {
-    const base = FileUtils.sanitizeFileName(file.split(/[\\/]/).filter(Boolean).pop() || 'file');
-    const name = taken.has(base) ? `${FileUtils.hashString(file, 6)}-${base}` : base;
+function pathInFolder(file: string, folder: string): string | null {
+    const path = FileUtils.getAbsolutePath(file);
+    if (!FileUtils.isPathInside(folder, path)) {
+        return null;
+    }
+    const inside = path.slice(FileUtils.getAbsolutePath(folder).length + 1);
+    return inside ? `${folder}/${inside}` : null;
+}
+
+function baseName(file: string): string {
+    return file.split(/[\\/]/).filter(Boolean).pop() || 'file';
+}
+
+/**
+ * Two files can be named alike, and the later one must not bury the earlier: neither within one
+ * hand over nor across the runs that filed into the same folder before it. What a name comes down
+ * to on disk is what has to be kept apart here, since two names that differ only in a character a
+ * path cannot carry are one file once they are written. The same file handed over twice keeps its
+ * name, there is nothing of it to lose.
+ */
+function freeName(
+    base: string, file: string, bytes: Buffer, folder: string, taken: Set<string>
+): string {
+    const name = taken.has(base) || buries(`${folder}/${base}`, bytes)
+        ? `${FileUtils.hashString(file, 6)}-${base}` : base;
     taken.add(name);
     return name;
+}
+
+function buries(path: string, bytes: Buffer): boolean {
+    try {
+        return !FileUtils.readBuffer(path).equals(bytes);
+    } catch {
+        return false;
+    }
 }
 
 function getOutputExt(outputType: NonNullable<LLMTaskOutput>['type']): string {

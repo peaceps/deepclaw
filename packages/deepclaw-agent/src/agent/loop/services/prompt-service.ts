@@ -6,7 +6,7 @@ import { FileUtils } from '@deepclaw/node-utils';
 import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
 import { CronService } from './cron-service';
-import { DEEPCLAW_MD } from '../../paths';
+import { cronFilesDir, DEEPCLAW_MD, projectFilesDir } from '../../paths';
 import { AgentIdentity, FlushAgentRole } from '@deepclaw/core';
 import { AssignedTask, isSpawnedLoop, LoopKind, SystemPrompt } from '../../definitions/definitions';
 import { AgentIdentityManager } from './agent-identity-manager';
@@ -58,7 +58,7 @@ ${persona && !spawned && persona.emotion ? this.emotionsPrompt : ""}
 ${this.agentMode(agentConfig.mode)}
 
 # Handing Work Over
-${this.handOver(agentConfig.mode, loopKind, isCron, !isCron && !spawned && !!projectId)}
+${this.handOver(agentConfig.mode, loopKind, isCron, this.filesDir(isCron, projectId, assignedTask))}
 
 # Project Management
 ${this.projectManagement(agentConfig.mode, !isCron && !spawned && !!projectId, personaId)}
@@ -114,9 +114,14 @@ ${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskTit
         this.mainIdentityPrompt = this.mainIdentity();
     }
 
+    /**
+     * The folder a relative path is read against, which is the data root rather than wherever the
+     * process was started: a web server chdirs into its own installation, and an agent told that
+     * folder would name a path back that leads somewhere else entirely.
+     */
     private static platform(): string {
         const PLATFORM = process.platform.includes('win32') ? 'Windows' : 'Linux';
-        const CWD = process.cwd();
+        const CWD = FileUtils.getWorkingDir();
         return `You are a worker on ${PLATFORM} platform working in "${CWD}".
 When a job really has to leave files behind, give it a folder of its own in that directory and keep
 everything it creates inside, instead of dropping the files loose beside what already lives there.`;
@@ -221,12 +226,25 @@ But you can call tools to write files owned by the agent program itself, such as
     }
 
     /**
+     * The folder the files of this run are handed over from, which belongs to the project or the
+     * scheduled task rather than to the run: a sub loop writes into the same one its parent hands
+     * over from. A chat about nothing in particular has no such folder, and nowhere to hand over.
+     */
+    private static filesDir(isCron: boolean, projectId: string, assignedTask?: AssignedTask): string {
+        if (isCron) {
+            return projectId ? cronFilesDir(projectId) : '';
+        }
+        const project = assignedTask?.projectId || projectId;
+        return project ? projectFilesDir(project) : '';
+    }
+
+    /**
      * Where the work of a run comes out. A file on this filesystem is nothing the user can open, so
      * the way out of the machine belongs beside the work itself: told only by the tool that happens
      * to take a file, it is heard after the run already decided to write a path down instead.
      */
     private static handOver(
-        agentMode: AgentMode, loopKind: LoopKind, isCron: boolean, runsAProject: boolean
+        agentMode: AgentMode, loopKind: LoopKind, isCron: boolean, filesDir: string
     ): string {
         const picture = `A picture you drew with generate_image comes back as a dcimg:// reference.
 Naming it as ![alt](dcimg://...) is what carries it to whoever reads you, and it is only ever seen
@@ -237,16 +255,18 @@ where you named it.`;
         if (isSpawnedLoop(loopKind)) {
             return `${picture}
 You hand your work to the agent that spawned you, never to the user, and it can only pass on what
-your summary names. List the files the user should end up with by their path in the workspace, so
-that agent can hand them over, and mark which of them are pictures.`;
+your summary names. ${filesDir ? `Write the files the user should end up with into "${filesDir}"`
+: 'List the files the user should end up with by their path in the workspace'}, name them in your
+summary so that agent can hand them over, and mark which of them are pictures.`;
         }
         return `${picture}
 Whatever the user can simply read -- a report, a summary, a table -- belongs written out where you
 say it. Never save that to a file and hand the path over: a path is a dead end, they cannot open it.
-${runsAProject || isCron ? `A file the work really produced -- a spreadsheet, a document, an archive
--- reaches them through the generatedFiles of ${isCron ? 'update_cron_output' : 'a task output'},
-which copies it where they can reach it and links it under the content. A picture handed over that
-way is shown in the output instead of linked under it.`
+${filesDir ? `A file the work really produced -- a spreadsheet, a document, an archive -- belongs in
+"${filesDir}", and reaches the user by being named in the generatedFiles of ${
+    isCron ? 'update_cron_output' : 'a task output'}, which links it under the content. One written
+anywhere else is copied in there as it is handed over, so write it there in the first place. A
+picture handed over this way is shown in the output instead of linked under it.`
 : `Nothing on this filesystem reaches the user by being written, and with neither a task nor a
 scheduled run to file a file under, there is nowhere to hand one over: keep what matters of it in
 what you say, and name where the file lies for the next run rather than for them.`}`;

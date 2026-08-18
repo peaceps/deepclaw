@@ -3,18 +3,24 @@ import {describe, expect, test, vi} from 'vitest';
 import {type AgentIdentity, type CronTask, type Task} from '@deepclaw/core';
 import {newTestAgentConfig} from '../../../test-support/one-loop-context';
 
+const WORKING_DIR = '/home/someone/.deepclaw';
+
 const mocks = vi.hoisted(() => ({
     loadLang: vi.fn<() => string>(),
     readFile: vi.fn<(filePath: string) => string>(),
     readDir: vi.fn<(dirPath: string) => {[key: string]: {dir: string, content: string}}>(),
     exists: vi.fn<(filePath: string) => boolean>(),
+    getWorkingDir: vi.fn<() => string>(() => '/home/someone/.deepclaw'),
 }));
 
 vi.mock('@deepclaw/config', () => ({loadLang: mocks.loadLang}));
 vi.mock('@deepclaw/i18n', () => ({FULL_NAME_MAP: {en: 'English', zh: 'Chinese'}}));
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
-    FileUtils: {readFile: mocks.readFile, readDir: mocks.readDir, exists: mocks.exists},
+    FileUtils: {
+        readFile: mocks.readFile, readDir: mocks.readDir, exists: mocks.exists,
+        getWorkingDir: mocks.getWorkingDir,
+    },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
 }));
@@ -86,7 +92,9 @@ describe('platform and language', () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         const platform = process.platform.includes('win32') ? 'Windows' : 'Linux';
-        expect(cacheable).toContain(`You are a worker on ${platform} platform working in "${process.cwd()}".`);
+        expect(cacheable).toContain(
+            `You are a worker on ${platform} platform working in "${WORKING_DIR}".`
+        );
     });
 
     test('asks for a folder of its own instead of files left loose in that folder', async () => {
@@ -511,12 +519,22 @@ describe('handing work over', () => {
         expect(cacheable).toContain('a path is a dead end');
     });
 
+    /** A folder named too late is heard after the run already wrote the file somewhere else. */
+    test('names the folder the files of the project are handed over from', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'project', 'p1', 'main'
+        );
+        expect(cacheable).toContain('.projects/p1/files');
+    });
+
     test('names update_cron_output as the way a scheduled run hands a file over', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
             newTestAgentConfig(), undefined, 'cron', 'c1', 'main'
         );
         expect(cacheable).toContain('the generatedFiles of update_cron_output');
+        expect(cacheable).toContain('.cron/c1/files');
     });
 
     /** Promising a file the session has nowhere to file is worse than saying there is no way. */
@@ -535,9 +553,28 @@ describe('handing work over', () => {
             const {cacheable} = PromptService.provideSystemPrompt(
                 newTestAgentConfig(), undefined, 'project', 'p1', loopKind
             );
-            expect(cacheable).toContain('by their path in the workspace');
+            expect(cacheable).toContain('name them in your\nsummary');
+            expect(cacheable).toContain('.projects/p1/files');
             expect(cacheable).not.toContain('generatedFiles');
         }
+    });
+
+    /** A sub loop writes into the folder of the project it works for, not of the one it sits in. */
+    test('names the folder of the task a spawned loop was handed', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'agent', '', 'sub',
+            {projectId: 'p9', taskTitle: 'design'}
+        );
+        expect(cacheable).toContain('.projects/p9/files');
+    });
+
+    test('asks a spawned loop with no project to name what it made by its path', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'agent', '', 'sub'
+        );
+        expect(cacheable).toContain('by their path in the workspace');
     });
 
     /** A chat agent writes no files, so the only thing it can hand over is a picture it drew. */

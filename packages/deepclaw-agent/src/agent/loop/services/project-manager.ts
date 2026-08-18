@@ -1,7 +1,7 @@
 import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
-import { PROJECT_DIR, PROJECT_JSON, PROJECT_TASK_OUTPUT_DIR } from '../../paths';
+import { PROJECT_DIR, PROJECT_JSON, projectOutputDir } from '../../paths';
 import { type Project, type Task, type TaskStepsContext, getProjectStatus, MissionPriority, PROJECT_CONFIG } from '@deepclaw/core';
-import { saveToPublic } from '../../loop-utils';
+import { fileAwayOutput } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
 
 export type ProjectListInfo = {
@@ -185,7 +185,7 @@ export class ProjectManager {
         }
         Object.assign(task, taskInfo);
         if (task.output) {
-            saveToPublic(projectId, task.output, task.title, PROJECT_TASK_OUTPUT_DIR);
+            fileAwayOutput(task.output, projectOutputDir(projectId), FileUtils.hashString(task.title));
         }
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();

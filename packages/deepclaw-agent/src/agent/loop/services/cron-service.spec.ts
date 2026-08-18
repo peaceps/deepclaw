@@ -1,6 +1,8 @@
 import {beforeEach, describe, expect, test, vi, type Mock} from 'vitest';
-import {type CronTask, type TokenUsage} from '@deepclaw/core';
-import {CRON_DIR, CRON_HISTORY_JSONL, CRON_OUTPUT_DIR, CRON_TASK_JSON, PUBLIC} from '../../paths';
+import {type CronTask, type LLMTaskOutput, type TokenUsage} from '@deepclaw/core';
+import {
+    CRON_DIR, CRON_HISTORY_JSONL, CRON_TASK_JSON, FILES_DIR, cronFilesDir, cronOutputDir
+} from '../../paths';
 import {MAX_DISPLAY_HISTORIES} from './cron-service';
 
 type LoopResult = {text: string; runtime: {usage: TokenUsage; transitionReason: string}};
@@ -27,6 +29,7 @@ const mocks = vi.hoisted(() => ({
     hashString: vi.fn<(text: string) => string>(() => 'titlehash'),
     readBuffer: vi.fn<(path: string) => Buffer>(path => Buffer.from(`bytes of ${path}`)),
     isPathInWorkspace: vi.fn<(path: string) => boolean>(() => true),
+    isFile: vi.fn<(path: string) => boolean>(() => true),
     getLoop: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
     invoke: vi.fn<(prompt: string, options: {browserId: string}) => Promise<LoopResult>>(),
     getSessionDir: vi.fn<() => string>(() => '.agents/a1/session/cron1'),
@@ -63,7 +66,10 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
             hashString: mocks.hashString,
             readBuffer: mocks.readBuffer,
             isPathInWorkspace: mocks.isPathInWorkspace,
+            isFile: mocks.isFile,
             sanitizeFileName: original.FileUtils.sanitizeFileName.bind(original.FileUtils),
+            getAbsolutePath: original.FileUtils.getAbsolutePath.bind(original.FileUtils),
+            isPathInside: original.FileUtils.isPathInside.bind(original.FileUtils),
         },
         getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
         getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
@@ -72,14 +78,23 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
 
 type CronServiceType = (typeof import('./cron-service'))['CronService'];
 
+/** A run hands over what it made, and the folder it hands over from holds nothing of its own yet. */
+function unfiled(path: string): Buffer {
+    if (path.includes(`/${FILES_DIR}/`)) {
+        throw new Error('ENOENT');
+    }
+    return Buffer.from(`bytes of ${path}`);
+}
+
 function primeMocks(): void {
     vi.clearAllMocks();
     mocks.jobs.length = 0;
     mocks.isValidCron.mockReturnValue(true);
     mocks.nextRun.mockReturnValue(NEXT_RUN);
     mocks.writeFile.mockImplementation((path: string) => path);
-    mocks.readBuffer.mockImplementation((path: string) => Buffer.from(`bytes of ${path}`));
+    mocks.readBuffer.mockImplementation(unfiled);
     mocks.isPathInWorkspace.mockReturnValue(true);
+    mocks.isFile.mockReturnValue(true);
     mocks.getSessionDir.mockReturnValue(SESSION_DIR);
     mocks.getLoop.mockReturnValue({invoke: mocks.invoke, getSessionDir: mocks.getSessionDir});
     mocks.invoke.mockResolvedValue({text: 'result', runtime: {usage: newUsage(1), transitionReason: 'end'}});
@@ -555,37 +570,47 @@ describe('updateCronOutput', () => {
         expect(service.getCronTaskDetail(id).histories[0]!.output).toEqual({type: 'text', content: 'the answer'});
     });
 
-    test('does not write the output while there is no public folder', async () => {
+    test('keeps a short output on the history rather than in a file', async () => {
         const {id} = newTask(service);
         const {release, finished} = await startRun();
         mocks.writeFile.mockClear();
         service.updateCronOutput(id, {type: 'text', content: 'the answer'});
         release();
         await finished;
-        expect(mocks.hashString).toHaveBeenCalledWith('nightly');
-        expect(mocks.exists).toHaveBeenCalledWith('public');
         expect(mocks.writeFile).not.toHaveBeenCalled();
     });
 
-    /** A scheduled run hands its files over the way a task does, only nobody is there to see it. */
-    test('copies the files of the run where the user can reach them', async () => {
+    test('files a long output away under the folder of the task', async () => {
         const {id} = newTask(service);
         const {release, finished} = await startRun();
-        mocks.exists.mockImplementation((path: string) => path === PUBLIC);
+        mocks.writeFile.mockClear();
+        const output: LLMTaskOutput = {type: 'markdown', content: '#'.repeat(1501)};
+        service.updateCronOutput(id, output);
+        release();
+        await finished;
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            expect.stringMatching(new RegExp(`^${cronOutputDir(id)}/\\d+\\.md$`)), '#'.repeat(1501)
+        );
+        expect(output.path).toMatch(new RegExp(`^/api/file/cron/${id}/output/\\d+\\.md$`));
+    });
+
+    /** A scheduled run hands its files over the way a task does, only nobody is there to see it. */
+    test('hands the files of the run over from the folder of the task', async () => {
+        const {id} = newTask(service);
+        const {release, finished} = await startRun();
         const output = {type: 'markdown' as const, content: '# digest'};
         expect(service.updateCronOutput(id, output, ['out/digest.csv'])).toEqual({skipped: []});
         release();
         await finished;
         expect(mocks.writeFile).toHaveBeenCalledWith(
-            `${CRON_OUTPUT_DIR}/${id}/titlehash/digest.csv`, Buffer.from('bytes of out/digest.csv')
+            `${cronFilesDir(id)}/digest.csv`, Buffer.from('bytes of out/digest.csv')
         );
-        expect(output.content).toContain(`- [digest.csv](/cron/${id}/titlehash/digest.csv)`);
+        expect(output.content).toContain(`- [digest.csv](/api/file/cron/${id}/files/digest.csv)`);
     });
 
     test('reports a file it could not hand over', async () => {
         const {id} = newTask(service);
         const {release, finished} = await startRun();
-        mocks.exists.mockImplementation((path: string) => path === PUBLIC);
         mocks.isPathInWorkspace.mockReturnValue(false);
         expect(service.updateCronOutput(id, {type: 'markdown', content: '# digest'}, ['/tmp/x.pdf']))
             .toEqual({skipped: ['/tmp/x.pdf']});

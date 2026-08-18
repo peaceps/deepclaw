@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
-    AGENTS_DIR, CRON_OUTPUT_DIR, IMAGE_OUTPUT_DIR, PROJECT_TASK_OUTPUT_DIR, PUBLIC, SKILLS, SKILLS_DIR
+    AGENTS_DIR, CRON_DIR, FILES_DIR, OUTPUT_DIR, PROJECT_DIR, SKILLS, SKILLS_DIR,
+    cronFilesDir, cronOutputDir, projectFilesDir, projectOutputDir
 } from './paths';
 
 describe('derived paths', () => {
@@ -9,20 +10,21 @@ describe('derived paths', () => {
         expect(SKILLS_DIR).toBe(`${AGENTS_DIR}/${SKILLS}`);
     });
 
-    test('serves the task output from inside the public folder', () => {
-        expect(PROJECT_TASK_OUTPUT_DIR.startsWith(`${PUBLIC}/`)).toBe(true);
+    test('hands the files of a task over from inside the folder of its project', () => {
+        expect(projectFilesDir('p1')).toBe(`${PROJECT_DIR}/p1/${FILES_DIR}`);
+        expect(projectOutputDir('p1')).toBe(`${PROJECT_DIR}/p1/${OUTPUT_DIR}`);
     });
 
-    test('serves the cron output from inside the public folder', () => {
-        expect(CRON_OUTPUT_DIR.startsWith(`${PUBLIC}/`)).toBe(true);
+    test('hands the files of a scheduled run over from inside the folder of its task', () => {
+        expect(cronFilesDir('c1')).toBe(`${CRON_DIR}/c1/${FILES_DIR}`);
+        expect(cronOutputDir('c1')).toBe(`${CRON_DIR}/c1/${OUTPUT_DIR}`);
     });
 
-    test('serves the generated images from inside the public folder', () => {
-        expect(IMAGE_OUTPUT_DIR.startsWith(`${PUBLIC}/`)).toBe(true);
-    });
-
-    test('keeps the output folders apart', () => {
-        const folders = [PROJECT_TASK_OUTPUT_DIR, CRON_OUTPUT_DIR, IMAGE_OUTPUT_DIR];
+    /** The report of a run and the files it produced are two things to tell apart in a folder. */
+    test('keeps what a run hands over apart from what it says', () => {
+        const folders = [
+            projectFilesDir('p1'), projectOutputDir('p1'), cronFilesDir('p1'), cronOutputDir('p1')
+        ];
         expect(new Set(folders).size).toBe(folders.length);
     });
 });

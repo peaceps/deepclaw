@@ -6,7 +6,7 @@ import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
 import { AgentIdentityManager } from "../services/agent-identity-manager";
 import { MAX_GENERATED_FILES, publishGeneratedFiles, skippedFilesNote } from "../../loop-utils";
-import { PROJECT_TASK_OUTPUT_DIR } from "../../paths";
+import { projectFilesDir } from "../../paths";
 
 type ProjectTaskInput = {
     title: string;
@@ -347,9 +347,10 @@ and the file path will be set into the path field.`
                             items: {type: 'string'},
                             maxItems: MAX_GENERATED_FILES,
                             description: `The files this task produced, by their path in the workspace.
-Each one is copied where the user can reach it and linked at the end of the content, so hand a file
-over here rather than writing its path into the content: a path in a report is nothing the user can
-open. A picture handed over this way is shown in the output rather than linked under it.
+Each one is linked at the end of the content, so hand a file over here rather than writing its path
+into the content: a path in a report is nothing the user can open. One written into the files folder
+of the project is handed over as it lies, one from anywhere else is copied in there first.
+A picture handed over this way is shown in the output rather than linked under it.
 Only files inside the workspace can be handed over, and only files, not folders.`
                         }
                     },
@@ -376,7 +377,7 @@ Only files inside the workspace can be handed over, and only files, not folders.
             // The links go in before the output is filed away, so the saved report carries them.
             if (generatedFiles?.length) {
                 skippedFiles = publishGeneratedFiles(
-                    input.projectId, output, input.taskTitle, generatedFiles, PROJECT_TASK_OUTPUT_DIR
+                    output, generatedFiles, projectFilesDir(input.projectId), input.projectId
                 ).skipped;
             }
             taskInfo.output = output;

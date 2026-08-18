@@ -1,7 +1,7 @@
 import { CronJob } from 'cron';
 import { addTokenUsage, type CronTask, type CronJobHistory, type LLMTaskOutput } from "@deepclaw/core";
-import { publishGeneratedFiles, saveToPublic } from '../../loop-utils';
-import { CRON_DIR, CRON_HISTORY_JSONL, CRON_OUTPUT_DIR, CRON_TASK_JSON } from '../../paths';
+import { fileAwayOutput, publishGeneratedFiles } from '../../loop-utils';
+import { CRON_DIR, CRON_HISTORY_JSONL, CRON_TASK_JSON, cronFilesDir, cronOutputDir } from '../../paths';
 import { FileUtils, UpdateContent, getLogger } from '@deepclaw/node-utils';
 import { randomUUID } from 'node:crypto';
 import { globalize } from '@deepclaw/utils';
@@ -201,11 +201,10 @@ class CronServiceImpl {
         if (!output) {
             return {skipped: generatedFiles ?? []};
         }
-        const run = `${FileUtils.hashString(cronTask.title)}/${history.start}`;
         // The links go in before the output is filed away, so the saved report carries them.
         const skipped = generatedFiles?.length
-            ? publishGeneratedFiles(id, output, run, generatedFiles, CRON_OUTPUT_DIR).skipped : [];
-        saveToPublic(id, output, run, CRON_OUTPUT_DIR);
+            ? publishGeneratedFiles(output, generatedFiles, cronFilesDir(id), id).skipped : [];
+        fileAwayOutput(output, cronOutputDir(id), String(history.start));
         return {skipped};
     }
 

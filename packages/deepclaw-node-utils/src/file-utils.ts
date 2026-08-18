@@ -27,6 +27,12 @@ export class FileUtils {
         return fs.readFileSync(absolutePath, 'utf8');
     }
 
+    /** A folder exists as much as a file does, and only one of the two can be handed over. */
+    public static isFile(filePath: string): boolean {
+        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
+        return fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile();
+    }
+
     public static readBuffer(filePath: string): Buffer {
         const name = this.sanitizeFileName(filePath);
         const absolutePath = this.getAbsolutePath(name);
@@ -167,7 +173,8 @@ export class FileUtils {
         return candidates.find(candidate => fs.existsSync(candidate)) ?? null;
     }
 
-    private static getAbsolutePath(relativePath: string): string {
+    /** The path a name really means, since a relative one is read against the data root. */
+    public static getAbsolutePath(relativePath: string): string {
         return this.formatSlash(path.isAbsolute(relativePath) ? relativePath : path.resolve(this.getWorkingDir(), relativePath));
     }
 

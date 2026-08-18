@@ -1,4 +1,5 @@
 export * from './file-utils';
+export * from './file-store';
 export * from './image-store';
 export * from './logger';
 export * from './graceful-shutdown';
