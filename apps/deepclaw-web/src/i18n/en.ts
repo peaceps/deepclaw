@@ -26,6 +26,8 @@ export const en = {
             confirm: 'Confirm',
             send: 'Send',
             ok: 'OK',
+            maximize: 'Maximize',
+            restore: 'Restore',
         },
         toast: {
             interactionPause: {

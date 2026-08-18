@@ -26,6 +26,8 @@ export const zh = {
             confirm: '确认',
             send: '发送',
             ok: '确定',
+            maximize: '最大化',
+            restore: '还原',
         },
         toast: {
             interactionPause: {
