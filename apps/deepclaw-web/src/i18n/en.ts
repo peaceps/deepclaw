@@ -202,6 +202,7 @@ export const en = {
             tokenUsage: {
                 cachedInput: 'Cached input',
                 noCachedInput: 'No cached input',
+                cacheHitRate: 'Input cache hit rate',
                 output: 'Output'
             },
             output: {

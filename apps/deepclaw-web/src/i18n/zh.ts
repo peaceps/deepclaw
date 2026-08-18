@@ -212,6 +212,7 @@ export const zh = {
             tokenUsage: {
                 cachedInput: '输入（缓存命中）',
                 noCachedInput: '输入（缓存未命中）',
+                cacheHitRate: '输入缓存命中率',
                 output: '输出'
             },
             output: {
