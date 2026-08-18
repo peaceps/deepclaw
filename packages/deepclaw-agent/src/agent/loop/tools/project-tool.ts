@@ -8,6 +8,24 @@ import { AgentIdentityManager } from "../services/agent-identity-manager";
 import { MAX_GENERATED_FILES, publishGeneratedFiles, skippedFilesNote } from "../../loop-utils";
 import { projectFilesDir } from "../../paths";
 
+/** Where the report of a task stood in an answer that is not the one to ask for it. */
+const OUTPUT_KEPT = '<Output kept, read it with get_project_detail>';
+
+/**
+ * The project as an answer to a write of it, with what its tasks produced left out. A run that just
+ * handed a report over would only read its own words back, and a project of finished tasks carries
+ * enough of them to crowd everything else out of the answer, or to have the whole of it truncated.
+ */
+function projectAfterWrite(projectId: string): string {
+    const project = ProjectManager.getProjectDetail(projectId);
+    const tasks: Record<string, Task> = {};
+    for (const [title, task] of Object.entries(project.tasks)) {
+        tasks[title] = task.output
+            ? {...task, output: {...task.output, content: OUTPUT_KEPT}} : task;
+    }
+    return JSON.stringify({...project, tasks});
+}
+
 type ProjectTaskInput = {
     title: string;
     description: string;
@@ -392,10 +410,9 @@ Only files inside the workspace can be handed over, and only files, not folders.
         }
         ProjectManager.fireProjectInfoEvent(input.projectId, context);
 
-        const project = ProjectManager.getProjectDetail(input.projectId);
         let res = `Task updated successfully.
 Here's the related info:
-${JSON.stringify(project)}`;
+${projectAfterWrite(input.projectId)}`;
         if (stop) {
             res += `
 

@@ -184,8 +184,10 @@ export class ProjectManager {
             };
         }
         Object.assign(task, taskInfo);
-        if (task.output) {
-            fileAwayOutput(task.output, projectOutputDir(projectId), FileUtils.hashString(task.title));
+        // Only an output that just arrived is filed away. The one already on the task was filed
+        // when it came in, and every later update of that task would file it over again.
+        if (taskInfo.output) {
+            fileAwayOutput(taskInfo.output, projectOutputDir(projectId), FileUtils.hashString(task.title));
         }
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();

@@ -4,6 +4,9 @@ import { i18nInstance } from "@deepclaw/i18n";
 
 const OUTPUT_LENGTH_LIMIT = 1500;
 
+/** What is left where the content of an output was, once the content lies in a file of its own. */
+const FILED_AWAY = '<Content saved to file>';
+
 /** More files than this in one output is a folder, and a folder is not a hand over. */
 export const MAX_GENERATED_FILES = 10;
 
@@ -14,13 +17,19 @@ export const MAX_GENERATED_FILES = 10;
 export function fileAwayOutput(
     output: NonNullable<LLMTaskOutput>, folder: string, name: string
 ) {
+    // An output is filed away once. What is left on it then is the placeholder rather than the
+    // content, and a binary output filed a second time would land as the bytes of that placeholder,
+    // written over the file it was kept in.
+    if (output.content === FILED_AWAY) {
+        return;
+    }
     const outputType = output.type;
     if (outputType === 'binary' || output.content.length > OUTPUT_LENGTH_LIMIT) {
         const content = outputType === 'binary' ? Buffer.from(output.content, 'base64')
             : output.content;
         const ext = output.ext || getOutputExt(outputType);
         const path = FileUtils.writeFile(`${folder}/${name}.${ext}`, content);
-        output.content = '<Content saved to file>';
+        output.content = FILED_AWAY;
         output.path = FileStore.urlOf(path);
     }
 }

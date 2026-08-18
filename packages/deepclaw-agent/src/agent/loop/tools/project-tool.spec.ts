@@ -54,7 +54,9 @@ function newIdentity(id: string, fired = false): AgentIdentity {
 }
 
 function newProject(overrides: Partial<Project> = {}): Project {
-    return {id: 'pr1', title: 'ship it', description: 'ship the thing', ...overrides} as Project;
+    return {
+        id: 'pr1', title: 'ship it', description: 'ship the thing', tasks: {}, ...overrides,
+    } as Project;
 }
 
 beforeEach(() => {
@@ -284,6 +286,36 @@ describe('updateTaskTool invoke', () => {
             projectId: 'pr1', taskTitle: 'design', output: {type: 'markdown', content: '# done'},
         }, newTestContext());
         expect(mocks.publishGeneratedFiles).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The run wrote the report a moment ago, and a project of finished tasks carries enough of them
+     * to crowd everything else out of the answer, or to have the whole of it truncated.
+     */
+    test('leaves what the tasks produced out of the answer', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        getProjectDetail.mockReturnValue(newProject({tasks: {
+            design: {...newTask('design'), output: {type: 'markdown', content: '# the whole report'}},
+            ship: {...newTask('ship'), output: {type: 'binary', content: 'QUJD', path: '/api/file/x'}},
+        }}));
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, newTestContext()
+        );
+        expect(result).not.toContain('the whole report');
+        expect(result).not.toContain('QUJD');
+        expect(result).toContain('<Output kept, read it with get_project_detail>');
+        // What the output is and where it lies stays, only the content of it goes.
+        expect(result).toContain('"path":"/api/file/x"');
+        expect(result).toContain('"type":"binary"');
+    });
+
+    test('leaves a task without an output as it is', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        getProjectDetail.mockReturnValue(newProject({tasks: {design: newTask('design')}}));
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, newTestContext()
+        );
+        expect(result).toContain(JSON.stringify(newProject({tasks: {design: newTask('design')}})));
     });
 
     test('says which files never reached the user', async () => {

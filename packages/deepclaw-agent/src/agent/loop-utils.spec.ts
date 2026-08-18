@@ -99,6 +99,19 @@ describe('fileAwayOutput', () => {
         fileAwayOutput(newOutput({content: LONG_TEXT}), cronOutputDir('c9'), '1755000000000');
         expect(mocks.writeFile).toHaveBeenCalledWith('.cron/c9/output/1755000000000.txt', LONG_TEXT);
     });
+
+    /**
+     * Filing away is not repeatable: what is left on the output is the placeholder, and a binary one
+     * would land as the bytes of that placeholder, written over the file it was kept in.
+     */
+    test('leaves an output that was filed away already alone', () => {
+        const output = newOutput({type: 'binary', content: Buffer.from('hi').toString('base64')});
+        fileAwayOutput(output, projectOutputDir('pr1'), 'hash1234');
+        const filed = {...output};
+        fileAwayOutput(output, projectOutputDir('pr1'), 'hash1234');
+        expect(mocks.writeFile).toHaveBeenCalledOnce();
+        expect(output).toEqual(filed);
+    });
 });
 
 describe('publishGeneratedFiles', () => {

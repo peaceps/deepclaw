@@ -372,6 +372,24 @@ describe('updateTask status transitions', () => {
         expect(task.output).toEqual({type: 'text', content: 'result'});
     });
 
+    /** Filing it away again would write the placeholder of a binary output over its own file. */
+    test('files an output away when it arrives and never again', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {title: 'design', status: 'ongoing'});
+        manager.updateTask(id, {title: 'design', output: {type: 'binary', content: 'QUJD'}});
+        expect(mocks.writeFile).toHaveBeenCalledWith(`.projects/${id}/output/hash.out`, expect.anything());
+        mocks.writeFile.mockClear();
+        const {task} = manager.updateTask(id, {title: 'design', status: 'done'});
+        expect(mocks.writeFile).not.toHaveBeenCalledWith(
+            expect.stringContaining('/output/'), expect.anything()
+        );
+        expect(task.output).toEqual({
+            type: 'binary',
+            content: '<Content saved to file>',
+            path: `/api/file/projects/${id}/output/hash.out`,
+        });
+    });
+
     test('holds a paused task back for verification instead of closing it', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         manager.updateTask(id, {title: 'design', pause: true});
