@@ -82,6 +82,9 @@ export const zh = {
                     current: '\n当前步骤：\n{{steps}}\n',
                     completed: '({{completed}}/{{total}} 已完成)',
                 },
+                output: {
+                    generatedFiles: '生成的文件',
+                },
             }
         },
     },

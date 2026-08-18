@@ -89,6 +89,9 @@ what carries it into the chat, nothing the subagent did puts it there:
                     current: '\nCurrent step:\n{{steps}}\n',
                     completed: '({{completed}}/{{total}} completed)'
                 },
+                output: {
+                    generatedFiles: 'Generated files',
+                },
             },
         },
     },

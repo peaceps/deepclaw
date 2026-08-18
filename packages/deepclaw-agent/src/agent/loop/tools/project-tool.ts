@@ -5,6 +5,10 @@ import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
 import { AgentIdentityManager } from "../services/agent-identity-manager";
+import { publishGeneratedFiles } from "../../loop-utils";
+import { PROJECT_TASK_OUTPUT_DIR } from "../../paths";
+
+const MAX_GENERATED_FILES = 10;
 
 type ProjectTaskInput = {
     title: string;
@@ -279,7 +283,8 @@ type UpdateTaskInput = {
     status?: MissionStatus;
     steps?: string[];
     assignee?: string;
-    output?: LLMTaskOutput;
+    /** generatedFiles names what to hand over to the user, it is no part of the kept output. */
+    output?: LLMTaskOutput & {generatedFiles?: string[]};
 };
 
 export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
@@ -319,8 +324,11 @@ through a subagent that stands for it.`,
 summary, a plan, a table -- belongs in the content itself: write it out here instead of saving it to a
 file and handing over the path, a file the user has to go and open is worse than the thing itself.
 Large content is filed away for you, so there is no size to work around.
-Name a path only for what a readable document cannot carry: for coding task you can give the source
-dir of the task, also you can start the dev server and provide the access address if possible.`,
+Files the task really produced -- a spreadsheet, a picture, a document -- are named in
+generatedFiles, and they come back to the user as links to download.
+Name a path only for what neither a readable document nor a file can carry: for coding task you can
+give the source dir of the task, also you can start the dev server and provide the access address
+if possible.`,
                     properties: {
                         type: {
                             type: 'string', enum: ['markdown', 'text', 'binary'],
@@ -335,6 +343,15 @@ and the file path will be set into the path field.`
                         ext: {
                             type: 'string',
                             description: 'A proper extension for the file, e.g. "txt", "md", "pdf", "jpg", "png", "mp4", etc.'
+                        },
+                        generatedFiles: {
+                            type: 'array',
+                            items: {type: 'string'},
+                            maxItems: MAX_GENERATED_FILES,
+                            description: `The files this task produced, by their path in the workspace.
+Each one is copied where the user can reach it and linked at the end of the content, so hand a file
+over here rather than writing its path into the content: a path in a report is nothing the user can
+open. Only files inside the workspace can be handed over, and only files, not folders.`
                         }
                     },
                     required: ['type', 'content'],
@@ -354,7 +371,17 @@ and the file path will be set into the path field.`
         requireHiredAssignee(input.assignee);
         if (input.assignee) taskInfo.assignee = input.assignee;
         if (input.status) taskInfo.status = input.status;
-        if (input.output) taskInfo.output = input.output;
+        let skippedFiles: string[] = [];
+        if (input.output) {
+            const {generatedFiles, ...output} = input.output;
+            // The links go in before the output is filed away, so the saved report carries them.
+            if (generatedFiles?.length) {
+                skippedFiles = publishGeneratedFiles(
+                    input.projectId, output, input.taskTitle, generatedFiles, PROJECT_TASK_OUTPUT_DIR
+                ).skipped;
+            }
+            taskInfo.output = output;
+        }
         const {stop} = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
 
         if (stop) {
@@ -374,6 +401,12 @@ ${JSON.stringify(project)}`;
 
 Task is not set done because the user requires it to be verified before it can be marked done.
 After user set task.verified to true, it can be successfully set done.`;
+        }
+        if (skippedFiles.length) {
+            res += `
+
+These files were not handed to the user, they are either no file, not there or outside the
+workspace: ${skippedFiles.join(', ')}. Copy what the user should get into the workspace first.`;
         }
         return res;
     },

@@ -1,17 +1,27 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type LLMTaskOutput} from '@deepclaw/core';
-import {saveToPublic} from './loop-utils';
+import {publishGeneratedFiles, saveToPublic} from './loop-utils';
 import {PROJECT_TASK_OUTPUT_DIR, PUBLIC} from './paths';
 
 const mocks = vi.hoisted(() => ({
     exists: vi.fn<(path: string) => boolean>(() => true),
     writeFile: vi.fn<(path: string, content: string | Buffer) => string>((path) => path),
     hashString: vi.fn<(text: string) => string>(() => 'hash1234'),
+    readBuffer: vi.fn<(path: string) => Buffer>(path => Buffer.from(`bytes of ${path}`)),
+    isPathInWorkspace: vi.fn<(path: string) => boolean>(() => true),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
-    FileUtils: {exists: mocks.exists, writeFile: mocks.writeFile, hashString: mocks.hashString},
+    FileUtils: {
+        exists: mocks.exists, writeFile: mocks.writeFile, hashString: mocks.hashString,
+        readBuffer: mocks.readBuffer, isPathInWorkspace: mocks.isPathInWorkspace,
+    },
+}));
+
+vi.mock('@deepclaw/i18n', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@deepclaw/i18n')>()),
+    i18nInstance: {t: (key: string) => key},
 }));
 
 const LONG_TEXT = 'x'.repeat(1501);
@@ -97,5 +107,115 @@ describe('saveToPublic', () => {
     test('writes into the folder it was given', () => {
         saveToPublic('c9', newOutput({content: LONG_TEXT}), 'a title', `${PUBLIC}/cron`);
         expect(mocks.writeFile).toHaveBeenCalledWith(`${PUBLIC}/cron/c9/hash1234.txt`, LONG_TEXT);
+    });
+});
+
+describe('publishGeneratedFiles', () => {
+
+    const HEADLINE = 'agent.tools.project.output.generatedFiles';
+
+    function publish(output: NonNullable<LLMTaskOutput>, files: string[]) {
+        return publishGeneratedFiles('t1', output, 'a title', files, PROJECT_TASK_OUTPUT_DIR);
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.exists.mockReturnValue(true);
+        mocks.writeFile.mockImplementation((path) => path);
+        mocks.hashString.mockReturnValue('hash1234');
+        mocks.readBuffer.mockImplementation(path => Buffer.from(`bytes of ${path}`));
+        mocks.isPathInWorkspace.mockReturnValue(true);
+    });
+
+    test('copies the file into a folder of that task', () => {
+        publish(newOutput({type: 'markdown'}), ['out/report.pdf']);
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            `${PROJECT_TASK_OUTPUT_DIR}/t1/hash1234/report.pdf`, Buffer.from('bytes of out/report.pdf')
+        );
+    });
+
+    test('links the copy under the public folder', () => {
+        const output = newOutput({type: 'markdown', content: 'the report'});
+        publish(output, ['out/report.pdf']);
+        expect(output.content).toBe(`the report
+
+## ${HEADLINE}
+- [report.pdf](/projects/t1/hash1234/report.pdf)`);
+    });
+
+    test('links every file it was given', () => {
+        const output = newOutput({type: 'markdown'});
+        publish(output, ['a/one.csv', 'b/two.png']);
+        expect(output.content).toContain('- [one.csv](/projects/t1/hash1234/one.csv)');
+        expect(output.content).toContain('- [two.png](/projects/t1/hash1234/two.png)');
+    });
+
+    test('names the file plainly for a text output, where a link would not be one', () => {
+        const output = newOutput({content: 'the report'});
+        publish(output, ['out/report.pdf']);
+        expect(output.content).toBe(`the report
+
+${HEADLINE}:
+- report.pdf: /projects/t1/hash1234/report.pdf`);
+    });
+
+    test('leaves a binary output alone, its content is bytes', () => {
+        const output = newOutput({type: 'binary', content: 'QUJD'});
+        expect(publish(output, ['out/report.pdf'])).toEqual({
+            published: [], skipped: ['out/report.pdf']
+        });
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(output.content).toBe('QUJD');
+    });
+
+    test('hands nothing over when the public folder is not served', () => {
+        mocks.exists.mockReturnValue(false);
+        const output = newOutput({type: 'markdown', content: 'the report'});
+        expect(publish(output, ['out/report.pdf']).skipped).toEqual(['out/report.pdf']);
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(output.content).toBe('the report');
+    });
+
+    test('skips a file that lies outside the workspace', () => {
+        mocks.isPathInWorkspace.mockImplementation(path => path !== '../../.ssh/id_rsa');
+        const output = newOutput({type: 'markdown'});
+        const {published, skipped} = publish(output, ['../../.ssh/id_rsa', 'out/report.pdf']);
+        expect(published).toEqual(['out/report.pdf']);
+        expect(skipped).toEqual(['../../.ssh/id_rsa']);
+        expect(mocks.readBuffer).not.toHaveBeenCalledWith('../../.ssh/id_rsa');
+    });
+
+    test('skips what cannot be read, a folder as much as a file that is not there', () => {
+        mocks.readBuffer.mockImplementation(path => {
+            if (path === 'out') throw new Error('EISDIR');
+            return Buffer.from('bytes');
+        });
+        const output = newOutput({type: 'markdown'});
+        const {published, skipped} = publish(output, ['out', 'out/report.pdf']);
+        expect(published).toEqual(['out/report.pdf']);
+        expect(skipped).toEqual(['out']);
+        expect(output.content).toContain('- [report.pdf]');
+    });
+
+    test('keeps two files of the same name apart', () => {
+        mocks.hashString.mockImplementation((text: string) => `hash-${text}`);
+        const output = newOutput({type: 'markdown'});
+        publish(output, ['src/README.md', 'docs/README.md']);
+        expect(output.content).toContain('- [README.md](/projects/t1/hash-a title/README.md)');
+        expect(output.content).toContain(
+            '- [hash-docs/README.md-README.md](/projects/t1/hash-a title/hash-docs/README.md-README.md)'
+        );
+    });
+
+    test('copies a file named twice only once', () => {
+        publish(newOutput({type: 'markdown'}), ['out/report.pdf', 'out/report.pdf']);
+        expect(mocks.writeFile).toHaveBeenCalledOnce();
+    });
+
+    test('says nothing in the content when nothing could be handed over', () => {
+        mocks.isPathInWorkspace.mockReturnValue(false);
+        const output = newOutput({type: 'markdown', content: 'the report'});
+        publish(output, ['/etc/passwd']);
+        expect(output.content).toBe('the report');
     });
 });

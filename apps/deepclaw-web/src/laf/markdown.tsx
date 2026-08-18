@@ -12,7 +12,15 @@ function transformUrl(url: string): string {
 export const Markdown = memo(function Markdown({ content }: { content: string }) {
   return (
     <div className="prose prose-sm max-w-none break-words">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={transformUrl}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        urlTransform={transformUrl}
+        components={{
+          // A link is something to follow beside the app, not somewhere to take the app itself:
+          // a report opened over the page loses the page it was read from.
+          a: ({children, ...props}) => <a {...props} target="_blank" rel="noreferrer">{children}</a>,
+        }}
+      >
         {content}
       </ReactMarkdown>
     </div>

@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentIdentity, type Project, type Task, type TaskStepsContext} from '@deepclaw/core';
 import {newTestContext} from '../../../test-support/one-loop-context';
+import {PROJECT_TASK_OUTPUT_DIR} from '../../paths';
 import {AgentIdentityManager} from '../services/agent-identity-manager';
 import {ProjectManager} from '../services/project-manager';
 import {
@@ -13,9 +14,20 @@ import {
     updateTaskCurrentStepTool,
 } from './project-tool';
 
+const mocks = vi.hoisted(() => ({
+    publishGeneratedFiles: vi.fn<
+        (id: string, output: {content: string}, title: string, files: string[], folder: string)
+            => {published: string[], skipped: string[]}
+    >(() => ({published: [], skipped: []})),
+}));
+
 vi.mock('@deepclaw/i18n', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/i18n')>()),
     i18nInstance: {t: (key: string) => key},
+}));
+vi.mock('../../loop-utils', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../loop-utils')>()),
+    publishGeneratedFiles: mocks.publishGeneratedFiles,
 }));
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
@@ -47,6 +59,7 @@ function newProject(overrides: Partial<Project> = {}): Project {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    mocks.publishGeneratedFiles.mockReturnValue({published: [], skipped: []});
     createTask.mockImplementation(info => newTask(info.title));
     createProject.mockReturnValue(newProject());
     updateProject.mockReturnValue(newProject());
@@ -240,6 +253,48 @@ describe('updateTaskTool invoke', () => {
         expect(context.runtime.agentBreakReason).toBeUndefined();
         expect(result).toContain('Task updated successfully.');
         expect(result).not.toContain('verified');
+    });
+
+    test('hands the files of a task over and saves the output with their links', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        mocks.publishGeneratedFiles.mockImplementation((_id, output) => {
+            output.content += '\n\n## files\n- [sheet.csv](/projects/pr1/hash/sheet.csv)';
+            return {published: ['out/sheet.csv'], skipped: []};
+        });
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskTitle: 'design', status: 'done',
+            output: {type: 'markdown', content: '# done', generatedFiles: ['out/sheet.csv']},
+        }, newTestContext());
+        expect(mocks.publishGeneratedFiles).toHaveBeenCalledExactlyOnceWith(
+            'pr1', expect.anything(), 'design', ['out/sheet.csv'], PROJECT_TASK_OUTPUT_DIR
+        );
+        expect(updateTask).toHaveBeenCalledExactlyOnceWith('pr1', {
+            title: 'design',
+            status: 'done',
+            output: {
+                type: 'markdown',
+                content: '# done\n\n## files\n- [sheet.csv](/projects/pr1/hash/sheet.csv)',
+            },
+        }, undefined);
+    });
+
+    test('goes looking for no file when the task named none', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskTitle: 'design', output: {type: 'markdown', content: '# done'},
+        }, newTestContext());
+        expect(mocks.publishGeneratedFiles).not.toHaveBeenCalled();
+    });
+
+    test('says which files never reached the user', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        mocks.publishGeneratedFiles.mockReturnValue({published: [], skipped: ['/tmp/secret.pdf']});
+        const result = await updateTaskTool.invoke({
+            projectId: 'pr1', taskTitle: 'design',
+            output: {type: 'markdown', content: '# done', generatedFiles: ['/tmp/secret.pdf']},
+        }, newTestContext());
+        expect(result).toContain('These files were not handed to the user');
+        expect(result).toContain('/tmp/secret.pdf');
     });
 });
 
