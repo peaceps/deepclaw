@@ -372,21 +372,22 @@ describe('updateTask status transitions', () => {
         expect(task.output).toEqual({type: 'text', content: 'result'});
     });
 
-    /** Filing it away again would write the placeholder of a binary output over its own file. */
+    /** Filing it away again would write the placeholder of the report over the report itself. */
     test('files an output away when it arrives and never again', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         manager.updateTask(id, {title: 'design', status: 'ongoing'});
-        manager.updateTask(id, {title: 'design', output: {type: 'binary', content: 'QUJD'}});
-        expect(mocks.writeFile).toHaveBeenCalledWith(`.projects/${id}/output/hash.out`, expect.anything());
+        const content = 'x'.repeat(1501);
+        manager.updateTask(id, {title: 'design', output: {type: 'text', content}});
+        expect(mocks.writeFile).toHaveBeenCalledWith(`.projects/${id}/output/hash.txt`, content);
         mocks.writeFile.mockClear();
         const {task} = manager.updateTask(id, {title: 'design', status: 'done'});
         expect(mocks.writeFile).not.toHaveBeenCalledWith(
             expect.stringContaining('/output/'), expect.anything()
         );
         expect(task.output).toEqual({
-            type: 'binary',
+            type: 'text',
             content: '<Content saved to file>',
-            path: `/api/file/projects/${id}/output/hash.out`,
+            path: `/api/file/projects/${id}/output/hash.txt`,
         });
     });
 

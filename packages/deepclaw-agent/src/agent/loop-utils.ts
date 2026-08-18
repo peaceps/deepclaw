@@ -12,26 +12,32 @@ export const MAX_GENERATED_FILES = 10;
 
 /**
  * A report too long to carry around is kept as a file of its own and read back when someone opens
- * it, so what stays on the task is the reference rather than the whole of it.
+ * it, so what stays on the task is the reference rather than the whole of it. Filing away happens
+ * once: the placeholder left in place of the report is far too short to be filed again.
  */
 export function fileAwayOutput(
     output: NonNullable<LLMTaskOutput>, folder: string, name: string
 ) {
-    // An output is filed away once. What is left on it then is the placeholder rather than the
-    // content, and a binary output filed a second time would land as the bytes of that placeholder,
-    // written over the file it was kept in.
-    if (output.content === FILED_AWAY) {
+    if (output.content.length <= OUTPUT_LENGTH_LIMIT) {
         return;
     }
-    const outputType = output.type;
-    if (outputType === 'binary' || output.content.length > OUTPUT_LENGTH_LIMIT) {
-        const content = outputType === 'binary' ? Buffer.from(output.content, 'base64')
-            : output.content;
-        const ext = output.ext || getOutputExt(outputType);
-        const path = FileUtils.writeFile(`${folder}/${name}.${ext}`, content);
-        output.content = FILED_AWAY;
-        output.path = FileStore.urlOf(path);
+    const ext = output.ext || getOutputExt(output.type);
+    const path = FileUtils.writeFile(`${folder}/${name}.${ext}`, output.content);
+    output.content = FILED_AWAY;
+    output.path = FileStore.urlOf(path);
+}
+
+/**
+ * Bytes written into a tool call stay in the context of the run for as long as it lives, and base64
+ * of a file runs a third longer than the file itself. What the work produced is written to disk and
+ * handed over from there, so an output that is a file rather than words is turned away.
+ */
+export function requireReadableOutput(output: NonNullable<LLMTaskOutput>): void {
+    if (output.type !== 'binary') {
+        return;
     }
+    throw new Error(`An output carries what the user reads, not the bytes of a file. Write the file
+into the workspace, hand it over in generatedFiles, and say in the content what it holds.`);
 }
 
 /**
@@ -55,10 +61,6 @@ export function keptOutput(
 export function publishGeneratedFiles(
     output: NonNullable<LLMTaskOutput>, files: string[], folder: string
 ): {published: string[], skipped: string[]} {
-    // Bytes have no room for a link, so a binary output has nowhere to hand a file over from.
-    if (output.type === 'binary') {
-        return {published: [], skipped: files};
-    }
     const published: string[] = [];
     // The schema of the tool asks for the cap, only a well behaved model keeps to what it asks.
     const wanted = [...new Set(files)];

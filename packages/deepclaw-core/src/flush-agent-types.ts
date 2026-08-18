@@ -93,6 +93,10 @@ export type AgentRuntime = {
 }
 
 export type LLMTaskOutput = {
+    /**
+     * An output holds what the user reads, so 'binary' is nothing a task can produce any more. It
+     * stands here for the records that were written while it could.
+     */
     type: 'markdown' | 'text' | 'binary';
     content: string;
     path?: string;

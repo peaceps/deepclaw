@@ -300,6 +300,16 @@ describe('updateTaskTool invoke', () => {
         expect(mocks.publishGeneratedFiles).not.toHaveBeenCalled();
     });
 
+    /** A file of the task is handed over from disk, its bytes in the call would only be paid for. */
+    test('turns away an output that carries a file instead of words', async () => {
+        await expect(updateTaskTool.invoke({
+            projectId: 'pr1', taskTitle: 'ship',
+            output: {type: 'binary', content: 'QUJD', generatedFiles: ['out/report.pdf']},
+        }, newTestContext())).rejects.toThrow('not the bytes of a file');
+        expect(mocks.publishGeneratedFiles).not.toHaveBeenCalled();
+        expect(updateTask).not.toHaveBeenCalled();
+    });
+
     /**
      * The run wrote the report a moment ago, and a project of finished tasks carries enough of them
      * to crowd everything else out of the answer, or to have the whole of it truncated.
@@ -326,15 +336,15 @@ describe('updateTaskTool invoke', () => {
         updateTask.mockReturnValue({task: newTask('ship'), stop: false});
         getProjectDetail.mockReturnValue(newProject({tasks: {
             ship: {...newTask('ship'), output: {
-                type: 'binary',
+                type: 'markdown',
                 content: '<Content saved to file>',
-                path: '/api/file/projects/pr1/output/hash1234.out',
+                path: '/api/file/projects/pr1/output/hash1234.md',
             }},
         }}));
         const result = await updateTaskTool.invoke(
             {projectId: 'pr1', taskTitle: 'ship', status: 'done'}, newTestContext()
         );
-        expect(result).toContain('"path":"/api/file/projects/pr1/output/hash1234.out"');
+        expect(result).toContain('"path":"/api/file/projects/pr1/output/hash1234.md"');
         expect(result).toContain('<Content saved to file>');
         expect(result).not.toContain('<Output kept');
     });

@@ -5,7 +5,7 @@ import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
 import { AgentIdentityManager } from "../services/agent-identity-manager";
-import { keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, skippedFilesNote } from "../../loop-utils";
+import { keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, requireReadableOutput, skippedFilesNote } from "../../loop-utils";
 import { projectFilesDir } from "../../paths";
 
 /** Where the report of a task stood in an answer that is not the one to ask for it. */
@@ -342,18 +342,18 @@ give the source dir of the task, also you can start the dev server and provide t
 if possible.`,
                     properties: {
                         type: {
-                            type: 'string', enum: ['markdown', 'text', 'binary'],
+                            type: 'string', enum: ['markdown', 'text'],
                             description: 'Type of the task output.'
                         },
                         content: {
                             type: 'string',
-                            description: `Content of the task output. Binary content should be base64 encoded.
-For binary files and large text/md content, a file will be created on server, the content will be replaced as <Content saved to file> 
-and the file path will be set into the path field.`
+                            description: `Content of the task output, what the user reads of it.
+A file the task produced never goes in here as its bytes: hand it over in generatedFiles instead.`
                         },
                         ext: {
                             type: 'string',
-                            description: 'A proper extension for the file, e.g. "txt", "md", "pdf", "jpg", "png", "mp4", etc.'
+                            description: `The extension of the file a large content is filed into,
+"md" for markdown and "txt" for text unless the content is really something else, e.g. "csv".`
                         },
                         generatedFiles: {
                             type: 'array',
@@ -387,6 +387,7 @@ Only files inside the workspace can be handed over, and only files, not folders.
         let skippedFiles: string[] = [];
         if (input.output) {
             const {generatedFiles, ...output} = input.output;
+            requireReadableOutput(output);
             // The links go in before the output is filed away, so the saved report carries them.
             if (generatedFiles?.length) {
                 skippedFiles = publishGeneratedFiles(

@@ -1,6 +1,8 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type LLMTaskOutput} from '@deepclaw/core';
-import {fileAwayOutput, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles} from './loop-utils';
+import {
+    fileAwayOutput, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, requireReadableOutput
+} from './loop-utils';
 import {cronOutputDir, projectFilesDir, projectOutputDir} from './paths';
 
 const mocks = vi.hoisted(() => ({
@@ -42,10 +44,6 @@ function newOutput(overrides: Partial<LLMTaskOutput> = {}): NonNullable<LLMTaskO
     return {type: 'text', content: 'short output', ...overrides};
 }
 
-function writtenContent(): string | Buffer {
-    return mocks.writeFile.mock.calls[0]![1];
-}
-
 describe('fileAwayOutput', () => {
 
     beforeEach(() => {
@@ -78,19 +76,6 @@ describe('fileAwayOutput', () => {
         expect(mocks.writeFile).toHaveBeenCalledWith(expect.stringContaining('.md'), LONG_TEXT);
     });
 
-    test('saves a binary output no matter how short it is', () => {
-        const output = newOutput({type: 'binary', content: Buffer.from('hi').toString('base64')});
-        fileAwayOutput(output, projectOutputDir('pr1'), 'n');
-        expect(mocks.writeFile).toHaveBeenCalledOnce();
-        expect(writtenContent().toString('utf8')).toBe('hi');
-        expect(output.content).toBe('<Content saved to file>');
-    });
-
-    test('falls back to the out extension for a binary output', () => {
-        fileAwayOutput(newOutput({type: 'binary', content: ''}), projectOutputDir('pr1'), 'n');
-        expect(mocks.writeFile).toHaveBeenCalledWith(expect.stringContaining('.out'), expect.anything());
-    });
-
     test('prefers the extension the task asked for', () => {
         fileAwayOutput(newOutput({content: LONG_TEXT, ext: 'csv'}), projectOutputDir('pr1'), 'n');
         expect(mocks.writeFile).toHaveBeenCalledWith(expect.stringContaining('.csv'), LONG_TEXT);
@@ -102,16 +87,29 @@ describe('fileAwayOutput', () => {
     });
 
     /**
-     * Filing away is not repeatable: what is left on the output is the placeholder, and a binary one
-     * would land as the bytes of that placeholder, written over the file it was kept in.
+     * Filing away rests on the placeholder being shorter than what is worth filing: a second pass
+     * over a filed output would otherwise write that placeholder over the report it stands for.
      */
     test('leaves an output that was filed away already alone', () => {
-        const output = newOutput({type: 'binary', content: Buffer.from('hi').toString('base64')});
+        const output = newOutput({content: LONG_TEXT});
         fileAwayOutput(output, projectOutputDir('pr1'), 'hash1234');
         const filed = {...output};
         fileAwayOutput(output, projectOutputDir('pr1'), 'hash1234');
         expect(mocks.writeFile).toHaveBeenCalledOnce();
         expect(output).toEqual(filed);
+    });
+});
+
+describe('requireReadableOutput', () => {
+
+    test('turns away an output that carries the bytes of a file', () => {
+        expect(() => requireReadableOutput(newOutput({type: 'binary', content: 'QUJD'})))
+            .toThrow('not the bytes of a file');
+    });
+
+    test('lets what the user can read through', () => {
+        expect(() => requireReadableOutput(newOutput({type: 'markdown'}))).not.toThrow();
+        expect(() => requireReadableOutput(newOutput())).not.toThrow();
     });
 });
 
@@ -125,8 +123,8 @@ describe('keptOutput', () => {
     });
 
     test('keeps what the output is and where it lies', () => {
-        expect(keptOutput(newOutput({type: 'binary', content: 'QUJD', ext: 'pdf'}), KEPT))
-            .toEqual({type: 'binary', content: KEPT, ext: 'pdf'});
+        expect(keptOutput(newOutput({type: 'markdown', content: '# the report', ext: 'csv'}), KEPT))
+            .toEqual({type: 'markdown', content: KEPT, ext: 'csv'});
     });
 
     /** A path is only ever set by filing away, and what it was set on holds no words any more. */
@@ -273,15 +271,6 @@ describe('publishGeneratedFiles', () => {
 
 ${HEADLINE}:
 - report.pdf: ${URL_OF_FILES}/report.pdf`);
-    });
-
-    test('leaves a binary output alone, its content is bytes', () => {
-        const output = newOutput({type: 'binary', content: 'QUJD'});
-        expect(publish(output, ['out/report.pdf'])).toEqual({
-            published: [], skipped: ['out/report.pdf']
-        });
-        expect(mocks.writeFile).not.toHaveBeenCalled();
-        expect(output.content).toBe('QUJD');
     });
 
     test('skips a file that lies outside the workspace', () => {

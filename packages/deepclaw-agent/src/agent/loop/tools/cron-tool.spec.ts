@@ -119,6 +119,14 @@ describe('updateCronOutputTool invoke', () => {
         );
     });
 
+    /** A file of the run is handed over from disk, its bytes in the call would only be paid for. */
+    test('turns away an output that carries a file instead of words', async () => {
+        await expect(updateCronOutputTool.invoke({
+            id: 'c1', output: {type: 'binary', content: 'QUJD', generatedFiles: ['out/digest.csv']},
+        }, newTestContext())).rejects.toThrow('not the bytes of a file');
+        expect(updateCronOutput).not.toHaveBeenCalled();
+    });
+
     /**
      * The run recorded its report a moment ago, and every run before it carries one of its own: read
      * back together they crowd everything else out of the answer, or truncate the whole of it.
@@ -140,14 +148,14 @@ describe('updateCronOutputTool invoke', () => {
     /** An output already filed away has no words left in it, and the path is how it is read. */
     test('leaves an output that was filed away as it lies', async () => {
         getCronTaskDetail.mockReturnValue(cronTask({histories: [newHistory({output: {
-            type: 'binary',
+            type: 'markdown',
             content: '<Content saved to file>',
-            path: '/api/file/cron/c1/output/1755000000000.out',
+            path: '/api/file/cron/c1/output/1755000000000.md',
         }})]}));
         const result = await updateCronOutputTool.invoke(
             {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
         );
-        expect(result).toContain('"path":"/api/file/cron/c1/output/1755000000000.out"');
+        expect(result).toContain('"path":"/api/file/cron/c1/output/1755000000000.md"');
         expect(result).toContain('<Content saved to file>');
         expect(result).not.toContain('<Output kept>');
     });

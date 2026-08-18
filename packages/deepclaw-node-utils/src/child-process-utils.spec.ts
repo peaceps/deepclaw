@@ -1,7 +1,29 @@
-import {describe, expect, test} from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {afterEach, describe, expect, test, vi} from 'vitest';
 import {childProcessTimeout, runCommand, runCommandAsync} from './child-process-utils';
 
 describe('runCommandAsync', () => {
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    /**
+     * The web ui is a server started from wherever it was installed, so a relative path in a
+     * command has to be read against the data root the rest of the app reads it against.
+     */
+    test('runs where the data root is, not where the process was started', async () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'deepclaw-cwd-'));
+        vi.stubEnv('DEEPCLAW_HOME', home);
+        try {
+            const {output} = await runCommandAsync(`node -e "process.stdout.write(process.cwd())"`);
+            expect(fs.realpathSync(output)).toBe(fs.realpathSync(home));
+        } finally {
+            fs.rmSync(home, {recursive: true, force: true});
+        }
+    });
 
     test('returns the trimmed stdout of the command', async () => {
         const {output} = await runCommandAsync('echo deepclaw');

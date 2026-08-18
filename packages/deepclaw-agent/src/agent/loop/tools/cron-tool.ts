@@ -3,7 +3,7 @@ import { FileStore } from "@deepclaw/node-utils";
 import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
-import { keptOutput, MAX_GENERATED_FILES, skippedFilesNote } from "../../loop-utils";
+import { keptOutput, MAX_GENERATED_FILES, requireReadableOutput, skippedFilesNote } from "../../loop-utils";
 
 /** Where the report of a run stood in an answer that is not the one to ask for it. */
 const OUTPUT_KEPT = '<Output kept, read it with get_cron_histories>';
@@ -121,18 +121,19 @@ export const updateCronOutputTool: ToolDesc<UpdateCronOutputInput> = {
                     additionalProperties: false,
                     properties: {
                         type: {
-                            type: 'string', enum: ['markdown', 'text', 'binary'],
+                            type: 'string', enum: ['markdown', 'text'],
                             description: 'Type of the cron task output.'
                         },
                         content: {
                             type: 'string',
-                            description: `Content of the cron task output. Binary content should be base64 encoded.
-For binary files and large text/md content, a file will be created on server, the content will be replaced as <Content saved to file> 
-and the file path will be set into the path field.`
+                            description: `Content of the cron task output, what the user reads of
+this run. Large content is filed away into a file of its own, so there is no size to work around.
+A file this run produced never goes in here as its bytes: hand it over in generatedFiles instead.`
                         },
                         ext: {
                             type: 'string',
-                            description: 'A proper extension for the file, e.g. "txt", "md", "pdf", "jpg", "png", "mp4", etc.'
+                            description: `The extension of the file a large content is filed into,
+"md" for markdown and "txt" for text unless the content is really something else, e.g. "csv".`
                         },
                         generatedFiles: {
                             type: 'array',
@@ -157,6 +158,7 @@ Only files inside the workspace can be handed over, and only files, not folders.
     loopKinds: ['main'],
     invoke: async function(input: UpdateCronOutputInput): Promise<string> {
         const {generatedFiles, ...output} = input.output;
+        requireReadableOutput(output);
         const {skipped} = CronService.updateCronOutput(input.id, output, generatedFiles);
         return `Cron output updated successfully, here\'s the detail with last max ${MAX_DISPLAY_HISTORIES} histories:
 ${cronTaskAfterWrite(input.id)}${skippedFilesNote(skipped)}`;
