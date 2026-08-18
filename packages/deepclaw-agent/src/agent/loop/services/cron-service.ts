@@ -203,7 +203,7 @@ class CronServiceImpl {
         }
         // The links go in before the output is filed away, so the saved report carries them.
         const skipped = generatedFiles?.length
-            ? publishGeneratedFiles(output, generatedFiles, cronFilesDir(id), id).skipped : [];
+            ? publishGeneratedFiles(output, generatedFiles, cronFilesDir(id)).skipped : [];
         fileAwayOutput(output, cronOutputDir(id), String(history.start));
         return {skipped};
     }

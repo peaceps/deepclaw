@@ -9,9 +9,6 @@ const mocks = vi.hoisted(() => ({
     readBuffer: vi.fn<(path: string) => Buffer>(path => Buffer.from(`bytes of ${path}`)),
     isPathInWorkspace: vi.fn<(path: string) => boolean>(() => true),
     isFile: vi.fn<(path: string) => boolean>(() => true),
-    saveImage: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
-        (_bytes, extension, loopId) => `${loopId}/imagehash.${extension}`
-    ),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => {
@@ -28,7 +25,6 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
             getAbsolutePath: real.getAbsolutePath.bind(real),
             isPathInside: real.isPathInside.bind(real),
         },
-        ImageStore: {save: mocks.saveImage},
     };
 });
 
@@ -110,7 +106,7 @@ describe('publishGeneratedFiles', () => {
     const HEADLINE = 'agent.tools.project.output.generatedFiles';
 
     function publish(output: NonNullable<LLMTaskOutput>, files: string[]) {
-        return publishGeneratedFiles(output, files, FILES, 'pr1');
+        return publishGeneratedFiles(output, files, FILES);
     }
 
     /** Nothing has been filed under the project yet, so only what a run points at can be read. */
@@ -128,9 +124,6 @@ describe('publishGeneratedFiles', () => {
         mocks.readBuffer.mockImplementation(filed);
         mocks.isPathInWorkspace.mockReturnValue(true);
         mocks.isFile.mockReturnValue(true);
-        mocks.saveImage.mockImplementation(
-            (_bytes, extension, loopId) => `${loopId}/imagehash.${extension}`
-        );
     });
 
     test('copies a file from elsewhere into the folder the project hands over from', () => {
@@ -188,31 +181,37 @@ describe('publishGeneratedFiles', () => {
     test('shows a picture in the output instead of linking it', () => {
         const output = newOutput({type: 'markdown', content: 'the report'});
         expect(publish(output, ['out/chart.png']).published).toEqual(['out/chart.png']);
-        expect(mocks.saveImage).toHaveBeenCalledExactlyOnceWith(
-            Buffer.from('bytes of out/chart.png'), 'png', 'pr1'
-        );
         expect(output.content).toBe(`the report
 
 ## ${HEADLINE}
-- ![chart.png](dcimg://pr1/imagehash.png)`);
+- ![chart.png](${URL_OF_FILES}/chart.png)`);
     });
 
-    test('keeps a picture out of the files folder, the store holds it', () => {
+    /** A picture is a file of the run like any other, and one folder holds what a run produced. */
+    test('files a picture where the other files of the run go', () => {
         publish(newOutput({type: 'markdown'}), ['out/chart.png']);
-        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            `${FILES}/chart.png`, Buffer.from('bytes of out/chart.png')
+        );
     });
 
-    test('links a picture beside a report that has no markdown to show it in', () => {
+    test('shows a picture that already lies in that folder without copying it', () => {
+        const output = newOutput({type: 'markdown'});
+        publish(output, [`${FILES}/chart.png`]);
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(output.content).toContain(`- ![chart.png](${URL_OF_FILES}/chart.png)`);
+    });
+
+    test('names a picture beside a report that has no markdown to show it in', () => {
         const output = newOutput({content: 'the report'});
         publish(output, ['out/chart.png']);
-        expect(mocks.saveImage).not.toHaveBeenCalled();
         expect(output.content).toContain(`- chart.png: ${URL_OF_FILES}/chart.png`);
     });
 
     test('tells a picture apart by its name, whatever else was handed over', () => {
         const output = newOutput({type: 'markdown'});
         publish(output, ['a/shot.jpeg', 'b/sheet.csv']);
-        expect(output.content).toContain('- ![shot.jpeg](dcimg://pr1/imagehash.jpg)');
+        expect(output.content).toContain(`- ![shot.jpeg](${URL_OF_FILES}/shot.jpeg)`);
         expect(output.content).toContain(`- [sheet.csv](${URL_OF_FILES}/sheet.csv)`);
     });
 

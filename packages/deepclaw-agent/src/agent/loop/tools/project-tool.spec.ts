@@ -16,7 +16,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
     publishGeneratedFiles: vi.fn<
-        (output: {content: string}, files: string[], folder: string, imageOwner: string)
+        (output: {content: string}, files: string[], folder: string)
             => {published: string[], skipped: string[]}
     >(() => ({published: [], skipped: []})),
 }));
@@ -266,7 +266,7 @@ describe('updateTaskTool invoke', () => {
             output: {type: 'markdown', content: '# done', generatedFiles: ['out/sheet.csv']},
         }, newTestContext());
         expect(mocks.publishGeneratedFiles).toHaveBeenCalledExactlyOnceWith(
-            expect.anything(), ['out/sheet.csv'], projectFilesDir('pr1'), 'pr1'
+            expect.anything(), ['out/sheet.csv'], projectFilesDir('pr1')
         );
         expect(updateTask).toHaveBeenCalledExactlyOnceWith('pr1', {
             title: 'design',

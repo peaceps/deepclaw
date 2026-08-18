@@ -377,7 +377,7 @@ Only files inside the workspace can be handed over, and only files, not folders.
             // The links go in before the output is filed away, so the saved report carries them.
             if (generatedFiles?.length) {
                 skippedFiles = publishGeneratedFiles(
-                    output, generatedFiles, projectFilesDir(input.projectId), input.projectId
+                    output, generatedFiles, projectFilesDir(input.projectId)
                 ).skipped;
             }
             taskInfo.output = output;

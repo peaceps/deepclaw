@@ -1,5 +1,5 @@
-import { imageExtensionOf, newImageRef, type LLMTaskOutput } from "@deepclaw/core";
-import { FileStore, FileUtils, ImageStore } from "@deepclaw/node-utils";
+import { imageExtensionOf, type LLMTaskOutput } from "@deepclaw/core";
+import { FileStore, FileUtils } from "@deepclaw/node-utils";
 import { i18nInstance } from "@deepclaw/i18n";
 
 const OUTPUT_LENGTH_LIMIT = 1500;
@@ -31,7 +31,7 @@ export function fileAwayOutput(
  * file becomes something they can just click, and a picture is shown in the output instead.
  */
 export function publishGeneratedFiles(
-    output: NonNullable<LLMTaskOutput>, files: string[], folder: string, imageOwner: string
+    output: NonNullable<LLMTaskOutput>, files: string[], folder: string
 ): {published: string[], skipped: string[]} {
     // Bytes have no room for a link, so a binary output has nowhere to hand a file over from.
     if (output.type === 'binary') {
@@ -50,7 +50,7 @@ export function publishGeneratedFiles(
             continue;
         }
         try {
-            lines.push(lineOf(output.type, file, folder, names, imageOwner));
+            lines.push(handOver(output.type, file, folder, names));
             published.push(file);
         } catch {
             // A folder, a file that is not there, a file that cannot be read: none to hand over.
@@ -65,31 +65,24 @@ export function publishGeneratedFiles(
 }
 
 /**
- * A picture is worth more shown than offered: it goes into the store every picture of a chat
- * travels through, and the reference to it is what draws it where the output is read. Only a
- * markdown output can show one, a text output has nowhere to put a picture but a path.
+ * Puts one file where the user can reach it and says how the output names it from there. Every
+ * file of a run ends up in the same folder, a picture as much as a report: one place holds what
+ * the work produced, and what the project is deleted with takes its pictures along.
  */
-function lineOf(
-    outputType: NonNullable<LLMTaskOutput>['type'], file: string, folder: string,
-    taken: Set<string>, imageOwner: string
+function handOver(
+    outputType: NonNullable<LLMTaskOutput>['type'], file: string, folder: string, taken: Set<string>
 ): string {
-    const inPlace = pathInFolder(file, folder);
-    const base = FileUtils.sanitizeFileName(baseName(inPlace ?? file));
-    const extension = imageExtensionOf(base);
-    if (outputType === 'markdown' && extension) {
-        const bytes = FileUtils.readBuffer(file);
-        return `- ![${base}](${newImageRef(ImageStore.save(bytes, extension, imageOwner))})`;
-    }
     // A file written where the hand over lives is handed over as it lies: a copy beside itself
     // is a second file to keep in step with the first.
+    const inPlace = pathInFolder(file, folder);
     if (inPlace) {
         if (!FileUtils.isFile(file)) {
             throw new Error(`${file} is no file to hand over.`);
         }
-        return linkOf(outputType, base, FileStore.urlOf(inPlace));
+        return linkOf(outputType, baseName(inPlace), FileStore.urlOf(inPlace));
     }
     const bytes = FileUtils.readBuffer(file);
-    const name = freeName(base, file, bytes, folder, taken);
+    const name = freeName(FileUtils.sanitizeFileName(baseName(file)), file, bytes, folder, taken);
     const copied = FileUtils.writeFile(`${folder}/${name}`, bytes);
     return linkOf(outputType, name, FileStore.urlOf(copied));
 }
@@ -111,8 +104,15 @@ function headlineOf(outputType: NonNullable<LLMTaskOutput>['type']): string {
     return outputType === 'markdown' ? `## ${headline}` : `${headline}:`;
 }
 
+/**
+ * A picture is worth more shown than offered, and markdown is the only output that can show one:
+ * a text output has nowhere to put a picture but a path.
+ */
 function linkOf(outputType: NonNullable<LLMTaskOutput>['type'], name: string, url: string): string {
-    return outputType === 'markdown' ? `- [${name}](${url})` : `- ${name}: ${url}`;
+    if (outputType !== 'markdown') {
+        return `- ${name}: ${url}`;
+    }
+    return imageExtensionOf(name) ? `- ![${name}](${url})` : `- [${name}](${url})`;
 }
 
 /**
