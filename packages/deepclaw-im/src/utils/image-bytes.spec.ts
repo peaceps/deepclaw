@@ -44,6 +44,12 @@ describe('imageBytes', () => {
         expect(mocks.readFile).toHaveBeenCalledWith('projects/p1/files/Q3 chart.png');
     });
 
+    /** Everything a run files is linked the same way, and a report is nothing to send as an image. */
+    test('carries nothing for a file that is no picture', () => {
+        expect(imageBytes('/api/file/projects/p1/output/report.pdf')).toBeNull();
+        expect(mocks.readFile).not.toHaveBeenCalled();
+    });
+
     test('decodes a picture that only exists in the answer', () => {
         expect(imageBytes('data:image/png;base64,QUJD')).toEqual(Buffer.from('ABC'));
     });

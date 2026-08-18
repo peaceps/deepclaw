@@ -1,8 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import process from 'node:process';
-import {afterAll, beforeAll, describe, expect, test} from 'vitest';
+import {afterAll, beforeAll, describe, expect, test, vi} from 'vitest';
 import {FileStore} from '@deepclaw/node-utils';
 import {
     AGENTS_DIR, CRON_DIR, FILES_DIR, OUTPUT_DIR, PROJECT_DIR, SKILLS, SKILLS_DIR,
@@ -41,16 +40,16 @@ describe('derived paths', () => {
  * with nothing.
  */
 describe('the folders a run hands over from, as the store sees them', () => {
-    const originCwd = process.cwd();
     let tempDir = '';
 
     beforeAll(() => {
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepclaw-paths-'));
-        process.chdir(tempDir);
+        // The data root is named by the environment, and a test of it says which one it means.
+        vi.stubEnv('DEEPCLAW_HOME', tempDir);
     });
 
     afterAll(() => {
-        process.chdir(originCwd);
+        vi.unstubAllEnvs();
         fs.rmSync(tempDir, {recursive: true, force: true});
     });
 

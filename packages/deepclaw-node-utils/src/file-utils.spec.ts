@@ -54,6 +54,21 @@ describe('FileUtils', () => {
         expect(FileUtils.isPathInWorkspace('../outside-by-traversal.txt')).toBe(false);
     });
 
+    /**
+     * A name is read with the separators of every system, since that is how it is written to disk.
+     * Asking of the name as it stands and writing it as something else would let a path that was
+     * allowed lead somewhere nobody allowed.
+     */
+    test('isPathInWorkspace returns false for traversal written with backslashes', () => {
+        expect(FileUtils.isPathInWorkspace('..\\..\\outside-by-traversal.txt')).toBe(false);
+        expect(FileUtils.isPathInside(tempDir, 'nested\\..\\..\\outside.txt')).toBe(false);
+    });
+
+    test('getAbsolutePath answers with the path a name is written to disk under', () => {
+        expect(FileUtils.getAbsolutePath('tmp\\nested\\..\\note.md'))
+            .toBe(FileUtils.getAbsolutePath('tmp/note.md'));
+    });
+
     test('isPathInWorkspace returns true for deepclaw temp path', () => {
         const tmpPath = path.join(os.tmpdir(), '.deepclaw', 'subloop', 'sid', 'messages.json');
         expect(FileUtils.isPathInWorkspace(tmpPath)).toBe(true);

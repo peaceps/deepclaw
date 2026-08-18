@@ -38,6 +38,10 @@ function headersOf(key: string, tag: string): Record<string, string> {
  * read everything the user keeps here. The sandbox leaves it an origin of its own, where its
  * scripts are welcome to run and reach nothing of ours. Only what runs is put there, a viewer for
  * a pdf is part of the browser and a sandbox turns it into a download.
+ *
+ * The other half of it is that a name nobody named a type for is served as bytes, which nosniff
+ * holds the browser to: an .htm and an .xhtml are downloads rather than pages of ours. So is an
+ * .svg today, and it is named here for the day it is given a type of its own.
  */
 function runs(mediaType: string): boolean {
     return mediaType.startsWith('text/html') || mediaType.includes('svg');

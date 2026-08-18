@@ -3,7 +3,8 @@ import {type CronJobHistory, type CronTask} from '@deepclaw/core';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {CronService, MAX_DISPLAY_HISTORIES} from '../services/cron-service';
 import {
-    createCronTaskTool, getCronHistoriesTool, updateCronOutputTool, updateCronTaskTool
+    createCronTaskTool, getCronHistoriesTool, HISTORIES_READ_MAX, updateCronOutputTool,
+    updateCronTaskTool
 } from './cron-tool';
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -190,7 +191,8 @@ describe('getCronHistoriesTool invoke', () => {
     /** One answer carries every report it names, and a record of a year is no answer. */
     test('reads back no more runs than one answer may carry', async () => {
         await getCronHistoriesTool.invoke({id: 'c1', limit: 50}, newTestContext());
-        expect(getCronHistories).toHaveBeenCalledWith('c1', Number.MAX_SAFE_INTEGER, MAX_DISPLAY_HISTORIES + 1);
+        expect(getCronHistories)
+            .toHaveBeenCalledWith('c1', Number.MAX_SAFE_INTEGER, HISTORIES_READ_MAX + 1);
     });
 
     /**
@@ -205,6 +207,21 @@ describe('getCronHistoriesTool invoke', () => {
         const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 1}, newTestContext());
         expect(result).toContain('the digest of monday');
         expect(JSON.parse(result)).toHaveLength(1);
+    });
+
+    /**
+     * A run records its report before it is over, and the answer to that write points here for the
+     * words of it. Held back for not being over yet, the one report named there is the one report
+     * that could not be read, and a filed one is reachable no other way from inside that run.
+     */
+    test('reads back the run that is still going once it has reported', async () => {
+        getCronHistories.mockReturnValue([newHistory({start: 1755086400000, output: {
+            type: 'markdown',
+            content: '<Content saved to file>',
+            path: '/api/file/cron/c1/output/1755086400000.md',
+        }})]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 1}, newTestContext());
+        expect(result).toContain('"file":".cron/c1/output/1755086400000.md"');
     });
 
     test('says so when the task has nothing to read back', async () => {

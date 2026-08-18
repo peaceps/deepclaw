@@ -1,28 +1,28 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import process from 'node:process';
-import {afterAll, beforeAll, describe, expect, test} from 'vitest';
+import {afterAll, beforeAll, describe, expect, test, vi} from 'vitest';
 import { FileStore } from './file-store';
 
 const REPORT = Buffer.from('the report of the third quarter');
 
 describe('FileStore', () => {
-    const originCwd = process.cwd();
     let tempDir = '';
 
     beforeAll(() => {
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepclaw-files-'));
-        process.chdir(tempDir);
+        // The data root is named by the environment, and a test of it says which one it means.
+        vi.stubEnv('DEEPCLAW_HOME', tempDir);
         write('.projects/p1/files/Q3 report.pdf', REPORT);
         write('.projects/p1/files/a&b (v2..final).csv', Buffer.from('a,b'));
+        write('.projects/p1/files/charts/q3.csv', Buffer.from('q,3'));
         write('.projects/p1/output/hash1234.md', Buffer.from('# the report'));
         write('.cron/c1/files/digest.csv', Buffer.from('a,b'));
         write('.agents/a1/SOUL.json', Buffer.from('{}'));
     });
 
     afterAll(() => {
-        process.chdir(originCwd);
+        vi.unstubAllEnvs();
         fs.rmSync(tempDir, {recursive: true, force: true});
     });
 
@@ -94,6 +94,27 @@ describe('FileStore', () => {
     test('refuses a key that tries to walk out of the store', () => {
         expect(FileStore.read('projects/p1/files/../../../.agents/a1/SOUL.json')).toBeNull();
         expect(FileStore.read('../../etc/passwd')).toBeNull();
+    });
+
+    /**
+     * A backslash is what a path is written with on Windows, where such a key walks out of the
+     * folders that are served while reading as though it stayed in them.
+     */
+    test('refuses a key that walks out the way another system writes a path', () => {
+        const key = 'projects/p1/files/..\\..\\..\\.agents/a1/SOUL.json';
+        // Where such a key comes out is the system it is resolved on, so it is named nowhere here.
+        expect(FileStore.fileOf(`/api/file/${key}`)).toBeNull();
+        expect(FileStore.tagOf(key)).toBeNull();
+        expect(FileStore.read(key)).toBeNull();
+    });
+
+    /**
+     * Where a key comes out is what says whether it may be served, and that is asked of whoever
+     * resolves it rather than of the letters of the key: a step aside inside the store is a step.
+     */
+    test('refuses a key that names one file and comes out at another', () => {
+        expect(FileStore.read('projects/p1/files/charts/../../output/hash1234.md')).toBeNull();
+        expect(FileStore.read('projects/p1/files/charts/../Q3 report.pdf')).toBeNull();
     });
 
     /** The name of a file is reused by the next run, so it is no answer to whether it changed. */

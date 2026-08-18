@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import { FileUtils } from './file-utils';
 
 /** Where the files are asked for, the half of the mapping that a key is the other half of. */
@@ -58,7 +59,8 @@ export class FileStore {
 
     /**
      * The path a url of ours was made from, or null for any other url. A link is how a file
-     * reaches the user, and nothing an agent can follow: it opens the file where it lies.
+     * reaches the user, and nothing an agent can follow: it opens the file where it lies. Whether
+     * anything lies there is left to whoever opens it, this is the name of a place and no visit.
      */
     public static fileOf(url: string): string | null {
         const key = this.keyOf(url);
@@ -104,13 +106,20 @@ export class FileStore {
      * The file a key names, or null for a key that names none of ours. It is read as it lies
      * rather than under a name cleaned up for writing: a run writes into the folder with a shell
      * of its own, and the characters that writing through us drops are the file here.
+     *
+     * What a key is allowed to be cannot be settled by reading it, only by resolving it and asking
+     * what came out: every separator, on this system and on the next one, is the business of the
+     * one who resolves. A key that comes back as it went in walks nowhere, and one that comes back
+     * as something else is refused whatever it did to get there. So a name may carry two dots in
+     * the middle of it, and a step out of the folders that are served survives no comparison.
      */
     private static pathOf(key: string): string | null {
-        const path = `.${key}`;
-        if (key.split('/').includes('..') || !SERVED.test(key)
-            || !FileUtils.isPathInside(FileUtils.getWorkingDir(), path)) {
+        // A backslash separates on Windows, and is a rare thing to name a file with anywhere else.
+        if (key.includes('\\') || !SERVED.test(key)) {
             return null;
         }
-        return FileUtils.getAbsolutePath(path);
+        const file = FileUtils.getAbsolutePath(`.${key}`);
+        const inside = path.relative(FileUtils.getWorkingDir(), file).replace(/\\/g, '/');
+        return inside === `.${key}` ? file : null;
     }
 }

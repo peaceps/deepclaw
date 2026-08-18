@@ -151,7 +151,7 @@ export class FileUtils {
 
     public static isPathInside(baseDir: string, targetPath: string): boolean {
         let base = this.getAbsolutePath(baseDir);
-        let target = this.formatSlash(path.resolve(base, targetPath));
+        let target = this.formatSlash(path.resolve(base, this.formatSlash(targetPath)));
         if (process.platform === 'win32' || process.platform === 'darwin') {
             base = base.toLowerCase();
             target = target.toLowerCase();
@@ -186,9 +186,15 @@ export class FileUtils {
         return candidates.find(candidate => fs.existsSync(candidate)) ?? null;
     }
 
-    /** The path a name really means, since a relative one is read against the data root. */
+    /**
+     * The path a name really means, since a relative one is read against the data root. A
+     * backslash in it is a separator before anything is resolved rather than after: written the
+     * other way round, a step out of a folder would survive the resolving as two dots of a name
+     * and become a step again on the way to disk, where whoever allowed the name never saw it.
+     */
     public static getAbsolutePath(relativePath: string): string {
-        return this.formatSlash(path.isAbsolute(relativePath) ? relativePath : path.resolve(this.getWorkingDir(), relativePath));
+        const named = this.formatSlash(relativePath);
+        return this.formatSlash(path.isAbsolute(named) ? named : path.resolve(this.getWorkingDir(), named));
     }
 
     public static ensureFileExist(filePath: string, content: string = ''): void {

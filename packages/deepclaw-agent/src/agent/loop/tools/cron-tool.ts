@@ -11,6 +11,12 @@ const OUTPUT_KEPT = '<Output kept, read it with get_cron_histories>';
 /** How many runs are read back for a caller that does not say, out of a record of any length. */
 const HISTORIES_READ = 3;
 
+/**
+ * How many runs one answer may carry, whatever the caller asks for. What a page of the ui holds is
+ * a question of its own and happens to be answered with the same number.
+ */
+export const HISTORIES_READ_MAX = 10;
+
 /** The task as an answer to a write of it, with what its runs reported left out. */
 function cronTaskAfterWrite(id: string): string {
     const cronTask = CronService.getCronTaskDetail(id);
@@ -169,7 +175,7 @@ and read from there.`,
                 id: {type: 'string', description: 'The id of the cron task'},
                 limit: {
                     type: 'number',
-                    description: `How many runs to read back, ${HISTORIES_READ} by default and ${MAX_DISPLAY_HISTORIES} at most. Every report asked for is carried in the answer, so ask for the ones the work needs.`
+                    description: `How many runs to read back, ${HISTORIES_READ} by default and ${HISTORIES_READ_MAX} at most. Every report asked for is carried in the answer, so ask for the ones the work needs.`
                 },
                 before: {
                     type: 'number',
@@ -183,11 +189,13 @@ and read from there.`,
     agentMode: ['agent'],
     loopKinds: ['main'],
     invoke: async function(input: GetCronHistoriesInput): Promise<string> {
-        const limit = Math.min(Math.max(input.limit || HISTORIES_READ, 1), MAX_DISPLAY_HISTORIES);
-        // The run that asks is a history of its own by then, and one with nothing to report yet.
+        const limit = Math.min(Math.max(input.limit || HISTORIES_READ, 1), HISTORIES_READ_MAX);
+        // The run that asks is a history of its own by then, and one that has nothing to report
+        // until it records something. What it did record is its own to read back: a report long
+        // enough to be filed is reachable no other way from inside the run that wrote it.
         const histories = CronService.getCronHistories(
             input.id, input.before || Number.MAX_SAFE_INTEGER, limit + 1
-        ).filter(history => history.completed).slice(0, limit);
+        ).filter(history => history.completed || history.output).slice(0, limit);
         if (!histories.length) {
             return 'This cron task has no finished run to read back.';
         }
