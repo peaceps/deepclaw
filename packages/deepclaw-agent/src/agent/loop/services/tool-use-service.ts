@@ -2,6 +2,7 @@ import { FileUtils } from '@deepclaw/node-utils';
 import { ToolUseResult, ToolUseDef, ToolDesc } from "../../definitions/tool-definitions";
 import { isSpawnedLoop, OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
+import { TRUNCATE_THRESHOLD } from '../../loop-utils';
 import { ToolsManager } from './tools-manager';
 import { HookManager } from './hook-manager';
 import { isInternalInterruptReason } from '@deepclaw/core';
@@ -15,7 +16,6 @@ export type ToolUseServiceResult = {
 /** What a guard that had to ask ends up with, once the user answered or the guard changed its mind. */
 type GuardVerdict = {answer: 'allowed' | 'rejected'} | {answer: 'denied', reason: string};
 
-const TRUNCATE_THRESHOLD = 20000;
 const PREVIEW_CHAR_LENGTH = 1000;
 const MAX_PARALLEL_TOOL_CALLS = 5;
 

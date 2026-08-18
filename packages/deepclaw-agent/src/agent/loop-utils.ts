@@ -4,6 +4,14 @@ import { i18nInstance } from "@deepclaw/i18n";
 
 const OUTPUT_LENGTH_LIMIT = 1500;
 
+/**
+ * How long an answer of a tool may be before it is filed away and comes back as a preview and a
+ * path. It lives here rather than beside the filing itself because whoever builds an answer out of
+ * things of any length has to keep under it: a tool that budgets what it carries has no other
+ * number to budget against, and one that does not is answering with a preview of itself.
+ */
+export const TRUNCATE_THRESHOLD = 20000;
+
 /** What is left where the content of an output was, once the content lies in a file of its own. */
 const FILED_AWAY = '<Content saved to file>';
 

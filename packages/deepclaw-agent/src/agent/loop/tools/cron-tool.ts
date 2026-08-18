@@ -3,10 +3,15 @@ import { FileStore } from "@deepclaw/node-utils";
 import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
-import { keptOutput, MAX_GENERATED_FILES, requireReadableOutput, skippedFilesNote } from "../../loop-utils";
+import {
+    keptOutput, MAX_GENERATED_FILES, requireReadableOutput, skippedFilesNote, TRUNCATE_THRESHOLD
+} from "../../loop-utils";
 
 /** Where the report of a run stood in an answer that is not the one to ask for it. */
 const OUTPUT_KEPT = '<Output kept, read it with get_cron_histories>';
+
+/** Where the words of a run stood, once they were more than an answer about the task carries. */
+const REPORT_KEPT = '<Report kept, read it with get_cron_histories>';
 
 /** How many runs are read back for a caller that does not say, out of a record of any length. */
 const HISTORIES_READ = 3;
@@ -22,18 +27,38 @@ export const HISTORIES_READ_MAX = 5;
  * How much of an answer the reports of the runs may fill. A report is as long as the run made it,
  * so how many of them fit is nothing a count of runs can say: past what an answer holds, the whole
  * of it is filed away and comes back as a preview and a path, which is a worse answer than fewer
- * runs and the way to the rest of them.
+ * runs and the way to the rest of them. So the budget is what an answer holds, less the room the
+ * one report that is carried whatever its length may take before the whole answer is filed.
  */
-const ANSWER_BUDGET = 12000;
+const ANSWER_BUDGET = TRUNCATE_THRESHOLD * 0.6;
+
+/**
+ * How much of what a run said of itself an answer about the task carries. As many runs stand in
+ * such an answer as the record shows, each of them as talkative as it liked, so the share of one is
+ * the budget of a read split that many ways: a run signing off in a line is carried as it stands.
+ */
+const REPORT_KEPT_LENGTH = ANSWER_BUDGET / MAX_DISPLAY_HISTORIES;
 
 /** The task as an answer to a write of it, with what its runs reported left out. */
 function cronTaskAfterWrite(id: string): string {
     const cronTask = CronService.getCronTaskDetail(id);
-    return JSON.stringify({
-        ...cronTask,
-        histories: cronTask.histories.map(history => history.output
-            ? {...history, output: keptOutput(history.output, OUTPUT_KEPT)} : history),
-    });
+    return JSON.stringify({...cronTask, histories: cronTask.histories.map(historyAfterWrite)});
+}
+
+/**
+ * A run of the task as it stands in an answer about the task. What it reported is read with the tool
+ * for reading it, here as much as anywhere else: an answer that carried the words of every run in
+ * the record would be filed away whole and come back as a preview of itself.
+ */
+function historyAfterWrite(history: CronJobHistory): CronJobHistory {
+    const kept = {...history};
+    if (kept.output) {
+        kept.output = keptOutput(kept.output, OUTPUT_KEPT);
+    }
+    if (kept.finalText && kept.finalText.length > REPORT_KEPT_LENGTH) {
+        kept.finalText = REPORT_KEPT;
+    }
+    return kept;
 }
 
 type CreateCronTaskInput = {
@@ -210,12 +235,14 @@ and read from there.`,
         if (!histories.length) {
             return 'This cron task has no finished run to read back.';
         }
-        return answerOf(histories);
+        // An answer as full as it was asked to be says nothing about what lies before it, so the
+        // way further back is named whenever the record may go on: no way named is the end of it.
+        return answerOf(histories, histories.length === limit);
     },
 }
 
 /** As many of the runs as one answer carries, and where to read the ones it left for the next. */
-function answerOf(histories: CronJobHistory[]): string {
+function answerOf(histories: CronJobHistory[], mayGoOn: boolean): string {
     const carried: (CronJobHistory | ReadableHistory)[] = [];
     let size = 0;
     for (const history of histories) {
@@ -228,12 +255,14 @@ function answerOf(histories: CronJobHistory[]): string {
         carried.push(one);
         size += length;
     }
-    if (carried.length === histories.length) {
+    if (carried.length === histories.length && !mayGoOn) {
         return JSON.stringify(carried);
     }
+    // The time stands at the end of the sentence, where nothing of the sentence can be copied into
+    // the parameter along with it.
     return `${JSON.stringify(carried)}
-The runs before these were left out of this answer, read them with before: ${
-    carried[carried.length - 1]!.start}.`;
+The runs before these are in no answer of this call, read them with before: ${
+    carried[carried.length - 1]!.start}`;
 }
 
 /**

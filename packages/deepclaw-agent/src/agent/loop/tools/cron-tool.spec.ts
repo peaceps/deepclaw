@@ -145,6 +145,21 @@ describe('updateCronOutputTool invoke', () => {
         expect(result).toContain('nothing new to report');
     });
 
+    /**
+     * Short is what most runs sign off in and nothing a run is held to. As many of them stand in
+     * this answer as the record shows, so one that went on at length is read where reports are read.
+     */
+    test('leaves the words of a run that went on at length out of the answer', async () => {
+        getCronTaskDetail.mockReturnValue(cronTask({
+            histories: [newHistory({finalText: 'a'.repeat(2000)})],
+        }));
+        const result = await updateCronOutputTool.invoke(
+            {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
+        );
+        expect(result).not.toContain('a'.repeat(2000));
+        expect(result).toContain('<Report kept, read it with get_cron_histories>');
+    });
+
     /** An output already filed away has no words left in it, and the path is how it is read. */
     test('leaves an output that was filed away as it lies', async () => {
         getCronTaskDetail.mockReturnValue(cronTask({histories: [newHistory({output: {
@@ -240,7 +255,22 @@ describe('getCronHistoriesTool invoke', () => {
         ]);
         const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 1}, newTestContext());
         expect(result).toContain('the digest of monday');
-        expect(JSON.parse(result)).toHaveLength(1);
+        expect(JSON.parse(result.split('\n')[0]!)).toHaveLength(1);
+    });
+
+    /**
+     * A caller that got as much as it asked for heard nothing about what lies before that, and a run
+     * walking back through the record reads no way further back as the end of it.
+     */
+    test('names the way further back when the answer is as full as it was asked to be', async () => {
+        getCronHistories.mockReturnValue([
+            newHistory({start: 1755086400000, completed: 1755086460000, finalText: 'of tuesday'}),
+            newHistory({start: 1755000000000, completed: 1755000060000, finalText: 'of monday'}),
+        ]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 2}, newTestContext());
+        expect(result).toContain('of monday');
+        // Nothing of the sentence stands where the time is copied out of it.
+        expect(result).toMatch(/read them with before: 1755000000000$/);
     });
 
     /**
