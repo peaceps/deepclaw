@@ -1,4 +1,4 @@
-import { imageExtensionOf, type LLMTaskOutput } from "@deepclaw/core";
+import { isImageName, type LLMTaskOutput } from "@deepclaw/core";
 import { FileStore, FileUtils } from "@deepclaw/node-utils";
 import { i18nInstance } from "@deepclaw/i18n";
 
@@ -134,7 +134,9 @@ function linkOf(outputType: NonNullable<LLMTaskOutput>['type'], name: string, ur
     if (outputType !== 'markdown') {
         return `- ${name}: ${url}`;
     }
-    return imageExtensionOf(name) ? `- ![${name}](${url})` : `- [${name}](${url})`;
+    // A bracket in the name of a file is where markdown reads the text of the link as ending.
+    const text = name.replace(/[[\]]/g, '\\$&');
+    return isImageName(name) ? `- ![${text}](${url})` : `- [${text}](${url})`;
 }
 
 /**
@@ -172,6 +174,15 @@ function freeName(
 }
 
 function buries(path: string, bytes: Buffer): boolean {
+    // What a run hands over can be a video, and two files that differ in size are told apart
+    // without holding both of them in memory at once.
+    const size = FileUtils.sizeOf(path);
+    if (size === null) {
+        return false;
+    }
+    if (size !== bytes.length) {
+        return true;
+    }
     try {
         return !FileUtils.readBuffer(path).equals(bytes);
     } catch {

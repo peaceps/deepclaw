@@ -28,6 +28,8 @@ vi.mock('@deepclaw/loop-gateway', () => ({
 vi.mock('@deepclaw/node-utils', () => ({
     getLogger: () => ({debug: vi.fn(), info: mocks.info, warn: mocks.warn, error: mocks.error}),
     ImageStore: {read: mocks.readImage},
+    // A picture a run filed reaches this handler as bytes too, imageBytes has a spec of its own.
+    FileStore: {keyOf: () => null, read: () => null},
 }));
 
 type Payload = {

@@ -15,6 +15,7 @@ describe('FileStore', () => {
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepclaw-files-'));
         process.chdir(tempDir);
         write('.projects/p1/files/Q3 report.pdf', REPORT);
+        write('.projects/p1/files/a&b (v2..final).csv', Buffer.from('a,b'));
         write('.projects/p1/output/hash1234.md', Buffer.from('# the report'));
         write('.cron/c1/files/digest.csv', Buffer.from('a,b'));
         write('.agents/a1/SOUL.json', Buffer.from('{}'));
@@ -47,6 +48,25 @@ describe('FileStore', () => {
         expect(FileStore.read('cron/c1/files/digest.csv')?.toString()).toBe('a,b');
     });
 
+    /**
+     * A run writes into the folder with a shell of its own, so the name on disk is whatever it
+     * chose. Reading it under a name cleaned up for writing would look for a file nobody wrote.
+     */
+    test('reads a file back under the name it really lies under', () => {
+        expect(FileStore.read('projects/p1/files/a&b (v2..final).csv')?.toString()).toBe('a,b');
+    });
+
+    test('carries a name a url cannot hold there and back', () => {
+        const url = FileStore.urlOf('.projects/p1/files/a&b (v2..final).csv');
+        expect(FileStore.read(FileStore.keyOf(url)!)?.toString()).toBe('a,b');
+    });
+
+    test('takes no key out of a url that is none of ours', () => {
+        expect(FileStore.keyOf('/api/image/abc123.png')).toBeNull();
+        expect(FileStore.keyOf('https://host/api/file/projects/p1/files/report.pdf')).toBeNull();
+        expect(FileStore.keyOf('/api/file/projects/p1/files/100%.pdf')).toBeNull();
+    });
+
     test('answers with nothing for a file that was never handed over', () => {
         expect(FileStore.read('projects/p1/files/gone.pdf')).toBeNull();
     });
@@ -62,6 +82,22 @@ describe('FileStore', () => {
     test('refuses a key that tries to walk out of the store', () => {
         expect(FileStore.read('projects/p1/files/../../../.agents/a1/SOUL.json')).toBeNull();
         expect(FileStore.read('../../etc/passwd')).toBeNull();
+    });
+
+    /** The name of a file is reused by the next run, so it is no answer to whether it changed. */
+    test('tells the copy of a browser apart from the file as it lies now', () => {
+        write('.projects/p1/output/rerun.md', Buffer.from('# a first go'));
+        const tag = FileStore.tagOf('projects/p1/output/rerun.md');
+        expect(tag).not.toBeNull();
+        expect(FileStore.tagOf('projects/p1/output/rerun.md')).toBe(tag);
+        write('.projects/p1/output/rerun.md', Buffer.from('# the report, at last'));
+        expect(FileStore.tagOf('projects/p1/output/rerun.md')).not.toBe(tag);
+    });
+
+    test('has nothing to tell apart for what it does not serve', () => {
+        expect(FileStore.tagOf('agents/a1/SOUL.json')).toBeNull();
+        expect(FileStore.tagOf('projects/p1/files/gone.pdf')).toBeNull();
+        expect(FileStore.tagOf('projects/p1/files')).toBeNull();
     });
 
     test('tells a browser what to make of the bytes', () => {

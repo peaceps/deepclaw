@@ -30,6 +30,8 @@ vi.mock('@deepclaw/loop-gateway', () => ({
 vi.mock('@deepclaw/node-utils', () => ({
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: mocks.error}),
     ImageStore: {read: mocks.readImage},
+    // A picture a run filed reaches this handler as bytes too, imageBytes has a spec of its own.
+    FileStore: {keyOf: () => null, read: () => null},
 }));
 
 function message(content: string, messageId = 'm1', chatId = 'chat-1'): NormalizedMessage {

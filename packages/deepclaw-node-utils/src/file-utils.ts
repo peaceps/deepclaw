@@ -33,6 +33,19 @@ export class FileUtils {
         return fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile();
     }
 
+    /**
+     * The size of a file, or null for what is no file to read. Two files that differ in it differ,
+     * and that is an answer without holding either of them in memory.
+     */
+    public static sizeOf(filePath: string): number | null {
+        try {
+            const stat = fs.statSync(this.getAbsolutePath(this.sanitizeFileName(filePath)));
+            return stat.isFile() ? stat.size : null;
+        } catch {
+            return null;
+        }
+    }
+
     public static readBuffer(filePath: string): Buffer {
         const name = this.sanitizeFileName(filePath);
         const absolutePath = this.getAbsolutePath(name);

@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
     deleteDir: vi.fn<(path: string) => void>(() => undefined),
     hashString: vi.fn<(text: string) => string>(() => 'titlehash'),
     readBuffer: vi.fn<(path: string) => Buffer>(path => Buffer.from(`bytes of ${path}`)),
+    sizeOf: vi.fn<(path: string) => number | null>(),
     isPathInWorkspace: vi.fn<(path: string) => boolean>(() => true),
     isFile: vi.fn<(path: string) => boolean>(() => true),
     getLoop: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
@@ -65,6 +66,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
             deleteDir: mocks.deleteDir,
             hashString: mocks.hashString,
             readBuffer: mocks.readBuffer,
+            sizeOf: mocks.sizeOf,
             isPathInWorkspace: mocks.isPathInWorkspace,
             isFile: mocks.isFile,
             sanitizeFileName: original.FileUtils.sanitizeFileName.bind(original.FileUtils),
@@ -86,6 +88,15 @@ function unfiled(path: string): Buffer {
     return Buffer.from(`bytes of ${path}`);
 }
 
+/** A file on disk has the size of the bytes it holds, and what is not there has no size. */
+function sizeUnfiled(path: string): number | null {
+    try {
+        return unfiled(path).length;
+    } catch {
+        return null;
+    }
+}
+
 function primeMocks(): void {
     vi.clearAllMocks();
     mocks.jobs.length = 0;
@@ -93,6 +104,7 @@ function primeMocks(): void {
     mocks.nextRun.mockReturnValue(NEXT_RUN);
     mocks.writeFile.mockImplementation((path: string) => path);
     mocks.readBuffer.mockImplementation(unfiled);
+    mocks.sizeOf.mockImplementation(sizeUnfiled);
     mocks.isPathInWorkspace.mockReturnValue(true);
     mocks.isFile.mockReturnValue(true);
     mocks.getSessionDir.mockReturnValue(SESSION_DIR);

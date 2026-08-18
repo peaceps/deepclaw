@@ -53,6 +53,11 @@ export function imageExtensionOf(name: string): string | null {
     return mediaType ? EXTENSIONS[mediaType]! : null;
 }
 
+/** Whether a name is the name of a picture, for whoever asks that and not what it is kept as. */
+export function isImageName(name: string): boolean {
+    return imageExtensionOf(name) !== null;
+}
+
 /** Splits `data:image/png;base64,QUJD` into its media type and its payload. */
 export function parseDataUrl(url: string): {mediaType: string, base64: string} | null {
     const dataUrl = dataUrlRegex.exec(url);

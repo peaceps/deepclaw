@@ -1,4 +1,9 @@
-import {describe, expect, test} from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import process from 'node:process';
+import {afterAll, beforeAll, describe, expect, test} from 'vitest';
+import {FileStore} from '@deepclaw/node-utils';
 import {
     AGENTS_DIR, CRON_DIR, FILES_DIR, OUTPUT_DIR, PROJECT_DIR, SKILLS, SKILLS_DIR,
     cronFilesDir, cronOutputDir, projectFilesDir, projectOutputDir
@@ -26,5 +31,44 @@ describe('derived paths', () => {
             projectFilesDir('p1'), projectOutputDir('p1'), cronFilesDir('p1'), cronOutputDir('p1')
         ];
         expect(new Set(folders).size).toBe(folders.length);
+    });
+});
+
+/**
+ * The store names the folders it serves from over again, since it knows nothing of an agent. Only
+ * a file written under these paths and read back through a url proves the two still say the same:
+ * apart, the writing side goes on handing out links and the reading side answers every one of them
+ * with nothing.
+ */
+describe('the folders a run hands over from, as the store sees them', () => {
+    const originCwd = process.cwd();
+    let tempDir = '';
+
+    beforeAll(() => {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepclaw-paths-'));
+        process.chdir(tempDir);
+    });
+
+    afterAll(() => {
+        process.chdir(originCwd);
+        fs.rmSync(tempDir, {recursive: true, force: true});
+    });
+
+    function written(folder: string, name: string): string {
+        fs.mkdirSync(path.join(tempDir, folder), {recursive: true});
+        fs.writeFileSync(path.join(tempDir, folder, name), `the file in ${folder}`);
+        return `${folder}/${name}`;
+    }
+
+    test.each([
+        ['the files of a project', projectFilesDir('p1')],
+        ['the reports of a project', projectOutputDir('p1')],
+        ['the files of a scheduled task', cronFilesDir('c1')],
+        ['the reports of a scheduled task', cronOutputDir('c1')],
+    ])('serves %s back', (_unused, folder) => {
+        const file = written(folder, 'report.pdf');
+        const key = FileStore.keyOf(FileStore.urlOf(file));
+        expect(key).not.toBeNull();
+        expect(FileStore.read(key!)?.toString()).toBe(`the file in ${folder}`);
     });
 });

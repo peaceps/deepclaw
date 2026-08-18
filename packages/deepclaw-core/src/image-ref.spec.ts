@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
-    imageExtensionOf, imageKeyExtension, imageKeyMediaType, imageRefKey, isImageRef, newImageRef,
-    parseDataUrl
+    imageExtensionOf, imageKeyExtension, imageKeyMediaType, imageRefKey, isImageName, isImageRef,
+    newImageRef, parseDataUrl
 } from './image-ref';
 
 describe('image references', () => {
@@ -52,6 +52,13 @@ describe('image types', () => {
         expect(imageExtensionOf('report.pdf')).toBeNull();
         expect(imageExtensionOf('sheet.csv')).toBeNull();
         expect(imageExtensionOf('README')).toBeNull();
+    });
+
+    test('says of a name whether it is one of a picture', () => {
+        expect(isImageName('out/chart.png')).toBe(true);
+        expect(isImageName('shot.JPEG')).toBe(true);
+        expect(isImageName('report.pdf')).toBe(false);
+        expect(isImageName('README')).toBe(false);
     });
 });
 

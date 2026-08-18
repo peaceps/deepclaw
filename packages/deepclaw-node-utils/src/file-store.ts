@@ -1,4 +1,8 @@
+import fs from 'fs';
 import { FileUtils } from './file-utils';
+
+/** Where the files are asked for, the half of the mapping that a key is the other half of. */
+const URL_PREFIX = '/api/file/';
 
 /**
  * What may be handed out, named where it is served rather than where it is written: a route that
@@ -33,17 +37,50 @@ export class FileStore {
     /** The url of a file already written, by the path it was written under. */
     public static urlOf(path: string): string {
         const key = path.startsWith('.') ? path.slice(1) : path;
-        return `/api/file/${key.split('/').map(encodeURIComponent).join('/')}`;
+        return `${URL_PREFIX}${key.split('/').map(encodeURIComponent).join('/')}`;
     }
 
-    public static read(key: string): Buffer | null {
-        const path = `.${key}`;
-        if (key.includes('..') || !SERVED.test(key)
-            || !FileUtils.isPathInside(FileUtils.getWorkingDir(), path)) {
+    /**
+     * The key behind a url of ours, or null for any other url. A browser follows such a link by
+     * itself, whoever has to carry the bytes somewhere else has to find them again from here.
+     */
+    public static keyOf(url: string): string | null {
+        if (!url.startsWith(URL_PREFIX)) {
             return null;
         }
         try {
-            return FileUtils.readBuffer(path);
+            return url.slice(URL_PREFIX.length).split('/').map(decodeURIComponent).join('/');
+        } catch {
+            // A stray percent sign is no escape, and no key of ours either.
+            return null;
+        }
+    }
+
+    public static read(key: string): Buffer | null {
+        const path = this.pathOf(key);
+        if (!path) {
+            return null;
+        }
+        try {
+            return fs.readFileSync(path);
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * What tells a browser its copy is still the file, out of what changes when the file does. A
+     * name here is reused by the run that writes the file again, so the bytes cannot be held on to
+     * on the strength of the name alone.
+     */
+    public static tagOf(key: string): string | null {
+        const path = this.pathOf(key);
+        if (!path) {
+            return null;
+        }
+        try {
+            const stat = fs.statSync(path);
+            return !stat.isFile() ? null : `"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
         } catch {
             return null;
         }
@@ -52,5 +89,19 @@ export class FileStore {
     /** What a browser should make of the bytes, guessed from the name as everything else does. */
     public static mediaTypeOf(name: string): string {
         return MEDIA_TYPES[name.split('.').pop()?.toLowerCase() || ''] || 'application/octet-stream';
+    }
+
+    /**
+     * The file a key names, or null for a key that names none of ours. It is read as it lies
+     * rather than under a name cleaned up for writing: a run writes into the folder with a shell
+     * of its own, and the characters that writing through us drops are the file here.
+     */
+    private static pathOf(key: string): string | null {
+        const path = `.${key}`;
+        if (key.split('/').includes('..') || !SERVED.test(key)
+            || !FileUtils.isPathInside(FileUtils.getWorkingDir(), path)) {
+            return null;
+        }
+        return FileUtils.getAbsolutePath(path);
     }
 }

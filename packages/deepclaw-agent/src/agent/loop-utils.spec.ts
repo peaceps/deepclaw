@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     writeFile: vi.fn<(path: string, content: string | Buffer) => string>((path) => path),
     hashString: vi.fn<(text: string) => string>(() => 'hash1234'),
     readBuffer: vi.fn<(path: string) => Buffer>(path => Buffer.from(`bytes of ${path}`)),
+    sizeOf: vi.fn<(path: string) => number | null>(),
     isPathInWorkspace: vi.fn<(path: string) => boolean>(() => true),
     isFile: vi.fn<(path: string) => boolean>(() => true),
 }));
@@ -18,8 +19,8 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
         ...original,
         FileUtils: {
             writeFile: mocks.writeFile, hashString: mocks.hashString,
-            readBuffer: mocks.readBuffer, isPathInWorkspace: mocks.isPathInWorkspace,
-            isFile: mocks.isFile,
+            readBuffer: mocks.readBuffer, sizeOf: mocks.sizeOf,
+            isPathInWorkspace: mocks.isPathInWorkspace, isFile: mocks.isFile,
             // Reading a path is pure, and where a path comes down to is what the test is about.
             sanitizeFileName: real.sanitizeFileName.bind(real),
             getAbsolutePath: real.getAbsolutePath.bind(real),
@@ -157,11 +158,21 @@ describe('publishGeneratedFiles', () => {
         return Buffer.from(`bytes of ${path}`);
     }
 
+    /** A file on disk has the size of the bytes it was given, whatever a test made those. */
+    function sizeOnDisk(path: string): number | null {
+        try {
+            return mocks.readBuffer.getMockImplementation()!(path).length;
+        } catch {
+            return null;
+        }
+    }
+
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.writeFile.mockImplementation((path) => path);
         mocks.hashString.mockReturnValue('hash1234');
         mocks.readBuffer.mockImplementation(filed);
+        mocks.sizeOf.mockImplementation(sizeOnDisk);
         mocks.isPathInWorkspace.mockReturnValue(true);
         mocks.isFile.mockReturnValue(true);
     });
@@ -314,6 +325,18 @@ ${HEADLINE}:
         );
     });
 
+    /** Two files of one size are two files still: the size only settles the cheap half of it. */
+    test('keeps a name taken on disk by a file of the same size', () => {
+        const bytes = 'bytes of out/report.pdf';
+        mocks.readBuffer.mockImplementation(path => Buffer.from(
+            path === `${FILES}/report.pdf` ? 'A'.repeat(bytes.length) : bytes
+        ));
+        publish(newOutput({type: 'markdown'}), ['out/report.pdf']);
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            `${FILES}/hash1234-report.pdf`, Buffer.from(bytes)
+        );
+    });
+
     test('writes the same file handed over twice back under its own name', () => {
         mocks.readBuffer.mockImplementation(path => Buffer.from(
             `bytes of ${path === `${FILES}/report.pdf` ? 'out/report.pdf' : path}`
@@ -330,6 +353,15 @@ ${HEADLINE}:
         publish(output, ['out/Q3 report (final).pdf']);
         expect(output.content).toContain(
             `- [Q3 report (final).pdf](${URL_OF_FILES}/Q3%20report%20(final).pdf)`
+        );
+    });
+
+    /** A run writes into that folder itself, so the name is whatever it chose, brackets and all. */
+    test('keeps a bracket of a name from ending the link it is shown in', () => {
+        const output = newOutput({type: 'markdown'});
+        publish(output, [`${FILES}/report [final].pdf`]);
+        expect(output.content).toContain(
+            `- [report \\[final\\].pdf](${URL_OF_FILES}/report%20%5Bfinal%5D.pdf)`
         );
     });
 
