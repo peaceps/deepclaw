@@ -7,17 +7,12 @@ import {
 import { LoopGateway } from '@deepclaw/loop-gateway';
 import { revalidatePath } from 'next/cache';
 import { IMService } from '@/im/im-service';
-import { i18nInstance } from '@deepclaw/i18n';
 
 export async function loadCurrentConfig<T>(key?: string, defaultValue?: T): Promise<T> {
   return loadConfig<T>(key, defaultValue);
 }
 
 export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
-  const currentLang = loadConfig<string>('ui.lang');
-  if (config.ui.lang !== currentLang) {
-    await i18nInstance.changeLanguage(config.ui.lang);
-  }
   const currentAgents = loadConfig<AgentsConfig>('agents');
   const currentAvatar = loadConfig<string>('manager.avatar');
   const merged: DeepclawConfig = {

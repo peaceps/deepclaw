@@ -27,7 +27,7 @@ export type SettingsProps = {
 
 export function SettingsForm({settings}: {settings: SettingsProps}) {
   const { configEvents, initialConfig, initialValidation, onSave } = settings;
-  const {t} = useTranslation();
+  const {t, i18n} = useTranslation();
   const [edited, setEdited] = useState(false);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<DeepclawConfig>(initialConfig);
@@ -197,7 +197,10 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
             <DeepSelect
                 uiInfo={configEvents['ui.lang'] as Extract<AgentInteractionEvent, {type: 'select'}>}
                 value={config.ui.lang}
-                onSelect={e => updateUIConfig({ lang: e.target.value as SupportedLanguage })}
+                onSelect={e => {
+                  updateUIConfig({ lang: e.target.value as SupportedLanguage });
+                  i18n.changeLanguage(e.target.value);
+                }}
                 error={validationResult.errors.some(e => e === 'ui.lang')}
                 required
             />
