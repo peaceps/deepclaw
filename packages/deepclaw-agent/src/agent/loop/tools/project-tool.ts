@@ -5,23 +5,18 @@ import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
 import { AgentIdentityManager } from "../services/agent-identity-manager";
-import { MAX_GENERATED_FILES, publishGeneratedFiles, skippedFilesNote } from "../../loop-utils";
+import { keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, skippedFilesNote } from "../../loop-utils";
 import { projectFilesDir } from "../../paths";
 
 /** Where the report of a task stood in an answer that is not the one to ask for it. */
 const OUTPUT_KEPT = '<Output kept, read it with get_project_detail>';
 
-/**
- * The project as an answer to a write of it, with what its tasks produced left out. A run that just
- * handed a report over would only read its own words back, and a project of finished tasks carries
- * enough of them to crowd everything else out of the answer, or to have the whole of it truncated.
- */
+/** The project as an answer to a write of it, with what its tasks produced left out. */
 function projectAfterWrite(projectId: string): string {
     const project = ProjectManager.getProjectDetail(projectId);
     const tasks: Record<string, Task> = {};
     for (const [title, task] of Object.entries(project.tasks)) {
-        tasks[title] = task.output
-            ? {...task, output: {...task.output, content: OUTPUT_KEPT}} : task;
+        tasks[title] = task.output ? {...task, output: keptOutput(task.output, OUTPUT_KEPT)} : task;
     }
     return JSON.stringify({...project, tasks});
 }
@@ -161,7 +156,7 @@ so do not call tools updating project/tasks immediately with create_project`,
         context.runtime.agentBreakReason = 'projectCreated';
         return `Project created successfully.
 Here's the project info:
-${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
+${projectAfterWrite(project.id)}`;
     },
 }
 
@@ -228,7 +223,7 @@ All steps should be done when task is going to be marked as done.`,
         context.runtime.agentBreakReason = 'projectCreated';
         return `Task created successfully.
 Here's the wrapper project info:
-${JSON.stringify(ProjectManager.getProjectDetail(project.id))}`;
+${projectAfterWrite(project.id)}`;
     }
 };
 
@@ -289,7 +284,7 @@ export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
         ProjectManager.fireProjectInfoEvent(projectId, context);
         return `Project updated successfully.
 Here's the project info:
-${JSON.stringify(ProjectManager.getProjectDetail(input.projectId))}`;
+${projectAfterWrite(projectId)}`;
     }
 }
 

@@ -35,6 +35,19 @@ export function fileAwayOutput(
 }
 
 /**
+ * An output as it stands in the answer to a write of it, with the words of it left out: a run that
+ * just handed a report over would read its own words back, and a handful of reports in one answer
+ * crowd out everything else in it or have the whole answer truncated. One already filed away has
+ * no words left in it to leave out, and a note in place of the little it does carry would only
+ * make the answer longer than saying nothing.
+ */
+export function keptOutput(
+    output: NonNullable<LLMTaskOutput>, kept: string
+): NonNullable<LLMTaskOutput> {
+    return output.path ? output : {...output, content: kept};
+}
+
+/**
  * A file a task produced lies where only the agent can reach it, so a path to it in the output is
  * a dead end for the user. Linked from the folder the work of that project is handed over in, the
  * file becomes something they can just click, and a picture is shown in the output instead.

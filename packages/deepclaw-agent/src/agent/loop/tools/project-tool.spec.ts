@@ -204,6 +204,18 @@ describe('updateProjectTool invoke', () => {
         expect(result).toContain('Project updated successfully.');
         expect(context.runtime.agentBreakReason).toBeUndefined();
     });
+
+    /** A rename of the project is no reason to read every report of it back. */
+    test('leaves what the tasks produced out of the answer', async () => {
+        getProjectDetail.mockReturnValue(newProject({tasks: {
+            design: {...newTask('design'), output: {type: 'markdown', content: '# the whole report'}},
+        }}));
+        const result = await updateProjectTool.invoke(
+            {projectId: 'pr1', title: 'ship it faster'}, newTestContext()
+        );
+        expect(result).not.toContain('the whole report');
+        expect(result).toContain('<Output kept, read it with get_project_detail>');
+    });
 });
 
 describe('updateTaskTool invoke', () => {
@@ -296,17 +308,48 @@ describe('updateTaskTool invoke', () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
         getProjectDetail.mockReturnValue(newProject({tasks: {
             design: {...newTask('design'), output: {type: 'markdown', content: '# the whole report'}},
-            ship: {...newTask('ship'), output: {type: 'binary', content: 'QUJD', path: '/api/file/x'}},
         }}));
         const result = await updateTaskTool.invoke(
             {projectId: 'pr1', taskTitle: 'design', status: 'done'}, newTestContext()
         );
         expect(result).not.toContain('the whole report');
-        expect(result).not.toContain('QUJD');
         expect(result).toContain('<Output kept, read it with get_project_detail>');
-        // What the output is and where it lies stays, only the content of it goes.
-        expect(result).toContain('"path":"/api/file/x"');
-        expect(result).toContain('"type":"binary"');
+        // What the output is stays, only the words of it go.
+        expect(result).toContain('"type":"markdown"');
+    });
+
+    /**
+     * An output that was filed away holds the note of that and the path it went to, and reading it
+     * back with get_project_detail answers the same: a note about it is longer than what is left.
+     */
+    test('leaves an output that was filed away as it lies', async () => {
+        updateTask.mockReturnValue({task: newTask('ship'), stop: false});
+        getProjectDetail.mockReturnValue(newProject({tasks: {
+            ship: {...newTask('ship'), output: {
+                type: 'binary',
+                content: '<Content saved to file>',
+                path: '/api/file/projects/pr1/output/hash1234.out',
+            }},
+        }}));
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskTitle: 'ship', status: 'done'}, newTestContext()
+        );
+        expect(result).toContain('"path":"/api/file/projects/pr1/output/hash1234.out"');
+        expect(result).toContain('<Content saved to file>');
+        expect(result).not.toContain('<Output kept');
+    });
+
+    /** Reading the project back has to answer with the report, whatever a write of it answers. */
+    test('leaves the project it read as it found it', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        const project = newProject({tasks: {
+            design: {...newTask('design'), output: {type: 'markdown', content: '# the whole report'}},
+        }});
+        getProjectDetail.mockReturnValue(project);
+        await updateTaskTool.invoke(
+            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, newTestContext()
+        );
+        expect(project.tasks['design']!.output!.content).toBe('# the whole report');
     });
 
     test('leaves a task without an output as it is', async () => {

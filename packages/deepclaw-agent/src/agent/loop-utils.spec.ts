@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type LLMTaskOutput} from '@deepclaw/core';
-import {fileAwayOutput, MAX_GENERATED_FILES, publishGeneratedFiles} from './loop-utils';
+import {fileAwayOutput, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles} from './loop-utils';
 import {cronOutputDir, projectFilesDir, projectOutputDir} from './paths';
 
 const mocks = vi.hoisted(() => ({
@@ -111,6 +111,33 @@ describe('fileAwayOutput', () => {
         fileAwayOutput(output, projectOutputDir('pr1'), 'hash1234');
         expect(mocks.writeFile).toHaveBeenCalledOnce();
         expect(output).toEqual(filed);
+    });
+});
+
+describe('keptOutput', () => {
+
+    const KEPT = '<Output kept>';
+
+    test('leaves the words of an inlined output out and says where they went', () => {
+        expect(keptOutput(newOutput({content: 'the whole report'}), KEPT))
+            .toEqual({type: 'text', content: KEPT});
+    });
+
+    test('keeps what the output is and where it lies', () => {
+        expect(keptOutput(newOutput({type: 'binary', content: 'QUJD', ext: 'pdf'}), KEPT))
+            .toEqual({type: 'binary', content: KEPT, ext: 'pdf'});
+    });
+
+    /** A path is only ever set by filing away, and what it was set on holds no words any more. */
+    test('leaves an output that was filed away as it lies', () => {
+        const filed = newOutput({content: '<Content saved to file>', path: '/api/file/x.txt'});
+        expect(keptOutput(filed, KEPT)).toBe(filed);
+    });
+
+    test('leaves the output it was given untouched', () => {
+        const output = newOutput({content: 'the whole report'});
+        keptOutput(output, KEPT);
+        expect(output.content).toBe('the whole report');
     });
 });
 

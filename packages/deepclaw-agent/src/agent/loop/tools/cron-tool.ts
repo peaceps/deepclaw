@@ -2,7 +2,24 @@ import type { LLMTaskOutput } from "@deepclaw/core";
 import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
-import { MAX_GENERATED_FILES, skippedFilesNote } from "../../loop-utils";
+import { keptOutput, MAX_GENERATED_FILES, skippedFilesNote } from "../../loop-utils";
+
+/**
+ * Where the report of a run stood in an answer that is not the one to ask for it. It names no way
+ * to read it back because there is none: a run records its output as it ends, and what the runs
+ * before it recorded goes to the user rather than to the next run.
+ */
+const OUTPUT_KEPT = '<Output kept>';
+
+/** The task as an answer to a write of it, with what its runs reported left out. */
+function cronTaskAfterWrite(id: string): string {
+    const cronTask = CronService.getCronTaskDetail(id);
+    return JSON.stringify({
+        ...cronTask,
+        histories: cronTask.histories.map(history => history.output
+            ? {...history, output: keptOutput(history.output, OUTPUT_KEPT)} : history),
+    });
+}
 
 type CreateCronTaskInput = {
     title: string;
@@ -32,7 +49,7 @@ export const createCronTaskTool: ToolDesc<CreateCronTaskInput> = {
         const {title, cron, prompt} = input;
         const cronTask = CronService.createCronTask(title, context.agentId, cron, prompt);
         return `Cron task created successfully, here\'s the detail:
-${JSON.stringify(CronService.getCronTaskDetail(cronTask.id))}`;
+${cronTaskAfterWrite(cronTask.id)}`;
     },
 }
 
@@ -65,7 +82,7 @@ export const updateCronTaskTool: ToolDesc<UpdateCronTaskInput> = {
     invoke: async function(input: UpdateCronTaskInput): Promise<string> {
         const cronTask = CronService.updateCronTask(input);
         return `Cron task updated successfully, here\'s the detail:
-${JSON.stringify(CronService.getCronTaskDetail(cronTask.id))}`;
+${cronTaskAfterWrite(cronTask.id)}`;
     },
 }
 
@@ -127,6 +144,6 @@ Only files inside the workspace can be handed over, and only files, not folders.
         const {generatedFiles, ...output} = input.output;
         const {skipped} = CronService.updateCronOutput(input.id, output, generatedFiles);
         return `Cron output updated successfully, here\'s the detail with last max ${MAX_DISPLAY_HISTORIES} histories:
-${JSON.stringify(CronService.getCronTaskDetail(input.id))}${skippedFilesNote(skipped)}`;
+${cronTaskAfterWrite(input.id)}${skippedFilesNote(skipped)}`;
     },
 }
