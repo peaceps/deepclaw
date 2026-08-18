@@ -36,24 +36,52 @@ export type AssignedTask = {
     taskTitle: string;
 }
 
+/**
+ * What a loop was started as. A main loop is the one a session belongs to and the only one kept on
+ * disk. A task loop works one task of the project it was handed, and hands parts of it on. A sub
+ * loop is the end of the chain: it works the prompt it was given and reports back.
+ */
+export type LoopKind = 'main' | 'task' | 'sub';
+
+/** Everything a spawned loop has to know before it can even tell which session is its own. */
+export type SpawnedLoop = {
+    kind: Exclude<LoopKind, 'main'>;
+    /** The handle of this one run: the session folder it gets, and what tells its logs apart. */
+    runId: string;
+    /**
+     * The task a task loop works on. A sub loop of it is handed the same task, not to work on it
+     * but to work as the agent it belongs to, with the memory and the skills of that agent.
+     */
+    assignedTask?: AssignedTask;
+}
+
+/**
+ * A spawned loop leaves nothing behind and talks to nobody: its session is thrown away with the
+ * run, and whatever it has to say goes to the loop that spawned it rather than to a user.
+ */
+export function isSpawnedLoop(loopKind: LoopKind): boolean {
+    return loopKind !== 'main';
+}
+
 export type OneLoopContext = {
     role: FlushAgentRole;
     agentId: string;
     /**
-     * The agent a sub loop stands in for while it works on a task assigned to that agent. Unset
-     * wherever nothing is borrowed, which is every loop but that one.
+     * The agent a spawned loop stands in for while it works on a task assigned to that agent. Unset
+     * wherever nothing is borrowed, which is every loop working on no task of anybody.
      */
     personaId?: string;
     projectId: string;
     loopId: string;
     browserId: string;
     sessionDir: string;
-    isSubLoop: boolean;
+    loopKind: LoopKind;
     loopConfig: AgentConfig;
     system: SystemPrompt;
     logger: Logger;
     actions: {
-        newSubLoop: (assignedTask?: AssignedTask) => FlushAgent;
+        newTaskLoop: (assignedTask: AssignedTask) => FlushAgent;
+        newSubLoop: () => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
         agentHandler: SealedAgentHandler;
         addStringMessage: (message: string) => void;
@@ -77,7 +105,7 @@ export type SessionMetaData = {
     agentId: string;
     projectId: string;
     loopId: string;
-    isSubLoop: boolean;
+    loopKind: LoopKind;
     messagesPath: string;
     runtime: {
         status: LoopSessionStatus;

@@ -85,15 +85,15 @@ describe('readMemoryDetailTool invoke', () => {
         expect(getMemoryDetail).not.toHaveBeenCalled();
     });
 
-    /** The index a sub loop was given lists the memories of the agent it stands in for. */
+    /** The index a spawned loop was given lists the memories of the agent it stands in for. */
     test('reads an agent memory of the agent the run stands for', async () => {
-        const context = newTestContext({isSubLoop: true, personaId: 'a2'});
+        const context = newTestContext({loopKind: 'task', personaId: 'a2'});
         await readMemoryDetailTool.invoke({name: 'coding_style', scope: 'agent'}, context);
         expect(getMemoryDetail).toHaveBeenCalledExactlyOnceWith('coding_style', 'agent', 'a2', undefined);
     });
 
     test('leaves a global memory out of the borrowed identity', async () => {
-        const context = newTestContext({isSubLoop: true, personaId: 'a2'});
+        const context = newTestContext({loopKind: 'task', personaId: 'a2'});
         await readMemoryDetailTool.invoke({name: 'coding_style', scope: 'global'}, context);
         expect(getMemoryDetail).toHaveBeenCalledExactlyOnceWith('coding_style', 'agent', undefined, undefined);
     });
@@ -106,9 +106,9 @@ describe('readMemoryDetailTool invoke', () => {
 
 describe('memory tool metadata', () => {
 
-    test('writing is kept out of sub loops while reading is allowed there', () => {
-        expect(saveMemoryTool.exclusiveInSubLoop).toBe(true);
-        expect(readMemoryDetailTool.exclusiveInSubLoop).toBe(false);
+    test('writing is kept out of spawned loops while reading is allowed there', () => {
+        expect(saveMemoryTool.loopKinds).toEqual(['main']);
+        expect(readMemoryDetailTool.loopKinds).toBeUndefined();
         expect(saveMemoryTool.agentMode).toEqual(['agent', 'chat']);
         expect(saveMemoryTool.tool.schema.required).toEqual(['type', 'name', 'description', 'content', 'scope']);
     });

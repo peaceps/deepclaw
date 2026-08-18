@@ -66,7 +66,6 @@ them out to draw from the prompt alone.`,
     },
     agentMode: ['agent', 'chat'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(input: GenerateImageInput, context: OneLoopContext): Promise<string> {
         const prompt = input.prompt?.trim();
         if (!prompt) {

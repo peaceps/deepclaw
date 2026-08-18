@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import type {LLMGWConfig, LLMTransitionReason, TokenUsage, ImageContent} from '@deepclaw/core';
 import type {LLMConfig} from '@deepclaw/config';
-import type {SystemPrompt} from '../definitions/definitions';
+import type {LoopKind, SystemPrompt} from '../definitions/definitions';
 import type {LLMTool} from '../definitions/tool-definitions';
 import {newTestLogger} from '../../test-support/one-loop-context';
 import {ToolsManager} from '../loop/services/tools-manager';
@@ -99,8 +99,8 @@ class FakeLLM extends LLMModel<FakeMessage, FakeResponse, FakeTool, FakeClient> 
     }
 }
 
-function newLLM(isSubLoop: boolean = false, llmConfig: Partial<LLMConfig> = {}): FakeLLM {
-    return new FakeLLM(isSubLoop, {
+function newLLM(loopKind: LoopKind = 'main', llmConfig: Partial<LLMConfig> = {}): FakeLLM {
+    return new FakeLLM(loopKind, {
         baseURL: 'https://api.example.com', apiKey: 'key', model: 'sonnet', ...llmConfig
     });
 }
@@ -134,7 +134,7 @@ beforeEach(() => {
 describe('LLMModel constructor', () => {
 
     test('derives the gateway config from the llm config and fixed defaults', () => {
-        expect(newLLM(false, {model: 'opus'}).getGWConfig())
+        expect(newLLM('main', {model: 'opus'}).getGWConfig())
             .toEqual({model: 'opus', timeoutMs: 300000, temperature: 0.1, maxTokens: 8000});
     });
 
@@ -175,9 +175,9 @@ describe('LLMModel updateGWConfig', () => {
 describe('LLMModel invoke tools', () => {
 
     test('asks the tools manager for the tools of this loop kind and mode', async () => {
-        const llm = newLLM(true);
+        const llm = newLLM('task');
         await llm.invoke('chat', newSystem(), [], () => undefined, newTestLogger());
-        expect(getToolsArray).toHaveBeenCalledExactlyOnceWith(true, 'chat');
+        expect(getToolsArray).toHaveBeenCalledExactlyOnceWith('task', 'chat');
     });
 
     test('converts the tools once and hands them to the vendor call', async () => {

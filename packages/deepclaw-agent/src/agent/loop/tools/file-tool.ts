@@ -60,7 +60,6 @@ export const writeFileTool: ToolDesc<WriteFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(input: WriteFileInput): Promise<string> {
         const { filePath, content } = input;
         FileUtils.writeFile(filePath, content);
@@ -90,7 +89,6 @@ export const editFileTool: ToolDesc<EditFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(input: EditFileInput): Promise<string> {
         const { filePath, oldText, newText } = input;
         const content = FileUtils.readFile(filePath);

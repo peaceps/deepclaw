@@ -26,7 +26,7 @@ export const createCronTaskTool: ToolDesc<CreateCronTaskInput> = {
     },
     parallelSafe: true,
     agentMode: ['agent'],
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     invoke: async function(input: CreateCronTaskInput, context: OneLoopContext): Promise<string> {
         const {title, cron, prompt} = input;
         const cronTask = CronService.createCronTask(title, context.agentId, cron, prompt);
@@ -60,7 +60,7 @@ export const updateCronTaskTool: ToolDesc<UpdateCronTaskInput> = {
     },
     parallelSafe: true,
     agentMode: ['agent'],
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     invoke: async function(input: UpdateCronTaskInput): Promise<string> {
         const cronTask = CronService.updateCronTask(input);
         return `Cron task updated successfully, here\'s the detail:
@@ -109,7 +109,7 @@ and the file path will be set into the path field.`
     },
     parallelSafe: true,
     agentMode: ['agent'],
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     invoke: async function(input: UpdateCronOutputInput): Promise<string> {
         const {id, output} = input;
         CronService.updateCronOutput(id, output);

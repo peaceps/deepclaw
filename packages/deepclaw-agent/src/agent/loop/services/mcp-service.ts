@@ -89,7 +89,6 @@ class MCPClient {
                     },
                     parallelSafe: true,
                     agentMode: ['agent'],
-                    exclusiveInSubLoop: false,
                     invoke: async (input: any) => {
                         return await this.callTool(tool.name, input);
                     },

@@ -306,17 +306,20 @@ steps info are important for user to get current task execution status, so make 
 ## Update task status
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
 For simple tasks just set the wrapped project id.
-A subloop agent cannot update a task, it only moves the step index of the task it works on.`;
+A subagent cannot update a task, it only moves the step index of the task it works on.`;
     }
 
     public static promptTaskDelegation(): string {
         return `## Run the tasks through subagents
 You run this project, you do not work through its tasks yourself. Hand every task that is ready to
-a subagent: call the sub_loop tool with the title of the task, and the subagent works as the agent
-the task is assigned to, with the description and the steps of it in front of it.
-Tasks that block nothing and wait for nothing can go out at the same time, one sub_loop call each.
+a subagent: call the task_loop tool with the title of the task, and the subagent works as the agent
+the task is assigned to, with the description and the steps of it in front of it. It can split the
+task among subagents of its own, so hand over the whole task rather than a piece of it.
+Tasks that block nothing and wait for nothing can go out at the same time, one task_loop call each.
 Handing a task over marks it ongoing; you mark it done once you accepted what came back, the
 subagent itself only moves the step index inside the task.
+Use sub_loop instead where there is nothing on the board to work on, for a question to look into or
+a piece of work of your own.
 A subagent reaches no user: it never gets an answer to a question. Put everything it needs into the
 prompt you give it, and keep the talking to the user yours.`;
     }

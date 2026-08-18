@@ -49,7 +49,7 @@ You can update old memory content via its name if you are sure the old memory is
         },
     },
     agentMode: ['agent', 'chat'],
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     parallelSafe: true,
     invoke: async (input: SaveMemoryInput, context: OneLoopContext): Promise<string> => {
         const { agentId, projectId } = parseScope(input.scope, context);
@@ -95,9 +95,7 @@ export const readMemoryDetailTool: ToolDesc<ReadMemoryDetailInput> = {
             required: ['name', 'scope'],
         },
     },
-    agentMode: ['agent', 'chat'],
-    exclusiveInSubLoop: false,
-    parallelSafe: true,
+    agentMode: ['agent', 'chat'],    parallelSafe: true,
     invoke: async (input: ReadMemoryDetailInput, context: OneLoopContext): Promise<string> => {
         const { agentId, projectId } = parseScope(input.scope, context);
         if (input.scope === 'project' && !projectId) {

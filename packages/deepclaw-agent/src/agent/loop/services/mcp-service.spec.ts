@@ -365,7 +365,7 @@ describe('tool listing', () => {
         const tool = MCPService.getTools()['MCP_srv_ping']!;
         expect(tool.parallelSafe).toBe(true);
         expect(tool.agentMode).toEqual(['agent']);
-        expect(tool.exclusiveInSubLoop).toBe(false);
+        expect(tool.loopKinds).toBeUndefined();
     });
 
     test('follows the cursor until the server stops paging', async () => {

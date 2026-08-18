@@ -1,6 +1,6 @@
 import { FileUtils } from '@deepclaw/node-utils';
 import { ToolUseResult, ToolUseDef, ToolDesc } from "../../definitions/tool-definitions";
-import { OneLoopContext } from '../../definitions/definitions';
+import { isSpawnedLoop, OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
 import { ToolsManager } from './tools-manager';
 import { HookManager } from './hook-manager';
@@ -26,19 +26,26 @@ export class ToolUseService {
     /**
      * Splits the tool calls of one turn into groups meant to be run one group after the other.
      * Tools that declare themselves parallel safe share a group, every other tool call gets a
-     * group of its own so that no other tool call runs while it does.
+     * group of its own so that no other tool call runs while it does. A group is as wide as the
+     * narrowest tool in it allows, so the calls beyond that are left for the group after it.
      */
     public static planExecutionGroups(toolUseDefs: ToolUseDef[], context: OneLoopContext): ToolUseDef[][] {
         const groups: ToolUseDef[][] = [];
         let parallel: ToolUseDef[] | undefined;
+        let maxParallel = MAX_PARALLEL_TOOL_CALLS;
         for (const toolUseDef of toolUseDefs) {
-            const tool = ToolsManager.getToolDesc(context.isSubLoop, context.loopConfig.mode, toolUseDef.name);
+            const tool = ToolsManager.getToolDesc(context.loopKind, context.loopConfig.mode, toolUseDef.name);
             if (!tool?.parallelSafe) {
                 parallel = undefined;
                 groups.push([toolUseDef]);
-            } else if (parallel && parallel.length < MAX_PARALLEL_TOOL_CALLS) {
+                continue;
+            }
+            const limit = Math.min(maxParallel, tool.maxParallel ?? MAX_PARALLEL_TOOL_CALLS);
+            if (parallel && parallel.length < limit) {
+                maxParallel = limit;
                 parallel.push(toolUseDef);
             } else {
+                maxParallel = tool.maxParallel ?? MAX_PARALLEL_TOOL_CALLS;
                 parallel = [toolUseDef];
                 groups.push(parallel);
             }
@@ -47,7 +54,7 @@ export class ToolUseService {
     }
 
     public static async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
-        const tool = ToolsManager.getToolDesc(context.isSubLoop, context.loopConfig.mode, toolUseDef.name);
+        const tool = ToolsManager.getToolDesc(context.loopKind, context.loopConfig.mode, toolUseDef.name);
         if (!tool) {
             return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`, false);
         }
@@ -85,9 +92,10 @@ export class ToolUseService {
         if (guardResult.result === 'allowed') {
             return undefined;
         }
-        // Nobody is there to answer inside a sub loop, so the tool goes through on the trust the
-        // sub agent was handed with the task: a denial only made it report the question back.
-        if (context.isSubLoop) {
+        // Nobody is there to answer inside a spawned loop, so the tool goes through on the trust the
+        // subagent was handed with the task: a denial only made it report the question back. Several
+        // of them run at once, and a question each would be a queue nobody asked the user for.
+        if (isSpawnedLoop(context.loopKind)) {
             return undefined;
         }
         try {

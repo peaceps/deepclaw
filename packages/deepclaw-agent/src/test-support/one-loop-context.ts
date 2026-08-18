@@ -53,11 +53,12 @@ export function newTestContext(overrides: Partial<OneLoopContext> = {}): OneLoop
         loopId: 'agent.a1',
         browserId: 'b1',
         sessionDir: '.agents/a1/session/s1',
-        isSubLoop: false,
+        loopKind: 'main',
         loopConfig: newTestAgentConfig(),
         system: {cacheable: 'cacheable prompt', dynamic: 'dynamic prompt'},
         logger: newTestLogger(),
         actions: {
+            newTaskLoop: vi.fn(() => ({} as FlushAgent)),
             newSubLoop: vi.fn(() => ({} as FlushAgent)),
             addFootPrint: vi.fn(),
             agentHandler: newTestAgentHandler(),

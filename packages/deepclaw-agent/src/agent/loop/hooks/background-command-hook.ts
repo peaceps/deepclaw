@@ -1,11 +1,11 @@
 import { HookManager } from "../services/hook-manager";
-import type { OneLoopContext } from "../../definitions/definitions";
+import { isSpawnedLoop, type OneLoopContext } from "../../definitions/definitions";
 import { BackgroundCommandManager } from "../services/background-command-manager";
 
-// A sub loop shares the loopId of its parent, so draining there would swallow results the
-// parent is waiting for and drop them into a history that is thrown away minutes later.
+// A spawned loop shares the loopId of the loop that spawned it, so draining there would swallow
+// results that loop is waiting for and drop them into a history that is thrown away minutes later.
 HookManager.onVisitor('preTurnStart', async (oneLoopContext: OneLoopContext) => {
-    if (oneLoopContext.isSubLoop) {
+    if (isSpawnedLoop(oneLoopContext.loopKind)) {
         return;
     }
     const finishedCommands = BackgroundCommandManager.drainFinishedCommands(oneLoopContext.loopId);

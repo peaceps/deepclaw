@@ -34,7 +34,7 @@ export const updateAgentRuntimeTool: ToolDesc<UpdateAgentRuntimeInput> = {
     // Chat mode gets it too: the prompt offers emotions to every agent that has them switched on,
     // and this touches nothing but the agent's own runtime status.
     agentMode: ['agent', 'chat'],
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     invoke: async function(input, context): Promise<string> {
         const {mood, emotion} = input;
         if (!mood && !emotion) {

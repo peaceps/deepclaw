@@ -613,9 +613,9 @@ describe('prompts', () => {
         expect(manager.promptManagementTools()).toContain('## Project Management tools');
     });
 
-    test('keeps the status of a task away from a subloop agent', () => {
+    test('keeps the status of a task away from a subagent', () => {
         expect(manager.promptManagementTools())
-            .toContain('A subloop agent cannot update a task, it only moves the step index');
+            .toContain('A subagent cannot update a task, it only moves the step index');
     });
 
     test('describes the current project with its tasks and buckets', () => {
@@ -632,7 +632,8 @@ describe('prompts', () => {
     test('tells the project owner to hand its tasks to subagents', () => {
         const prompt = manager.promptTaskDelegation();
         expect(prompt).toContain('## Run the tasks through subagents');
-        expect(prompt).toContain('call the sub_loop tool with the title of the task');
+        expect(prompt).toContain('call the task_loop tool with the title of the task');
+        expect(prompt).toContain('Use sub_loop instead where there is nothing on the board');
         expect(prompt).toContain('Handing a task over marks it ongoing');
         expect(prompt).toContain('A subagent reaches no user');
     });

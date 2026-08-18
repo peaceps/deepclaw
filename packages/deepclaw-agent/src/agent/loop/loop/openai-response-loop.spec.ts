@@ -102,6 +102,12 @@ describe('OpenAIResponseLoop', () => {
     test('gives a sub loop its own session', () => {
         const subLoop = newLoop().createSubLoop();
         expect(subLoop).toBeInstanceOf(OpenAIResponseLoop);
-        expect(mocks.getSessionDir.mock.calls.at(-1)![3]).toBeTruthy();
+        expect(mocks.getSessionDir.mock.calls.at(-1)![3]).toMatchObject({kind: 'sub'});
+    });
+
+    test('gives a task loop its own session', () => {
+        const taskLoop = newLoop().createTaskLoop({projectId: 'p1', taskTitle: 'ship it'});
+        expect(taskLoop).toBeInstanceOf(OpenAIResponseLoop);
+        expect(mocks.getSessionDir.mock.calls.at(-1)![3]).toMatchObject({kind: 'task'});
     });
 });

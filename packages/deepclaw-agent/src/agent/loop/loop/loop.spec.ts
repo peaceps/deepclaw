@@ -6,7 +6,10 @@ import {
 } from '@deepclaw/core';
 import {type AgentConfig, type AgentMode} from '@deepclaw/config';
 import {type Logger} from '@deepclaw/node-utils';
-import {type LLMProtocol, type OneLoopContext, type SystemPrompt} from '../../definitions/definitions';
+import {
+    type AssignedTask, type LLMProtocol, type LoopKind, type OneLoopContext, type SpawnedLoop,
+    type SystemPrompt,
+} from '../../definitions/definitions';
 import {type ToolUseDef, type ToolUseResult} from '../../definitions/tool-definitions';
 import {type LLMConstructor, type LLMModel} from '../../llm/llmgw';
 import {newTestAgentConfig, newTestRuntime} from '../../../test-support/one-loop-context';
@@ -95,7 +98,7 @@ type TestResponse = {
 
 class FakeLLM {
     public static instances: FakeLLM[] = [];
-    public readonly isSubLoop: boolean;
+    public readonly loopKind: LoopKind;
     public readonly llmConfig: unknown;
     public responses: TestResponse[] = [];
     public usage: TokenUsage = {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3};
@@ -112,8 +115,8 @@ class FakeLLM {
         return response;
     });
 
-    constructor(isSubLoop: boolean, llmConfig: unknown) {
-        this.isSubLoop = isSubLoop;
+    constructor(loopKind: LoopKind, llmConfig: unknown) {
+        this.loopKind = loopKind;
         this.llmConfig = llmConfig;
         FakeLLM.instances.push(this);
     }
@@ -138,7 +141,7 @@ class FakeLLM {
 type TestLLM = LLMModel<TestMessage, TestResponse, unknown, unknown>;
 
 class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
-    public static subLoops: TestLoop[] = [];
+    public static spawnedLoops: TestLoop[] = [];
 
     protected override getLLMProtocol(): LLMProtocol {
         return 'OpenAIChat';
@@ -156,13 +159,13 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
         return toolResults.map(result => ({role: 'tool', text: result.content}));
     }
 
-    protected override newSubLoop(
+    protected override newLoop(
         role: FlushAgentRole, agentId: string, projectId: string,
-        subLoopAgentHandler: AgentHandler, subLoopId: string
+        agentHandler: AgentHandler, spawned?: SpawnedLoop
     ): TestLoop {
-        const subLoop = new TestLoop(role, agentId, projectId, subLoopAgentHandler, subLoopId);
-        TestLoop.subLoops.push(subLoop);
-        return subLoop;
+        const spawnedLoop = new TestLoop(role, agentId, projectId, agentHandler, spawned);
+        TestLoop.spawnedLoops.push(spawnedLoop);
+        return spawnedLoop;
     }
 
     public fakeLLM(): FakeLLM {
@@ -184,6 +187,14 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
     public newTestSubLoop(): TestLoop {
         return this.createSubLoop() as TestLoop;
     }
+
+    public newTestTaskLoop(assignedTask: AssignedTask = {projectId: 'p1', taskTitle: 'ship it'}): TestLoop {
+        return this.createTaskLoop(assignedTask) as TestLoop;
+    }
+}
+
+function newSpawned(kind: 'task' | 'sub', assignedTask?: AssignedTask): SpawnedLoop {
+    return {kind, runId: `${kind}1`, assignedTask};
 }
 
 function newHandler(): AgentHandler {
@@ -196,12 +207,12 @@ function newHandler(): AgentHandler {
 
 function newLoop(options: {
     role?: FlushAgentRole, config?: AgentConfig, history?: TestMessage[], outdated?: boolean,
-    handler?: AgentHandler, subLoopId?: string
+    handler?: AgentHandler, spawned?: SpawnedLoop
 } = {}) {
     const handler = options.handler ?? newHandler();
     mocks.loadAgentConfig.mockReturnValue(options.config ?? newTestAgentConfig());
     mocks.loadSession.mockReturnValue({history: options.history ?? [], outdated: options.outdated ?? false});
-    const loop = new TestLoop(options.role ?? 'agent', 'a1', '', handler, options.subLoopId);
+    const loop = new TestLoop(options.role ?? 'agent', 'a1', '', handler, options.spawned);
     return {loop, handler, llm: loop.fakeLLM()};
 }
 
@@ -217,7 +228,7 @@ function toolUse(id: string, name = 'demo'): ToolUseDef {
 beforeEach(() => {
     vi.clearAllMocks();
     FakeLLM.instances = [];
-    TestLoop.subLoops = [];
+    TestLoop.spawnedLoops = [];
     mocks.getSessionDir.mockReturnValue('.agents/a1/session/s1');
     mocks.loadSession.mockReturnValue({history: [], outdated: false});
     mocks.provideSystemPrompt.mockReturnValue({cacheable: 'cacheable', dynamic: 'dynamic'});
@@ -236,13 +247,22 @@ describe('construction', () => {
     test('builds its llm with the agent llm config and the loop kind', () => {
         const config = newTestAgentConfig({llm: {baseURL: 'https://api.openai.com', apiKey: 'k', model: 'm'}});
         const {llm} = newLoop({config});
-        expect(llm.isSubLoop).toBe(false);
+        expect(llm.loopKind).toBe('main');
         expect(llm.llmConfig).toEqual({baseURL: 'https://api.openai.com', apiKey: 'k', model: 'm'});
     });
 
-    test('marks a loop with a sub loop id as a sub loop', () => {
-        const {llm} = newLoop({subLoopId: 'sub1'});
-        expect(llm.isSubLoop).toBe(true);
+    test('takes the kind it was spawned as over to its llm', () => {
+        expect(newLoop({spawned: newSpawned('sub')}).llm.loopKind).toBe('sub');
+        expect(newLoop({spawned: newSpawned('task')}).llm.loopKind).toBe('task');
+    });
+
+    /**
+     * The session is picked before the first turn, so a loop that learned what it is any later
+     * would already have read the history of the loop that spawned it and would write over it.
+     */
+    test('knows what it was spawned as before it reads a session', () => {
+        newLoop({spawned: newSpawned('task')});
+        expect(mocks.loadSession).toHaveBeenCalledWith(expect.objectContaining({loopKind: 'task'}));
     });
 
     test('forces the agent mode for a cron run', async () => {
@@ -269,8 +289,9 @@ describe('construction', () => {
     });
 
     test('asks the session service for its own folder', () => {
-        const {loop} = newLoop({subLoopId: 'sub1'});
-        expect(mocks.getSessionDir).toHaveBeenCalledWith('agent', 'a1', '', 'sub1');
+        const spawned = newSpawned('sub');
+        const {loop} = newLoop({spawned});
+        expect(mocks.getSessionDir).toHaveBeenCalledWith('agent', 'a1', '', spawned);
         expect(loop.getSessionDir()).toBe('.agents/a1/session/s1');
     });
 });
@@ -345,7 +366,7 @@ describe('one turn', () => {
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('hi', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenCalledWith(
-            expect.objectContaining({id: 'a1'}), {id: 'a1', name: 'Ada'}, 'agent', '', false, undefined
+            expect.objectContaining({id: 'a1'}), {id: 'a1', name: 'Ada'}, 'agent', '', 'main', undefined
         );
         expect(llm.invoke.mock.calls[0]![1]).toEqual({cacheable: 'cacheable', dynamic: 'dynamic'});
     });
@@ -674,20 +695,39 @@ describe('interrupts', () => {
     });
 });
 
-describe('sub loops', () => {
+describe('spawned loops', () => {
 
     test('creates a sub loop that shares the ids but has its own session', () => {
         const {loop} = newLoop();
         const subLoop = loop.newTestSubLoop();
-        expect(TestLoop.subLoops).toEqual([subLoop]);
-        expect(subLoop.fakeLLM().isSubLoop).toBe(true);
+        expect(TestLoop.spawnedLoops).toEqual([subLoop]);
+        expect(subLoop.fakeLLM().loopKind).toBe('sub');
     });
 
-    test('keeps the stream of a sub loop private', async () => {
+    test('creates a task loop for the task it hands over', () => {
+        const {loop} = newLoop();
+        const taskLoop = loop.newTestTaskLoop();
+        expect(TestLoop.spawnedLoops).toEqual([taskLoop]);
+        expect(taskLoop.fakeLLM().loopKind).toBe('task');
+    });
+
+    test('gives every run a handle of its own', () => {
+        const {loop} = newLoop();
+        loop.newTestTaskLoop();
+        loop.newTestSubLoop();
+        const runIds = mocks.getSessionDir.mock.calls
+            .map(call => (call[3] as SpawnedLoop | undefined)?.runId)
+            .filter(Boolean);
+        expect(new Set(runIds).size).toBe(2);
+    });
+
+    /** Its text under the loop id they share would read as an answer of the loop that spawned it. */
+    test('keeps the stream of a spawned loop private', async () => {
         const {loop, handler} = newLoop();
-        const subLoop = loop.newTestSubLoop();
-        subLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'sub answer'}];
-        await subLoop.runInvoke('sub task', {browserId: 'b1'});
+        for (const spawnedLoop of [loop.newTestSubLoop(), loop.newTestTaskLoop()]) {
+            spawnedLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'an answer'}];
+            await spawnedLoop.runInvoke('work', {browserId: 'b1'});
+        }
         expect(handler.onStreamText).not.toHaveBeenCalled();
     });
 
@@ -701,17 +741,32 @@ describe('sub loops', () => {
     });
 
     test('refuses to nest another sub loop', () => {
-        const {loop} = newLoop({subLoopId: 'sub1'});
-        expect(() => loop.createSubLoop()).toThrow('Sub-loop cannot create a sub-loop');
+        const {loop} = newLoop({spawned: newSpawned('sub')});
+        expect(() => loop.createSubLoop()).toThrow('A sub loop cannot create a sub loop.');
     });
 
-    test('builds the prompt of a task sub loop around its task', async () => {
+    /** The whole point of a task loop: the pieces of one task can go out at the same time. */
+    test('lets a task loop spawn sub loops of its own', () => {
+        const {loop} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskTitle: 'ship it'})});
+        const subLoop = loop.newTestSubLoop();
+        expect(subLoop.fakeLLM().loopKind).toBe('sub');
+    });
+
+    test('hands the tasks of a project out of the main loop only', () => {
+        const task = {projectId: 'p1', taskTitle: 'ship it'};
+        expect(() => newLoop({spawned: newSpawned('task', task)}).loop.createTaskLoop(task))
+            .toThrow('A task loop cannot create a task loop.');
+        expect(() => newLoop({spawned: newSpawned('sub')}).loop.createTaskLoop(task))
+            .toThrow('A sub loop cannot create a task loop.');
+    });
+
+    test('builds the prompt of a task loop around its task', async () => {
         const {loop} = newLoop();
-        const subLoop = loop.createSubLoop({projectId: 'p1', taskTitle: 'ship it'}) as TestLoop;
-        subLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'done'}];
-        await subLoop.runInvoke('go', {browserId: 'b1'});
+        const taskLoop = loop.newTestTaskLoop();
+        taskLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await taskLoop.runInvoke('go', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
-            expect.anything(), expect.anything(), 'agent', '', true,
+            expect.anything(), expect.anything(), 'agent', '', 'task',
             {projectId: 'p1', taskTitle: 'ship it'}
         );
     });
@@ -722,34 +777,49 @@ describe('sub loops', () => {
         subLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'done'}];
         await subLoop.runInvoke('go', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
-            expect.anything(), expect.anything(), 'agent', '', true, undefined
+            expect.anything(), expect.anything(), 'agent', '', 'sub', undefined
         );
     });
 
     /** The tools read the borrowed agent off the context, the prompt only tells the model about it. */
-    test('tells the tools of a task sub loop which agent it stands in for', async () => {
+    test('tells the tools of a task loop which agent it stands in for', async () => {
         const {loop} = newLoop();
         mocks.taskAssignee.mockReturnValue({id: 'a2', name: 'Bob'});
-        const subLoop = loop.createSubLoop({projectId: 'p1', taskTitle: 'ship it'}) as TestLoop;
-        subLoop.fakeLLM().responses = [
+        const taskLoop = loop.newTestTaskLoop();
+        taskLoop.fakeLLM().responses = [
             {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
             {transitionReason: 'endLoop', text: 'done'},
         ];
-        await subLoop.runInvoke('go', {browserId: 'b1'});
+        await taskLoop.runInvoke('go', {browserId: 'b1'});
         expect(mocks.taskAssignee).toHaveBeenCalledWith({projectId: 'p1', taskTitle: 'ship it'});
         expect(mocks.executeToolCall).toHaveBeenCalledWith(
             toolUse('tu1'), expect.objectContaining({personaId: 'a2', agentId: 'a1'})
         );
     });
 
-    test('leaves the tools of a sub loop on a task nobody owns with their own agent', async () => {
-        const {loop} = newLoop();
-        const subLoop = loop.createSubLoop({projectId: 'p1', taskTitle: 'ship it'}) as TestLoop;
+    /** A helper of a task loop works for the same agent, with the memory and the skills of it. */
+    test('hands the borrowed agent of a task loop down to its sub loops', async () => {
+        const {loop} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskTitle: 'ship it'})});
+        mocks.taskAssignee.mockReturnValue({id: 'a2', name: 'Bob'});
+        const subLoop = loop.newTestSubLoop();
         subLoop.fakeLLM().responses = [
             {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
             {transitionReason: 'endLoop', text: 'done'},
         ];
         await subLoop.runInvoke('go', {browserId: 'b1'});
+        expect(mocks.executeToolCall).toHaveBeenCalledWith(
+            toolUse('tu1'), expect.objectContaining({personaId: 'a2', agentId: 'a1'})
+        );
+    });
+
+    test('leaves the tools of a task loop on a task nobody owns with their own agent', async () => {
+        const {loop} = newLoop();
+        const taskLoop = loop.newTestTaskLoop();
+        taskLoop.fakeLLM().responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await taskLoop.runInvoke('go', {browserId: 'b1'});
         expect(mocks.executeToolCall).toHaveBeenCalledWith(
             toolUse('tu1'), expect.objectContaining({personaId: undefined, agentId: 'a1'})
         );

@@ -54,7 +54,7 @@ function startSession(overrides: Partial<OneLoopContext> = {}): OneLoopContext {
         agentId: context.agentId,
         projectId: context.projectId,
         loopId: context.loopId,
-        isSubLoop: context.isSubLoop,
+        loopKind: context.loopKind,
         llmProtocol: 'Anthropic',
     });
     return context;
@@ -79,8 +79,14 @@ beforeEach(() => {
 describe('getSessionDir', () => {
 
     test('puts a sub loop into the temporary folder whatever its role is', () => {
-        expect(SessionService.getSessionDir('agent', 'a1', 'p1', 'sub9'))
+        expect(SessionService.getSessionDir('agent', 'a1', 'p1', {kind: 'sub', runId: 'sub9'}))
             .toBe('/tmp/.deepclaw/subloop/sub9');
+    });
+
+    /** One folder per run, and never the folder of the session the run was spawned out of. */
+    test('gives a task loop a run folder of its own', () => {
+        expect(SessionService.getSessionDir('project', 'a1', 'p1', {kind: 'task', runId: 'task7'}))
+            .toBe('/tmp/.deepclaw/taskloop/task7');
     });
 
     test('puts an agent loop next to the agent files', () => {
@@ -109,7 +115,7 @@ describe('loadSession', () => {
             agentId: 'a1',
             projectId: '',
             loopId: 'agent.a1',
-            isSubLoop: false,
+            loopKind: 'main' as const,
             messagesPath: 'stored/messages.jsonl',
             runtime: {
                 status: 'idle',
@@ -126,7 +132,7 @@ describe('loadSession', () => {
         const sessionDir = nextSessionDir();
         expect(SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
         })).toEqual({history: [], outdated: false});
     });
 
@@ -134,7 +140,7 @@ describe('loadSession', () => {
         const sessionDir = nextSessionDir();
         SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         expect(mocks.readFile).not.toHaveBeenCalledWith(`${sessionDir}/messages.jsonl`);
     });
@@ -145,7 +151,7 @@ describe('loadSession', () => {
         disk[`${sessionDir}/messages.jsonl`] = '{"role":"user"}\n{"role":"assistant"}\n';
         expect(SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
         })).toEqual({history: [{role: 'user'}, {role: 'assistant'}], outdated: false});
     });
 
@@ -155,7 +161,7 @@ describe('loadSession', () => {
         disk[`${sessionDir}/messages.jsonl`] = '{"role":"user"}\n\n  \n{"role":"assistant"}\n';
         const {history} = SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         expect(history).toHaveLength(2);
     });
@@ -166,7 +172,7 @@ describe('loadSession', () => {
         disk[`${sessionDir}/messages.jsonl`] = '{"role":"user"}\nnot json\n';
         const {history} = SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         expect(history).toEqual([]);
     });
@@ -176,7 +182,7 @@ describe('loadSession', () => {
         disk[metaPath(sessionDir)] = JSON.stringify(newMeta());
         const {history, outdated} = SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         expect(history).toEqual([]);
         expect(outdated).toBe(false);
@@ -188,7 +194,7 @@ describe('loadSession', () => {
         const context = newTestContext({sessionDir});
         const {outdated} = SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         SessionService.updateSessionRuntime(context, {});
         const meta = persistedMeta(sessionDir);
@@ -205,7 +211,7 @@ describe('loadSession', () => {
         disk[`${sessionDir}/messages.jsonl`] = '{"role":"user"}\n';
         const {history} = SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         expect(history).toEqual([{role: 'user'}]);
     });
@@ -221,7 +227,7 @@ describe('loadSession', () => {
         const sessionDir = nextSessionDir();
         SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: true, llmProtocol: 'Anthropic',
+            loopKind: 'sub', llmProtocol: 'Anthropic',
         });
         SessionService.updateSessionRuntime(newTestContext({sessionDir}), {});
         expect(persistedMeta(sessionDir).messagesPath).toBe('');
@@ -232,7 +238,7 @@ describe('loadSession', () => {
         disk[metaPath(sessionDir)] = JSON.stringify(newMeta());
         const config = {
             sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
-            isSubLoop: false, llmProtocol: 'Anthropic' as const,
+            loopKind: 'main' as const, llmProtocol: 'Anthropic' as const,
         };
         SessionService.loadSession(config);
         SessionService.loadSession(config);
@@ -243,9 +249,18 @@ describe('loadSession', () => {
 describe('saveHistory persistence', () => {
 
     test('persists nothing for a sub loop', () => {
-        const context = startSession({isSubLoop: true});
+        const context = startSession({loopKind: 'sub'});
         context.runtime.turnCount = 3;
         SessionService.saveHistory([{i: 1}], context);
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(mocks.appendFile).not.toHaveBeenCalled();
+    });
+
+    /** A task loop is a run of its own, and a run is over before anybody could resume it. */
+    test('persists nothing for a task loop', () => {
+        const context = startSession({loopKind: 'task'});
+        context.runtime.turnCount = 3;
+        SessionService.saveHistory([{i: 1}], context, {}, true);
         expect(mocks.writeFile).not.toHaveBeenCalled();
         expect(mocks.appendFile).not.toHaveBeenCalled();
     });
@@ -443,7 +458,14 @@ describe('updateSessionRuntime', () => {
     });
 
     test('does not write the metadata file of a sub loop', () => {
-        const context = startSession({isSubLoop: true});
+        const context = startSession({loopKind: 'sub'});
+        SessionService.updateSessionRuntime(context, {status: 'running'});
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    /** The status of a session belongs to the loop a user talks to, not to the runs it hands out. */
+    test('does not write the metadata file of a task loop either', () => {
+        const context = startSession({loopKind: 'task'});
         SessionService.updateSessionRuntime(context, {status: 'running'});
         expect(mocks.writeFile).not.toHaveBeenCalled();
     });
@@ -466,7 +488,7 @@ describe('getTokenUsage', () => {
         const context = newTestContext({sessionDir: '.agents/usageAgent/session'});
         SessionService.loadSession({
             sessionDir: context.sessionDir, agentId: 'usageAgent', projectId: '',
-            loopId: 'agent.usageAgent', isSubLoop: false, llmProtocol: 'Anthropic',
+            loopId: 'agent.usageAgent', loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         SessionService.updateSessionRuntime(context, {
             usage: {cachedInputTokens: 10, noCachedInputTokens: 20, outputTokens: 30},
@@ -479,7 +501,7 @@ describe('getTokenUsage', () => {
         const sessionDir = '.projects/usageProject/session';
         SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: 'usageProject',
-            loopId: 'project.a1.usageProject', isSubLoop: false, llmProtocol: 'Anthropic',
+            loopId: 'project.a1.usageProject', loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         expect(SessionService.getTokenUsage('project.a1.usageProject'))
             .toEqual({cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0});
@@ -489,7 +511,7 @@ describe('getTokenUsage', () => {
         const sessionDir = '/tmp/.deepclaw/.cron/usageCron/session';
         SessionService.loadSession({
             sessionDir, agentId: 'a1', projectId: 'usageCron',
-            loopId: 'cron.a1.usageCron', isSubLoop: false, llmProtocol: 'Anthropic',
+            loopId: 'cron.a1.usageCron', loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         expect(SessionService.getTokenUsage('cron.a1.usageCron')).toBeDefined();
     });

@@ -2,7 +2,7 @@ import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type FlushAgent, type TokenUsage} from '@deepclaw/core';
 import {newTestContext, newTestRuntime} from '../../../test-support/one-loop-context';
 import {type OneLoopContext} from '../../definitions/definitions';
-import {subLoopTool} from './sub-loop-tool';
+import {subLoopTool, taskLoopTool} from './sub-loop-tool';
 
 const mocks = vi.hoisted(() => ({
     deleteDir: vi.fn<(dir: string) => void>(() => undefined),
@@ -48,176 +48,139 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
 
 vi.mock('../services/session-service', () => ({SessionService: {dropSession: mocks.dropSession}}));
 
-function newSubLoop(text = 'sub loop answer', usage: TokenUsage = newTestRuntime().usage) {
+const SESSION_DIR = '/tmp/.deepclaw/subloop/sub9';
+
+function newSpawnedLoop(text = 'spawned loop answer', usage: TokenUsage = newTestRuntime().usage) {
     return {
         invoke: vi.fn(async () => ({text, runtime: newTestRuntime({usage})})),
-        getSessionDir: vi.fn(() => '.agents/a1/session/sub9'),
+        getSessionDir: vi.fn(() => SESSION_DIR),
         getDrawnImages: vi.fn<() => string[]>(() => []),
     };
 }
 
-function contextWithSubLoop(subLoop: ReturnType<typeof newSubLoop>): OneLoopContext {
+type SpawnedLoopMock = ReturnType<typeof newSpawnedLoop>;
+
+function contextWithTaskLoop(taskLoop: SpawnedLoopMock, projectId = 'p1'): OneLoopContext {
+    const context = newTestContext({projectId});
+    vi.mocked(context.actions.newTaskLoop).mockReturnValue(taskLoop as unknown as FlushAgent);
+    return context;
+}
+
+function contextWithSubLoop(subLoop: SpawnedLoopMock): OneLoopContext {
     const context = newTestContext();
     vi.mocked(context.actions.newSubLoop).mockReturnValue(subLoop as unknown as FlushAgent);
     return context;
 }
 
-describe('subLoopTool invoke', () => {
+beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getTask.mockReturnValue(todoTask());
+    mocks.isRunning.mockReturnValue(false);
+    mocks.startRun.mockReturnValue('run1');
+});
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-        mocks.getTask.mockReturnValue(todoTask());
-        mocks.isRunning.mockReturnValue(false);
+describe('taskLoopTool invoke', () => {
+
+    test('hands the named task of the current project to a task loop', async () => {
+        const taskLoop = newSpawnedLoop();
+        const context = contextWithTaskLoop(taskLoop);
+        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        expect(context.actions.newTaskLoop)
+            .toHaveBeenCalledExactlyOnceWith({projectId: 'p1', taskTitle: 'ship it'});
+        expect(taskLoop.invoke).toHaveBeenCalledExactlyOnceWith('go', {browserId: 'b1'});
     });
 
-    test('runs the prompt on a freshly spawned sub loop', async () => {
-        const subLoop = newSubLoop();
-        const context = contextWithSubLoop(subLoop);
-        await subLoopTool.invoke({prompt: 'summarise the repo'}, context);
-        expect(context.actions.newSubLoop).toHaveBeenCalledOnce();
-        expect(subLoop.invoke).toHaveBeenCalledExactlyOnceWith('summarise the repo', {browserId: 'b1'});
+    test('returns the text the task loop produced', async () => {
+        const context = contextWithTaskLoop(newSpawnedLoop('done'));
+        expect(await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context)).toBe('done');
     });
 
-    test('returns the text the sub loop produced', async () => {
-        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSubLoop('done')));
-        expect(result).toBe('done');
-    });
-
-    /** The reference is the only handle on the bytes, and the summary of a sub loop may drop it. */
-    test('names the pictures the sub loop drew next to what it wrote', async () => {
-        const subLoop = newSubLoop('drew the poster');
-        subLoop.getDrawnImages.mockReturnValue(['dcimg://agent.a1/aa.png', 'dcimg://agent.a1/bb.png']);
-        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+    /** The reference is the only handle on the bytes, and the summary of a run may drop it. */
+    test('names the pictures the task loop drew next to what it wrote', async () => {
+        const taskLoop = newSpawnedLoop('drew the poster');
+        taskLoop.getDrawnImages.mockReturnValue(['dcimg://agent.a1/aa.png']);
+        const result = await taskLoopTool.invoke(
+            {prompt: 'go', taskTitle: 'ship it'}, contextWithTaskLoop(taskLoop)
+        );
         expect(result).toContain('drew the poster');
         expect(result).toContain('![image](dcimg://agent.a1/aa.png)');
-        expect(result).toContain('![image](dcimg://agent.a1/bb.png)');
     });
 
-    test('leaves the text alone when the sub loop drew nothing', async () => {
-        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSubLoop('done')));
-        expect(result).toBe('done');
+    test('refuses to run without a task to work on', async () => {
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: ''}, context))
+            .rejects.toThrow('Name the task of this project');
+        expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
 
-    test('cleans up the sub loop session directory once it finished', async () => {
-        const subLoop = newSubLoop();
-        await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
-        expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith('.agents/a1/session/sub9');
-    });
-
-    test('cleans up the session directory even when the sub loop throws', async () => {
-        const subLoop = newSubLoop();
-        subLoop.invoke.mockRejectedValue(new Error('sub loop crashed'));
-        await expect(subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop)))
-            .rejects.toThrow('sub loop crashed');
-        expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith('.agents/a1/session/sub9');
-    });
-
-    test('forgets the session metadata of the sub loop as well', async () => {
-        const subLoop = newSubLoop();
-        await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
-        expect(mocks.dropSession).toHaveBeenCalledExactlyOnceWith('.agents/a1/session/sub9');
-    });
-
-    test('spawns a plain sub loop when no task was named', async () => {
-        const subLoop = newSubLoop();
-        const context = contextWithSubLoop(subLoop);
-        await subLoopTool.invoke({prompt: 'go'}, context);
-        expect(context.actions.newSubLoop).toHaveBeenCalledExactlyOnceWith(undefined);
-        expect(mocks.getTask).not.toHaveBeenCalled();
-    });
-
-    test('hands the named task of the current project to the sub loop', async () => {
-        const subLoop = newSubLoop();
-        const context = contextWithSubLoop(subLoop);
-        context.projectId = 'p1';
-        await subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
-        expect(context.actions.newSubLoop)
-            .toHaveBeenCalledExactlyOnceWith({projectId: 'p1', taskTitle: 'ship it'});
-    });
-
-    /** A sub loop may only move the step index, and that is refused while the task is todo. */
+    /** A subagent may only move the step index, and that is refused while the task is todo. */
     test('marks the task ongoing as it hands it over', async () => {
-        const context = contextWithSubLoop(newSubLoop());
-        context.projectId = 'p1';
-        await subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
         expect(mocks.updateTask).toHaveBeenCalledExactlyOnceWith('p1', {title: 'ship it', status: 'ongoing'});
         expect(mocks.fireProjectInfoEvent).toHaveBeenCalledExactlyOnceWith('p1', context);
     });
 
     test('leaves a task that is already ongoing where it is', async () => {
         mocks.getTask.mockReturnValue(todoTask('ongoing'));
-        const context = contextWithSubLoop(newSubLoop());
-        context.projectId = 'p1';
-        await subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
         expect(mocks.updateTask).not.toHaveBeenCalled();
-        expect(context.actions.newSubLoop)
+        expect(context.actions.newTaskLoop)
             .toHaveBeenCalledExactlyOnceWith({projectId: 'p1', taskTitle: 'ship it'});
     });
 
-    /** The status of a done task cannot go back, so a sub loop could not report on it either. */
+    /** The status of a done task cannot go back, so a subagent could not report on it either. */
     test('refuses a task that is already done', async () => {
         mocks.getTask.mockReturnValue(todoTask('done'));
-        const context = contextWithSubLoop(newSubLoop());
-        context.projectId = 'p1';
-        await expect(subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
             .rejects.toThrow('Task "ship it" is done');
-        expect(context.actions.newSubLoop).not.toHaveBeenCalled();
+        expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
 
     /** Two subagents on one task would work over each other in the same files. */
     test('refuses a task another subagent is on already', async () => {
         mocks.isRunning.mockReturnValue(true);
-        const context = contextWithSubLoop(newSubLoop());
-        context.projectId = 'p1';
-        await expect(subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
             .rejects.toThrow('A subagent is working on "ship it" already');
         expect(mocks.isRunning).toHaveBeenCalledWith('p1', 'ship it');
         expect(mocks.updateTask).not.toHaveBeenCalled();
-        expect(context.actions.newSubLoop).not.toHaveBeenCalled();
+        expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
 
     /** The project id of a cron loop names its cron task, no project task can be found under it. */
     test('refuses to hand a task over from a cron run', async () => {
-        const context = contextWithSubLoop(newSubLoop());
+        const context = contextWithTaskLoop(newSpawnedLoop(), 'c1');
         context.role = 'cron';
-        context.projectId = 'c1';
-        await expect(subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
             .rejects.toThrow('A cron run has no project to take a task from');
         expect(mocks.getTask).not.toHaveBeenCalled();
     });
 
-    test('still spawns a plain sub loop from a cron run', async () => {
-        const context = contextWithSubLoop(newSubLoop());
-        context.role = 'cron';
-        context.projectId = 'c1';
-        await expect(subLoopTool.invoke({prompt: 'go'}, context)).resolves.toBe('sub loop answer');
-    });
-
     /** A task of another project would be worked on with the memory and skills of this one. */
     test('refuses to hand a task over from a session without a project', async () => {
-        const context = contextWithSubLoop(newSubLoop());
-        context.projectId = '';
-        await expect(subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        const context = contextWithTaskLoop(newSpawnedLoop(), '');
+        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
             .rejects.toThrow('This session runs no project');
         expect(mocks.getTask).not.toHaveBeenCalled();
-        expect(context.actions.newSubLoop).not.toHaveBeenCalled();
+        expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
 
     test('refuses a task that the project does not have', async () => {
         mocks.getTask.mockReturnValue(undefined);
-        const context = contextWithSubLoop(newSubLoop());
-        context.projectId = 'p1';
-        await expect(subLoopTool.invoke({prompt: 'go', taskTitle: 'ghost'}, context))
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ghost'}, context))
             .rejects.toThrow('Task "ghost" not found in project "p1".');
-        expect(context.actions.newSubLoop).not.toHaveBeenCalled();
+        expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
 
-    test('registers the run while the task sub loop works and retires it after', async () => {
-        const subLoop = newSubLoop();
-        const context = contextWithSubLoop(subLoop);
-        context.projectId = 'p1';
+    test('registers the run while the task loop works and retires it after', async () => {
+        const taskLoop = newSpawnedLoop();
+        const context = contextWithTaskLoop(taskLoop);
         mocks.getTask.mockReturnValue({title: 'ship it', assignee: 'a2'});
-        subLoop.invoke.mockImplementation(async () => {
+        taskLoop.invoke.mockImplementation(async () => {
             expect(mocks.startRun).toHaveBeenCalledExactlyOnceWith({
                 projectId: 'p1', taskTitle: 'ship it', agentId: 'a2', startedAt: expect.any(String),
             });
@@ -225,42 +188,33 @@ describe('subLoopTool invoke', () => {
             return {text: 'done', runtime: newTestRuntime()};
         });
 
-        await subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
 
         expect(mocks.finishRun).toHaveBeenCalledExactlyOnceWith('run1');
     });
 
-    /** Whoever spawned the sub loop owns the run when the task names nobody to work on it. */
-    test('files a run of an unassigned task under the agent that spawned it', async () => {
-        const context = contextWithSubLoop(newSubLoop());
-        context.projectId = 'p1';
+    /** Whoever handed the task over owns the run when the task names nobody to work on it. */
+    test('files a run of an unassigned task under the agent that handed it over', async () => {
+        const context = contextWithTaskLoop(newSpawnedLoop());
         mocks.getTask.mockReturnValue({title: 'ship it'});
-        await subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
         expect(mocks.startRun).toHaveBeenCalledWith(expect.objectContaining({agentId: 'a1'}));
     });
 
-    test('retires the run even when the sub loop throws', async () => {
-        const subLoop = newSubLoop();
-        subLoop.invoke.mockRejectedValue(new Error('sub loop crashed'));
-        const context = contextWithSubLoop(subLoop);
-        context.projectId = 'p1';
-        await expect(subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
-            .rejects.toThrow('sub loop crashed');
+    test('retires the run even when the task loop throws', async () => {
+        const taskLoop = newSpawnedLoop();
+        taskLoop.invoke.mockRejectedValue(new Error('task loop crashed'));
+        const context = contextWithTaskLoop(taskLoop);
+        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+            .rejects.toThrow('task loop crashed');
         expect(mocks.finishRun).toHaveBeenCalledExactlyOnceWith('run1');
     });
 
-    test('registers nothing for a sub loop that works on no task', async () => {
-        await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSubLoop()));
-        expect(mocks.startRun).not.toHaveBeenCalled();
-        expect(mocks.finishRun).not.toHaveBeenCalled();
-    });
-
     test('tells the browsers about the runs when one starts and when it ends', async () => {
-        const context = contextWithSubLoop(newSubLoop());
-        context.projectId = 'p1';
+        const context = contextWithTaskLoop(newSpawnedLoop());
         mocks.getRunningTasks.mockReturnValueOnce([{taskTitle: 'ship it'}]).mockReturnValueOnce([]);
 
-        await subLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
 
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenNthCalledWith(1, {
             eventType: 'updateRunningTasks', content: [{taskTitle: 'ship it'}],
@@ -270,11 +224,92 @@ describe('subLoopTool invoke', () => {
         });
     });
 
-    test('bills the tokens the sub loop spent to its parent', async () => {
-        const subLoop = newSubLoop('done', {
+    test('takes the session of the task loop apart once it reported back', async () => {
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith(SESSION_DIR);
+        expect(mocks.dropSession).toHaveBeenCalledExactlyOnceWith(SESSION_DIR);
+    });
+
+    test('bills the tokens the task loop spent to the loop that handed the task over', async () => {
+        const context = contextWithTaskLoop(newSpawnedLoop('done', {
             cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3,
+        }));
+        context.runtime.usage = {cachedInputTokens: 10, noCachedInputTokens: 20, outputTokens: 30};
+        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        expect(context.runtime.usage).toEqual({
+            cachedInputTokens: 11, noCachedInputTokens: 22, outputTokens: 33,
         });
+    });
+});
+
+describe('subLoopTool invoke', () => {
+
+    test('runs the prompt on a freshly spawned sub loop', async () => {
+        const subLoop = newSpawnedLoop();
         const context = contextWithSubLoop(subLoop);
+        await subLoopTool.invoke({prompt: 'summarise the repo'}, context);
+        expect(context.actions.newSubLoop).toHaveBeenCalledOnce();
+        expect(subLoop.invoke).toHaveBeenCalledExactlyOnceWith('summarise the repo', {browserId: 'b1'});
+    });
+
+    test('returns the text the sub loop produced', async () => {
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSpawnedLoop('done')));
+        expect(result).toBe('done');
+    });
+
+    test('names the pictures the sub loop drew next to what it wrote', async () => {
+        const subLoop = newSpawnedLoop('drew the poster');
+        subLoop.getDrawnImages.mockReturnValue(['dcimg://agent.a1/aa.png', 'dcimg://agent.a1/bb.png']);
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+        expect(result).toContain('drew the poster');
+        expect(result).toContain('![image](dcimg://agent.a1/aa.png)');
+        expect(result).toContain('![image](dcimg://agent.a1/bb.png)');
+    });
+
+    test('leaves the text alone when the sub loop drew nothing', async () => {
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSpawnedLoop('done')));
+        expect(result).toBe('done');
+    });
+
+    test('cleans up the sub loop session directory once it finished', async () => {
+        await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSpawnedLoop()));
+        expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith(SESSION_DIR);
+    });
+
+    test('cleans up the session directory even when the sub loop throws', async () => {
+        const subLoop = newSpawnedLoop();
+        subLoop.invoke.mockRejectedValue(new Error('sub loop crashed'));
+        await expect(subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop)))
+            .rejects.toThrow('sub loop crashed');
+        expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith(SESSION_DIR);
+    });
+
+    test('forgets the session metadata of the sub loop as well', async () => {
+        await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSpawnedLoop()));
+        expect(mocks.dropSession).toHaveBeenCalledExactlyOnceWith(SESSION_DIR);
+    });
+
+    /** A sub loop works a prompt, not a task: nothing of it belongs on the board of a project. */
+    test('leaves the project and its runs untouched', async () => {
+        await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSpawnedLoop()));
+        expect(mocks.getTask).not.toHaveBeenCalled();
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+        expect(mocks.startRun).not.toHaveBeenCalled();
+        expect(mocks.finishRun).not.toHaveBeenCalled();
+    });
+
+    test('spawns a sub loop from a cron run as well', async () => {
+        const context = contextWithSubLoop(newSpawnedLoop());
+        context.role = 'cron';
+        context.projectId = 'c1';
+        await expect(subLoopTool.invoke({prompt: 'go'}, context)).resolves.toBe('spawned loop answer');
+    });
+
+    test('bills the tokens the sub loop spent to its parent', async () => {
+        const context = contextWithSubLoop(newSpawnedLoop('done', {
+            cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3,
+        }));
         context.runtime.usage = {cachedInputTokens: 10, noCachedInputTokens: 20, outputTokens: 30};
         await subLoopTool.invoke({prompt: 'go'}, context);
         expect(context.runtime.usage).toEqual({
@@ -283,11 +318,21 @@ describe('subLoopTool invoke', () => {
     });
 });
 
-describe('subLoopTool metadata', () => {
+describe('spawning tool metadata', () => {
 
-    test('is parallel safe but never offered inside a sub loop', () => {
+    test('hands the tasks of a project out of the main loop only', () => {
+        expect(taskLoopTool.parallelSafe).toBe(true);
+        expect(taskLoopTool.loopKinds).toEqual(['main']);
+        expect(taskLoopTool.agentMode).toEqual(['agent']);
+    });
+
+    test('keeps the tasks going out at once down to three', () => {
+        expect(taskLoopTool.maxParallel).toBe(3);
+    });
+
+    test('lets a task loop spawn sub loops but ends the chain there', () => {
         expect(subLoopTool.parallelSafe).toBe(true);
-        expect(subLoopTool.exclusiveInSubLoop).toBe(true);
+        expect(subLoopTool.loopKinds).toEqual(['main', 'task']);
         expect(subLoopTool.agentMode).toEqual(['agent']);
     });
 });

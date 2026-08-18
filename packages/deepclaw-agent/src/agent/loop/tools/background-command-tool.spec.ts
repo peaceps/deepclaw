@@ -37,9 +37,9 @@ describe('runBackgroundCommandTool invoke', () => {
         expect(new Date(command.createdAt).toISOString()).toBe(command.createdAt);
     });
 
-    /** The folder of a sub loop is deleted while the command it started is still writing. */
-    test('keeps the output of a sub loop command out of the sub loop folder', async () => {
-        const context = newTestContext({isSubLoop: true, sessionDir: '/tmp/sub_loop/sub9'});
+    /** The folder of a spawned loop is deleted while the command it started is still writing. */
+    test('keeps the output of a spawned loop command out of the run folder', async () => {
+        const context = newTestContext({loopKind: 'sub', sessionDir: '/tmp/subloop/sub9'});
         await runBackgroundCommandTool.invoke({title: 'build', command: 'npm run build'}, context);
         const [command, sessionDir] = runCommand.mock.calls[0]!;
         expect(sessionDir).toBe('.agents/a1/session');
@@ -122,14 +122,14 @@ describe('removeBackgroundCommand invoke', () => {
 
 describe('background command tool metadata', () => {
 
-    test('all background tools are parallel safe and usable inside sub loops', () => {
+    test('all background tools are parallel safe and usable in every kind of loop', () => {
         const tools = [
             runBackgroundCommandTool, checkBackgroundCommandStatusTool,
             checkAllBackgroundCommandStatusTool, removeBackgroundCommand,
         ];
         for (const tool of tools) {
             expect(tool.parallelSafe).toBe(true);
-            expect(tool.exclusiveInSubLoop).toBe(false);
+            expect(tool.loopKinds).toBeUndefined();
         }
         expect(runBackgroundCommandTool.tool.schema.required).toEqual(['title', 'command']);
     });

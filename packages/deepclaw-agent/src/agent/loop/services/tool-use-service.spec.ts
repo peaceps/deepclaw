@@ -45,10 +45,10 @@ describe('executeToolCall lookup', () => {
 
     test('looks the tool up for the current loop kind and agent mode', async () => {
         mocks.getToolDesc.mockReturnValue(newTool());
-        const context = newTestContext({isSubLoop: true});
+        const context = newTestContext({loopKind: 'sub'});
         context.loopConfig.mode = 'chat';
         await ToolUseService.executeToolCall(newToolUse(), context);
-        expect(mocks.getToolDesc).toHaveBeenCalledWith(true, 'chat', 'demo');
+        expect(mocks.getToolDesc).toHaveBeenCalledWith('sub', 'chat', 'demo');
     });
 });
 
@@ -179,7 +179,7 @@ describe('executeToolCall guard', () => {
             checkAnswer: () => false,
         })});
         mocks.getToolDesc.mockReturnValue(tool);
-        const context = newTestContext({isSubLoop: true});
+        const context = newTestContext({loopKind: 'sub'});
         const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
         expect(success).toBe(true);
         expect(result.content).toBe('tool output');
@@ -194,7 +194,7 @@ describe('executeToolCall guard', () => {
         const tool = newTool({guard: () => ({result: 'denied', reason: 'outside workspace'})});
         mocks.getToolDesc.mockReturnValue(tool);
         const {success} = await ToolUseService.executeToolCall(
-            newToolUse(), newTestContext({isSubLoop: true})
+            newToolUse(), newTestContext({loopKind: 'sub'})
         );
         expect(success).toBe(false);
         expect(tool.invoke).not.toHaveBeenCalled();
@@ -207,7 +207,7 @@ describe('executeToolCall guard', () => {
             checkAnswer: () => true,
         })});
         mocks.getToolDesc.mockReturnValue(tool);
-        const context = newTestContext({isSubLoop: false});
+        const context = newTestContext({loopKind: 'main'});
         await ToolUseService.executeToolCall(newToolUse(), context);
         expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalled();
     });
@@ -377,12 +377,31 @@ describe('planExecutionGroups', () => {
             .toEqual([defs.slice(0, 5), defs.slice(5)]);
     });
 
+    test('holds a tool that asks for a narrower group to what it asked for', () => {
+        mocks.getToolDesc.mockReturnValue(newTool({maxParallel: 3}));
+        const defs = Array.from({length: 4}, (_unused, index) => newToolUse({id: `tu${index}`}));
+        expect(ToolUseService.planExecutionGroups(defs, newTestContext()))
+            .toEqual([defs.slice(0, 3), defs.slice(3)]);
+    });
+
+    test('holds a mixed group to the tool in it that allows the least', () => {
+        const wide = newTool();
+        const narrow = newTool({maxParallel: 3});
+        mocks.getToolDesc.mockImplementation((_kind, _mode, name) => name === 'narrow' ? narrow : wide);
+        const defs = [
+            newToolUse(), newToolUse({id: 'tu2'}),
+            newToolUse({id: 'tu3', name: 'narrow'}), newToolUse({id: 'tu4'}),
+        ];
+        expect(ToolUseService.planExecutionGroups(defs, newTestContext()))
+            .toEqual([defs.slice(0, 3), defs.slice(3)]);
+    });
+
     test('looks the tools up for the current loop kind and agent mode', () => {
         mocks.getToolDesc.mockReturnValue(newTool());
-        const context = newTestContext({isSubLoop: true});
+        const context = newTestContext({loopKind: 'sub'});
         context.loopConfig.mode = 'chat';
         ToolUseService.planExecutionGroups([newToolUse()], context);
-        expect(mocks.getToolDesc).toHaveBeenCalledWith(true, 'chat', 'demo');
+        expect(mocks.getToolDesc).toHaveBeenCalledWith('sub', 'chat', 'demo');
     });
 });
 

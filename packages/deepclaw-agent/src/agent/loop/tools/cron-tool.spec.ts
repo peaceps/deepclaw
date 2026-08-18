@@ -88,10 +88,10 @@ describe('updateCronOutputTool invoke', () => {
 
 describe('cron tool metadata', () => {
 
-    test('every cron tool is kept out of sub loops but runs next to other tool calls', () => {
+    test('every cron tool is kept out of spawned loops but runs next to other tool calls', () => {
         for (const tool of [createCronTaskTool, updateCronTaskTool, updateCronOutputTool]) {
             expect(tool.parallelSafe).toBe(true);
-            expect(tool.exclusiveInSubLoop).toBe(true);
+            expect(tool.loopKinds).toEqual(['main']);
             expect(tool.agentMode).toEqual(['agent']);
         }
         expect(updateCronTaskTool.tool.schema.required).toEqual(['id']);

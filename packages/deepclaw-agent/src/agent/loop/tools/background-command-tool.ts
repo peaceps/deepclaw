@@ -34,7 +34,6 @@ and the agent can check the result of the background command later.`,
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(input: RunBackgroundCommandInput, context: OneLoopContext): Promise<string> {
         const { title, command } = input;
         const id = crypto.randomUUID();
@@ -77,7 +76,6 @@ export const checkBackgroundCommandStatusTool: ToolDesc<CheckBackgroundCommandSt
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(input: CheckBackgroundCommandStatusInput, context: OneLoopContext): Promise<string> {
         const { commandId } = input;
         const command = BackgroundCommandManager.getCommandStatus(commandId, context.loopId);
@@ -100,7 +98,6 @@ export const checkAllBackgroundCommandStatusTool: ToolDesc<void> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(_input: void, context: OneLoopContext): Promise<string> {
         const commands = BackgroundCommandManager.getAllCommandsStatus(context.loopId);
         let response = `All background commands status:
@@ -132,7 +129,6 @@ export const removeBackgroundCommand: ToolDesc<RemoveBackgroundCommandInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(input: RemoveBackgroundCommandInput, context: OneLoopContext): Promise<string> {
         const { commandId } = input;
         const command = BackgroundCommandManager.getCommandStatus(commandId, context.loopId);

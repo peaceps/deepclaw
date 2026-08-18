@@ -162,7 +162,8 @@ Configure the MCP server URL in the advanced settings.
 | `create_simple_task` / `update_task` | Create and manage tasks |
 | `update_task_current_step` | Advance task step progress |
 | `get_project_list` / `get_project_detail` | Read project state |
-| `sub_loop` | Spawn a sub-loop to work on a task |
+| `task_loop` | Hand one task of the project to a subagent that can split it further |
+| `sub_loop` | Spawn a sub-loop for one piece of work |
 | `create_cron_task` / `update_cron_task` | Manage scheduled tasks |
 | `load_skill_details` / `search_online_skills` / `download_skill` / `create_skill` / `remove_skill` | Skill operations |
 | `read_memory_detail` | Read a specific memory entry |

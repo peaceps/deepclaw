@@ -1,4 +1,4 @@
-import { OneLoopContext } from './definitions';
+import { LoopKind, OneLoopContext } from './definitions';
 import { AgentMode } from '@deepclaw/config';
 import { AgentInteractionEventPayload } from '@deepclaw/core';
 
@@ -37,11 +37,16 @@ export type ToolGuardResult = {
 
 export type ToolCallback<T = unknown> = (input: T, context: OneLoopContext) => Promise<string>;
 
+export const ALL_LOOP_KINDS: LoopKind[] = ['main', 'task', 'sub'];
+
 export type ToolDesc<T = unknown> = {
     tool: LLMTool;
     parallelSafe: boolean;
+    /** How many calls of this tool one group may hold, for a tool that costs more than a call. */
+    maxParallel?: number;
     agentMode: AgentMode[];
-    exclusiveInSubLoop?: boolean; // if true, the tool will not be available in sub-loop
+    /** The kinds of loop this tool is handed to. Every kind of them where it is not named. */
+    loopKinds?: LoopKind[];
     invoke: ToolCallback<T>;
     guard?: (input: T, context: OneLoopContext) => ToolGuardResult;
 }

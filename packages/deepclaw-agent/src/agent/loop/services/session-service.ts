@@ -1,9 +1,12 @@
 import { FileUtils } from "@deepclaw/node-utils";
 import {
     AGENTS_DIR, CRON_DIR, PROJECT_DIR, SESSION_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE,
-    SUB_LOOP_DIR
+    SUB_LOOP_DIR, TASK_LOOP_DIR
 } from "../../paths";
-import { LLMProtocol, LoopSessionStatus, OneLoopContext, SessionMetaData } from "../../definitions/definitions";
+import {
+    isSpawnedLoop, LLMProtocol, LoopKind, LoopSessionStatus, OneLoopContext, SessionMetaData,
+    SpawnedLoop,
+} from "../../definitions/definitions";
 import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason, TokenUsage, splitLoopId, FlushAgentRole, addTokenUsage } from "@deepclaw/core";
 import { getLogger } from "@deepclaw/node-utils";
 
@@ -15,7 +18,7 @@ export type MetaDataConfig = {
     agentId: string,
     projectId: string,
     loopId: string,
-    isSubLoop: boolean,
+    loopKind: LoopKind,
     llmProtocol: LLMProtocol;
 }
 
@@ -23,9 +26,17 @@ export class SessionService {
 
     private static sessionMeta: Map<string, SessionMetaData> = new Map();
 
-    public static getSessionDir(role: FlushAgentRole, agentId: string, projectId?: string, subLoopId?: string): string {
-        if (subLoopId) {
-            return `${FileUtils.getTmpDir()}/${SUB_LOOP_DIR}/${subLoopId}`;
+    /**
+     * A spawned loop is given a folder of its own outside the sessions that are kept, one per run:
+     * it must never read the history of the loop that spawned it, and its own is thrown away with
+     * the run rather than written into anybody's session.
+     */
+    public static getSessionDir(
+        role: FlushAgentRole, agentId: string, projectId?: string, spawned?: SpawnedLoop
+    ): string {
+        if (spawned) {
+            const folder = spawned.kind === 'task' ? TASK_LOOP_DIR : SUB_LOOP_DIR;
+            return `${FileUtils.getTmpDir()}/${folder}/${spawned.runId}`;
         }
         if (role === 'agent') {
             return `${AGENTS_DIR}/${agentId}/${SESSION_DIR}`;
@@ -95,8 +106,9 @@ export class SessionService {
             agentId: config.agentId,
             projectId: config.projectId,
             loopId: config.loopId,
-            isSubLoop: config.isSubLoop,
-            messagesPath: config.isSubLoop ? '' : `${config.sessionDir}/${SESSION_HISTORY_FILE}`,
+            loopKind: config.loopKind,
+            messagesPath: isSpawnedLoop(config.loopKind) ? ''
+                : `${config.sessionDir}/${SESSION_HISTORY_FILE}`,
             runtime: {
                 status: 'idle',
                 turnCount: 0,
@@ -112,9 +124,10 @@ export class SessionService {
     }
     
     public static saveHistory<I>(history: I[], context: OneLoopContext, runtime: Partial<SessionMetaData['runtime']> = {}, force: boolean = false): void {
-        // Sub-loop context is intentionally not durably persisted; only parent/main loop state is durable.
+        // Only a main loop is durably persisted: what a spawned loop said is answered to the loop
+        // that spawned it and is gone with the run, it belongs in nobody's session.
         try {
-            if (!context.isSubLoop && (force || context.runtime.turnCount > 0)) {
+            if (!isSpawnedLoop(context.loopKind) && (force || context.runtime.turnCount > 0)) {
                 const historyPath = `${context.sessionDir}/${SESSION_HISTORY_FILE}`;
                 try {
                     if (context.runtime.historyPersistIndex === 0) {
@@ -158,7 +171,7 @@ export class SessionService {
         if (usage) {
             addTokenUsage(meta.runtime.usage, usage);
         }
-        if (!context.isSubLoop) {
+        if (!isSpawnedLoop(context.loopKind)) {
             FileUtils.writeFile(
                 `${context.sessionDir}/${SESSION_METADATA_FILE}`,
                 JSON.stringify(meta, null, 2)

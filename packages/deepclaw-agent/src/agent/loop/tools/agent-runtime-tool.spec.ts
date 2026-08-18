@@ -108,7 +108,7 @@ describe('updateAgentRuntimeTool metadata', () => {
 
     test('runs next to other calls in both modes but never inside a sub loop', () => {
         expect(updateAgentRuntimeTool.parallelSafe).toBe(true);
-        expect(updateAgentRuntimeTool.exclusiveInSubLoop).toBe(true);
+        expect(updateAgentRuntimeTool.loopKinds).toEqual(['main']);
         expect(updateAgentRuntimeTool.agentMode).toEqual(['agent', 'chat']);
     });
 

@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentMode} from '@deepclaw/config';
 import {type ToolDesc} from '../../definitions/tool-definitions';
+import {type LoopKind} from '../../definitions/definitions';
 import {MCP_PREFIX} from './mcp-service';
 import {ToolsManager} from './tools-manager';
 
@@ -23,14 +24,13 @@ function newMcpTool(name: string, overrides: Partial<ToolDesc<unknown>> = {}): T
         tool: {name, description: 'a tool served over mcp', schema: {type: 'object'}},
         parallelSafe: false,
         agentMode: ['agent'],
-        exclusiveInSubLoop: false,
         invoke: vi.fn(async () => 'ok'),
         ...overrides,
     };
 }
 
-function names(isSubLoop: boolean, mode: AgentMode): string[] {
-    return ToolsManager.getToolsArray(isSubLoop, mode).map(tool => tool.name);
+function names(loopKind: LoopKind, mode: AgentMode): string[] {
+    return ToolsManager.getToolsArray(loopKind, mode).map(tool => tool.name);
 }
 
 // Loaded inside the test rather than up top: an eager import here keeps the mock above from
@@ -63,7 +63,10 @@ async function exportedToolNames(): Promise<string[]> {
         .map(tool => tool.tool.name);
 }
 
-const CONTEXTS: [boolean, AgentMode][] = [[false, 'agent'], [false, 'chat'], [true, 'agent'], [true, 'chat']];
+const KINDS: LoopKind[] = ['main', 'task', 'sub'];
+const CONTEXTS: [LoopKind, AgentMode][] = KINDS.flatMap(
+    kind => (['agent', 'chat'] as AgentMode[]).map(mode => [kind, mode] as [LoopKind, AgentMode])
+);
 
 describe('built-in tools', () => {
 
@@ -73,63 +76,83 @@ describe('built-in tools', () => {
     });
 
     test('serves a tool to the mode it declares', () => {
-        expect(ToolsManager.getToolDesc(false, 'agent', 'read_file')?.tool.name).toBe('read_file');
-        expect(ToolsManager.getToolDesc(false, 'chat', 'read_file')).toBeUndefined();
+        expect(ToolsManager.getToolDesc('main', 'agent', 'read_file')?.tool.name).toBe('read_file');
+        expect(ToolsManager.getToolDesc('main', 'chat', 'read_file')).toBeUndefined();
     });
 
-    test('hides a main loop only tool from sub loops', () => {
-        expect(ToolsManager.getToolDesc(false, 'agent', 'sub_loop')?.tool.name).toBe('sub_loop');
-        expect(ToolsManager.getToolDesc(true, 'agent', 'sub_loop')).toBeUndefined();
+    test('hides a main loop only tool from every spawned loop', () => {
+        expect(ToolsManager.getToolDesc('main', 'agent', 'update_task')?.tool.name).toBe('update_task');
+        expect(ToolsManager.getToolDesc('task', 'agent', 'update_task')).toBeUndefined();
+        expect(ToolsManager.getToolDesc('sub', 'agent', 'update_task')).toBeUndefined();
+    });
+
+    test('hands the tasks of a project out of the main loop only', () => {
+        expect(ToolsManager.getToolDesc('main', 'agent', 'task_loop')?.tool.name).toBe('task_loop');
+        expect(ToolsManager.getToolDesc('task', 'agent', 'task_loop')).toBeUndefined();
+        expect(ToolsManager.getToolDesc('sub', 'agent', 'task_loop')).toBeUndefined();
+    });
+
+    test('lets a task loop spawn sub loops where a sub loop spawns none', () => {
+        expect(ToolsManager.getToolDesc('main', 'agent', 'sub_loop')?.tool.name).toBe('sub_loop');
+        expect(ToolsManager.getToolDesc('task', 'agent', 'sub_loop')?.tool.name).toBe('sub_loop');
+        expect(ToolsManager.getToolDesc('sub', 'agent', 'sub_loop')).toBeUndefined();
+    });
+
+    test('leaves the step index of a task to whoever works it', () => {
+        expect(ToolsManager.getToolDesc('main', 'agent', 'update_task_current_step')).toBeDefined();
+        expect(ToolsManager.getToolDesc('task', 'agent', 'update_task_current_step')).toBeDefined();
+        expect(ToolsManager.getToolDesc('sub', 'agent', 'update_task_current_step')).toBeUndefined();
     });
 
     test('returns undefined for a tool nobody registered', () => {
-        expect(ToolsManager.getToolDesc(false, 'agent', 'no_such_tool')).toBeUndefined();
+        expect(ToolsManager.getToolDesc('main', 'agent', 'no_such_tool')).toBeUndefined();
     });
 
     test('lists every tool only once', () => {
-        for (const [isSubLoop, mode] of CONTEXTS) {
-            const listed = names(isSubLoop, mode);
+        for (const [loopKind, mode] of CONTEXTS) {
+            const listed = names(loopKind, mode);
             expect(new Set(listed).size).toBe(listed.length);
         }
     });
 
     test('can look up every tool it lists', () => {
-        for (const [isSubLoop, mode] of CONTEXTS) {
-            for (const name of names(isSubLoop, mode)) {
-                expect(ToolsManager.getToolDesc(isSubLoop, mode, name)).toBeDefined();
+        for (const [loopKind, mode] of CONTEXTS) {
+            for (const name of names(loopKind, mode)) {
+                expect(ToolsManager.getToolDesc(loopKind, mode, name)).toBeDefined();
             }
         }
     });
 
     test('only lists tools that declare the current mode', () => {
-        for (const [isSubLoop, mode] of CONTEXTS) {
-            for (const name of names(isSubLoop, mode)) {
-                expect(ToolsManager.getToolDesc(isSubLoop, mode, name)!.agentMode).toContain(mode);
+        for (const [loopKind, mode] of CONTEXTS) {
+            for (const name of names(loopKind, mode)) {
+                expect(ToolsManager.getToolDesc(loopKind, mode, name)!.agentMode).toContain(mode);
             }
         }
     });
 
-    test('never lists a main loop only tool for a sub loop', () => {
-        for (const mode of ['agent', 'chat'] as AgentMode[]) {
-            for (const name of names(true, mode)) {
-                expect(ToolsManager.getToolDesc(true, mode, name)!.exclusiveInSubLoop).not.toBe(true);
+    test('never lists a tool for a kind of loop it was kept from', () => {
+        for (const [loopKind, mode] of CONTEXTS) {
+            for (const name of names(loopKind, mode)) {
+                const kinds = ToolsManager.getToolDesc(loopKind, mode, name)!.loopKinds;
+                expect(kinds ?? [loopKind]).toContain(loopKind);
             }
         }
     });
 
     test('registers exactly the tools the tools folder exports', async () => {
-        const registered = new Set(CONTEXTS.flatMap(([isSubLoop, mode]) => names(isSubLoop, mode)));
+        const registered = new Set(CONTEXTS.flatMap(([loopKind, mode]) => names(loopKind, mode)));
         expect([...registered].sort()).toEqual([...new Set(await exportedToolNames())].sort());
     });
 
     test('offers the project update to the agent of a main loop', () => {
-        expect(ToolsManager.getToolDesc(false, 'agent', 'update_project')?.tool.name).toBe('update_project');
+        expect(ToolsManager.getToolDesc('main', 'agent', 'update_project')?.tool.name).toBe('update_project');
     });
 
     test('gives out a fresh array so callers cannot corrupt the registry', () => {
-        const first = ToolsManager.getToolsArray(false, 'agent');
+        const first = ToolsManager.getToolsArray('main', 'agent');
         first.length = 0;
-        expect(ToolsManager.getToolsArray(false, 'agent').length).toBeGreaterThan(0);
+        expect(ToolsManager.getToolsArray('main', 'agent').length).toBeGreaterThan(0);
     });
 });
 
@@ -143,56 +166,58 @@ describe('mcp tools', () => {
 
     test('adds the tools of the connected server to the list', () => {
         mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName)});
-        expect(names(false, 'agent')).toContain(mcpName);
+        expect(names('main', 'agent')).toContain(mcpName);
     });
 
     test('looks a tool up by its prefixed name', () => {
         mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName)});
-        expect(ToolsManager.getToolDesc(false, 'agent', mcpName)?.tool.name).toBe(mcpName);
+        expect(ToolsManager.getToolDesc('main', 'agent', mcpName)?.tool.name).toBe(mcpName);
     });
 
     test('appends the mcp tools behind the built-in ones', () => {
-        const builtIn = names(false, 'agent');
+        const builtIn = names('main', 'agent');
         mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName)});
-        expect(names(false, 'agent')).toEqual([...builtIn, mcpName]);
+        expect(names('main', 'agent')).toEqual([...builtIn, mcpName]);
     });
 
     test('applies the declared mode to an mcp tool as well', () => {
         mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName, {agentMode: ['agent']})});
-        expect(ToolsManager.getToolDesc(false, 'chat', mcpName)).toBeUndefined();
-        expect(names(false, 'chat')).not.toContain(mcpName);
+        expect(ToolsManager.getToolDesc('main', 'chat', mcpName)).toBeUndefined();
+        expect(names('main', 'chat')).not.toContain(mcpName);
     });
 
     test('serves an mcp tool that declares the chat mode', () => {
         mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName, {agentMode: ['agent', 'chat']})});
-        expect(ToolsManager.getToolDesc(false, 'chat', mcpName)?.tool.name).toBe(mcpName);
-        expect(names(false, 'chat')).toContain(mcpName);
+        expect(ToolsManager.getToolDesc('main', 'chat', mcpName)?.tool.name).toBe(mcpName);
+        expect(names('main', 'chat')).toContain(mcpName);
     });
 
-    test('hides an mcp tool that is exclusive to the main loop from sub loops', () => {
-        mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName, {exclusiveInSubLoop: true})});
-        expect(ToolsManager.getToolDesc(true, 'agent', mcpName)).toBeUndefined();
-        expect(names(true, 'agent')).not.toContain(mcpName);
-        expect(ToolsManager.getToolDesc(false, 'agent', mcpName)).toBeDefined();
+    test('hides an mcp tool that is exclusive to the main loop from spawned loops', () => {
+        mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName, {loopKinds: ['main']})});
+        expect(ToolsManager.getToolDesc('task', 'agent', mcpName)).toBeUndefined();
+        expect(ToolsManager.getToolDesc('sub', 'agent', mcpName)).toBeUndefined();
+        expect(names('sub', 'agent')).not.toContain(mcpName);
+        expect(ToolsManager.getToolDesc('main', 'agent', mcpName)).toBeDefined();
     });
 
-    test('shares an mcp tool with sub loops by default', () => {
+    test('shares an mcp tool with every kind of loop by default', () => {
         mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName)});
-        expect(ToolsManager.getToolDesc(true, 'agent', mcpName)?.tool.name).toBe(mcpName);
+        expect(ToolsManager.getToolDesc('task', 'agent', mcpName)?.tool.name).toBe(mcpName);
+        expect(ToolsManager.getToolDesc('sub', 'agent', mcpName)?.tool.name).toBe(mcpName);
     });
 
     test('returns undefined for an mcp name the server does not serve', () => {
-        expect(ToolsManager.getToolDesc(false, 'agent', `${MCP_PREFIX}ghost`)).toBeUndefined();
+        expect(ToolsManager.getToolDesc('main', 'agent', `${MCP_PREFIX}ghost`)).toBeUndefined();
     });
 
     test('never falls back to a built-in tool for a prefixed name', () => {
-        expect(ToolsManager.getToolDesc(false, 'agent', `${MCP_PREFIX}read_file`)).toBeUndefined();
+        expect(ToolsManager.getToolDesc('main', 'agent', `${MCP_PREFIX}read_file`)).toBeUndefined();
     });
 
     test('leaves the built-in tools alone while no server is connected', () => {
-        const withoutServer = names(false, 'agent');
+        const withoutServer = names('main', 'agent');
         mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName)});
         mocks.getTools.mockReturnValue({});
-        expect(names(false, 'agent')).toEqual(withoutServer);
+        expect(names('main', 'agent')).toEqual(withoutServer);
     });
 });

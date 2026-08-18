@@ -84,41 +84,41 @@ describe('platform and language', () => {
 
     test('tells the model which platform and folder it works in', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         const platform = process.platform.includes('win32') ? 'Windows' : 'Linux';
         expect(cacheable).toContain(`You are a worker on ${platform} platform working in "${process.cwd()}".`);
     });
 
     test('asks for a folder of its own instead of files left loose in that folder', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain('give it a folder of its own in that directory');
     });
 
     test('asks the model to answer in the configured language', async () => {
         const {PromptService} = await loadService(() => mocks.loadLang.mockReturnValue('zh'));
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain('User set Chinese as the preferred language, please answer in Chinese');
     });
 
     test('picks up a language that changed between two prompts', async () => {
         const {PromptService} = await loadService();
-        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         mocks.loadLang.mockReturnValue('zh');
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain('please answer in Chinese');
         expect(cacheable).not.toContain('please answer in English');
     });
 
     test('starts the cacheable prompt with the platform section', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable.startsWith('\n# Platform\n')).toBe(true);
     });
 
     test('keeps the sections in a stable order', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable.split('\n').filter(line => line.startsWith('# '))).toEqual([
             '# Platform', '# Language', '# Main Identity', '# Personality', '# Emotions',
             '# Agent Mode', '# Project Management', '# Memory', '# Skills',
@@ -132,20 +132,20 @@ describe('main identity', () => {
         const {PromptService} = await loadService(
             () => mocks.readFile.mockReturnValue('you are the house agent')
         );
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(mocks.readFile).toHaveBeenCalledWith('DEEPCLAW.md');
         expect(cacheable).toContain('you are the house agent');
     });
 
     test('falls back to the built in identity when DEEPCLAW.md cannot be read', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain(BUILT_IN_IDENTITY);
     });
 
     test('adds the sub loop rules for a sub loop', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', true);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'sub');
         expect(cacheable).toContain('you are a subloop agent for specific task described in the prompt');
         expect(cacheable).toContain('You can write files and run commands to carry the task out');
         expect(cacheable).toContain('never ask a question');
@@ -153,21 +153,21 @@ describe('main identity', () => {
 
     test('adds the autonomous rules for a cron loop', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', 'main');
         expect(cacheable).toContain('you are running as a scheduled (cron) task');
         expect(cacheable).toContain('never ask clarifying questions');
     });
 
     test('gives a main loop the plain identity only', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).not.toContain('you are a subloop agent');
         expect(cacheable).not.toContain('scheduled (cron) task');
     });
 
     test('treats a sub loop of a cron task as a sub loop', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', true);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', 'sub');
         expect(cacheable).toContain('you are a subloop agent');
         expect(cacheable).not.toContain('scheduled (cron) task');
     });
@@ -178,7 +178,7 @@ describe('personality and emotions', () => {
     test('describes the name, role and personalities of the agent', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', false
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'main'
         );
         expect(cacheable).toContain('Your name is Ada, your role is engineer.');
         expect(cacheable).toContain('You have the following personalities: calm,curious.');
@@ -188,7 +188,7 @@ describe('personality and emotions', () => {
     test('leaves out the personality list when the agent has none', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity({personalities: []}), 'agent', '', false
+            newTestAgentConfig(), newIdentity({personalities: []}), 'agent', '', 'main'
         );
         expect(cacheable).toContain('Your name is Ada');
         expect(cacheable).not.toContain('You have the following personalities');
@@ -197,21 +197,21 @@ describe('personality and emotions', () => {
     test('leaves out the description when the agent has none', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity({description: ''}), 'agent', '', false
+            newTestAgentConfig(), newIdentity({description: ''}), 'agent', '', 'main'
         );
         expect(cacheable).not.toContain('You are described as');
     });
 
     test('omits the personality when there is no identity', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).not.toContain('Your name is');
     });
 
     test('omits the personality for a sub loop', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', true
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'sub'
         );
         expect(cacheable).not.toContain('Your name is');
     });
@@ -219,7 +219,7 @@ describe('personality and emotions', () => {
     test('omits the personality for a cron loop', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'cron', 'c1', false
+            newTestAgentConfig(), newIdentity(), 'cron', 'c1', 'main'
         );
         expect(cacheable).not.toContain('Your name is');
     });
@@ -227,7 +227,7 @@ describe('personality and emotions', () => {
     test('allows emotions when the identity asks for them', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', false
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'main'
         );
         expect(cacheable).toContain('You can add your own emotions and mood about the task');
         // Left to itself a model narrates the situation instead of feeling anything about it.
@@ -239,7 +239,7 @@ describe('personality and emotions', () => {
     test('omits the emotions when the identity switched them off', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity({emotion: false}), 'agent', '', false
+            newTestAgentConfig(), newIdentity({emotion: false}), 'agent', '', 'main'
         );
         expect(cacheable).not.toContain('You can add your own emotions');
     });
@@ -248,7 +248,7 @@ describe('personality and emotions', () => {
     test('omits the emotions for a scheduled run', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'cron', 'c1', false
+            newTestAgentConfig(), newIdentity(), 'cron', 'c1', 'main'
         );
         expect(cacheable).not.toContain('You can add your own emotions');
     });
@@ -256,17 +256,17 @@ describe('personality and emotions', () => {
     test('omits the emotions for a sub loop that has an identity', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', true
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'sub'
         );
         expect(cacheable).not.toContain('You can add your own emotions');
     });
 });
 
-describe('a sub loop working on a task', () => {
+describe('a task loop working on a task', () => {
 
     const TASK = {projectId: 'p1', taskTitle: 'ship it'};
 
-    /** Arranges a task owned by "a2", the agent whose identity the sub loop has to borrow. */
+    /** Arranges a task owned by "a2", the agent whose identity the run has to borrow. */
     async function loadServiceWithAssignee() {
         const service = await loadService();
         service.getTask.mockReturnValue({title: 'ship it', assignee: 'a2'} as Task);
@@ -279,7 +279,7 @@ describe('a sub loop working on a task', () => {
     test('speaks as the agent the task is assigned to', async () => {
         const {PromptService, getAgent} = await loadServiceWithAssignee();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
         );
         expect(getAgent).toHaveBeenCalledWith('a2');
         expect(cacheable).toContain('Your name is Bob, your role is reviewer.');
@@ -290,7 +290,7 @@ describe('a sub loop working on a task', () => {
         const {PromptService, getTask, getAgent} = await loadServiceWithAssignee();
         getTask.mockReturnValue({title: 'ship it'} as Task);
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
         );
         expect(getAgent).not.toHaveBeenCalled();
         expect(cacheable).not.toContain('Your name is');
@@ -300,14 +300,14 @@ describe('a sub loop working on a task', () => {
         const {PromptService, getAgent} = await loadServiceWithAssignee();
         getAgent.mockReturnValue(undefined);
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
         );
         expect(cacheable).not.toContain('Your name is');
     });
 
     test('works with the memory and the skills of the agent it stands in for', async () => {
         const {PromptService, memoryPrompt, skillPrompt} = await loadServiceWithAssignee();
-        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', true, TASK);
+        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', 'task', TASK);
         expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a2', 'p1');
         expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a2');
     });
@@ -315,7 +315,7 @@ describe('a sub loop working on a task', () => {
     test('keeps its own memory and skills when the task has no assignee', async () => {
         const {PromptService, getTask, memoryPrompt, skillPrompt} = await loadServiceWithAssignee();
         getTask.mockReturnValue({title: 'ship it'} as Task);
-        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', true, TASK);
+        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', 'task', TASK);
         expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a1', 'p1');
         expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a1');
     });
@@ -323,7 +323,7 @@ describe('a sub loop working on a task', () => {
     test('keeps the emotions of the assignee out of its report', async () => {
         const {PromptService} = await loadServiceWithAssignee();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
         );
         expect(cacheable).not.toContain('You can add your own emotions');
     });
@@ -331,7 +331,7 @@ describe('a sub loop working on a task', () => {
     test('puts the task next to the project it belongs to', async () => {
         const {PromptService, assignedTaskPrompt} = await loadServiceWithAssignee();
         const {dynamic} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
         );
         expect(assignedTaskPrompt).toHaveBeenCalledWith('p1', 'ship it');
         expect(dynamic.split('\n').filter(line => line.startsWith('# ')))
@@ -341,16 +341,39 @@ describe('a sub loop working on a task', () => {
 
     test('describes the project the task belongs to, not the one of the session', async () => {
         const {PromptService, currentProject} = await loadServiceWithAssignee();
-        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', true, TASK);
+        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK);
         expect(currentProject).toHaveBeenCalledWith('p1');
     });
 
     test('leaves the task section out of a sub loop without a task', async () => {
         const {PromptService} = await loadServiceWithAssignee();
         const {dynamic} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', true
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'sub'
         );
         expect(dynamic).not.toContain('# Assigned Task');
+    });
+
+    /**
+     * A sub loop of a task loop is handed the task to work as its assignee, not to work on it:
+     * what of the task it should know is in the prompt the task loop wrote for it.
+     */
+    test('borrows the assignee for a sub loop of a task loop without describing the task', async () => {
+        const {PromptService, assignedTaskPrompt} = await loadServiceWithAssignee();
+        const {cacheable, dynamic} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'sub', TASK
+        );
+        expect(cacheable).toContain('Your name is Bob, your role is reviewer.');
+        expect(assignedTaskPrompt).not.toHaveBeenCalled();
+        expect(dynamic).not.toContain('# Assigned Task');
+    });
+
+    test('tells a task loop it can spread the pieces of its task over sub loops', async () => {
+        const {PromptService} = await loadServiceWithAssignee();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
+        );
+        expect(cacheable).toContain('to a subagent of your own with the sub_loop tool');
+        expect(cacheable).toContain('never set the status of your own');
     });
 });
 
@@ -358,14 +381,14 @@ describe('agent mode and project management', () => {
 
     test('lets an agent use every tool', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain('You are running at agent mode. You can use all tools');
     });
 
     test('restricts a chat agent to answering', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', false
+            newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', 'main'
         );
         expect(cacheable).toContain('You are running at chat mode.');
         expect(cacheable).toContain('cannot operate the computer via user directions');
@@ -373,14 +396,14 @@ describe('agent mode and project management', () => {
 
     test('explains the project tools outside chat mode', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain('the project tools');
     });
 
     test('hides the project tools in chat mode', async () => {
         const {PromptService, managementTools} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', false
+            newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', 'main'
         );
         expect(cacheable).not.toContain('the project tools');
         expect(managementTools).not.toHaveBeenCalled();
@@ -391,7 +414,7 @@ describe('agent mode and project management', () => {
         getAgents.mockReturnValue([
             newIdentity(), newIdentity({id: 'a2', name: 'Bob', role: 'designer', expertises: ['figma']}),
         ]);
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', 'main');
         expect(cacheable).toContain('## The agents of the company');
         expect(cacheable).toContain('"id":"a1","name":"Ada","role":"engineer","expertises":["typescript"]} <- you');
         expect(cacheable).toContain('"id":"a2","name":"Bob","role":"designer","expertises":["figma"]}');
@@ -403,7 +426,7 @@ describe('agent mode and project management', () => {
         getAgents.mockReturnValue([
             newIdentity(), newIdentity({id: 'a2', name: 'Bob'}), newIdentity({id: 'a3', name: 'Eve', fired: true}),
         ]);
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', 'main');
         expect(cacheable).toContain('"id":"a2"');
         expect(cacheable).not.toContain('"id":"a3"');
     });
@@ -412,7 +435,7 @@ describe('agent mode and project management', () => {
     test('says nothing about colleagues when nobody else works here', async () => {
         const {PromptService, getAgents} = await loadService();
         getAgents.mockReturnValue([newIdentity()]);
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', 'main');
         expect(cacheable).not.toContain('## The agents of the company');
     });
 
@@ -420,21 +443,21 @@ describe('agent mode and project management', () => {
         const {PromptService, getAgents} = await loadService();
         getAgents.mockReturnValue([newIdentity(), newIdentity({id: 'a2'})]);
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig({mode: 'chat'}), newIdentity(), 'agent', '', false
+            newTestAgentConfig({mode: 'chat'}), newIdentity(), 'agent', '', 'main'
         );
         expect(cacheable).not.toContain('## The agents of the company');
     });
 
     test('asks the loop that owns a project to delegate its tasks', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', 'main');
         expect(cacheable).toContain('the project tools');
         expect(cacheable).toContain('hand the tasks over');
     });
 
     test('says nothing about delegation without a project to run', async () => {
         const {PromptService, taskDelegation} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain('the project tools');
         expect(taskDelegation).not.toHaveBeenCalled();
     });
@@ -442,26 +465,26 @@ describe('agent mode and project management', () => {
     /** A sub loop is the one the work is delegated to, it does not delegate any further. */
     test('says nothing about delegation to a sub loop', async () => {
         const {PromptService, taskDelegation} = await loadService();
-        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', true);
+        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', 'sub');
         expect(taskDelegation).not.toHaveBeenCalled();
     });
 
     test('says nothing about delegation to a cron loop', async () => {
         const {PromptService, taskDelegation} = await loadService();
-        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', false);
+        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', 'main');
         expect(taskDelegation).not.toHaveBeenCalled();
     });
 
     test('hides the delegation rules in chat mode', async () => {
         const {PromptService, taskDelegation} = await loadService();
-        PromptService.provideSystemPrompt(newTestAgentConfig({mode: 'chat'}), undefined, 'project', 'p1', false);
+        PromptService.provideSystemPrompt(newTestAgentConfig({mode: 'chat'}), undefined, 'project', 'p1', 'main');
         expect(taskDelegation).not.toHaveBeenCalled();
     });
 
     test('keeps the chat mode rules for the sub loop of a chat agent', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', true
+            newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', 'sub'
         );
         expect(cacheable).toContain('You are running at chat mode.');
     });
@@ -471,14 +494,14 @@ describe('memory and skills', () => {
 
     test('asks the memory manager for the indexes of this loop', async () => {
         const {PromptService, memoryPrompt} = await loadService();
-        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', false);
+        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', 'main');
         expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a1', 'p1');
     });
 
     test('embeds the memory prompt in the cacheable part', async () => {
         const {PromptService} = await loadService();
         const {cacheable, dynamic} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), undefined, 'agent', '', false
+            newTestAgentConfig(), undefined, 'agent', '', 'main'
         );
         expect(cacheable).toContain('the memory prompt');
         expect(dynamic).not.toContain('the memory prompt');
@@ -486,7 +509,7 @@ describe('memory and skills', () => {
 
     test('asks the skills manager for the skills of this agent', async () => {
         const {PromptService, skillPrompt} = await loadService();
-        PromptService.provideSystemPrompt(newTestAgentConfig({id: 'a7'}), undefined, 'agent', '', false);
+        PromptService.provideSystemPrompt(newTestAgentConfig({id: 'a7'}), undefined, 'agent', '', 'main');
         expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a7');
     });
 });
@@ -495,7 +518,7 @@ describe('dynamic part', () => {
 
     test('describes the project the loop is working on', async () => {
         const {PromptService, currentProject} = await loadService();
-        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', false);
+        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'project', 'p1', 'main');
         expect(currentProject).toHaveBeenCalledExactlyOnceWith('p1');
         expect(dynamic).toBe('\n# Current Project\nthe current project');
     });
@@ -503,13 +526,13 @@ describe('dynamic part', () => {
     test('says no project is being worked on when there is none', async () => {
         const {PromptService, currentProject} = await loadService();
         currentProject.mockReturnValue('');
-        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', false);
+        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(dynamic).toContain('No project is currently being worked on this chat session.');
     });
 
     test('describes the cron task for a cron loop', async () => {
         const {PromptService} = await loadService();
-        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', false);
+        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', 'main');
         expect(dynamic).toContain('You are executing the cron task "nightly report" (id: c1).');
         expect(dynamic).toContain('Schedule: 0 9 * * *.');
         expect(dynamic).toContain('Use the update_cron_output tool with id "c1"');
@@ -520,20 +543,20 @@ describe('dynamic part', () => {
         cronTaskDetail.mockImplementation(() => {
             throw new Error('cron task not found');
         });
-        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c9', false);
+        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c9', 'main');
         expect(dynamic).toContain('You are executing a cron task (id: c9).');
     });
 
     test('keeps the cron task out of the cacheable part', async () => {
         const {PromptService, currentProject} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', false);
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', 'main');
         expect(cacheable).not.toContain('Current Cron Task');
         expect(currentProject).not.toHaveBeenCalled();
     });
 
     test('still describes the cron task for a sub loop of a cron task', async () => {
         const {PromptService} = await loadService();
-        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', true);
+        const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', 'sub');
         expect(dynamic).toContain('# Current Cron Task');
     });
 });

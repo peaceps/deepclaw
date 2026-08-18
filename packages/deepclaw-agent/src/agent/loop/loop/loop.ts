@@ -23,7 +23,8 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
-    AssignedTask, FootPrint, IMAGE_FOOT_PRINT, LLMProtocol, LoopState, OneLoopContext,
+    AssignedTask, FootPrint, IMAGE_FOOT_PRINT, LLMProtocol, LoopKind, LoopState, OneLoopContext,
+    SpawnedLoop,
 } from '../../definitions/definitions';
 import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
@@ -54,26 +55,30 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private footPrints: FootPrint[] = [];
     private agentConfig: AgentConfig;
     private externalInterruptReason: ExternalInterruptReason | undefined;
-    private subLoopId?: string;
-    private assignedTask?: AssignedTask;
+    /**
+     * What this loop was spawned as, unset for the main loop of a session. Taken in through the
+     * constructor because the session a loop reads and writes is picked from it before anything
+     * else happens: a loop that learns what it is later has already read the wrong history.
+     */
+    private spawned?: SpawnedLoop;
 
     constructor(
         role: FlushAgentRole,
         agentId: string,
         projectId: string,
         handler: AgentHandler,
-        subLoopId?: string,
+        spawned?: SpawnedLoop,
     ) {
         super(role, agentId, projectId, handler);
-        this.subLoopId = subLoopId;
+        this.spawned = spawned;
         this.agentConfig = loadAgentConfig(this.agentId);
         if (this.role === 'cron') {
             this.agentConfig = {...this.agentConfig, mode: 'agent'};
         }
-        this.sessionDir = SessionService.getSessionDir(this.role, this.agentId, this.projectId, this.subLoopId);
+        this.sessionDir = SessionService.getSessionDir(this.role, this.agentId, this.projectId, this.spawned);
         this.loadSessionData();
         this.llm = new (this.getLLMConstructor())(
-            this.isSubLoop(),
+            this.loopKind(),
             this.agentConfig.llm,
         ) as LLM;
     }
@@ -86,7 +91,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             agentId: this.agentId,
             projectId: this.projectId,
             loopId: this.getId(),
-            isSubLoop: this.isSubLoop(),
+            loopKind: this.loopKind(),
             llmProtocol: this.getLLMProtocol()
         });
         this.history = history;
@@ -126,8 +131,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         this.llm.updateGWConfig(newClient, runtimeConfigs);
     }
 
-    protected isSubLoop(): boolean {
-        return !!this.subLoopId;
+    protected loopKind(): LoopKind {
+        return this.spawned?.kind ?? 'main';
     }
 
     /**
@@ -205,18 +210,19 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         return {
             role: this.role,
             loopId: this.getId(),
-            isSubLoop: this.isSubLoop(),
+            loopKind: this.loopKind(),
             agentId: this.agentId,
             // Read once, so the whole run works with the memory and the skills it started with even
             // if the task is handed to somebody else while it is on.
-            personaId: PromptService.taskAssignee(this.assignedTask)?.id,
+            personaId: PromptService.taskAssignee(this.assignedTask())?.id,
             projectId: this.projectId,
             loopConfig: this.agentConfig,
             browserId: options.browserId,
             sessionDir: this.sessionDir,
             system: {cacheable: '', dynamic: ''},
-            logger: getLoopLogger(this.getId(), this.subLoopId),
+            logger: getLoopLogger(this.getId(), this.spawned?.runId),
             actions: {
+                newTaskLoop: this.createTaskLoop.bind(this),
                 newSubLoop: this.createSubLoop.bind(this),
                 addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
                 agentHandler: {
@@ -249,7 +255,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 }
                 state.oneLoopContext.system = PromptService.provideSystemPrompt(
                     this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
-                    this.role, this.projectId, this.isSubLoop(), this.assignedTask
+                    this.role, this.projectId, this.loopKind(), this.assignedTask()
                 );
             }
             const goAround = await this.runOneTurn(state);
@@ -452,24 +458,48 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected abstract convertToolResultMessages(toolResults: ToolUseResult[]): I[];
 
-    public createSubLoop(assignedTask?: AssignedTask): LoopAgent<I, O, LLM> {
-        if (this.isSubLoop()) {
-            throw new Error('Sub-loop cannot create a sub-loop');
+    /**
+     * One task of the project, handed to a loop of its own. It is the loop that spawns loops in
+     * turn: a task worth handing over is rarely one thing, and a sub loop that cannot hand anything
+     * on leaves every piece of it to be done one after the other.
+     */
+    public createTaskLoop(assignedTask: AssignedTask): LoopAgent<I, O, LLM> {
+        if (this.loopKind() !== 'main') {
+            throw new Error(`A ${this.loopKind()} loop cannot create a task loop.`);
         }
-        const subLoop = this.newSubLoop(this.role, this.agentId, this.projectId, {
+        return this.spawn({kind: 'task', runId: randomUUID(), assignedTask});
+    }
+
+    /** The end of the chain: it works the prompt it was handed and answers with what came of it. */
+    public createSubLoop(): LoopAgent<I, O, LLM> {
+        if (this.loopKind() === 'sub') {
+            throw new Error('A sub loop cannot create a sub loop.');
+        }
+        return this.spawn({kind: 'sub', runId: randomUUID(), assignedTask: this.assignedTask()});
+    }
+
+    /**
+     * Nothing a spawned loop streams belongs to the user: it answers to the loop that spawned it,
+     * and text of its own under the loop id they share would read as an answer of that loop. What
+     * it has to ask and what it changed do travel on, there is nobody else to hear either.
+     */
+    private spawn(spawned: SpawnedLoop): LoopAgent<I, O, LLM> {
+        return this.newLoop(this.role, this.agentId, this.projectId, {
             onStreamText: () => {},
             onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
-        }, randomUUID());
-        subLoop.assignedTask = assignedTask;
-        return subLoop;
+        }, spawned);
     }
 
-    protected abstract newSubLoop(
+    private assignedTask(): AssignedTask | undefined {
+        return this.spawned?.assignedTask;
+    }
+
+    protected abstract newLoop(
         role: FlushAgentRole,
         agentId: string,
         projectId: string,
-        subLoopAgentHandler: AgentHandler,
-        subLoopId: string,
+        agentHandler: AgentHandler,
+        spawned?: SpawnedLoop,
     ): LoopAgent<I, O, LLM>;
 }

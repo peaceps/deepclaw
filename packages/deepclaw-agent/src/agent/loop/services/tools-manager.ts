@@ -1,6 +1,7 @@
-import { LLMTool, ToolDesc } from '../../definitions/tool-definitions';
+import { ALL_LOOP_KINDS, LLMTool, ToolDesc } from '../../definitions/tool-definitions';
+import { LoopKind } from '../../definitions/definitions';
 import {syncCommandTool} from '../tools/sync-command-tool';
-import {subLoopTool} from '../tools/sub-loop-tool';
+import {subLoopTool, taskLoopTool} from '../tools/sub-loop-tool';
 import {loadSkillDetailsTool, refreshSkillsTool, createSkillTool, searchOnlineSkillsTool, downloadSkillTool, removeSkillTool} from '../tools/skill-tool';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool';
 import {
@@ -20,6 +21,7 @@ import { updateAgentRuntimeTool } from '../tools/agent-runtime-tool';
 import { MCP_PREFIX, MCPService } from './mcp-service';
 
 const tools: ToolDesc<any>[] = [
+    taskLoopTool,
     subLoopTool,
     loadSkillDetailsTool,
     refreshSkillsTool,
@@ -52,21 +54,20 @@ const tools: ToolDesc<any>[] = [
     updateAgentRuntimeTool,
 ];
 
-type ToolsStrorage<T extends (Record<string, ToolDesc<any>> | LLMTool[])> = {
-    loop: Record<AgentMode, T>;
-    subLoop: Record<AgentMode, T>;
-}
+type ToolsStrorage<T extends (Record<string, ToolDesc<any>> | LLMTool[])> = Record<LoopKind, Record<AgentMode, T>>;
 
 export class ToolsManager {
 
     private static map: ToolsStrorage<Record<string, ToolDesc<any>>> = {
-        loop: {agent: {}, chat: {}},
-        subLoop: {agent: {}, chat: {}},
+        main: {agent: {}, chat: {}},
+        task: {agent: {}, chat: {}},
+        sub: {agent: {}, chat: {}},
     }
 
     private static array: ToolsStrorage<LLMTool[]> = {
-        loop: {agent: [], chat: []},
-        subLoop: {agent: [], chat: []},
+        main: {agent: [], chat: []},
+        task: {agent: [], chat: []},
+        sub: {agent: [], chat: []},
     }
 
     static {
@@ -74,42 +75,36 @@ export class ToolsManager {
     }
     
     private static initTools(): void {
-        const modes = Object.keys(this.map.loop) as AgentMode[];
+        const modes = Object.keys(this.map.main) as AgentMode[];
         for (const tool of tools) {
             for (const mode of modes) {
-                if (this.isAvailable(tool, false, mode)) {
-                    this.map.loop[mode][tool.tool.name] = tool;
-                    this.array.loop[mode].push(tool.tool);
-                }
-                if (this.isAvailable(tool, true, mode)) {
-                    this.map.subLoop[mode][tool.tool.name] = tool;
-                    this.array.subLoop[mode].push(tool.tool);
+                for (const kind of ALL_LOOP_KINDS) {
+                    if (this.isAvailable(tool, kind, mode)) {
+                        this.map[kind][mode][tool.tool.name] = tool;
+                        this.array[kind][mode].push(tool.tool);
+                    }
                 }
             }
         }
     }
 
-    public static getToolDesc(isSubLoop: boolean, mode: AgentMode, name: string): ToolDesc<any> | undefined {
+    public static getToolDesc(loopKind: LoopKind, mode: AgentMode, name: string): ToolDesc<any> | undefined {
         if (name.startsWith(MCP_PREFIX)) {
             const tool = MCPService.getTools()[name];
-            return tool && this.isAvailable(tool, isSubLoop, mode) ? tool : undefined;
+            return tool && this.isAvailable(tool, loopKind, mode) ? tool : undefined;
         }
-        if (isSubLoop) {
-            return this.map.subLoop[mode][name];
-        } else {
-            return this.map.loop[mode][name];
-        }
+        return this.map[loopKind][mode][name];
     }
 
-    public static getToolsArray(isSubLoop: boolean, mode: AgentMode): LLMTool[] {
-        const builtIn = isSubLoop ? this.array.subLoop[mode] : this.array.loop[mode];
+    public static getToolsArray(loopKind: LoopKind, mode: AgentMode): LLMTool[] {
+        const builtIn = this.array[loopKind][mode];
         const mcp = Object.values(MCPService.getTools())
-            .filter(tool => this.isAvailable(tool, isSubLoop, mode))
+            .filter(tool => this.isAvailable(tool, loopKind, mode))
             .map(tool => tool.tool);
         return [...builtIn, ...mcp];
     }
 
-    private static isAvailable(tool: ToolDesc<any>, isSubLoop: boolean, mode: AgentMode): boolean {
-        return tool.agentMode.includes(mode) && !(isSubLoop && tool.exclusiveInSubLoop);
+    private static isAvailable(tool: ToolDesc<any>, loopKind: LoopKind, mode: AgentMode): boolean {
+        return tool.agentMode.includes(mode) && (tool.loopKinds ?? ALL_LOOP_KINDS).includes(loopKind);
     }
 }

@@ -8,7 +8,7 @@ import { ProjectManager } from './project-manager';
 import { CronService } from './cron-service';
 import { DEEPCLAW_MD } from '../../paths';
 import { AgentIdentity, FlushAgentRole } from '@deepclaw/core';
-import { AssignedTask, SystemPrompt } from '../../definitions/definitions';
+import { AssignedTask, isSpawnedLoop, LoopKind, SystemPrompt } from '../../definitions/definitions';
 import { AgentIdentityManager } from './agent-identity-manager';
 
 export class PromptService {
@@ -17,24 +17,26 @@ export class PromptService {
     private static platformPrompt: string;
     private static languagePrompt: string;
     private static emotionsPrompt: string;
-    private static mainIdentityPrompt: {loop: string, subloop: string, cron: string};
+    private static mainIdentityPrompt: {loop: string, taskloop: string, subloop: string, cron: string};
 
     public static provideSystemPrompt(
         agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
-        role: FlushAgentRole, projectId: string, isSubLoop: boolean,
+        role: FlushAgentRole, projectId: string, loopKind: LoopKind,
         assignedTask?: AssignedTask
     ): SystemPrompt {
         if (!this.initialized) {
             this.init();
         }
         const isCron = role === 'cron';
-        const identityKey = isSubLoop ? 'subloop' : isCron ? 'cron' : 'loop';
-        // A sub loop working on a task speaks as the agent the task belongs to, not as the one that
-        // handed it over, and that is the only case where a sub loop has a personality. The memory
-        // and the skills of that agent come along, so that the borrowed name is one the run can
-        // work under: the tools read the same borrowed id off the context.
+        const spawned = isSpawnedLoop(loopKind);
+        const identityKey = loopKind === 'task' ? 'taskloop'
+            : loopKind === 'sub' ? 'subloop' : isCron ? 'cron' : 'loop';
+        // A spawned loop working on a task speaks as the agent the task belongs to, not as the one
+        // that handed it over, and that is the only case where it has a personality. The memory and
+        // the skills of that agent come along, so that the borrowed name is one the run can work
+        // under: the tools read the same borrowed id off the context.
         const assignee = this.taskAssignee(assignedTask);
-        const persona = isCron || (isSubLoop && !assignee) ? undefined : assignee ?? agentIdentity;
+        const persona = isCron || (spawned && !assignee) ? undefined : assignee ?? agentIdentity;
         const personaId = assignee?.id ?? agentConfig.id;
         const cacheable = `
 # Platform
@@ -50,13 +52,13 @@ ${this.mainIdentityPrompt[identityKey]}
 ${persona ? this.personality(persona) : ""}
 
 # Emotions
-${persona && !isSubLoop && persona.emotion ? this.emotionsPrompt : ""}
+${persona && !spawned && persona.emotion ? this.emotionsPrompt : ""}
 
 # Agent Mode
 ${this.agentMode(agentConfig.mode)}
 
 # Project Management
-${this.projectManagement(agentConfig.mode, !isCron && !isSubLoop && !!projectId, personaId)}
+${this.projectManagement(agentConfig.mode, !isCron && !spawned && !!projectId, personaId)}
 
 # Memory
 ${this.memory(role, personaId, projectId)}
@@ -70,7 +72,10 @@ ${this.availableSkills(personaId)}`;
 ${this.cronCurrentTask(projectId)}`
             : `
 # Current Project
-${this.projectCurrentProject(assignedTask?.projectId || projectId)}${this.assignedTask(assignedTask)}`;
+${this.projectCurrentProject(assignedTask?.projectId || projectId)}${
+    // A sub loop of a task loop is handed the task to work as its assignee, not to work on it:
+    // what of the task it should know is in the prompt the task loop wrote for it.
+    this.assignedTask(loopKind === 'task' ? assignedTask : undefined)}`;
 
         return {cacheable, dynamic};
     }
@@ -125,7 +130,7 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
         return this.languagePrompt;
     }
 
-    private static mainIdentity(): {loop: string, subloop: string, cron: string} {
+    private static mainIdentity(): {loop: string, taskloop: string, subloop: string, cron: string} {
         let commonIdentity = `You are a helpful and efficient assistant for the user.
 You can help the user with various tasks, such as answering questions, providing suggestions,
 and completing tasks via tools. Always try your best to help the user and complete the task. 
@@ -136,9 +141,7 @@ Always think step by step and be specific when you answer.`;
         } catch {
             // TODO handle error
         }
-        return {
-            loop: commonIdentity,
-            subloop: `${commonIdentity}
+        const subloop = `${commonIdentity}
 What's more you are a subloop agent for specific task described in the prompt.
 Complete the given task, then summarize your findings.
 You can write files and run commands to carry the task out, but keep every change within what the
@@ -147,6 +150,17 @@ Nobody is there to talk to while you run, so never ask a question and never wait
 Decide on your own and write the assumptions you made into your summary.
 That summary is all the agent that spawned you gets to see: it has to say what you did, which files
 you touched and everything that agent needs to carry on.
+`;
+        return {
+            loop: commonIdentity,
+            subloop,
+            taskloop: `${subloop}
+The one task you were given is yours whole, and you do not have to work through it alone: hand any
+piece of it that stands on its own to a subagent of your own with the sub_loop tool. Pieces that wait
+for nothing go out together, one call each, and what they hand back is yours to check and to fold
+into your own summary. Work a piece yourself where splitting it off would cost more than doing it.
+Never take on another task of the project, and never set the status of your own: you move its step
+index as you go, the agent who handed it to you is the one who closes it.
 `,
             cron: `${commonIdentity}
 What's more you are running as a scheduled (cron) task, triggered automatically at a preset time.

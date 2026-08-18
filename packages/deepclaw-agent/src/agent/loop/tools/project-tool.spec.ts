@@ -335,13 +335,13 @@ describe('project query tools', () => {
 
 describe('project tool metadata', () => {
 
-    /** A sub loop reports its work, the loop that assigned the task is the one acting on it. */
-    test('a sub loop may only move the step index of a task', () => {
-        expect(createProjectTool.exclusiveInSubLoop).toBe(true);
-        expect(createSimpleTaskTool.exclusiveInSubLoop).toBe(true);
-        expect(updateProjectTool.exclusiveInSubLoop).toBe(true);
-        expect(updateTaskTool.exclusiveInSubLoop).toBe(true);
-        expect(updateTaskCurrentStepTool.exclusiveInSubLoop).toBe(false);
+    /** A subagent reports its work, the loop that assigned the task is the one acting on it. */
+    test('a task loop may only move the step index of the task it works', () => {
+        expect(createProjectTool.loopKinds).toEqual(['main']);
+        expect(createSimpleTaskTool.loopKinds).toEqual(['main']);
+        expect(updateProjectTool.loopKinds).toEqual(['main']);
+        expect(updateTaskTool.loopKinds).toEqual(['main']);
+        expect(updateTaskCurrentStepTool.loopKinds).toEqual(['main', 'task']);
     });
 
     /** Ending the loop mid group would let the siblings of the call run past the stop. */

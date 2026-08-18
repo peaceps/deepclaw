@@ -1,16 +1,22 @@
 import { FileUtils } from '@deepclaw/node-utils';
 import { addTokenUsage, type RunningTask } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
-import { AssignedTask, OneLoopContext } from '../../definitions/definitions';
+import { OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
 import { LoopAgent } from '../loop/loop';
 import { ProjectManager } from '../services/project-manager';
 import { RunningTaskService } from '../services/running-task-service';
 import { SessionService } from '../services/session-service';
 
+const MAX_PARALLEL_TASK_LOOPS = 3;
+
+type TaskLoopInput = {
+    prompt: string;
+    taskTitle: string;
+}
+
 type SubLoopInput = {
     prompt: string;
-    taskTitle?: string;
 }
 
 /** A run before it was started, the service is the one handing out the handle. */
@@ -31,23 +37,36 @@ function withDrawnImages(text: string, refs: string[]): string {
 }
 
 /**
+ * Runs a loop that was spawned for this one call and takes its run apart afterwards. Its session
+ * was never meant to outlive the answer, and its tokens are only ever counted here: nothing of it
+ * is written where a session is kept.
+ */
+async function runSpawnedLoop(
+    loop: LoopAgent<any, any, any>, prompt: string, context: OneLoopContext
+): Promise<string> {
+    try {
+        const result = await loop.invoke(prompt, { browserId: context.browserId });
+        addTokenUsage(context.runtime.usage, result.runtime.usage);
+        return withDrawnImages(result.text, loop.getDrawnImages());
+    } finally {
+        const sessionDir = loop.getSessionDir();
+        FileUtils.deleteDir(sessionDir);
+        SessionService.dropSession(sessionDir);
+    }
+}
+
+/**
  * Only a run on a task is worth keeping: a sub loop without one belongs to nothing a board could
  * show it under. The status of the task cannot stand in for this, it is set before the handover
  * and stays on until the result was accepted.
  */
-function startRun(run: PlannedRun | undefined, context: OneLoopContext): string | undefined {
-    if (!run) {
-        return undefined;
-    }
+function startRun(run: PlannedRun, context: OneLoopContext): string {
     const runId = RunningTaskService.start(run);
     fireRunningTasksEvent(context);
     return runId;
 }
 
-function finishRun(runId: string | undefined, context: OneLoopContext): void {
-    if (!runId) {
-        return;
-    }
+function finishRun(runId: string, context: OneLoopContext): void {
     RunningTaskService.finish(runId);
     fireRunningTasksEvent(context);
 }
@@ -60,15 +79,15 @@ function fireRunningTasksEvent(context: OneLoopContext): void {
 }
 
 /**
- * Refuses a task that cannot be found instead of running an unfocused sub loop for it. The task
- * always comes from the project of the session: memory, skills and the files of a sub loop are
- * scoped to the loop that spawned it, so a task of another project would be worked on with the
- * wrong ones around it. The run is filed under whoever the subagent stands for, which is the
- * assignee of the task wherever there is one: that is the page the run belongs on.
+ * Refuses a task that cannot be found instead of running an unfocused loop for it. The task always
+ * comes from the project of the session: memory, skills and the files of a spawned loop are scoped
+ * to the loop that spawned it, so a task of another project would be worked on with the wrong ones
+ * around it. The run is filed under whoever the subagent stands for, which is the assignee of the
+ * task wherever there is one: that is the page the run belongs on.
  */
-function planRun(input: SubLoopInput, context: OneLoopContext): PlannedRun | undefined {
+function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     if (!input.taskTitle) {
-        return undefined;
+        throw new Error('Name the task of this project the subagent has to work on.');
     }
     // A cron loop keeps the id of its cron task where a project loop keeps its project.
     if (context.role === 'cron') {
@@ -88,7 +107,7 @@ function planRun(input: SubLoopInput, context: OneLoopContext): PlannedRun | und
     if (RunningTaskService.isRunning(projectId, task.title)) {
         throw new Error(`A subagent is working on "${task.title}" already, wait for it to report back.`);
     }
-    // Moving the step index is all a sub loop may do to its task, and that is refused while the
+    // Moving the step index is all a task loop may do to its task, and that is refused while the
     // task is still todo. Waiting for the assigning loop to remember it would waste the run.
     if (task.status === 'todo') {
         ProjectManager.updateTask(projectId, {title: task.title, status: 'ongoing'});
@@ -102,45 +121,82 @@ function planRun(input: SubLoopInput, context: OneLoopContext): PlannedRun | und
     };
 }
 
-export const subLoopTool: ToolDesc<SubLoopInput> = {
+export const taskLoopTool: ToolDesc<TaskLoopInput> = {
     tool: {
-        name: 'sub_loop',
-        description: `Spawn a subagent with fresh context. It shares the filesystem but not conversation history.
-Name a task of the project of this session to let the subagent work on that task alone: it works as
-the agent the task is assigned to, with the memory and the skills of that agent, and gets the
-description and the steps of the task in its prompt.
+        name: 'task_loop',
+        description: `Hand one task of this project to a subagent, the way every task of a project is
+worked on. The subagent starts with fresh context: it shares the filesystem but not the conversation.
+It works as the agent the task is assigned to, with the memory and the skills of that agent, and gets
+the description and the steps of the task in its prompt. It can split the task among subagents of its
+own, so hand the whole task over rather than a piece of it.
+Tasks that block nothing and wait for nothing go out at the same time, one call each.
 Nothing the subagent says reaches the user, only what you write down out of what it hands back.`,
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
-                prompt: {type: 'string', description: 'The task prompt for the sub-agent'},
+                prompt: {
+                    type: 'string',
+                    description: `What the subagent has to know beyond the task itself: it never gets
+an answer to a question, so everything it needs is in here.`,
+                },
                 taskTitle: {
                     type: 'string',
-                    description: 'The title of the task of this project the sub-agent has to work on.',
+                    description: 'The title of the task of this project the subagent has to work on.',
+                },
+            },
+            required: ['prompt', 'taskTitle']}
+    },
+    agentMode: ['agent'],
+    parallelSafe: true,
+    // A task loop splits its task among subagents of its own, so every call of this stands for a
+    // whole tree of runs rather than a single one. Handing out more tasks at once buys little and
+    // pays for it in runs that all wait on the same machine.
+    maxParallel: MAX_PARALLEL_TASK_LOOPS,
+    // The board of a project belongs to the loop that runs it: a subagent works a task it was
+    // handed, it does not hand the tasks of the project out.
+    loopKinds: ['main'],
+    invoke: async function(input: TaskLoopInput, context: OneLoopContext): Promise<string> {
+        const run = planRun(input, context);
+        const taskLoop = context.actions.newTaskLoop({
+            projectId: run.projectId, taskTitle: run.taskTitle,
+        }) as LoopAgent<any, any, any>;
+        const runId = startRun(run, context);
+        try {
+            return await runSpawnedLoop(taskLoop, input.prompt, context);
+        } finally {
+            finishRun(runId, context);
+        }
+    },
+}
+
+export const subLoopTool: ToolDesc<SubLoopInput> = {
+    tool: {
+        name: 'sub_loop',
+        description: `Spawn a subagent with fresh context for one piece of work. It shares the
+filesystem but not the conversation history.
+A subagent of a subagent spawns nothing further, so give it work that stands on its own, and give out
+work that waits for nothing at the same time, one call each.
+Use task_loop for a task of the project: that is what the tasks on the board are worked on with.
+Nothing the subagent says reaches the user, only what you write down out of what it hands back.`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                prompt: {
+                    type: 'string',
+                    description: `The work the subagent has to do, whole: it starts with nothing of
+this conversation and never gets an answer to a question.`,
                 },
             },
             required: ['prompt']}
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: true,
+    // A sub loop is the end of the chain, otherwise a run could go on spawning runs forever.
+    loopKinds: ['main', 'task'],
     invoke: async function(input: SubLoopInput, context: OneLoopContext): Promise<string> {
-        const run = planRun(input, context);
-        const assignedTask: AssignedTask | undefined =
-            run && {projectId: run.projectId, taskTitle: run.taskTitle};
-        const subLoop = context.actions.newSubLoop(assignedTask) as LoopAgent<any, any, any>;
-        const runId = startRun(run, context);
-        try {
-            const result = await subLoop.invoke(input.prompt, { browserId: context.browserId });
-            // The sub loop keeps no session of its own, so its tokens are only ever counted here.
-            addTokenUsage(context.runtime.usage, result.runtime.usage);
-            return withDrawnImages(result.text, subLoop.getDrawnImages());
-        } finally {
-            finishRun(runId, context);
-            const sessionDir = subLoop.getSessionDir();
-            FileUtils.deleteDir(sessionDir);
-            SessionService.dropSession(sessionDir);
-        }
+        const subLoop = context.actions.newSubLoop() as LoopAgent<any, any, any>;
+        return runSpawnedLoop(subLoop, input.prompt, context);
     },
 }

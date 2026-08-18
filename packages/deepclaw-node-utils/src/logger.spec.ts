@@ -24,14 +24,14 @@ describe('getLogger', () => {
 
 describe('getLoopLogger', () => {
 
-    test('binds both loop ids on a child logger', () => {
+    test('binds the loop id and the run id on a child logger', () => {
         getLoopLogger('agent.a1', 'sub1');
-        expect(mocks.child).toHaveBeenCalledWith({loopId: 'agent.a1', subLoopId: 'sub1'});
+        expect(mocks.child).toHaveBeenCalledWith({loopId: 'agent.a1', runId: 'sub1'});
     });
 
-    test('leaves the sub loop id undefined when it is not given', () => {
+    test('leaves the run id undefined when it is not given', () => {
         getLoopLogger('agent.a1');
-        expect(mocks.child).toHaveBeenCalledWith({loopId: 'agent.a1', subLoopId: undefined});
+        expect(mocks.child).toHaveBeenCalledWith({loopId: 'agent.a1', runId: undefined});
     });
 });
 

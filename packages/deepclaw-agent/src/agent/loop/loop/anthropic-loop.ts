@@ -3,7 +3,7 @@ import { LoopAgent } from "./loop";
 import { ToolUseResult, ToolUseDef } from "../../definitions/tool-definitions";
 import { LLMConstructor } from '../../llm/llmgw';
 import { AgentHandler, FlushAgentRole } from '@deepclaw/core';
-import { LLMProtocol } from "../../definitions/definitions";
+import { LLMProtocol, SpawnedLoop } from "../../definitions/definitions";
 
 export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
 
@@ -33,14 +33,14 @@ export class AnthropicLoop extends LoopAgent<ThinkingMessage, ThinkingResponse, 
         }));
     }
 
-    protected override newSubLoop(
+    protected override newLoop(
         role: FlushAgentRole,
         agentId: string,
         projectId: string,
-        subLoopAgentHandler: AgentHandler,
-        subLoopId: string,
+        agentHandler: AgentHandler,
+        spawned?: SpawnedLoop,
     ): LoopAgent<ThinkingMessage, ThinkingResponse, AnthropicLLM> {
-        return new AnthropicLoop(role, agentId, projectId, subLoopAgentHandler, subLoopId);
+        return new AnthropicLoop(role, agentId, projectId, agentHandler, spawned);
     }
 
 }

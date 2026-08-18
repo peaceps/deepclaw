@@ -31,9 +31,10 @@ export function getLogger(name: string) {
     });
 }
 
-export function getLoopLogger(loopId: string, subLoopId?: string) {
+/** A spawned loop shares the id of the loop it came out of, its run id is what tells them apart. */
+export function getLoopLogger(loopId: string, runId?: string) {
     return geRootLogger().child({
         loopId,
-        subLoopId
+        runId
     });
 }

@@ -131,7 +131,7 @@ so do not call tools updating project/tasks immediately with create_project`,
     },
     agentMode: ['agent'],
     parallelSafe: false,
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
         const tasks = buildTasks(input.tasks, context);
         const project = ProjectManager.createProject({
@@ -197,7 +197,7 @@ All steps should be done when task is going to be marked as done.`,
     },
     agentMode: ['agent'],
     parallelSafe: false,
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     invoke: async function(input: CreateSimpleTaskInput, context: OneLoopContext): Promise<string> {
         const task: Task = ProjectManager.createTask(
             {...input, agentId: context.agentId}
@@ -262,7 +262,7 @@ export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
         const {projectId, tasks, ...patch} =  input;
         const projectTasks = tasks && buildTasks(tasks, context);
@@ -365,7 +365,7 @@ open. Only files inside the workspace can be handed over, and only files, not fo
     parallelSafe: false,
     // A task waiting to be verified stops the loop that marks it done, and a sub loop that stops
     // there reports the pause instead of its work. Its status belongs to whoever assigned it.
-    exclusiveInSubLoop: true,
+    loopKinds: ['main'],
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
         const taskInfo: UpdateContent<Task, 'title'> = {title: input.taskTitle};
         requireHiredAssignee(input.assignee);
@@ -440,7 +440,9 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
+    // The step index of a task belongs to the loop that works the task, and a sub loop of that
+    // loop works a piece of it: two hands on the same index would only undo each other.
+    loopKinds: ['main', 'task'],
     invoke: async function(input: UpdateTaskCurrentStepInput, context: OneLoopContext): Promise<string> {
         const updated = ProjectManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
         context.actions.agentHandler.onStreamText({
@@ -474,7 +476,6 @@ closed projects will also be included.`,
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(input: GetProjectListInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectList(input.includingClosed));
     },
@@ -499,7 +500,6 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    exclusiveInSubLoop: false,
     invoke: async function(input: GetProjectDetailInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectDetail(input.projectId));
     },

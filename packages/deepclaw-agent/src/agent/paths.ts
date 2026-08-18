@@ -19,8 +19,9 @@ export const SESSION_METADATA_FILE = 'session.json';
 export const MEMORY_DIR = 'memory';
 export const CHAT_FILE = 'chat.jsonl';
 
-// SubLoop temp
+// Spawned loop temp, one folder per run and gone with it
 export const SUB_LOOP_DIR = 'subloop';
+export const TASK_LOOP_DIR = 'taskloop';
 
 // Skills
 export const SKILLS = 'skills';

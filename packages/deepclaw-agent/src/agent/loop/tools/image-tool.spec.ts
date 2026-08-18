@@ -591,7 +591,7 @@ describe('generateImageTool metadata', () => {
     test('draws for a chat and from inside a sub loop as well', () => {
         expect(generateImageTool.agentMode).toEqual(['agent', 'chat']);
         expect(generateImageTool.parallelSafe).toBe(true);
-        expect(generateImageTool.exclusiveInSubLoop).toBe(false);
+        expect(generateImageTool.loopKinds).toBeUndefined();
     });
 
     test('only offers resolutions the model accepts', () => {
