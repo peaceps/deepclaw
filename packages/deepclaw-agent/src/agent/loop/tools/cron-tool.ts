@@ -12,10 +12,19 @@ const OUTPUT_KEPT = '<Output kept, read it with get_cron_histories>';
 const HISTORIES_READ = 3;
 
 /**
- * How many runs one answer may carry, whatever the caller asks for. What a page of the ui holds is
- * a question of its own and happens to be answered with the same number.
+ * How many runs one call may ask for, however long the record of the task is. What a page of the
+ * ui holds is a question of its own, and the reports of this many runs are already more than the
+ * work of one run tends to stand on.
  */
-export const HISTORIES_READ_MAX = 10;
+export const HISTORIES_READ_MAX = 5;
+
+/**
+ * How much of an answer the reports of the runs may fill. A report is as long as the run made it,
+ * so how many of them fit is nothing a count of runs can say: past what an answer holds, the whole
+ * of it is filed away and comes back as a preview and a path, which is a worse answer than fewer
+ * runs and the way to the rest of them.
+ */
+const ANSWER_BUDGET = 12000;
 
 /** The task as an answer to a write of it, with what its runs reported left out. */
 function cronTaskAfterWrite(id: string): string {
@@ -175,7 +184,7 @@ and read from there.`,
                 id: {type: 'string', description: 'The id of the cron task'},
                 limit: {
                     type: 'number',
-                    description: `How many runs to read back, ${HISTORIES_READ} by default and ${HISTORIES_READ_MAX} at most. Every report asked for is carried in the answer, so ask for the ones the work needs.`
+                    description: `How many runs to read back, ${HISTORIES_READ} by default and ${HISTORIES_READ_MAX} at most. A run that reported at length fills an answer by itself, so ask for the runs the work needs: fewer than asked for may come back, with the time to read the rest from.`
                 },
                 before: {
                     type: 'number',
@@ -199,8 +208,30 @@ and read from there.`,
         if (!histories.length) {
             return 'This cron task has no finished run to read back.';
         }
-        return JSON.stringify(histories.map(readable));
+        return answerOf(histories);
     },
+}
+
+/** As many of the runs as one answer carries, and where to read the ones it left for the next. */
+function answerOf(histories: CronJobHistory[]): string {
+    const carried: (CronJobHistory | ReadableHistory)[] = [];
+    let size = 0;
+    for (const history of histories) {
+        const one = readable(history);
+        const length = JSON.stringify(one).length;
+        // The first run asked about is carried however long it reported, or nothing is read at all.
+        if (carried.length && size + length > ANSWER_BUDGET) {
+            break;
+        }
+        carried.push(one);
+        size += length;
+    }
+    if (carried.length === histories.length) {
+        return JSON.stringify(carried);
+    }
+    return `${JSON.stringify(carried)}
+The runs before these were left out of this answer, read them with before: ${
+    carried[carried.length - 1]!.start}.`;
 }
 
 /**

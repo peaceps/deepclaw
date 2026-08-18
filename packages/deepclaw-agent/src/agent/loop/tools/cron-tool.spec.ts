@@ -191,8 +191,34 @@ describe('getCronHistoriesTool invoke', () => {
     /** One answer carries every report it names, and a record of a year is no answer. */
     test('reads back no more runs than one answer may carry', async () => {
         await getCronHistoriesTool.invoke({id: 'c1', limit: 50}, newTestContext());
+        // As many as one call may ask for, and one more for the run that is asking.
         expect(getCronHistories)
             .toHaveBeenCalledWith('c1', Number.MAX_SAFE_INTEGER, HISTORIES_READ_MAX + 1);
+    });
+
+    /**
+     * A report is as long as the run made it. Past what one answer holds, the whole of it is filed
+     * away and comes back as a preview and a path: fewer runs and the way on is the better answer.
+     */
+    test('carries no more reports than one answer holds and says where the rest are', async () => {
+        getCronHistories.mockReturnValue([
+            newHistory({start: 1755086400000, completed: 1755086460000, finalText: 'a'.repeat(9000)}),
+            newHistory({start: 1755000000000, completed: 1755000060000, finalText: 'b'.repeat(9000)}),
+        ]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 2}, newTestContext());
+        expect(result).toContain('a'.repeat(9000));
+        expect(result).not.toContain('b'.repeat(9000));
+        expect(result).toContain('read them with before: 1755086400000');
+    });
+
+    /** A run that reported at length is still the run that was asked about. */
+    test('carries the report of one run however long it is', async () => {
+        getCronHistories.mockReturnValue([
+            newHistory({completed: 1755000060000, finalText: 'a'.repeat(30000)}),
+        ]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1'}, newTestContext());
+        expect(result).toContain('a'.repeat(30000));
+        expect(result).not.toContain('read them with before');
     });
 
     /**
