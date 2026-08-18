@@ -37,7 +37,8 @@ export type ToolGuardResult = {
 
 export type ToolCallback<T = unknown> = (input: T, context: OneLoopContext) => Promise<string>;
 
-export const ALL_LOOP_KINDS: LoopKind[] = ['main', 'task', 'sub'];
+/** The default visibility of a tool, so nothing may reach in and rewrite what that means. */
+export const ALL_LOOP_KINDS: readonly LoopKind[] = ['main', 'task', 'sub'] as const;
 
 export type ToolDesc<T = unknown> = {
     tool: LLMTool;

@@ -40,10 +40,12 @@ export function publishGeneratedFiles(
     }
     const folder = `${targetFolder}/${id}/${FileUtils.hashString(title)}`;
     const published: string[] = [];
-    const skipped: string[] = [];
+    // The schema of the tool asks for the cap, only a well behaved model keeps to what it asks.
+    const wanted = [...new Set(files)];
+    const skipped: string[] = wanted.slice(MAX_GENERATED_FILES);
     const lines: string[] = [];
     const names = new Set<string>();
-    for (const file of new Set(files)) {
+    for (const file of wanted.slice(0, MAX_GENERATED_FILES)) {
         // Everything the agent can read is not what the browser may be handed: only the workspace.
         if (!FileUtils.isPathInWorkspace(file)) {
             skipped.push(file);
@@ -89,8 +91,9 @@ export function skippedFilesNote(skipped: string[]): string {
     }
     return `
 
-These files were not handed to the user, they are either no file, not there or outside the
-workspace: ${skipped.join(', ')}. Copy what the user should get into the workspace first.`;
+These files were not handed to the user: ${skipped.join(', ')}. Every one of them has to be a file
+rather than a folder, has to lie inside the workspace, and at most ${MAX_GENERATED_FILES} of them go
+out with one output. Copy what the user should get into the workspace first.`;
 }
 
 function headlineOf(outputType: NonNullable<LLMTaskOutput>['type']): string {
@@ -99,12 +102,17 @@ function headlineOf(outputType: NonNullable<LLMTaskOutput>['type']): string {
 }
 
 function linkOf(outputType: NonNullable<LLMTaskOutput>['type'], name: string, url: string): string {
-    return outputType === 'markdown' ? `- [${name}](${url})` : `- ${name}: ${url}`;
+    const href = url.split('/').map(encodeURIComponent).join('/');
+    return outputType === 'markdown' ? `- [${name}](${href})` : `- ${name}: ${href}`;
 }
 
-/** Two files of one task can be named alike, and the later one must not bury the earlier. */
+/**
+ * Two files of one task can be named alike, and the later one must not bury the earlier. What a
+ * name comes down to on disk is what has to be kept apart here: two names that differ only in a
+ * character a path cannot carry are one file once they are written, and one link either way.
+ */
 function freeName(file: string, taken: Set<string>): string {
-    const base = file.split(/[\\/]/).filter(Boolean).pop() || 'file';
+    const base = FileUtils.sanitizeFileName(file.split(/[\\/]/).filter(Boolean).pop() || 'file');
     const name = taken.has(base) ? `${FileUtils.hashString(file, 6)}-${base}` : base;
     taken.add(name);
     return name;

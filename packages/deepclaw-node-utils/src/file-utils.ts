@@ -190,7 +190,11 @@ export class FileUtils {
         return pathStr.replace(/\\/g, '/').replace(/\/\//g, '/');
     }
 
-    private static sanitizeFileName(fileName: string, allowFolder: boolean = true): string {
+    /**
+     * The name a path really lands under. Whoever names a file to the user has to name the same one
+     * it was written as, so the answer to that is public rather than a secret of writing a file.
+     */
+    public static sanitizeFileName(fileName: string, allowFolder: boolean = true): string {
         const index = fileName.indexOf(':');
         const prefix = index !== -1 ? fileName.slice(0, index + 1) : '';
         const suffix = index !== -1 ? fileName.slice(index + 1) : fileName;

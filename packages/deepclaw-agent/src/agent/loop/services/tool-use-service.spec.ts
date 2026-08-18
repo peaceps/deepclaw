@@ -4,7 +4,7 @@ import {newTestContext} from '../../../test-support/one-loop-context';
 import {ToolUseService} from './tool-use-service';
 
 const mocks = vi.hoisted(() => ({
-    getToolDesc: vi.fn<(isSubLoop: boolean, mode: string, name: string) => unknown>(),
+    getToolDesc: vi.fn<(loopKind: string, mode: string, name: string) => unknown>(),
     emitVisitor: vi.fn(),
     wrapTimestamp: vi.fn((file: string) => `stamped-${file}`),
     writeFile: vi.fn((path: string) => path),
@@ -355,7 +355,7 @@ describe('planExecutionGroups', () => {
     test('gives a tool call that is not parallel safe a group of its own', () => {
         const safe = newTool();
         const exclusive = newTool({parallelSafe: false});
-        mocks.getToolDesc.mockImplementation((_isSubLoop, _mode, name) => name === 'lonely' ? exclusive : safe);
+        mocks.getToolDesc.mockImplementation((_kind, _mode, name) => name === 'lonely' ? exclusive : safe);
         const defs = [
             newToolUse(), newToolUse({id: 'tu2', name: 'lonely'}), newToolUse({id: 'tu3'}),
         ];

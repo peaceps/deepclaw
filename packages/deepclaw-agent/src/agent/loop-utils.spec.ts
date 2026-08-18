@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type LLMTaskOutput} from '@deepclaw/core';
-import {publishGeneratedFiles, saveToPublic} from './loop-utils';
+import {MAX_GENERATED_FILES, publishGeneratedFiles, saveToPublic} from './loop-utils';
 import {PROJECT_TASK_OUTPUT_DIR, PUBLIC} from './paths';
 
 const mocks = vi.hoisted(() => ({
@@ -14,14 +14,19 @@ const mocks = vi.hoisted(() => ({
     ),
 }));
 
-vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
-    FileUtils: {
-        exists: mocks.exists, writeFile: mocks.writeFile, hashString: mocks.hashString,
-        readBuffer: mocks.readBuffer, isPathInWorkspace: mocks.isPathInWorkspace,
-    },
-    ImageStore: {save: mocks.saveImage},
-}));
+vi.mock('@deepclaw/node-utils', async (importOriginal) => {
+    const original = await importOriginal<typeof import('@deepclaw/node-utils')>();
+    return {
+        ...original,
+        FileUtils: {
+            exists: mocks.exists, writeFile: mocks.writeFile, hashString: mocks.hashString,
+            readBuffer: mocks.readBuffer, isPathInWorkspace: mocks.isPathInWorkspace,
+            // Naming a file is pure, and the name it comes down to is what the test is about.
+            sanitizeFileName: original.FileUtils.sanitizeFileName.bind(original.FileUtils),
+        },
+        ImageStore: {save: mocks.saveImage},
+    };
+});
 
 vi.mock('@deepclaw/i18n', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/i18n')>()),
@@ -239,10 +244,52 @@ ${HEADLINE}:
         mocks.hashString.mockImplementation((text: string) => `hash-${text}`);
         const output = newOutput({type: 'markdown'});
         publish(output, ['src/README.md', 'docs/README.md']);
-        expect(output.content).toContain('- [README.md](/projects/t1/hash-a title/README.md)');
+        expect(output.content).toContain('- [README.md](/projects/t1/hash-a%20title/README.md)');
         expect(output.content).toContain(
-            '- [hash-docs/README.md-README.md](/projects/t1/hash-a title/hash-docs/README.md-README.md)'
+            '- [hash-docs/README.md-README.md](/projects/t1/hash-a%20title/hash-docs/README.md-README.md)'
         );
+    });
+
+    /** A link target has no room for a space, and the file the user asked for often carries one. */
+    test('encodes what a url cannot carry and leaves the name it is shown under alone', () => {
+        const output = newOutput({type: 'markdown'});
+        publish(output, ['out/Q3 report (final).pdf']);
+        expect(output.content).toContain(
+            '- [Q3 report (final).pdf](/projects/t1/hash1234/Q3%20report%20(final).pdf)'
+        );
+    });
+
+    test('encodes a hash in a name that a browser would read as an anchor', () => {
+        const output = newOutput({type: 'markdown'});
+        publish(output, ['out/notes#2.md']);
+        expect(output.content).toContain('(/projects/t1/hash1234/notes%232.md)');
+    });
+
+    test('names the path of a text output the same way', () => {
+        const output = newOutput();
+        publish(output, ['out/Q3 report.pdf']);
+        expect(output.content).toContain('- Q3 report.pdf: /projects/t1/hash1234/Q3%20report.pdf');
+    });
+
+    /** Both names come down to one file on disk, and the later one must not bury the earlier. */
+    test('keeps two names apart that a path cannot tell apart', () => {
+        const output = newOutput({type: 'markdown'});
+        publish(output, ['a/x?y.pdf', 'b/x*y.pdf']);
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            `${PROJECT_TASK_OUTPUT_DIR}/t1/hash1234/x_y.pdf`, Buffer.from('bytes of a/x?y.pdf')
+        );
+        expect(output.content).toContain('- [x_y.pdf](/projects/t1/hash1234/x_y.pdf)');
+        expect(output.content).toContain(
+            '- [hash1234-x_y.pdf](/projects/t1/hash1234/hash1234-x_y.pdf)'
+        );
+    });
+
+    test('hands over no more files than one output may carry', () => {
+        const files = Array.from({length: 12}, (_unused, index) => `out/file${index}.csv`);
+        const {published, skipped} = publish(newOutput({type: 'markdown'}), files);
+        expect(published).toEqual(files.slice(0, MAX_GENERATED_FILES));
+        expect(skipped).toEqual(files.slice(MAX_GENERATED_FILES));
+        expect(mocks.writeFile).toHaveBeenCalledTimes(MAX_GENERATED_FILES);
     });
 
     test('copies a file named twice only once', () => {

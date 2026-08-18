@@ -49,22 +49,26 @@ vi.mock('cron', () => ({
 
 vi.mock('../../loop-initializer', () => ({LoopInitializer: {getLoop: mocks.getLoop}}));
 
-vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
-    FileUtils: {
-        exists: mocks.exists,
-        readDir: mocks.readDir,
-        readFile: mocks.readFile,
-        writeFile: mocks.writeFile,
-        appendFile: mocks.appendFile,
-        deleteDir: mocks.deleteDir,
-        hashString: mocks.hashString,
-        readBuffer: mocks.readBuffer,
-        isPathInWorkspace: mocks.isPathInWorkspace,
-    },
-    getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
-    getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
-}));
+vi.mock('@deepclaw/node-utils', async (importOriginal) => {
+    const original = await importOriginal<typeof import('@deepclaw/node-utils')>();
+    return {
+        ...original,
+        FileUtils: {
+            exists: mocks.exists,
+            readDir: mocks.readDir,
+            readFile: mocks.readFile,
+            writeFile: mocks.writeFile,
+            appendFile: mocks.appendFile,
+            deleteDir: mocks.deleteDir,
+            hashString: mocks.hashString,
+            readBuffer: mocks.readBuffer,
+            isPathInWorkspace: mocks.isPathInWorkspace,
+            sanitizeFileName: original.FileUtils.sanitizeFileName.bind(original.FileUtils),
+        },
+        getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+        getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+    };
+});
 
 type CronServiceType = (typeof import('./cron-service'))['CronService'];
 
