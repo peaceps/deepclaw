@@ -1,25 +1,17 @@
 import { SSEServer } from "./sse-server";
-import { SSEType } from "./sse-types";
 
-export function newInfoSSEEndpoint(browserId: string): Response {
-    return newSSEEndpoint('info', browserId);
-}
-export function newLoopSSEEndpoint(browserId: string, loopId: string): Response {
-    return newSSEEndpoint('loop', browserId, loopId);
-}
-
-function newSSEEndpoint(type: SSEType, browserId: string, loopId?: string): Response {
+export function newSSEEndpoint(browserId: string): Response {
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
         start(controller) {
-            SSEServer.addClient(type, browserId, loopId, controller, encoder);
+            SSEServer.addClient(browserId, controller, encoder);
             controller.enqueue(encoder.encode(
                 `event: connected\ndata: ${JSON.stringify({ content: browserId })}\n\n`
             ));
         },
         cancel() {
-            SSEServer.removeClient(type, browserId, loopId);
+            SSEServer.removeClient(browserId);
         },
     });
 

@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { getLogger } from '@/lib/logger';
 import type { SSEConnectedEvent, SSEToastEvent } from '@/app/api/sse-types';
 import { useSSEClient } from './SSEProvider';
+import { sseUrl } from '@/lib/sse-client';
 import { useToastStore } from '@/lib/toast-store';
 import { ToastService } from '@/lib/toast-service';
 import {
@@ -29,10 +30,10 @@ export function InfoClient() {
   const show = useToastStore(t => t.show);
 
   useEffect(() => {
-    const INFO_SSE_URL = `/api/info?browserId=${browserId}`;
+    const url = sseUrl(browserId);
     const unsubscribers = [
       sseClient.subscribe<SSEConnectedEvent>(
-        INFO_SSE_URL,
+        url,
         'connected',
         ({content}) => {
           if (content !== browserId) return;
@@ -40,42 +41,42 @@ export function InfoClient() {
         },
       ),
       sseClient.subscribe<AgentProjectInfoEvent>(
-        INFO_SSE_URL,
+        url,
         'updateProject',
         ({content}) => {
           updateProject(content);
         },
       ),
       sseClient.subscribe<AgentAgentInfoEvent>(
-        INFO_SSE_URL,
+        url,
         'updateAgent',
         ({content}) => {
           updateAgentEmployee({...content});
         },
       ),
       sseClient.subscribe<AgentRunningTasksInfoEvent>(
-        INFO_SSE_URL,
+        url,
         'updateRunningTasks',
         ({content}) => {
           setRunningTasks(content);
         },
       ),
       sseClient.subscribe<AgentBusyLoopsInfoEvent>(
-        INFO_SSE_URL,
+        url,
         'updateBusyLoops',
         ({content}) => {
           setBusyLoops(content);
         },
       ),
       sseClient.subscribe<AgentCronInfoEvent>(
-        INFO_SSE_URL,
+        url,
         'updateCron',
         ({content}) => {
           updateCronTask(content);
         },
       ),
       sseClient.subscribe<AgentRuntimeStatusInfoEvent>(
-        INFO_SSE_URL,
+        url,
         'updateAgentRuntime',
         ({content: {agentId, emotion, ...status}}) => {
           if (!getAgents().some(agent => agent.id === agentId)) {
@@ -91,7 +92,7 @@ export function InfoClient() {
         },
       ),
       sseClient.subscribe<SSEToastEvent>(
-        INFO_SSE_URL,
+        url,
         'toast',
         ({content}) => {
           const {title, message} = ToastService.parseToastEvent(content, getProjects() , getAgents());

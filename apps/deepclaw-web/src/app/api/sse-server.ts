@@ -1,54 +1,63 @@
 import {
     isInfoEvent, isLoopBusyEvent, isLoopCancelInteractionEvent,
-    isLoopChatEvent, isLoopEvent, isLoopInteractionEvent, isLoopStreamEvent,
-    LoopGateway, LoopGatewayEvent, getClientKey,
+    isLoopChatEvent, isLoopInteractionEvent, isLoopStreamEvent,
+    LoopGateway, LoopGatewayEvent,
     isLoopTokenUsageEvent
 } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
 import type { AgentInteractionEvent } from "@deepclaw/core";
 import {
-    type SSEStore,
     type SSEClient,
     type SSEEvent,
     SSEToastEvent,
-    type SSEType,
 } from "./sse-types";
 
+/**
+ * One stream carries everything a browser is told. A browser only opens about six connections to a
+ * host, so a stream per loop on top of the shared one spent them on listening alone and left the
+ * page unable to even load another route: whatever is watched travels with the client instead.
+ */
 class SSEServerImpl {
     // TODO
     private static logger = getLogger('SSEServer');
-    private static sseStore: SSEStore = {
-        info: new Map<string, SSEClient>(),
-        loop: new Map<string, SSEClient>(),
-    }
+    private static clients: Map<string, SSEClient> = new Map();
+    private static unsubscriber?: () => void;
 
     public static addClient(
-        type: SSEType, browserId: string, loopId: string | undefined,
-        controller: ReadableStreamDefaultController, encoder: TextEncoder
+        browserId: string, controller: ReadableStreamDefaultController, encoder: TextEncoder
     ): void {
-        if (type === 'info' && !this.sseStore.unsubscriber) {
-            this.sseStore.unsubscriber = LoopGateway.subscribe((e: LoopGatewayEvent) => {
-                this.broadcastEvent(e);
-            });
-        }
-        const store = this.sseStore[type];
-        const client: SSEClient = { browserId, loopId, controller, encoder, active: true };
-        store.set(getClientKey(browserId, loopId), client);
+        this.unsubscriber ??= LoopGateway.subscribe((e: LoopGatewayEvent) => {
+            this.broadcastEvent(e);
+        });
+        this.clients.set(browserId, {browserId, loops: new Set(), controller, encoder});
+    }
 
-        if (type === 'loop' && loopId) {
-            this.sendEvent(type, client, {
-                eventType: 'busy', loopId, content: '', busy: LoopGateway.isLoopBusy(loopId)
-            });
+    /**
+     * Which loops a browser shows, told by the view that opened or left. The events of a loop
+     * nobody looks at are a stream of tokens sent for nothing.
+     */
+    public static watchLoop(browserId: string, loopId: string, watching: boolean): void {
+        const client = this.clients.get(browserId);
+        if (!client) {
+            return;
         }
+        if (!watching) {
+            client.loops.delete(loopId);
+            return;
+        }
+        client.loops.add(loopId);
+        // Whether the loop is busy is the one thing a view that just opened cannot wait for an
+        // event to tell it: the loop may have been running long before it got here.
+        this.sendEvent(client, {
+            eventType: 'busy', loopId, content: '', busy: LoopGateway.isLoopBusy(loopId)
+        });
     }
 
     private static broadcastEvent(event: SSEEvent): void {
-        const type = this.getSSEType(event);
-        const allClients = Array.from(this.sseStore[type].values());
-        const clients = allClients.filter(client => this.shouldBroadcast(client, event));
+        const clients = Array.from(this.clients.values()).filter(client => this.shouldSend(client, event));
         for (const client of clients) {
-            this.sendEvent(type, client, event);
+            this.sendEvent(client, event);
         }
         if (isLoopInteractionEvent(event) && !clients.length) {
             this.handleInteractionPause(event);
@@ -56,8 +65,7 @@ class SSEServerImpl {
     }
 
     private static handleInteractionPause(event: AgentInteractionEvent) {
-        const infoClient = this.sseStore['info'].get(event.browserId);
-        if (infoClient) {
+        if (this.clients.has(event.browserId)) {
             LoopGateway.cancelInteraction(event.browserId, event.loopId, 'interactionAfk');
             this.sendToast({key: 'interactionPause', data: event.loopId}, event.browserId);
         } else {
@@ -65,84 +73,60 @@ class SSEServerImpl {
         }
     }
 
-    private static shouldBroadcast(client: SSEClient, event: SSEEvent): boolean {
+    private static shouldSend(client: SSEClient, event: SSEEvent): boolean {
         if (isInfoEvent(event)) {
             return true;
         }
-        if (!this.sseStore.info.get(client.browserId)) {
+        if (!('loopId' in event) || !client.loops.has(event.loopId)) {
             return false;
         }
         if (isLoopBusyEvent(event) || isLoopTokenUsageEvent(event)) {
-            return 'loopId' in event && client.loopId === event.loopId;
+            return true;
         } else if (isLoopChatEvent(event)) {
-            return 'browserId' in event && client.browserId !== event.browserId
-                && 'loopId' in event && client.loopId === event.loopId;
-        } else if (isLoopStreamEvent(event)) {
-            return this.matchClient(event, client);
-        } else if (isLoopInteractionEvent(event) || isLoopCancelInteractionEvent(event)) {
-            return client.active && this.matchClient(event, client);
+            return 'browserId' in event && client.browserId !== event.browserId;
+        } else if (isLoopStreamEvent(event) || isLoopInteractionEvent(event)
+            || isLoopCancelInteractionEvent(event)) {
+            return 'browserId' in event && client.browserId === event.browserId;
         }
         return false;
     }
 
-    private static matchClient(event: SSEEvent, client: SSEClient): boolean {
-        return 'browserId' in event && client.browserId === event.browserId
-            && 'loopId' in event && client.loopId === event.loopId;
-    }
-
-    private static sendEvent(type: SSEType, client: SSEClient, event: SSEEvent): void {
+    private static sendEvent(client: SSEClient, event: SSEEvent): void {
         const message = `event: ${event.eventType}\ndata: ${JSON.stringify(event)}\n\n`;
         try {
             client.controller.enqueue(client.encoder.encode(message));
         } catch (err) {
-            this.removeClient(type, client.browserId, client.loopId);
-            if (client && client.loopId) {
-                LoopGateway.cancelInteraction(client.browserId, client.loopId, 'error');
+            // Dropped first, so that cancelling cannot come back around to this dead stream.
+            this.removeClient(client.browserId);
+            // A stream nobody can write to still owes an answer to every loop it was watching.
+            for (const loopId of client.loops) {
+                LoopGateway.cancelInteraction(client.browserId, loopId, 'error');
             }
-            this.logger.error(`Failed to send to client ${client.browserId} for ${type}: ${err}`);
+            this.logger.error(`Failed to send to client ${client.browserId}: ${err}`);
         }
     }
 
-    public static sendToast(content: SSEToastEvent['content'], browserId: string = '') {
-        const clients = browserId ? [this.sseStore['info'].get(browserId)]
-            : Array.from(this.sseStore['info'].values());
+    public static sendToast(content: SSEToastEvent['content'], browserId: string = ''): void {
+        const clients = browserId ? [this.clients.get(browserId)]
+            : Array.from(this.clients.values());
         for (const client of clients) {
             if (client) {
-                this.sendEvent('info', client, {
+                this.sendEvent(client, {
                     eventType: 'toast', content
                 } as SSEToastEvent);
             }
         }
     }
 
-    public static removeClient(type: SSEType, browserId: string, loopId?: string): void {
-        const store = this.sseStore[type];
-        store.delete(getClientKey(browserId, loopId));
-        if (type === 'info') {
-            LoopGateway.disconnectBrowser(browserId);
-            if (store.size === 0) {
-                this.sseStore.unsubscriber?.();
-                this.sseStore.unsubscriber = undefined;
-            }
+    public static removeClient(browserId: string): void {
+        if (!this.clients.delete(browserId)) {
+            return;
         }
-    }
-
-    public static activeClient(browserId: string, loopId: string, active: boolean): void {
-        const store = this.sseStore.loop;
-        for (const client of store.values()) {
-            if (client.browserId === browserId && client.loopId === loopId) {
-                client.active = active;
-            }
+        LoopGateway.disconnectBrowser(browserId);
+        if (this.clients.size === 0) {
+            this.unsubscriber?.();
+            this.unsubscriber = undefined;
         }
-    }
-
-    private static getSSEType(event: SSEEvent): SSEType {
-        if ( isInfoEvent(event) ) {
-            return 'info';
-        } else if (isLoopEvent(event)) {
-            return 'loop';
-        }
-        return 'info';
     }
 }
 

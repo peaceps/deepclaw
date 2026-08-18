@@ -201,6 +201,24 @@ describe('SSEClient', () => {
             expect(lastSource().listenerCount('chat')).toBe(1);
         });
 
+        test('keeps a listener per key when the connection is shared', () => {
+            const first = newHandler();
+            const second = newHandler();
+            client.subscribePersistent('/api/sse', 'chat', first, {key: 'agent.a1'});
+            client.subscribePersistent('/api/sse', 'chat', second, {key: 'agent.a2'});
+            lastSource().emit('chat', '{}');
+            expect(first).toHaveBeenCalledOnce();
+            expect(second).toHaveBeenCalledOnce();
+        });
+
+        test('turns down a duplicate of the same key', () => {
+            const second = newHandler();
+            client.subscribePersistent('/api/sse', 'chat', newHandler(), {key: 'agent.a1'});
+            client.subscribePersistent('/api/sse', 'chat', second, {key: 'agent.a1'});
+            lastSource().emit('chat', '{}');
+            expect(second).not.toHaveBeenCalled();
+        });
+
         test('returns a dead unsubscribe for the rejected duplicate', () => {
             const first = newHandler();
             client.subscribePersistent('/api/sse', 'chat', first);

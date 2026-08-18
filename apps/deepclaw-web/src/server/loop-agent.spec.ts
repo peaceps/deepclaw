@@ -6,7 +6,7 @@ import {
 } from './loop-agent';
 
 const mocks = vi.hoisted(() => ({
-    activeClient: vi.fn<(browserId: string, loopId: string, active: boolean) => void>(),
+    watchLoop: vi.fn<(browserId: string, loopId: string, watching: boolean) => void>(),
     invoke: vi.fn<(
         loopInfo: {role: string; agentId: string; projectId: string},
         options: {source: string; browserId: string; images?: ImageContent[]},
@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
     getNewerMessages: vi.fn<(loopId: string, startMessageId?: string) => ChatMessage[]>(),
 }));
 
-vi.mock('@/app/api/sse-server', () => ({SSEServer: {activeClient: mocks.activeClient}}));
+vi.mock('@/app/api/sse-server', () => ({SSEServer: {watchLoop: mocks.watchLoop}}));
 
 vi.mock('@deepclaw/loop-gateway', () => ({
     LoopGateway: {
@@ -85,11 +85,11 @@ describe('resumeLoop', () => {
         expect(mocks.resume).toHaveBeenCalledWith('b1', 'web', 'agent.a1');
     });
 
-    test('activates the sse client before resuming', async () => {
+    test('starts watching the loop before resuming it', async () => {
         mocks.resume.mockReturnValue({resume: true, msgId: 'm1'});
         await resumeLoop('b1', 'agent.a1');
-        expect(mocks.activeClient).toHaveBeenCalledWith('b1', 'agent.a1', true);
-        expect(mocks.activeClient.mock.invocationCallOrder[0]!)
+        expect(mocks.watchLoop).toHaveBeenCalledWith('b1', 'agent.a1', true);
+        expect(mocks.watchLoop.mock.invocationCallOrder[0]!)
             .toBeLessThan(mocks.resume.mock.invocationCallOrder[0]!);
     });
 
@@ -101,9 +101,9 @@ describe('resumeLoop', () => {
 
 describe('inactiveLoop', () => {
 
-    test('deactivates the sse client of that browser and loop', async () => {
+    test('stops watching the loop of that browser', async () => {
         await inactiveLoop('b1', 'agent.a1');
-        expect(mocks.activeClient).toHaveBeenCalledWith('b1', 'agent.a1', false);
+        expect(mocks.watchLoop).toHaveBeenCalledWith('b1', 'agent.a1', false);
     });
 
     test('leaves the loop itself running', async () => {

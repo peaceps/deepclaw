@@ -1,8 +1,6 @@
 import { AgentEvent, AgentInfoEvent } from "@deepclaw/core";
 import { LoopGatewayEvent } from "@deepclaw/loop-gateway";
 
-export type SSEType = 'info' | 'loop';
-
 export type SSEEvent = LoopGatewayEvent | SSEConnectedEvent | SSEToastEvent;
 
 export type SSEConnectedEvent = AgentEvent & {
@@ -18,11 +16,8 @@ export type SSEToastEvent = AgentInfoEvent & {
 
 export type SSEClient = {
     browserId: string;
-    loopId?: string;
-    active: boolean;
+    /** The loops this browser has on screen, the only ones whose events are worth sending it. */
+    loops: Set<string>;
     controller: ReadableStreamDefaultController;
     encoder: TextEncoder;
 }
-export type SSEStore = {
-    [key in SSEType]: Map<string, SSEClient>;
-} & {unsubscriber?: () => void | undefined;};

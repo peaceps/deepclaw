@@ -9,6 +9,8 @@ export type SSEHandler<T> = (data: T, event: MessageEvent<string>) => void;
 
 type SSEPersistentOptions<T> = {
   removeOn?: (data: T) => boolean;
+  /** Tells apart listeners of the same event that only share a connection, one loop from another. */
+  key?: string;
 };
 
 function parseSSEData<T>(data: string): T {
@@ -66,8 +68,9 @@ export class SSEClient {
     options: SSEPersistentOptions<T> = {},
   ): () => void {
     const connection = this.getOrCreateConnection(url);
+    const listenerKey = `${eventName}:${options.key ?? ''}`;
 
-    if (connection.persistentListeners.has(eventName)) {
+    if (connection.persistentListeners.has(listenerKey)) {
       return () => {};
     }
 
@@ -77,7 +80,7 @@ export class SSEClient {
       active = false;
 
       connection.source.removeEventListener(eventName, listener);
-      connection.persistentListeners.delete(eventName);
+      connection.persistentListeners.delete(listenerKey);
       this.closeIfUnused(url, connection);
     };
 
@@ -91,7 +94,7 @@ export class SSEClient {
       }
     };
 
-    connection.persistentListeners.set(eventName, { eventName, listener });
+    connection.persistentListeners.set(listenerKey, { eventName, listener });
     connection.source.addEventListener(eventName, listener);
 
     return unsubscribe;
@@ -147,3 +150,11 @@ export class SSEClient {
 }
 
 export const sseClient = new SSEClient();
+
+/**
+ * Every listener of a tab shares this url, and by the url the one connection behind it: a browser
+ * hands a host about six, and a stream per loop spent them all on listening.
+ */
+export function sseUrl(browserId: string): string {
+  return `/api/sse?${new URLSearchParams({browserId}).toString()}`;
+}

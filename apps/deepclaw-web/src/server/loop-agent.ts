@@ -12,7 +12,7 @@ export async function invoke(
 }
 
 export async function resumeLoop(browserId: string, loopId: string): Promise<{resume: boolean, msgId: string}> {
-    SSEServer.activeClient(browserId, loopId, true);
+    SSEServer.watchLoop(browserId, loopId, true);
     return LoopGateway.resume(browserId, 'web', loopId);
 }
 
@@ -21,7 +21,7 @@ export async function getTokenUsage(loopId: string): Promise<TokenUsage | undefi
 }
 
 export async function inactiveLoop(browserId: string, loopId: string): Promise<void> {
-    SSEServer.activeClient(browserId, loopId, false);
+    SSEServer.watchLoop(browserId, loopId, false);
 }
 
 export async function resolveInteraction(browserId: string, loopId: string, answer: string): Promise<boolean> {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useSSEClient } from '@/components/layout/SSEProvider';
-import { SSEConnectedEvent } from "@/app/api/sse-types";
+import { sseUrl } from '@/lib/sse-client';
 import { getLogger } from "@/lib/logger";
 import { useInteractionModalStore } from '@/lib/interaction-modal-store';
 import {
@@ -17,11 +17,6 @@ import { useTranslation } from "react-i18next";
 import { AgentCancelInteractionEvent, AgentChatEvent, AgentLoopBusyEvent, AgentTokenUsageEvent } from "@deepclaw/loop-gateway";
 
 const logger = getLogger('useChatHooks');
-
-function loopSSEConnection(browserId: string, loopId: string): string {
-    const params = new URLSearchParams({ loopId, browserId });
-    return `/api/loop?${params.toString()}`;
-}
 
 export function useInitChat(loopId: string,
     setChatInited: React.Dispatch<React.SetStateAction<boolean>>,
@@ -83,18 +78,12 @@ export function useSSEConnection(
 
     useEffect(() => {
         if (!chatInited) return;
-        const sseUrl = loopSSEConnection(browserId, loopId);
+        const url = sseUrl(browserId);
+        // The greeting is spoken once, when the tab opens the stream, and the layout is there to
+        // hear it: a chat that joins the stream later would only wait for a word already said.
         const unsubscribers = [
-          sseClient.subscribe<SSEConnectedEvent>(
-            sseUrl,
-            'connected',
-            ({content}) => {
-              if (content !== browserId) return;
-              logger.info(`Connected for ${content}.`);
-            },
-          ),
           sseClient.subscribe<AgentLoopBusyEvent>(
-            sseUrl,
+            url,
             'busy',
             (event) => {
               if (event.loopId !== loopId) return;
@@ -102,7 +91,7 @@ export function useSSEConnection(
             },
           ),
           sseClient.subscribe<AgentInteractionEvent>(
-            sseUrl,
+            url,
             'interaction',
             (event) => {
               if (event.loopId !== loopId || event.browserId !== browserId) return;
@@ -115,7 +104,7 @@ export function useSSEConnection(
             },
           ),
           sseClient.subscribe<AgentCancelInteractionEvent>(
-            sseUrl,
+            url,
             'cancelInteraction',
             (event) => {
               if (event.loopId !== loopId || event.browserId !== browserId) return;
@@ -123,7 +112,7 @@ export function useSSEConnection(
             },
           ),
           sseClient.subscribe<AgentChatEvent>(
-            sseUrl,
+            url,
             'chat',
             (event) => {
               if (event.loopId !== loopId || event.browserId === browserId) return;
@@ -135,7 +124,7 @@ export function useSSEConnection(
             },
           ),
           sseClient.subscribe<AgentTokenUsageEvent>(
-            sseUrl,
+            url,
             'tokenUsage',
             (event) => {
               if (event.loopId !== loopId || !event.usage) return;
@@ -248,7 +237,7 @@ function usePersistStream(
     const sseClient = useSSEClient();
 
     const stream = useCallback((msgId: string) => sseClient.subscribePersistent<AgentStreamEvent>(
-      loopSSEConnection(browserId, loopId),
+      sseUrl(browserId),
       'stream',
       (event) => {
         if (event.loopId !== loopId || event.browserId !== browserId) return;
@@ -263,6 +252,8 @@ function usePersistStream(
       },
       {
         removeOn: ({done}) => !!done,
+        // Two chats of one tab now share the stream, so each has to keep a listener of its own.
+        key: loopId,
       },
     ), [browserId, loopId, getMessageById, sseClient, updateMessage]);
 
