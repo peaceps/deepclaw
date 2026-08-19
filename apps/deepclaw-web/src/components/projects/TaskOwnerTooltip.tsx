@@ -65,7 +65,9 @@ export function TaskOwnerTooltip({ agent, visible, anchorRef, onClose }: {
               {agent.avatar}
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-gray-900 truncate">{agent.name}<span className="text-sm ml-1">{moodEmojis[agent.mood]}</span></h4>
+              <h4 className="font-bold text-gray-900 truncate">{agent.name}<span
+                className="text-sm ml-1" title={t(`web.pages.agents.mood.${agent.mood}`)}
+              >{moodEmojis[agent.mood]}</span></h4>
               <p className="text-sm text-gray-500 truncate">{agent.role}</p>
             </div>
           </div>

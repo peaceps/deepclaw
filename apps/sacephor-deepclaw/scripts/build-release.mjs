@@ -50,9 +50,13 @@ function assemble() {
     // bundled code has lost sight of its own folder, so the launcher hands these over instead
     copy(path.join(repo, 'packages', 'deepclaw-agent', 'resources'), path.join(release, 'resources'));
     assembleWeb();
-    // the readme of the workspace is written for the people who work on it, the one of this app
-    // for the people who install it
-    copy(path.join(app, 'README.md'), path.join(release, 'README.md'));
+    // the readme of the workspace is the one the published package is read by as well: what the
+    // repository is landed on and what an install is met with are the same text. The registry
+    // renders the English one and nothing else, so the translation travels along for whoever
+    // reads the package where it lies rather than on a page about it.
+    for (const readme of ['README.md', 'README.zh-CN.md']) {
+        copy(path.join(repo, readme), path.join(release, readme));
+    }
     if (fs.existsSync(path.join(repo, 'LICENSE'))) copy(path.join(repo, 'LICENSE'), path.join(release, 'LICENSE'));
 }
 

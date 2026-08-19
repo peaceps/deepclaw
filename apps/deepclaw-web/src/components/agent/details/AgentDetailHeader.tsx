@@ -74,7 +74,9 @@ export function AgentHeader({ agent, onUpdate }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 sm:gap-3 mb-2">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{agent.name}</h1>
-              <span className="text-xl sm:text-2xl">{moodEmojis[agent.mood]}</span>
+              <span className="text-xl sm:text-2xl" title={t(`web.pages.agents.mood.${agent.mood}`)}>
+                {moodEmojis[agent.mood]}
+              </span>
               <AgentDetailEmotions emotions={agent.emotions}/>
               <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium
                 text-white ${statusColors[agentStatus]}`}>
