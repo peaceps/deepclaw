@@ -112,7 +112,7 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
         {isExpanded && (
           <div className="flex flex-col lg:flex-row border-t border-gray-200 min-h-[400px] lg:max-h-[600px]">
             <ProjectTasks project={project}/>
-            <div className="flex-1 border-t lg:border-t-0 lg:border-l border-gray-200">
+            <div className="flex-1 min-w-0 border-t lg:border-t-0 lg:border-l border-gray-200">
               {ownerAgent && <ChatSidebar
                 projectId={project.id}
                 agent={ownerAgent}

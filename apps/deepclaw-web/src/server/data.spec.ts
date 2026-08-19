@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {
-    type AgentEmployee, type AgentSoulIdentity, type CronJobHistory, type Task,
+    type AgentEmployee, type AgentSoulIdentity, type CronJobHistory,
 } from '@deepclaw/core';
 import {type SkillInfo} from '@deepclaw/loop-gateway';
 import {type UpdateContent} from '@deepclaw/utils';

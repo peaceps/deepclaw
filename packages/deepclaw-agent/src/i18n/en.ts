@@ -41,7 +41,7 @@ You can ask me continue to modify the output or mark the task as verified when y
         },
         tools: {
             permission: {
-                request: 'Request access permission.',
+                request: ' Request access permission.',
                 allowOnce: 'Allow once',
                 always: 'Always allow {{group}} operation in this session',
                 deny: 'Deny',

@@ -18,7 +18,8 @@ export function ChatSidebar({
 
   return (
     <div
-      className="flex flex-col lg:flex-1 border-gray-200 bg-white transition-all duration-300 h-full"
+      className={`flex flex-col lg:flex-1 min-w-0 border-gray-200 bg-white
+        transition-all duration-300 h-full`}
     >
       <div className={`flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3`}>
           <div className="flex items-center gap-2">

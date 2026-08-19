@@ -115,7 +115,7 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
               className={`flex ${messageFlexStyles[message.type]}`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                className={`max-w-[80%] min-w-0 rounded-2xl px-4 py-3 ${
                     messageTextStyles[message.type]
                 }`}
                 >
@@ -133,9 +133,9 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
                   </div>
                 )}
                 {message.type === 'user' && !!message.content &&
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>}
+                    <p className="text-sm whitespace-pre-wrap wrap-anywhere">{message.content}</p>}
                 {message.type === 'agent' && (i === agentMessages.length - 1 && locked) &&
-                    <p className="text-sm whitespace-pre-wrap">
+                    <p className="text-sm whitespace-pre-wrap wrap-anywhere">
                         {message.content || t('web.pages.chat.loading')}
                     </p>}
                 {message.type === 'agent' && !(i === agentMessages.length - 1 && locked) &&
