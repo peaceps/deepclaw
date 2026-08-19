@@ -90,7 +90,7 @@ ${this.projectCurrentProject(assignedTask?.projectId || projectId)}${
         return `
 
 # Assigned Task
-${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskTitle)}`;
+${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskId)}`;
     }
 
     /**
@@ -101,7 +101,7 @@ ${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskTit
         if (!assignedTask) {
             return undefined;
         }
-        const task = ProjectManager.getTask(assignedTask.projectId, assignedTask.taskTitle);
+        const task = ProjectManager.getTask(assignedTask.projectId, assignedTask.taskId);
         return task?.assignee ? AgentIdentityManager.getAgent(task.assignee) : undefined;
     }
 

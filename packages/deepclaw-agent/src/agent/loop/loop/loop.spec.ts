@@ -188,7 +188,7 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
         return this.createSubLoop() as TestLoop;
     }
 
-    public newTestTaskLoop(assignedTask: AssignedTask = {projectId: 'p1', taskTitle: 'ship it'}): TestLoop {
+    public newTestTaskLoop(assignedTask: AssignedTask = {projectId: 'p1', taskId: 'ship-it'}): TestLoop {
         return this.createTaskLoop(assignedTask) as TestLoop;
     }
 }
@@ -747,13 +747,13 @@ describe('spawned loops', () => {
 
     /** The whole point of a task loop: the pieces of one task can go out at the same time. */
     test('lets a task loop spawn sub loops of its own', () => {
-        const {loop} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskTitle: 'ship it'})});
+        const {loop} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'})});
         const subLoop = loop.newTestSubLoop();
         expect(subLoop.fakeLLM().loopKind).toBe('sub');
     });
 
     test('hands the tasks of a project out of the main loop only', () => {
-        const task = {projectId: 'p1', taskTitle: 'ship it'};
+        const task = {projectId: 'p1', taskId: 'ship-it'};
         expect(() => newLoop({spawned: newSpawned('task', task)}).loop.createTaskLoop(task))
             .toThrow('A task loop cannot create a task loop.');
         expect(() => newLoop({spawned: newSpawned('sub')}).loop.createTaskLoop(task))
@@ -767,7 +767,7 @@ describe('spawned loops', () => {
         await taskLoop.runInvoke('go', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
             expect.anything(), expect.anything(), 'agent', '', 'task',
-            {projectId: 'p1', taskTitle: 'ship it'}
+            {projectId: 'p1', taskId: 'ship-it'}
         );
     });
 
@@ -791,7 +791,7 @@ describe('spawned loops', () => {
             {transitionReason: 'endLoop', text: 'done'},
         ];
         await taskLoop.runInvoke('go', {browserId: 'b1'});
-        expect(mocks.taskAssignee).toHaveBeenCalledWith({projectId: 'p1', taskTitle: 'ship it'});
+        expect(mocks.taskAssignee).toHaveBeenCalledWith({projectId: 'p1', taskId: 'ship-it'});
         expect(mocks.executeToolCall).toHaveBeenCalledWith(
             toolUse('tu1'), expect.objectContaining({personaId: 'a2', agentId: 'a1'})
         );
@@ -799,7 +799,7 @@ describe('spawned loops', () => {
 
     /** A helper of a task loop works for the same agent, with the memory and the skills of it. */
     test('hands the borrowed agent of a task loop down to its sub loops', async () => {
-        const {loop} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskTitle: 'ship it'})});
+        const {loop} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'})});
         mocks.taskAssignee.mockReturnValue({id: 'a2', name: 'Bob'});
         const subLoop = loop.newTestSubLoop();
         subLoop.fakeLLM().responses = [

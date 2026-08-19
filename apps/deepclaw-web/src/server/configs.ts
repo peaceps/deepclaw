@@ -5,6 +5,7 @@ import {
   AgentsConfig,
 } from '@deepclaw/config';
 import { LoopGateway } from '@deepclaw/loop-gateway';
+import { i18nInstance } from '@deepclaw/i18n';
 import { revalidatePath } from 'next/cache';
 import { IMService } from '@/im/im-service';
 
@@ -20,6 +21,12 @@ export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
     manager: { ...config.manager, avatar: currentAvatar }
   };
   writeAppConfig(merged);
+  // This process read its language off the config as it started, and the browser switching its own
+  // side reaches none of it. What the agents put in front of the user is worded here: the questions
+  // a tool stops to ask, the permission choices under them, whatever a tool reports back.
+  if (config.ui.lang && i18nInstance.language !== config.ui.lang) {
+    await i18nInstance.changeLanguage(config.ui.lang);
+  }
   for (const agent of config.agents) {
     if (currentAgents.some(current => current.id === agent.id)) {
         LoopGateway.updateAgentIdentity({id: agent.id, name: agent.name, fired: !!agent.fired });

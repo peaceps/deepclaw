@@ -25,7 +25,7 @@ export function AgentDetailRunningTasks({ agent }: { agent: AgentEmployee }) {
             <RunningTaskRow
               key={run.runId}
               run={run}
-              task={projects.find(project => project.id === run.projectId)?.tasks[run.taskTitle]}
+              task={projects.find(project => project.id === run.projectId)?.tasks[run.taskId]}
               startedAt={formatDate(i18n.language, run.startedAt)}
             />
           ))}
@@ -40,26 +40,28 @@ export function AgentDetailRunningTasks({ agent }: { agent: AgentEmployee }) {
 }
 
 /**
- * A run outlives nothing but the process, while the task it points at is stored: the two can drift
- * apart when a task is renamed, and then the run is still worth showing on its own.
+ * A run outlives nothing but the process, while the task it points at is stored: a plan rewritten
+ * under a run leaves it pointing at nothing, and then the run is still worth showing on its own.
  */
 function RunningTaskRow({run, task, startedAt}: {
   run: RunningTask; task?: Task; startedAt: string;
 }) {
   const {t} = useTranslation();
   const progress = task ? getTaskProgress(task) : null;
+  // The id is no name for a user to read, it only stands in where the task itself is gone.
+  const label = task?.title ?? run.taskId;
 
   return (
     <Link
       href={`/projects?project=${encodeURIComponent(run.projectId)}`}
       className="block bg-gray-50 rounded-lg p-3 cursor-pointer transition-colors
         hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2"
-      aria-label={`${t('web.pages.agents.details.runningTasks.title')}: ${run.taskTitle}`}
+      aria-label={`${t('web.pages.agents.details.runningTasks.title')}: ${label}`}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="flex items-center gap-2 min-w-0">
           <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse flex-shrink-0" />
-          <span className="font-medium text-gray-900 truncate">{run.taskTitle}</span>
+          <span className="font-medium text-gray-900 truncate">{label}</span>
         </span>
         {task && (
           <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${

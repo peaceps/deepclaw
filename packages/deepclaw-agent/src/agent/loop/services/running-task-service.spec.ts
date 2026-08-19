@@ -14,7 +14,7 @@ function start(overrides: Partial<RunningTask> = {}): string {
 function newRun(overrides: Partial<Omit<RunningTask, 'runId'>> = {}): Omit<RunningTask, 'runId'> {
     return {
         projectId: 'p1',
-        taskTitle: 'ship it',
+        taskId: 'ship-it',
         agentId: 'a1',
         startedAt: '2026-08-13T07:00:00.000Z',
         ...overrides,
@@ -40,10 +40,10 @@ describe('RunningTaskService', () => {
 
     test('keeps the runs of several subagents apart', () => {
         const first = start();
-        const second = start({taskTitle: 'write tests', agentId: 'a2'});
+        const second = start({taskId: 'write-tests', agentId: 'a2'});
         RunningTaskService.finish(first);
         expect(RunningTaskService.getRunningTasks())
-            .toEqual([{...newRun({taskTitle: 'write tests', agentId: 'a2'}), runId: second}]);
+            .toEqual([{...newRun({taskId: 'write-tests', agentId: 'a2'}), runId: second}]);
     });
 
     /** Two runs of one task are told apart by their handle, never by what they point at. */
@@ -71,18 +71,18 @@ describe('isRunning', () => {
 
     test('knows the task a subagent is on', () => {
         start();
-        expect(RunningTaskService.isRunning('p1', 'ship it')).toBe(true);
+        expect(RunningTaskService.isRunning('p1', 'ship-it')).toBe(true);
     });
 
     test('says no once the run of that task retired', () => {
         RunningTaskService.finish(start());
-        expect(RunningTaskService.isRunning('p1', 'ship it')).toBe(false);
+        expect(RunningTaskService.isRunning('p1', 'ship-it')).toBe(false);
     });
 
-    /** Two projects are free to name a task the same, and only one of them may be running. */
-    test('tells the same title in another project apart', () => {
+    /** An id is only unique inside its project, and only one project may have that task running. */
+    test('tells the same id in another project apart', () => {
         start();
-        expect(RunningTaskService.isRunning('p2', 'ship it')).toBe(false);
-        expect(RunningTaskService.isRunning('p1', 'write tests')).toBe(false);
+        expect(RunningTaskService.isRunning('p2', 'ship-it')).toBe(false);
+        expect(RunningTaskService.isRunning('p1', 'write-tests')).toBe(false);
     });
 });

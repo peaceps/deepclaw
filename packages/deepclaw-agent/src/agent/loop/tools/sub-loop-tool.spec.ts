@@ -7,17 +7,17 @@ import {subLoopTool, taskLoopTool} from './sub-loop-tool';
 const mocks = vi.hoisted(() => ({
     deleteDir: vi.fn<(dir: string) => void>(() => undefined),
     dropSession: vi.fn<(dir: string) => void>(() => undefined),
-    getTask: vi.fn<(projectId: string, taskTitle: string) => unknown>(() => todoTask()),
+    getTask: vi.fn<(projectId: string, taskId: string) => unknown>(() => todoTask()),
     updateTask: vi.fn<(projectId: string, task: unknown) => void>(() => undefined),
     fireProjectInfoEvent: vi.fn<(projectId: string, context: unknown) => void>(() => undefined),
     startRun: vi.fn<(run: unknown) => string>(() => 'run1'),
     finishRun: vi.fn<(runId: string) => void>(),
     getRunningTasks: vi.fn<() => unknown[]>(() => []),
-    isRunning: vi.fn<(projectId: string, taskTitle: string) => boolean>(() => false),
+    isRunning: vi.fn<(projectId: string, taskId: string) => boolean>(() => false),
 }));
 
 function todoTask(status = 'todo') {
-    return {title: 'ship it', status};
+    return {id: 'ship-it', title: 'ship it', status};
 }
 
 vi.mock('../services/project-manager', () => ({ProjectManager: {
@@ -84,15 +84,15 @@ describe('taskLoopTool invoke', () => {
     test('hands the named task of the current project to a task loop', async () => {
         const taskLoop = newSpawnedLoop();
         const context = contextWithTaskLoop(taskLoop);
-        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
         expect(context.actions.newTaskLoop)
-            .toHaveBeenCalledExactlyOnceWith({projectId: 'p1', taskTitle: 'ship it'});
+            .toHaveBeenCalledExactlyOnceWith({projectId: 'p1', taskId: 'ship-it'});
         expect(taskLoop.invoke).toHaveBeenCalledExactlyOnceWith('go', {browserId: 'b1'});
     });
 
     test('returns the text the task loop produced', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop('done'));
-        expect(await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context)).toBe('done');
+        expect(await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context)).toBe('done');
     });
 
     /** The reference is the only handle on the bytes, and the summary of a run may drop it. */
@@ -100,7 +100,7 @@ describe('taskLoopTool invoke', () => {
         const taskLoop = newSpawnedLoop('drew the poster');
         taskLoop.getDrawnImages.mockReturnValue(['dcimg://agent.a1/aa.png']);
         const result = await taskLoopTool.invoke(
-            {prompt: 'go', taskTitle: 'ship it'}, contextWithTaskLoop(taskLoop)
+            {prompt: 'go', taskId: 'ship-it'}, contextWithTaskLoop(taskLoop)
         );
         expect(result).toContain('drew the poster');
         expect(result).toContain('![image](dcimg://agent.a1/aa.png)');
@@ -108,7 +108,7 @@ describe('taskLoopTool invoke', () => {
 
     test('refuses to run without a task to work on', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop());
-        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: ''}, context))
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: ''}, context))
             .rejects.toThrow('Name the task of this project');
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
@@ -116,25 +116,25 @@ describe('taskLoopTool invoke', () => {
     /** A subagent may only move the step index, and that is refused while the task is todo. */
     test('marks the task ongoing as it hands it over', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop());
-        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
-        expect(mocks.updateTask).toHaveBeenCalledExactlyOnceWith('p1', {title: 'ship it', status: 'ongoing'});
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
+        expect(mocks.updateTask).toHaveBeenCalledExactlyOnceWith('p1', {id: 'ship-it', status: 'ongoing'});
         expect(mocks.fireProjectInfoEvent).toHaveBeenCalledExactlyOnceWith('p1', context);
     });
 
     test('leaves a task that is already ongoing where it is', async () => {
         mocks.getTask.mockReturnValue(todoTask('ongoing'));
         const context = contextWithTaskLoop(newSpawnedLoop());
-        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
         expect(mocks.updateTask).not.toHaveBeenCalled();
         expect(context.actions.newTaskLoop)
-            .toHaveBeenCalledExactlyOnceWith({projectId: 'p1', taskTitle: 'ship it'});
+            .toHaveBeenCalledExactlyOnceWith({projectId: 'p1', taskId: 'ship-it'});
     });
 
     /** The status of a done task cannot go back, so a subagent could not report on it either. */
     test('refuses a task that is already done', async () => {
         mocks.getTask.mockReturnValue(todoTask('done'));
         const context = contextWithTaskLoop(newSpawnedLoop());
-        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
             .rejects.toThrow('Task "ship it" is done');
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
@@ -143,9 +143,9 @@ describe('taskLoopTool invoke', () => {
     test('refuses a task another subagent is on already', async () => {
         mocks.isRunning.mockReturnValue(true);
         const context = contextWithTaskLoop(newSpawnedLoop());
-        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
             .rejects.toThrow('A subagent is working on "ship it" already');
-        expect(mocks.isRunning).toHaveBeenCalledWith('p1', 'ship it');
+        expect(mocks.isRunning).toHaveBeenCalledWith('p1', 'ship-it');
         expect(mocks.updateTask).not.toHaveBeenCalled();
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
@@ -154,7 +154,7 @@ describe('taskLoopTool invoke', () => {
     test('refuses to hand a task over from a cron run', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop(), 'c1');
         context.role = 'cron';
-        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
             .rejects.toThrow('A cron run has no project to take a task from');
         expect(mocks.getTask).not.toHaveBeenCalled();
     });
@@ -162,7 +162,7 @@ describe('taskLoopTool invoke', () => {
     /** A task of another project would be worked on with the memory and skills of this one. */
     test('refuses to hand a task over from a session without a project', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop(), '');
-        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
             .rejects.toThrow('This session runs no project');
         expect(mocks.getTask).not.toHaveBeenCalled();
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
@@ -171,7 +171,7 @@ describe('taskLoopTool invoke', () => {
     test('refuses a task that the project does not have', async () => {
         mocks.getTask.mockReturnValue(undefined);
         const context = contextWithTaskLoop(newSpawnedLoop());
-        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ghost'}, context))
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ghost'}, context))
             .rejects.toThrow('Task "ghost" not found in project "p1".');
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
@@ -179,16 +179,16 @@ describe('taskLoopTool invoke', () => {
     test('registers the run while the task loop works and retires it after', async () => {
         const taskLoop = newSpawnedLoop();
         const context = contextWithTaskLoop(taskLoop);
-        mocks.getTask.mockReturnValue({title: 'ship it', assignee: 'a2'});
+        mocks.getTask.mockReturnValue({id: 'ship-it', title: 'ship it', assignee: 'a2'});
         taskLoop.invoke.mockImplementation(async () => {
             expect(mocks.startRun).toHaveBeenCalledExactlyOnceWith({
-                projectId: 'p1', taskTitle: 'ship it', agentId: 'a2', startedAt: expect.any(String),
+                projectId: 'p1', taskId: 'ship-it', agentId: 'a2', startedAt: expect.any(String),
             });
             expect(mocks.finishRun).not.toHaveBeenCalled();
             return {text: 'done', runtime: newTestRuntime()};
         });
 
-        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
 
         expect(mocks.finishRun).toHaveBeenCalledExactlyOnceWith('run1');
     });
@@ -196,8 +196,8 @@ describe('taskLoopTool invoke', () => {
     /** Whoever handed the task over owns the run when the task names nobody to work on it. */
     test('files a run of an unassigned task under the agent that handed it over', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop());
-        mocks.getTask.mockReturnValue({title: 'ship it'});
-        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        mocks.getTask.mockReturnValue({id: 'ship-it', title: 'ship it'});
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
         expect(mocks.startRun).toHaveBeenCalledWith(expect.objectContaining({agentId: 'a1'}));
     });
 
@@ -205,19 +205,19 @@ describe('taskLoopTool invoke', () => {
         const taskLoop = newSpawnedLoop();
         taskLoop.invoke.mockRejectedValue(new Error('task loop crashed'));
         const context = contextWithTaskLoop(taskLoop);
-        await expect(taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context))
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
             .rejects.toThrow('task loop crashed');
         expect(mocks.finishRun).toHaveBeenCalledExactlyOnceWith('run1');
     });
 
     test('tells the browsers about the runs when one starts and when it ends', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop());
-        mocks.getRunningTasks.mockReturnValueOnce([{taskTitle: 'ship it'}]).mockReturnValueOnce([]);
+        mocks.getRunningTasks.mockReturnValueOnce([{taskId: 'ship-it'}]).mockReturnValueOnce([]);
 
-        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
 
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenNthCalledWith(1, {
-            eventType: 'updateRunningTasks', content: [{taskTitle: 'ship it'}],
+            eventType: 'updateRunningTasks', content: [{taskId: 'ship-it'}],
         });
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenNthCalledWith(2, {
             eventType: 'updateRunningTasks', content: [],
@@ -226,7 +226,7 @@ describe('taskLoopTool invoke', () => {
 
     test('takes the session of the task loop apart once it reported back', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop());
-        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
         expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith(SESSION_DIR);
         expect(mocks.dropSession).toHaveBeenCalledExactlyOnceWith(SESSION_DIR);
     });
@@ -236,7 +236,7 @@ describe('taskLoopTool invoke', () => {
             cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3,
         }));
         context.runtime.usage = {cachedInputTokens: 10, noCachedInputTokens: 20, outputTokens: 30};
-        await taskLoopTool.invoke({prompt: 'go', taskTitle: 'ship it'}, context);
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
         expect(context.runtime.usage).toEqual({
             cachedInputTokens: 11, noCachedInputTokens: 22, outputTokens: 33,
         });

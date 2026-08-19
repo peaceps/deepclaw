@@ -23,9 +23,9 @@ class RunningTaskServiceImpl {
     }
 
     /** Whether a subagent is on that task right now, which is what makes handing it out again a waste. */
-    public static isRunning(projectId: string, taskTitle: string): boolean {
+    public static isRunning(projectId: string, taskId: string): boolean {
         return this.getRunningTasks()
-            .some(run => run.projectId === projectId && run.taskTitle === taskTitle);
+            .some(run => run.projectId === projectId && run.taskId === taskId);
     }
 
     public static getRunningTasks(): RunningTask[] {

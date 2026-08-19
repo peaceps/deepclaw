@@ -15,13 +15,14 @@ const OUTPUT_KEPT = '<Output kept, read it with get_project_detail>';
 function projectAfterWrite(projectId: string): string {
     const project = ProjectManager.getProjectDetail(projectId);
     const tasks: Record<string, Task> = {};
-    for (const [title, task] of Object.entries(project.tasks)) {
-        tasks[title] = task.output ? {...task, output: keptOutput(task.output, OUTPUT_KEPT)} : task;
+    for (const [id, task] of Object.entries(project.tasks)) {
+        tasks[id] = task.output ? {...task, output: keptOutput(task.output, OUTPUT_KEPT)} : task;
     }
     return JSON.stringify({...project, tasks});
 }
 
 type ProjectTaskInput = {
+    id: string;
     title: string;
     description: string;
     priority: MissionPriority;
@@ -30,21 +31,35 @@ type ProjectTaskInput = {
     assignee?: string;
 };
 
+/** A handle rather than a sentence: lowercase, no spaces, nothing that needs escaping anywhere. */
+const TASK_ID_PATTERN = '^[a-z0-9][a-z0-9_-]*$';
+
+const taskIdSchema = {
+    type: 'string',
+    description: `How every tool reaches this task from now on, unique across the tasks of
+this project. Give it a short lowercase handle of what the task is about, "design" or "api-schema".
+The user never sees it and it never changes, which is what makes it safe to hold on to: the title
+beside it is theirs to rewrite whenever they like.`,
+    minLength: 1,
+    maxLength: 30,
+};
+
 const taskItemSchema = {
     type: 'object',
     additionalProperties: false,
     properties: {
+        id: {...taskIdSchema, pattern: TASK_ID_PATTERN},
         title: {
             type: 'string',
-            description: 'The title of the task, will display to the user. It should be unique across tasks in this project.',
+            description: 'The title of the task, will display to the user.',
             minLength: 1,
-            maxLength: 50,
+            maxLength: PROJECT_CONFIG.maxTaskTitleLength,
         },
         description: {
             type: 'string',
             description: 'A short description of the task, will display to the user.',
             minLength: 1,
-            maxLength: 100,
+            maxLength: PROJECT_CONFIG.maxTaskDescriptionLength,
         },
         priority: {
             type: 'string',
@@ -62,7 +77,7 @@ All steps should be done when task is going to be marked as done.`,
         blockedBy: {
             type: 'array',
             items: {type: 'string'},
-            description: 'The task title of the tasks that this task is blocked by.'
+            description: 'The ids of the tasks that this task is blocked by.'
         },
         assignee: {
             type: 'string',
@@ -71,7 +86,17 @@ expertises fit it. Leave it out to keep the task yourself. The subagent you hand
 works as its assignee, with the memory and the skills of that agent.`,
         },
     },
-    required: ['title', 'description', 'priority'],
+    required: ['id', 'title', 'description', 'priority'],
+};
+
+/**
+ * The same task on its way back through update_project, where the id has to be free of the shape
+ * asked of a new one. A project made before ids were handed out wears the old task title as its
+ * id, and a handle demanded here would leave the model no way to bring such a task back as it is.
+ */
+const keptTaskItemSchema = {
+    ...taskItemSchema,
+    properties: {...taskItemSchema.properties, id: taskIdSchema},
 };
 
 /**
@@ -161,6 +186,7 @@ ${projectAfterWrite(project.id)}`;
 }
 
 type CreateSimpleTaskInput = {
+    id: string;
     title: string;
     description: string;
     priority: MissionPriority;
@@ -177,17 +203,26 @@ so do not call tools updating project/tasks immediately with create_simple_task`
             type: 'object',
             additionalProperties: false,
             properties: {
+                id: {
+                    type: 'string',
+                    description: `How every tool reaches this task from now on. Give it a short
+lowercase handle of what the task is about, "design" or "api-schema". The user never sees it and it
+never changes, unlike the title beside it.`,
+                    pattern: TASK_ID_PATTERN,
+                    minLength: 1,
+                    maxLength: 30,
+                },
                 title: {
                     type: 'string',
                     description: `The title of the task, will display to the user.`,
                     minLength: 1,
-                    maxLength: 50,
+                    maxLength: PROJECT_CONFIG.maxTaskTitleLength,
                 },
                 description: {
                     type: 'string',
                     description: 'A short description of the task, will display to the user.',
                     minLength: 1,
-                    maxLength: 100,
+                    maxLength: PROJECT_CONFIG.maxTaskDescriptionLength,
                 },
                 priority: {
                     type: 'string',
@@ -203,7 +238,7 @@ All steps should be done when task is going to be marked as done.`,
                     maxItems: PROJECT_CONFIG.maxTaskStepsCount,
                 },
             },
-            required: ['title', 'description', 'priority'],
+            required: ['id', 'title', 'description', 'priority'],
         },
     },
     agentMode: ['agent'],
@@ -263,8 +298,11 @@ export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
                 },
                 tasks: {
                     type: 'array',
-                    description: 'Full tasks of the project',
-                    items: taskItemSchema,
+                    description: `The full task list of the project, it replaces the one there is.
+Every task you are keeping must come back carrying the exact id it already has, copied over from
+the project detail. An id you invent for a task that already exists does not rename it, it throws
+the old one away along with everything pointing at it. Leave a task out only to delete it.`,
+                    items: keptTaskItemSchema,
                     maxItems: PROJECT_CONFIG.maxTasksCount,
                 },
             },
@@ -290,7 +328,9 @@ ${projectAfterWrite(projectId)}`;
 
 type UpdateTaskInput = {
     projectId: string;
-    taskTitle: string;
+    taskId: string;
+    title?: string;
+    description?: string;
     status?: MissionStatus;
     steps?: string[];
     assignee?: string;
@@ -307,7 +347,21 @@ export const updateTaskTool: ToolDesc<UpdateTaskInput> = {
             additionalProperties: false,
             properties: {
                 projectId: {type: 'string', description: 'The ID of the project.'},
-                taskTitle: {type: 'string', description: 'The title of the task.'},
+                taskId: {type: 'string', description: 'The id of the task.'},
+                title: {
+                    type: 'string',
+                    description: `A new title for the task, when the words on it no longer say what
+it is. Nothing points at a task by its title, so renaming one costs nothing at any point of the work.`,
+                    minLength: 1,
+                    maxLength: PROJECT_CONFIG.maxTaskTitleLength,
+                },
+                description: {
+                    type: 'string',
+                    description: `A new description for the task, when what it asks for turned out
+to be something else. Rewriting it is free at any point of the work, the same as the title.`,
+                    minLength: 1,
+                    maxLength: PROJECT_CONFIG.maxTaskDescriptionLength,
+                },
                 status: {
                     type: 'string', enum: ['todo', 'ongoing', 'done'],
                     description: `The executable status of the task.
@@ -371,7 +425,7 @@ Only files inside the workspace can be handed over, and only files, not folders.
 
                 }
             },
-            required: ['projectId', 'taskTitle'],
+            required: ['projectId', 'taskId'],
         },
     },
     agentMode: ['agent'],
@@ -380,9 +434,11 @@ Only files inside the workspace can be handed over, and only files, not folders.
     // there reports the pause instead of its work. Its status belongs to whoever assigned it.
     loopKinds: ['main'],
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
-        const taskInfo: UpdateContent<Task, 'title'> = {title: input.taskTitle};
+        const taskInfo: UpdateContent<Task> = {id: input.taskId};
         requireHiredAssignee(input.assignee);
         if (input.assignee) taskInfo.assignee = input.assignee;
+        if (input.title) taskInfo.title = input.title;
+        if (input.description) taskInfo.description = input.description;
         if (input.status) taskInfo.status = input.status;
         let skippedFiles: string[] = [];
         if (input.output) {
@@ -396,12 +452,13 @@ Only files inside the workspace can be handed over, and only files, not folders.
             }
             taskInfo.output = output;
         }
-        const {stop} = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
+        const {task, stop} = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
 
         if (stop) {
             context.runtime.agentBreakReason = 'taskPause';
+            // What the user is told about stands under the title they read, not the id they never see.
             context.runtime.agentBreakDetail = i18nInstance.t(
-                'agent.agentBreak.agentStop.taskPause.user', {name: taskInfo.title}
+                'agent.agentBreak.agentStop.taskPause.user', {name: task.title}
             );
         }
         ProjectManager.fireProjectInfoEvent(input.projectId, context);
@@ -421,7 +478,7 @@ After user set task.verified to true, it can be successfully set done.`;
 
 type UpdateTaskCurrentStepInput = {
     projectId: string;
-    taskTitle: string;
+    taskId: string;
     stepIndex: number;
 };
 
@@ -434,7 +491,7 @@ export const updateTaskCurrentStepTool: ToolDesc<UpdateTaskCurrentStepInput> = {
             additionalProperties: false,
             properties: {
                 projectId: {type: 'string', description: 'The ID of the project.'},
-                taskTitle: {type: 'string', description: 'The title of the task.'},
+                taskId: {type: 'string', description: 'The id of the task.'},
                 stepIndex: {
                     type: 'number',
                     description: `The current step index of the ongoing task that is being worked on. 
@@ -442,7 +499,7 @@ The stepIndex starts from 0 and should be updated from small to large.
 If all steps are done, set stepIndex to the length of steps, and then the task can be marked as done via update_task tool.`
                 },
             },
-            required: ['projectId', 'taskTitle', 'stepIndex'],
+            required: ['projectId', 'taskId', 'stepIndex'],
         },
     },
     agentMode: ['agent'],
@@ -451,7 +508,7 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
     // loop works a piece of it: two hands on the same index would only undo each other.
     loopKinds: ['main', 'task'],
     invoke: async function(input: UpdateTaskCurrentStepInput, context: OneLoopContext): Promise<string> {
-        const updated = ProjectManager.updateCurrentStep(input.projectId, input.taskTitle, input.stepIndex);
+        const updated = ProjectManager.updateCurrentStep(input.projectId, input.taskId, input.stepIndex);
         context.actions.agentHandler.onStreamText({
             browserId: context.browserId,
             text: JSON.stringify(updated),

@@ -16,8 +16,10 @@ import { DEFAULT_AGENT_ID, type EvalScenario } from '../scenario';
  */
 
 const PROJECT_ID = 'release-0-4';
-const DRAFT = 'Draft the release notes';
-const ANNOUNCE = 'Announce the release';
+const DRAFT = 'draft-notes';
+const ANNOUNCE = 'announce';
+const DRAFT_TITLE = 'Draft the release notes';
+const ANNOUNCE_TITLE = 'Announce the release';
 const STEPS = ['read the changelog', 'write notes/release.md'];
 
 const CHANGELOG = `- fix: the whale no longer forgets its name
@@ -30,8 +32,9 @@ const RELEASE_NOTES = `# 0.4
 - agents can hand work to each other
 `;
 
-function openTask(title: string, description: string, steps?: string[]): Task {
+function openTask(id: string, title: string, description: string, steps?: string[]): Task {
     return {
+        id,
         title,
         description,
         status: 'todo',
@@ -51,8 +54,8 @@ const RELEASE_PROJECT: Project = {
     creator: DEFAULT_AGENT_ID,
     priority: 'high',
     tasks: {
-        [DRAFT]: openTask(DRAFT, 'Turn notes/changelog.md into notes/release.md.', STEPS),
-        [ANNOUNCE]: openTask(ANNOUNCE, 'Tell the team the notes are ready.'),
+        [DRAFT]: openTask(DRAFT, DRAFT_TITLE, 'Turn notes/changelog.md into notes/release.md.', STEPS),
+        [ANNOUNCE]: openTask(ANNOUNCE, ANNOUNCE_TITLE, 'Tell the team the notes are ready.'),
     },
     completedTasks: [],
     ongoingTasks: [],
@@ -69,41 +72,41 @@ export const worksAProjectToDone: EvalScenario = {
     script: [
         {
             text: 'Picking up the release notes first. ',
-            toolCalls: [{name: 'update_task', input: {projectId: PROJECT_ID, taskTitle: DRAFT, status: 'ongoing'}}],
+            toolCalls: [{name: 'update_task', input: {projectId: PROJECT_ID, taskId: DRAFT, status: 'ongoing'}}],
         },
         {
             toolCalls: [
-                {name: 'update_task_current_step', input: {projectId: PROJECT_ID, taskTitle: DRAFT, stepIndex: 0}},
+                {name: 'update_task_current_step', input: {projectId: PROJECT_ID, taskId: DRAFT, stepIndex: 0}},
                 {name: 'read_file', input: {filePath: 'notes/changelog.md'}},
             ],
         },
         {
             toolCalls: [
-                {name: 'update_task_current_step', input: {projectId: PROJECT_ID, taskTitle: DRAFT, stepIndex: 1}},
+                {name: 'update_task_current_step', input: {projectId: PROJECT_ID, taskId: DRAFT, stepIndex: 1}},
                 {name: 'write_file', input: {filePath: 'notes/release.md', content: RELEASE_NOTES}},
             ],
         },
         // The product refuses to close a task that has steps left, so the last step index has to
         // be the length of the list before the task may be marked done.
-        {toolCalls: [{name: 'update_task_current_step', input: {projectId: PROJECT_ID, taskTitle: DRAFT, stepIndex: 2}}]},
+        {toolCalls: [{name: 'update_task_current_step', input: {projectId: PROJECT_ID, taskId: DRAFT, stepIndex: 2}}]},
         {
             toolCalls: [{
                 name: 'update_task',
                 input: {
                     projectId: PROJECT_ID,
-                    taskTitle: DRAFT,
+                    taskId: DRAFT,
                     status: 'done',
                     output: {type: 'markdown', content: 'Release notes are in notes/release.md.'},
                 },
             }],
         },
-        {toolCalls: [{name: 'update_task', input: {projectId: PROJECT_ID, taskTitle: ANNOUNCE, status: 'ongoing'}}]},
+        {toolCalls: [{name: 'update_task', input: {projectId: PROJECT_ID, taskId: ANNOUNCE, status: 'ongoing'}}]},
         {
             toolCalls: [{
                 name: 'update_task',
                 input: {
                     projectId: PROJECT_ID,
-                    taskTitle: ANNOUNCE,
+                    taskId: ANNOUNCE,
                     status: 'done',
                     output: {type: 'text', content: 'Posted the notes to the team channel.'},
                 },
@@ -123,7 +126,7 @@ export const worksAProjectToDone: EvalScenario = {
         // rules of the domain live, so a shortcut through the lifecycle turns up as a red call
         // rather than as a wrong-looking project.
         expectAllToolsSucceeded(),
-        expectToolCalled('update_task', {projectId: PROJECT_ID, taskTitle: DRAFT, status: 'done'}),
+        expectToolCalled('update_task', {projectId: PROJECT_ID, taskId: DRAFT, status: 'done'}),
         expectFile('notes/release.md', /agents can hand work to each other/),
         expectProject(
             project => Object.values(project?.tasks || {}).every(task => task.status === 'done'),

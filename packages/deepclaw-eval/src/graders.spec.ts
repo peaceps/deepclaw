@@ -185,11 +185,11 @@ describe('the project grader', () => {
         priority: 'high',
         tasks: {
             Draft: {
-                title: 'Draft', description: 'the notes', status: 'ongoing', priority: 'high',
+                id: 'Draft', title: 'Draft', description: 'the notes', status: 'ongoing', priority: 'high',
                 blockedBy: [], blocks: [], stepsStatus: {steps: ['read', 'write'], currentStepIndex: 1},
             },
             Announce: {
-                title: 'Announce', description: 'the release', status: 'done', priority: 'low',
+                id: 'Announce', title: 'Announce', description: 'the release', status: 'done', priority: 'low',
                 blockedBy: [], blocks: [],
             },
         },

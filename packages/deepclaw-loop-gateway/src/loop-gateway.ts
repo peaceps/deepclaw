@@ -347,7 +347,7 @@ class LoopGatewayImpl {
         this.fireSSEEvent({ eventType: 'updateProject', content: { id: projectId, tags } });
     }
 
-    public static updateProjectTask(projectId: string, task: UpdateContent<Task, 'title'>): void {
+    public static updateProjectTask(projectId: string, task: UpdateContent<Task>): void {
         ProjectManager.updateTask(projectId, task);
         this.fireSSEEvent({ eventType: 'updateProject', content: {
             id: projectId, tasks: ProjectManager.getProjectDetail(projectId).tasks

@@ -169,6 +169,8 @@ export const en = {
                         }
                     },
                     running: 'A subagent is working on this task',
+                    editTitle: 'Rename this task',
+                    editDescription: 'Rewrite what this task asks for',
                 }
             },
             chat: {

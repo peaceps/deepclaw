@@ -8,6 +8,9 @@ export const PROJECT_CONFIG = {
     maxTagTextLength: 15,
     maxTasksCount: 20,
     maxTaskStepsCount: 8,
+    /** Read by the tool schemas and by the boxes the user rewrites a task in, so both cut at once. */
+    maxTaskTitleLength: 50,
+    maxTaskDescriptionLength: 100,
 } as const;
 
 export type Project = {
@@ -19,7 +22,9 @@ export type Project = {
     creator: string;
     priority: MissionPriority;
     tags?: string[];
+    /** The tasks under the id each of them is referred to by, which is the id it carries. */
     tasks: Record<string, Task>;
+    /** Ids, as everything that points at a task holds one. */
     completedTasks: string[];
     ongoingTasks: string[];
     canStartTasks: string[];
@@ -31,10 +36,16 @@ export type TaskStepsContext = {
 }
 
 export type Task = {
+    /**
+     * What a task is referred to by, everywhere and for as long as it lives. The title is what the
+     * user reads and is theirs to change; nothing may hang off it, which is what this is for.
+     */
+    id: string;
     title: string;
     description: string;
     status: MissionStatus;
     priority: MissionPriority;
+    /** Ids of the tasks this one waits for, and of the ones waiting on it. */
     blockedBy: string[];
     blocks: string[];
     assignee?: string;
@@ -53,7 +64,7 @@ export type RunningTask = {
     /** The handle of this one run, the only thing telling two runs of a task apart. */
     runId: string;
     projectId: string;
-    taskTitle: string;
+    taskId: string;
     /** Whoever the subagent stands for, the assignee of the task or the agent that spawned it. */
     agentId: string;
     startedAt: string;

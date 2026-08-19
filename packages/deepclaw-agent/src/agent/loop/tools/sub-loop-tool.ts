@@ -12,7 +12,7 @@ const MAX_PARALLEL_TASK_LOOPS = 3;
 
 type TaskLoopInput = {
     prompt: string;
-    taskTitle: string;
+    taskId: string;
 }
 
 type SubLoopInput = {
@@ -86,7 +86,7 @@ function fireRunningTasksEvent(context: OneLoopContext): void {
  * task wherever there is one: that is the page the run belongs on.
  */
 function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
-    if (!input.taskTitle) {
+    if (!input.taskId) {
         throw new Error('Name the task of this project the subagent has to work on.');
     }
     // A cron loop keeps the id of its cron task where a project loop keeps its project.
@@ -97,25 +97,25 @@ function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     if (!projectId) {
         throw new Error('This session runs no project, only a project session can hand a task over.');
     }
-    const task = ProjectManager.getTask(projectId, input.taskTitle);
+    const task = ProjectManager.getTask(projectId, input.taskId);
     if (!task) {
-        throw new Error(`Task "${input.taskTitle}" not found in project "${projectId}".`);
+        throw new Error(`Task "${input.taskId}" not found in project "${projectId}".`);
     }
     if (task.status === 'done') {
         throw new Error(`Task "${task.title}" is done, and a done task never goes back to ongoing.`);
     }
-    if (RunningTaskService.isRunning(projectId, task.title)) {
+    if (RunningTaskService.isRunning(projectId, task.id)) {
         throw new Error(`A subagent is working on "${task.title}" already, wait for it to report back.`);
     }
     // Moving the step index is all a task loop may do to its task, and that is refused while the
     // task is still todo. Waiting for the assigning loop to remember it would waste the run.
     if (task.status === 'todo') {
-        ProjectManager.updateTask(projectId, {title: task.title, status: 'ongoing'});
+        ProjectManager.updateTask(projectId, {id: task.id, status: 'ongoing'});
         ProjectManager.fireProjectInfoEvent(projectId, context);
     }
     return {
         projectId,
-        taskTitle: task.title,
+        taskId: task.id,
         agentId: task.assignee || context.agentId,
         startedAt: new Date().toISOString(),
     };
@@ -140,12 +140,12 @@ Nothing the subagent says reaches the user, only what you write down out of what
                     description: `What the subagent has to know beyond the task itself: it never gets
 an answer to a question, so everything it needs is in here.`,
                 },
-                taskTitle: {
+                taskId: {
                     type: 'string',
-                    description: 'The title of the task of this project the subagent has to work on.',
+                    description: 'The id of the task of this project the subagent has to work on.',
                 },
             },
-            required: ['prompt', 'taskTitle']}
+            required: ['prompt', 'taskId']}
     },
     agentMode: ['agent'],
     parallelSafe: true,
@@ -159,7 +159,7 @@ an answer to a question, so everything it needs is in here.`,
     invoke: async function(input: TaskLoopInput, context: OneLoopContext): Promise<string> {
         const run = planRun(input, context);
         const taskLoop = context.actions.newTaskLoop({
-            projectId: run.projectId, taskTitle: run.taskTitle,
+            projectId: run.projectId, taskId: run.taskId,
         }) as LoopAgent<any, any, any>;
         const runId = startRun(run, context);
         try {

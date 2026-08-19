@@ -33,7 +33,7 @@ export type LoopState<I> = {
  */
 export type AssignedTask = {
     projectId: string;
-    taskTitle: string;
+    taskId: string;
 }
 
 /**

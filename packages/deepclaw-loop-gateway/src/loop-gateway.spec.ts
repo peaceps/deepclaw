@@ -556,10 +556,10 @@ describe('data updates', () => {
     });
 
     test('announces the refreshed task list of a project', () => {
-        const tasks = {t1: {title: 'task', status: 'done'}};
+        const tasks = {t1: {id: 't1', title: 'task', status: 'done'}};
         mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks});
-        LoopGateway.updateProjectTask('p1', {title: 'task', status: 'done'});
-        expect(mocks.updateTask).toHaveBeenCalledWith('p1', {title: 'task', status: 'done'});
+        LoopGateway.updateProjectTask('p1', {id: 't1', status: 'done'});
+        expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', status: 'done'});
         expect(events).toContainEqual({eventType: 'updateProject', content: {id: 'p1', tasks}});
     });
 
@@ -585,9 +585,9 @@ describe('data updates', () => {
     /** A page that just loaded has seen no event yet, so the running tasks travel with it. */
     test('collects the tasks subagents are running right now', () => {
         mocks.getProjectList.mockReturnValue({projects: {open: [], closed: []}});
-        mocks.getRunningTasks.mockReturnValue([{projectId: 'p1', taskTitle: 'ship it', agentId: 'a1'}]);
+        mocks.getRunningTasks.mockReturnValue([{projectId: 'p1', taskId: 'ship-it', agentId: 'a1'}]);
         expect(LoopGateway.getDataInfo().runningTasks)
-            .toEqual([{projectId: 'p1', taskTitle: 'ship it', agentId: 'a1'}]);
+            .toEqual([{projectId: 'p1', taskId: 'ship-it', agentId: 'a1'}]);
     });
 
     test('collects the scheduled tasks as they stand', () => {

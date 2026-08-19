@@ -159,16 +159,18 @@ export const zh = {
                         title: {
                             on: '在完成此任务后暂停',
                             off: '不会在完成此任务后暂停',
-                            locked: '已暂停并等待你验证，此时不能取消暂停',
+                            locked: '已暂停并等待你验收，此时不能取消暂停',
                         }
                     },
                     verified: {
                         title: {
-                            on: '验证通过',
-                            off: '未验证',
+                            on: '验收通过',
+                            off: '未验收',
                         }
                     },
                     running: '子智能体正在执行这个任务',
+                    editTitle: '重命名这个任务',
+                    editDescription: '修改这个任务的描述',
                 }
             },
             chat: {

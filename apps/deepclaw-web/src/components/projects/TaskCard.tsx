@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Ban, CirclePause, ClipboardCheck, Loader2 } from 'lucide-react';
-import  { type Task, type AgentEmployee, getTaskProgress } from '@deepclaw/core';
+import { Ban, CirclePause, ClipboardCheck, Loader2, Pencil } from 'lucide-react';
+import  { type Task, type AgentEmployee, getTaskProgress, PROJECT_CONFIG } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
@@ -18,6 +18,40 @@ type TaskCardProps = {
   projectId: string;
 }
 
+/**
+ * One of the written fields of the card under a pencil: a draft of its own while the box is open,
+ * and a save on the way out. Only words that changed into something are worth a save, so leaving
+ * the box as it was found, or emptied, is the same as closing it.
+ */
+function useEditableField(value: string, save: (next: string) => void) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  const start = useCallback(() => {
+    setDraft(value);
+    setEditing(true);
+  }, [value]);
+
+  const commit = useCallback(() => {
+    const next = draft.trim();
+    if (next && next !== value) {
+      save(next);
+    }
+    setEditing(false);
+  }, [draft, value, save]);
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commit();
+    } else if (e.key === 'Escape') {
+      setEditing(false);
+    }
+  }, [commit]);
+
+  return {editing, draft, setDraft, start, commit, onKeyDown};
+}
+
 export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCardProps) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
@@ -26,7 +60,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
   const updateProjectTask = useAppStore(s => s.updateProjectTask);
   // An ongoing task only says the work was taken up, this says a subagent is on it right now.
   const running = useAppStore(s => s.runningTasks)
-    .some(run => run.projectId === projectId && run.taskTitle === task.title);
+    .some(run => run.projectId === projectId && run.taskId === task.id);
   // The loop already stopped at the gate, so lifting the pause frees nothing, only a verdict does.
   const awaitingVerify = !!task.pause && task.verified === false;
 
@@ -35,23 +69,33 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
     setTooltipVisible(true);
   };
 
+  /** The card draws the change straight away and takes it back off if the server refused it. */
+  const patchTask = useCallback((patch: Partial<Task>, rollback: Partial<Task>) => {
+    updateProjectTask(projectId, { id: task.id, ...patch });
+    updateProjectTaskToServer(projectId, { id: task.id, ...patch }).catch(() => {
+      updateProjectTask(projectId, { id: task.id, ...rollback });
+    });
+  }, [projectId, task.id, updateProjectTask]);
+
   const handlePauseClick = useCallback(() => {
     if (awaitingVerify) return;
     const next = !task.pause;
-    updateProjectTask(projectId, { title: task.title, pause: next });
-    updateProjectTaskToServer(projectId, { title: task.title, pause: next }).catch(() => {
-      updateProjectTask(projectId, { title: task.title, pause: !next });
-    });
-  }, [projectId, task.title, task.pause, awaitingVerify, updateProjectTask]);
+    patchTask({ pause: next }, { pause: !next });
+  }, [task.pause, awaitingVerify, patchTask]);
 
   const handleVerifiedClick = useCallback(() => {
     if (!task.pause || task.status !== 'ongoing') return;
     const next = !task.verified;
-    updateProjectTask(projectId, { title: task.title, verified: next });
-    updateProjectTaskToServer(projectId, { title: task.title, verified: next }).catch(() => {
-      updateProjectTask(projectId, { title: task.title, verified: !next });
-    });
-  }, [projectId, task.title, task.verified, task.pause, task.status, updateProjectTask]);
+    patchTask({ verified: next }, { verified: !next });
+  }, [task.verified, task.pause, task.status, patchTask]);
+
+  const title = useEditableField(task.title, useCallback(
+    next => patchTask({ title: next }, { title: task.title }), [patchTask, task.title]
+  ));
+  const description = useEditableField(task.description, useCallback(
+    next => patchTask({ description: next }, { description: task.description }),
+    [patchTask, task.description]
+  ));
 
   if (!assignee) return null;
 
@@ -59,7 +103,34 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
     <>
       <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex items-start justify-between gap-2">
-          <h4 className="font-medium text-gray-900 line-clamp-2 flex-1">{task.title}</h4>
+          {title.editing ? (
+            <input
+              autoFocus
+              type="text"
+              value={title.draft}
+              maxLength={PROJECT_CONFIG.maxTaskTitleLength}
+              onChange={(e) => title.setDraft(e.target.value)}
+              onKeyDown={title.onKeyDown}
+              onBlur={title.commit}
+              className="flex-1 min-w-0 px-2 py-0.5 rounded-md border border-gray-300 bg-white
+                font-medium text-gray-900 outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400"
+            />
+          ) : (
+            <h4 className="flex-1 min-w-0">
+              {/* The words themselves open the box, so a narrow screen has a way in without the
+                  pencil taking room on a card that is already tight. */}
+              <button
+                type="button"
+                onClick={title.start}
+                title={t('web.pages.projects.task.editTitle')}
+                className="group flex w-full min-w-0 items-start gap-1.5 text-left cursor-pointer"
+              >
+                <span className="font-medium text-gray-900 line-clamp-2">{task.title}</span>
+                <Pencil size={12} className="hidden sm:block flex-shrink-0 mt-1 text-gray-300
+                  group-hover:text-gray-600 transition-colors" />
+              </button>
+            </h4>
+          )}
           {running && (
             <span title={t('web.pages.projects.task.running')} className="flex-shrink-0 mt-0.5">
               <Loader2 size={16} className="text-cyan-500 animate-spin" />
@@ -70,7 +141,34 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           </span>
         </div>
 
-        <p className="text-sm text-gray-500 mt-2 line-clamp-2">{task.description}</p>
+        {description.editing ? (
+          // Enter saves rather than breaking the line: the box only ever holds the one sentence
+          // the card shows, and a card is no place to write a paragraph into.
+          <textarea
+            autoFocus
+            rows={2}
+            value={description.draft}
+            maxLength={PROJECT_CONFIG.maxTaskDescriptionLength}
+            onChange={(e) => description.setDraft(e.target.value)}
+            onKeyDown={description.onKeyDown}
+            onBlur={description.commit}
+            className="w-full mt-2 px-2 py-1 rounded-md border border-gray-300 bg-white resize-none
+              text-sm text-gray-600 outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400"
+          />
+        ) : (
+          <p className="text-sm text-gray-500 mt-2">
+            <button
+              type="button"
+              onClick={description.start}
+              title={t('web.pages.projects.task.editDescription')}
+              className="group flex w-full min-w-0 items-start gap-1.5 text-left cursor-pointer"
+            >
+              <span className="line-clamp-2">{task.description}</span>
+              <Pencil size={12} className="hidden sm:block flex-shrink-0 mt-0.5 text-gray-300
+                group-hover:text-gray-600 transition-colors" />
+            </button>
+          </p>
+        )}
 
         {/* Assignee - 可点击 */}
         <div className="mt-1 flex items-center justify-between gap-2">

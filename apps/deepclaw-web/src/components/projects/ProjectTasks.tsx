@@ -59,9 +59,12 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                             </div>
                             <div className="space-y-2">
                                 {columnTasks.map(task => <TaskCard 
-                                    key={task.title} task={task} projectId={project.id}
+                                    key={task.id} task={task} projectId={project.id}
                                     assignee={task.assignee ? agents.find(a => a.id === task.assignee) : undefined}
-                                    blockedByTitles={task.blockedBy.filter(bt => project.tasks[bt] && project.tasks[bt].status !== 'done')}
+                                    blockedByTitles={task.blockedBy.flatMap(id => {
+                                      const blocker = project.tasks[id];
+                                      return blocker && blocker.status !== 'done' ? [blocker.title] : [];
+                                    })}
                                 />)}
                             </div>
                             {columnTasks.length === 0 && <div className="text-center py-6 text-gray-400 text-xs">{t('web.pages.projects.project.noTasksAtStatus')}</div>}

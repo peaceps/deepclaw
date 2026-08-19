@@ -20,6 +20,7 @@ function newAgent(overrides: Partial<AgentEmployee> = {}): AgentEmployee {
 
 function newTask(overrides: Partial<Task> = {}): Task {
     return {
+        id: 'write-tests',
         title: 'write tests',
         description: 'cover the store',
         status: 'todo',
@@ -50,7 +51,7 @@ function newRunningTask(overrides: Partial<RunningTask> = {}): RunningTask {
     return {
         runId: 'r1',
         projectId: 'p1',
-        taskTitle: 'ship it',
+        taskId: 'ship-it',
         agentId: 'a1',
         startedAt: '2024-01-01T00:00:00.000Z',
         ...overrides,
@@ -400,41 +401,52 @@ describe('app store', () => {
 
         beforeEach(() => {
             store().setProjects([
-                newProject({tasks: {'write tests': newTask(), 'ship it': newTask({title: 'ship it'})}}),
+                newProject({tasks: {
+                    'write-tests': newTask(),
+                    'ship-it': newTask({id: 'ship-it', title: 'ship it'}),
+                }}),
                 newProject({id: 'p2'}),
             ]);
         });
 
-        test('merges the patch into the task with that title', () => {
-            store().updateProjectTask('p1', {title: 'write tests', status: 'ongoing', assignee: 'a1'});
-            expect(store().getProjects()[0].tasks['write tests'])
+        test('merges the patch into the task with that id', () => {
+            store().updateProjectTask('p1', {id: 'write-tests', status: 'ongoing', assignee: 'a1'});
+            expect(store().getProjects()[0].tasks['write-tests'])
                 .toEqual(newTask({status: 'ongoing', assignee: 'a1'}));
         });
 
+        /** Nothing is filed under the title, so new words on a task leave it where it stood. */
+        test('renames a task without moving it', () => {
+            store().updateProjectTask('p1', {id: 'write-tests', title: 'cover the store'});
+            expect(store().getProjects()[0].tasks['write-tests'])
+                .toEqual(newTask({title: 'cover the store'}));
+            expect(Object.keys(store().getProjects()[0].tasks)).toEqual(['write-tests', 'ship-it']);
+        });
+
         test('leaves the other tasks of the project untouched', () => {
-            const before = store().getProjects()[0].tasks['ship it'];
-            store().updateProjectTask('p1', {title: 'write tests', status: 'done'});
-            expect(store().getProjects()[0].tasks['ship it']).toBe(before);
+            const before = store().getProjects()[0].tasks['ship-it'];
+            store().updateProjectTask('p1', {id: 'write-tests', status: 'done'});
+            expect(store().getProjects()[0].tasks['ship-it']).toBe(before);
         });
 
         test('leaves the other projects untouched', () => {
             const before = store().getProjects()[1];
-            store().updateProjectTask('p1', {title: 'write tests', status: 'done'});
+            store().updateProjectTask('p1', {id: 'write-tests', status: 'done'});
             expect(store().getProjects()[1]).toBe(before);
         });
 
         test('drops a task field that is patched with null', () => {
-            store().updateProjectTask('p1', {title: 'write tests', assignee: 'a1'});
-            store().updateProjectTask('p1', {title: 'write tests', assignee: null});
-            expect(store().getProjects()[0].tasks['write tests']).not.toHaveProperty('assignee');
+            store().updateProjectTask('p1', {id: 'write-tests', assignee: 'a1'});
+            store().updateProjectTask('p1', {id: 'write-tests', assignee: null});
+            expect(store().getProjects()[0].tasks['write-tests']).not.toHaveProperty('assignee');
         });
 
         test('throws for an unknown project', () => {
-            expect(() => store().updateProjectTask('ghost', {title: 'write tests'})).toThrow('Project not found.');
+            expect(() => store().updateProjectTask('ghost', {id: 'write-tests'})).toThrow('Project not found.');
         });
 
         test('throws for an unknown task', () => {
-            expect(() => store().updateProjectTask('p1', {title: 'ghost'})).toThrow('Task not found.');
+            expect(() => store().updateProjectTask('p1', {id: 'ghost'})).toThrow('Task not found.');
         });
     });
 

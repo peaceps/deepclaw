@@ -12,7 +12,7 @@ configure.
      ideally a couple of them showing an owner avatar and a progress bar. This is the first thing
      anyone sees, so pick the project that looks most alive. -->
 
-![The project board](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/board.png)
+![The project board](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/en/board.png)
 
 ## Install
 
@@ -53,7 +53,7 @@ Five places in the sidebar: **Agents**, **Project Board**, **Scheduled Tasks**, 
      panel on the right. Best if that agent is busy, so the "Running Now" card has a task with a
      progress bar in it. -->
 
-![The agents page](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/agents.png)
+![The agents page](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/en/agents.png)
 
 Every agent is someone: a name, an avatar, a role, personality traits, and the areas it is good at.
 You hire them in the settings and fire them there too.
@@ -64,18 +64,19 @@ busy or idle, and they carry a mood: happy, focused, tired, confused, or keeping
 
 ### Chat
 
-<!-- Screenshot: a chat where the agent has called a tool, so a tool card is visible in the
-     transcript alongside the reply. -->
+<!-- Screenshot: a permission request open over a chat — the transcript dimmed behind it, the
+     question card in front with its Allow once / Always allow / Deny buttons. Ask an agent to run
+     a command it has to check on first and one of these shows up. -->
 
-![Chatting with an agent](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/chat.png)
+![Chatting with an agent](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/en/permission.png)
 
-Talk to an agent, or talk to a project. Replies stream back as they are written, and the tools the
-agent reaches for along the way — reading a file, running a command, drawing a picture — show up in
-the conversation as it goes, so you can see the work rather than just the answer. You can attach
+Talk to an agent, or talk to a project. Replies stream back as they are written, and you can attach
 images to a message.
 
-When an agent needs something only you can decide, it stops and asks. The question opens in front of
-you; if you have wandered off, a notification tells you someone is waiting.
+When an agent needs something only you can decide, it stops and asks — before running a command it
+should check on first, or before touching a file outside the folder it works in. The question opens
+in front of you: allow it once, allow that kind of thing for the rest of the session, or refuse. If
+you have wandered off, a notification tells you someone is waiting.
 
 Each conversation shows what it cost in tokens, including how much of the input was served from
 cache.
@@ -93,12 +94,18 @@ want to see before they are built on.
 
 Finished tasks carry a report you can read in place or download.
 
+<!-- Screenshot: the report window of a finished task, opened by the "View" link on a done card.
+     Best with the markdown rendered out — headings, a list, maybe a table — and enough of it to
+     look like real work, with the Download button showing at the bottom. -->
+
+![A finished task's report](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/en/output.png)
+
 ### Scheduled Tasks
 
 <!-- Screenshot: the Scheduled Tasks page with one task expanded so its execution history is
      visible, showing a couple of past runs. -->
 
-![Scheduled tasks](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/cron.png)
+![Scheduled tasks](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/en/cron.png)
 
 Work that repeats: a prompt, a schedule, and the agent that gets it. Each one shows when it last ran
 and when it will run next, keeps a full history of its runs, and can be paused and resumed without
@@ -112,7 +119,7 @@ the task up for you.
 <!-- Screenshot: the Skills page listing a few installed skills, with the "Applied to" column
      showing at least one skill limited to a specific agent. -->
 
-![The skills page](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/skills.png)
+![The skills page](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/en/skills.png)
 
 Skills are things your agents know how to do, listed here with what each one is for and which agents
 it applies to. A skill can be open to everyone or kept to one agent.
@@ -136,7 +143,7 @@ when there is no room beside each other — so checking in on your agents from y
 <!-- Screenshot: the agents page in a narrow browser window (or an actual phone), to show the
      mobile layout. A tall, narrow image sits better here than a wide one. -->
 
-![On a phone](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/mobile.png)
+![On a phone](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/en/mobile.png)
 
 ## What your agents can do
 

@@ -45,8 +45,8 @@ const getProjectDetail = vi.spyOn(ProjectManager, 'getProjectDetail');
 const getAgent = vi.spyOn(AgentIdentityManager, 'getAgent');
 const getAgents = vi.spyOn(AgentIdentityManager, 'getAgents');
 
-function newTask(title: string): Task {
-    return {title, description: `${title} desc`, priority: 'medium', status: 'todo'} as Task;
+function newTask(id: string, title = id): Task {
+    return {id, title, description: `${title} desc`, priority: 'medium', status: 'todo'} as Task;
 }
 
 function newIdentity(id: string, fired = false): AgentIdentity {
@@ -62,7 +62,7 @@ function newProject(overrides: Partial<Project> = {}): Project {
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.publishGeneratedFiles.mockReturnValue({published: [], skipped: []});
-    createTask.mockImplementation(info => newTask(info.title));
+    createTask.mockImplementation(info => newTask(info.id, info.title));
     createProject.mockReturnValue(newProject());
     updateProject.mockReturnValue(newProject());
     getProjectDetail.mockReturnValue(newProject());
@@ -78,13 +78,14 @@ describe('createProjectTool invoke', () => {
             description: 'ship the thing',
             priority: 'high',
             tasks: [
-                {title: 'design', description: 'design it', priority: 'medium'},
-                {title: 'build', description: 'build it', priority: 'high', blockedBy: ['design']},
+                {id: 'design', title: 'design', description: 'design it', priority: 'medium'},
+                {id: 'build', title: 'build', description: 'build it', priority: 'high', blockedBy: ['design']},
             ],
         }, newTestContext());
         expect(createTask).toHaveBeenCalledTimes(2);
         expect(createTask).toHaveBeenNthCalledWith(2, {
-            title: 'build', description: 'build it', priority: 'high', blockedBy: ['design'], agentId: 'a1',
+            id: 'build', title: 'build', description: 'build it', priority: 'high',
+            blockedBy: ['design'], agentId: 'a1',
         });
         expect(createProject).toHaveBeenCalledExactlyOnceWith(
             {agentId: 'a1', title: 'ship it', description: 'ship the thing', priority: 'high'},
@@ -97,10 +98,11 @@ describe('createProjectTool invoke', () => {
             title: 'ship it',
             description: 'ship the thing',
             priority: 'high',
-            tasks: [{title: 'design', description: 'design it', priority: 'medium', assignee: 'a2'}],
+            tasks: [{id: 'design', title: 'design', description: 'design it', priority: 'medium', assignee: 'a2'}],
         }, newTestContext());
         expect(createTask).toHaveBeenCalledExactlyOnceWith({
-            title: 'design', description: 'design it', priority: 'medium', assignee: 'a2', agentId: 'a1',
+            id: 'design', title: 'design', description: 'design it', priority: 'medium',
+            assignee: 'a2', agentId: 'a1',
         });
     });
 
@@ -111,7 +113,7 @@ describe('createProjectTool invoke', () => {
             title: 'ship it',
             description: 'ship the thing',
             priority: 'high',
-            tasks: [{title: 'design', description: 'design it', priority: 'medium', assignee: 'ghost'}],
+            tasks: [{id: 'design', title: 'design', description: 'design it', priority: 'medium', assignee: 'ghost'}],
         }, newTestContext())).rejects.toThrow('No agent "ghost" works here, assign the task to one of: a1, a2.');
         expect(createProject).not.toHaveBeenCalled();
     });
@@ -122,7 +124,7 @@ describe('createProjectTool invoke', () => {
             title: 'ship it',
             description: 'ship the thing',
             priority: 'high',
-            tasks: [{title: 'design', description: 'design it', priority: 'medium', assignee: 'a3'}],
+            tasks: [{id: 'design', title: 'design', description: 'design it', priority: 'medium', assignee: 'a3'}],
         }, newTestContext())).rejects.toThrow('No agent "a3" works here');
     });
 
@@ -144,16 +146,17 @@ describe('createSimpleTaskTool invoke', () => {
 
     test('wraps the single task into a project that mirrors it', async () => {
         const context = newTestContext();
-        const result = await createSimpleTaskTool.invoke(
-            {title: 'fix bug', description: 'fix the bug', priority: 'urgent', steps: ['repro', 'patch']}, context
-        );
+        const result = await createSimpleTaskTool.invoke({
+            id: 'fix-bug', title: 'fix bug', description: 'fix the bug',
+            priority: 'urgent', steps: ['repro', 'patch'],
+        }, context);
         expect(createTask).toHaveBeenCalledExactlyOnceWith({
-            title: 'fix bug', description: 'fix the bug', priority: 'urgent',
+            id: 'fix-bug', title: 'fix bug', description: 'fix the bug', priority: 'urgent',
             steps: ['repro', 'patch'], agentId: 'a1',
         });
         expect(createProject).toHaveBeenCalledExactlyOnceWith(
             {agentId: 'a1', title: 'fix bug', description: 'fix bug desc', priority: 'medium'},
-            [newTask('fix bug')]
+            [newTask('fix-bug', 'fix bug')]
         );
         expect(context.runtime.agentBreakReason).toBe('projectCreated');
         expect(result).toContain('Task created successfully.');
@@ -171,7 +174,7 @@ describe('updateProjectTool invoke', () => {
     test('rebuilds the task list when new tasks are given', async () => {
         await updateProjectTool.invoke({
             projectId: 'pr1',
-            tasks: [{title: 'design', description: 'design it', priority: 'low'}],
+            tasks: [{id: 'design', title: 'design', description: 'design it', priority: 'low'}],
         }, newTestContext());
         expect(updateProject).toHaveBeenCalledExactlyOnceWith({id: 'pr1'}, [newTask('design')]);
     });
@@ -179,10 +182,11 @@ describe('updateProjectTool invoke', () => {
     test('keeps the assignee of every rebuilt task', async () => {
         await updateProjectTool.invoke({
             projectId: 'pr1',
-            tasks: [{title: 'design', description: 'design it', priority: 'low', assignee: 'a2'}],
+            tasks: [{id: 'design', title: 'design', description: 'design it', priority: 'low', assignee: 'a2'}],
         }, newTestContext());
         expect(createTask).toHaveBeenCalledExactlyOnceWith({
-            title: 'design', description: 'design it', priority: 'low', assignee: 'a2', agentId: 'a1',
+            id: 'design', title: 'design', description: 'design it', priority: 'low',
+            assignee: 'a2', agentId: 'a1',
         });
     });
 
@@ -190,7 +194,7 @@ describe('updateProjectTool invoke', () => {
         getAgent.mockReturnValue(undefined);
         await expect(updateProjectTool.invoke({
             projectId: 'pr1',
-            tasks: [{title: 'design', description: 'design it', priority: 'low', assignee: 'ghost'}],
+            tasks: [{id: 'design', title: 'design', description: 'design it', priority: 'low', assignee: 'ghost'}],
         }, newTestContext())).rejects.toThrow('No agent "ghost" works here');
         expect(updateProject).not.toHaveBeenCalled();
     });
@@ -222,9 +226,9 @@ describe('updateTaskTool invoke', () => {
 
     test('only forwards the optional fields that were provided', async () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
-        await updateTaskTool.invoke({projectId: 'pr1', taskTitle: 'design', status: 'ongoing'}, newTestContext());
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, newTestContext());
         expect(updateTask).toHaveBeenCalledExactlyOnceWith(
-            'pr1', {title: 'design', status: 'ongoing'}, undefined
+            'pr1', {id: 'design', status: 'ongoing'}, undefined
         );
     });
 
@@ -232,17 +236,28 @@ describe('updateTaskTool invoke', () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
         const output = {type: 'markdown' as const, content: '# done'};
         await updateTaskTool.invoke({
-            projectId: 'pr1', taskTitle: 'design', assignee: 'a2', output, steps: ['one', 'two'],
+            projectId: 'pr1', taskId: 'design', assignee: 'a2', output, steps: ['one', 'two'],
         }, newTestContext());
         expect(updateTask).toHaveBeenCalledExactlyOnceWith(
-            'pr1', {title: 'design', assignee: 'a2', output}, ['one', 'two']
+            'pr1', {id: 'design', assignee: 'a2', output}, ['one', 'two']
+        );
+    });
+
+    test('hands new words on to the manager beside the id it looked the task up by', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design',
+            title: 'design the thing', description: 'sketch it first',
+        }, newTestContext());
+        expect(updateTask).toHaveBeenCalledExactlyOnceWith(
+            'pr1', {id: 'design', title: 'design the thing', description: 'sketch it first'}, undefined
         );
     });
 
     test('refuses to reassign a task to somebody who does not work here', async () => {
         getAgent.mockReturnValue(undefined);
         await expect(updateTaskTool.invoke(
-            {projectId: 'pr1', taskTitle: 'design', assignee: 'ghost'}, newTestContext()
+            {projectId: 'pr1', taskId: 'design', assignee: 'ghost'}, newTestContext()
         )).rejects.toThrow('No agent "ghost" works here');
         expect(updateTask).not.toHaveBeenCalled();
     });
@@ -251,7 +266,7 @@ describe('updateTaskTool invoke', () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: true});
         const context = newTestContext();
         const result = await updateTaskTool.invoke(
-            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, context
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, context
         );
         expect(context.runtime.agentBreakReason).toBe('taskPause');
         expect(context.runtime.agentBreakDetail).toBe('agent.agentBreak.agentStop.taskPause.user');
@@ -262,7 +277,7 @@ describe('updateTaskTool invoke', () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
         const context = newTestContext();
         const result = await updateTaskTool.invoke(
-            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, context
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, context
         );
         expect(context.runtime.agentBreakReason).toBeUndefined();
         expect(result).toContain('Task updated successfully.');
@@ -276,14 +291,14 @@ describe('updateTaskTool invoke', () => {
             return {published: ['out/sheet.csv'], skipped: []};
         });
         await updateTaskTool.invoke({
-            projectId: 'pr1', taskTitle: 'design', status: 'done',
+            projectId: 'pr1', taskId: 'design', status: 'done',
             output: {type: 'markdown', content: '# done', generatedFiles: ['out/sheet.csv']},
         }, newTestContext());
         expect(mocks.publishGeneratedFiles).toHaveBeenCalledExactlyOnceWith(
             expect.anything(), ['out/sheet.csv'], projectFilesDir('pr1')
         );
         expect(updateTask).toHaveBeenCalledExactlyOnceWith('pr1', {
-            title: 'design',
+            id: 'design',
             status: 'done',
             output: {
                 type: 'markdown',
@@ -295,7 +310,7 @@ describe('updateTaskTool invoke', () => {
     test('goes looking for no file when the task named none', async () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
         await updateTaskTool.invoke({
-            projectId: 'pr1', taskTitle: 'design', output: {type: 'markdown', content: '# done'},
+            projectId: 'pr1', taskId: 'design', output: {type: 'markdown', content: '# done'},
         }, newTestContext());
         expect(mocks.publishGeneratedFiles).not.toHaveBeenCalled();
     });
@@ -303,7 +318,7 @@ describe('updateTaskTool invoke', () => {
     /** A file of the task is handed over from disk, its bytes in the call would only be paid for. */
     test('turns away an output that carries a file instead of words', async () => {
         await expect(updateTaskTool.invoke({
-            projectId: 'pr1', taskTitle: 'ship',
+            projectId: 'pr1', taskId: 'ship',
             output: {type: 'binary', content: 'QUJD', generatedFiles: ['out/report.pdf']},
         }, newTestContext())).rejects.toThrow('not the bytes of a file');
         expect(mocks.publishGeneratedFiles).not.toHaveBeenCalled();
@@ -320,7 +335,7 @@ describe('updateTaskTool invoke', () => {
             design: {...newTask('design'), output: {type: 'markdown', content: '# the whole report'}},
         }}));
         const result = await updateTaskTool.invoke(
-            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, newTestContext()
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, newTestContext()
         );
         expect(result).not.toContain('the whole report');
         expect(result).toContain('<Output kept, read it with get_project_detail>');
@@ -342,7 +357,7 @@ describe('updateTaskTool invoke', () => {
             }},
         }}));
         const result = await updateTaskTool.invoke(
-            {projectId: 'pr1', taskTitle: 'ship', status: 'done'}, newTestContext()
+            {projectId: 'pr1', taskId: 'ship', status: 'done'}, newTestContext()
         );
         expect(result).toContain('"path":"/api/file/projects/pr1/output/hash1234.md"');
         expect(result).toContain('<Content saved to file>');
@@ -357,7 +372,7 @@ describe('updateTaskTool invoke', () => {
         }});
         getProjectDetail.mockReturnValue(project);
         await updateTaskTool.invoke(
-            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, newTestContext()
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, newTestContext()
         );
         expect(project.tasks['design']!.output!.content).toBe('# the whole report');
     });
@@ -366,7 +381,7 @@ describe('updateTaskTool invoke', () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
         getProjectDetail.mockReturnValue(newProject({tasks: {design: newTask('design')}}));
         const result = await updateTaskTool.invoke(
-            {projectId: 'pr1', taskTitle: 'design', status: 'done'}, newTestContext()
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, newTestContext()
         );
         expect(result).toContain(JSON.stringify(newProject({tasks: {design: newTask('design')}})));
     });
@@ -375,7 +390,7 @@ describe('updateTaskTool invoke', () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
         mocks.publishGeneratedFiles.mockReturnValue({published: [], skipped: ['/tmp/secret.pdf']});
         const result = await updateTaskTool.invoke({
-            projectId: 'pr1', taskTitle: 'design',
+            projectId: 'pr1', taskId: 'design',
             output: {type: 'markdown', content: '# done', generatedFiles: ['/tmp/secret.pdf']},
         }, newTestContext());
         expect(result).toContain('These files were not handed to the user');
@@ -390,7 +405,7 @@ describe('updateTaskCurrentStepTool invoke', () => {
         updateCurrentStep.mockReturnValue(steps);
         const context = newTestContext();
         const result = await updateTaskCurrentStepTool.invoke(
-            {projectId: 'pr1', taskTitle: 'design', stepIndex: 1}, context
+            {projectId: 'pr1', taskId: 'design', stepIndex: 1}, context
         );
         expect(updateCurrentStep).toHaveBeenCalledExactlyOnceWith('pr1', 'design', 1);
         expect(context.actions.agentHandler.onStreamText).toHaveBeenCalledExactlyOnceWith({
@@ -427,6 +442,25 @@ describe('project tool metadata', () => {
         expect(updateProjectTool.loopKinds).toEqual(['main']);
         expect(updateTaskTool.loopKinds).toEqual(['main']);
         expect(updateTaskCurrentStepTool.loopKinds).toEqual(['main', 'task']);
+    });
+
+    function taskIdSchema(tool: {tool: {schema: object}}): {pattern?: string} {
+        const schema = tool.tool.schema as
+            {properties: {tasks: {items: {properties: {id: {pattern?: string}}}}}};
+        return schema.properties.tasks.items.properties.id;
+    }
+
+    test('asks a handle of an id being handed out', () => {
+        expect(taskIdSchema(createProjectTool).pattern).toBe('^[a-z0-9][a-z0-9_-]*$');
+    });
+
+    /**
+     * A project made before ids were handed out wears its old task titles as ids. Asking a handle
+     * of those on the way back would leave the model nothing to return such a task unchanged as,
+     * and an id it makes up instead throws the task away along with everything pointing at it.
+     */
+    test('takes an id of any shape back through update_project', () => {
+        expect(taskIdSchema(updateProjectTool).pattern).toBeUndefined();
     });
 
     /** Ending the loop mid group would let the siblings of the call run past the stop. */

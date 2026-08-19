@@ -20,6 +20,7 @@ type ProjectInitInfo = {
 
 type TaskInitInfo = {
     agentId: string;
+    id: string;
     title: string;
     description: string;
     priority: MissionPriority;
@@ -45,6 +46,7 @@ export class ProjectManager {
                 if (project && project.id && project.title && project.description) {
                     project.priority = project.priority || 'low';
                     project.tasks = project.tasks || {};
+                    this.ensureTaskIds(project.tasks);
                     Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
                     this.projects[project.id] = project;
                 }
@@ -52,6 +54,17 @@ export class ProjectManager {
                 // TODO: Handle error
                 continue;
             }
+        }
+    }
+
+    /**
+     * A project written before tasks had an id was keyed by the title, and everything pointing at a
+     * task held that title too. Taking the key as the id leaves every one of those references
+     * pointing where it always did, so the record needs no rewriting to be read the new way.
+     */
+    private static ensureTaskIds(tasks: Record<string, Task>): void {
+        for (const [key, task] of Object.entries(tasks)) {
+            task.id = task.id || key;
         }
     }
 
@@ -103,15 +116,15 @@ export class ProjectManager {
     }
 
     private static convertTasks(tasks: Task[]): Record<string, Task> {
-        if (new Set(tasks.map(task => task.title)).size < tasks.length) {
-            throw new Error('There are duplicated task titles.');
+        if (new Set(tasks.map(task => task.id)).size < tasks.length) {
+            throw new Error('There are duplicated task ids.');
         }
         if (tasks.length > PROJECT_CONFIG.maxTasksCount) {
             throw new Error('There are too many tasks.');
         }
 
         const taskObject = tasks.reduce((p, n) => {
-            p[n.title] = n;
+            p[n.id] = n;
             return p;
         }, {} as Record<string, Task>);
         for (const task of Object.values(taskObject)) {
@@ -119,7 +132,7 @@ export class ProjectManager {
                 if (!taskObject[blockedBy]) {
                     throw new Error('Invalid blocked task.');
                 }
-                taskObject[blockedBy].blocks.push(task.title);
+                taskObject[blockedBy].blocks.push(task.id);
             }
         }
         return taskObject;
@@ -130,6 +143,7 @@ export class ProjectManager {
             throw new Error(`Too much steps for a task. Max is ${PROJECT_CONFIG.maxTaskStepsCount}.`);
         }
         const task: Task = {
+            id: taskInfo.id,
             title: taskInfo.title,
             description: taskInfo.description,
             priority: taskInfo.priority,
@@ -146,15 +160,25 @@ export class ProjectManager {
     }
 
     public static updateTask(
-        projectId: string, taskInfo: UpdateContent<Task, 'title'>, steps?: string[]
+        projectId: string, taskInfo: UpdateContent<Task>, steps?: string[]
     ): {task: Task, stop: boolean} {
         let task: Task | undefined;
         if (steps?.length && steps?.length > PROJECT_CONFIG.maxTaskStepsCount) {
             throw new Error(`Too much steps for a task. Max is ${PROJECT_CONFIG.maxTaskStepsCount}.`);
         }
-        task = this.projects[projectId]?.tasks?.[taskInfo.title];
+        task = this.projects[projectId]?.tasks?.[taskInfo.id];
         if (!task) {
             throw new Error('Task not found.');
+        }
+        // The words on a task are only ever read, so they are free to change at any point of the
+        // work. Blank ones are no rewrite though, they leave a task nobody can read off the board.
+        for (const field of ['title', 'description'] as const) {
+            if (taskInfo[field] !== undefined) {
+                taskInfo[field] = taskInfo[field]?.trim() ?? '';
+                if (!taskInfo[field]) {
+                    throw new Error(`A task needs a ${field}.`);
+                }
+            }
         }
         if (task.status === 'todo' && taskInfo.status === 'done' ||
             task.status === 'ongoing' && taskInfo.status === 'todo' ||
@@ -183,11 +207,15 @@ export class ProjectManager {
                 currentStepIndex: -1
             };
         }
-        Object.assign(task, taskInfo);
+        // The id both found this task and files it in the record, so it is no part of what a patch
+        // may write: taken from here it would move the task off its own key, and nothing afterwards
+        // would lead back to it.
+        const {id: _, ...patch} = taskInfo;
+        Object.assign(task, patch);
         // Only an output that just arrived is filed away. The one already on the task was filed
         // when it came in, and every later update of that task would file it over again.
         if (taskInfo.output) {
-            fileAwayOutput(taskInfo.output, projectOutputDir(projectId), FileUtils.hashString(task.title));
+            fileAwayOutput(taskInfo.output, projectOutputDir(projectId), FileUtils.hashString(task.id));
         }
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();
@@ -201,8 +229,8 @@ export class ProjectManager {
         return {task, stop: !!task.pause && task.verified === false};
     }
 
-    public static updateCurrentStep(projectId: string, taskTitle: string, stepIndex: number): TaskStepsContext {
-        const task = this.getTask(projectId, taskTitle);
+    public static updateCurrentStep(projectId: string, taskId: string, stepIndex: number): TaskStepsContext {
+        const task = this.getTask(projectId, taskId);
         const context = task?.stepsStatus;
         if (!context) {
             throw new Error('No steps found for the specified task.');
@@ -267,15 +295,15 @@ export class ProjectManager {
         canStartTasks: string[];
     } {
         return {
-            completedTasks: Object.values(tasks).filter(task => task.status === 'done').map(task => task.title),
-            ongoingTasks: Object.values(tasks).filter(task => task.status === 'ongoing').map(task => task.title),
+            completedTasks: Object.values(tasks).filter(task => task.status === 'done').map(task => task.id),
+            ongoingTasks: Object.values(tasks).filter(task => task.status === 'ongoing').map(task => task.id),
             canStartTasks: Object.values(tasks).filter(task => task.status === 'todo' &&
-                task.blockedBy.every(blockedBy => tasks[blockedBy]?.status === 'done')).map(task => task.title),
+                task.blockedBy.every(blockedBy => tasks[blockedBy]?.status === 'done')).map(task => task.id),
         };
     }
 
-    public static getTask(projectId: string, taskTitle: string): Task | undefined {
-        return this.projects[projectId]?.tasks[taskTitle];
+    public static getTask(projectId: string, taskId: string): Task | undefined {
+        return this.projects[projectId]?.tasks[taskId];
     }
 
     /** Lets the ui redraw a project, to be called by whoever changed something in it. */
@@ -306,6 +334,9 @@ You can create detailed steps for each task if needed,
 steps info are important for user to get current task execution status, so make sure to update them in a timely manner.
 
 ## Update task status
+Every task carries an id you gave it when it was created, and that id is how every tool reaches it.
+The title beside it is what the user reads: they may rename a task at any time, so read a task by
+its id and never by the words on it.
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
 For simple tasks just set the wrapped project id.
 A subagent cannot update a task, it only moves the step index of the task it works on.`;
@@ -314,7 +345,7 @@ A subagent cannot update a task, it only moves the step index of the task it wor
     public static promptTaskDelegation(): string {
         return `## Run the tasks through subagents
 You run this project, you do not work through its tasks yourself. Hand every task that is ready to
-a subagent: call the task_loop tool with the title of the task, and the subagent works as the agent
+a subagent: call the task_loop tool with the id of the task, and the subagent works as the agent
 the task is assigned to, with the description and the steps of it in front of it. It can split the
 task among subagents of its own, so hand over the whole task rather than a piece of it.
 Tasks that block nothing and wait for nothing can go out at the same time, one task_loop call each.
@@ -326,14 +357,15 @@ A subagent reaches no user: it never gets an answer to a question. Put everythin
 prompt you give it, and keep the talking to the user yours.`;
     }
 
-    public static promptAssignedTask(projectId: string, taskTitle: string): string {
-        const task = this.getTask(projectId, taskTitle);
+    public static promptAssignedTask(projectId: string, taskId: string): string {
+        const task = this.getTask(projectId, taskId);
         if (!task) {
             return '';
         }
         return `## You were assigned this single task, it is the only thing you work on:
 ${JSON.stringify({
     projectId,
+    id: task.id,
     title: task.title,
     description: task.description,
     priority: task.priority,
@@ -359,6 +391,7 @@ ${JSON.stringify({
     title: project.title,
     description: project.description,
     tasks: Object.values(project.tasks).map(task => ({
+        id: task.id,
         title: task.title,
         description: task.description
     })),

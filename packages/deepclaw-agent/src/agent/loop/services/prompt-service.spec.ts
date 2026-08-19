@@ -280,7 +280,7 @@ describe('personality and emotions', () => {
 
 describe('a task loop working on a task', () => {
 
-    const TASK = {projectId: 'p1', taskTitle: 'ship it'};
+    const TASK = {projectId: 'p1', taskId: 'ship-it'};
 
     /** Arranges a task owned by "a2", the agent whose identity the run has to borrow. */
     async function loadServiceWithAssignee() {
@@ -349,7 +349,7 @@ describe('a task loop working on a task', () => {
         const {dynamic} = PromptService.provideSystemPrompt(
             newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
         );
-        expect(assignedTaskPrompt).toHaveBeenCalledWith('p1', 'ship it');
+        expect(assignedTaskPrompt).toHaveBeenCalledWith('p1', 'ship-it');
         expect(dynamic.split('\n').filter(line => line.startsWith('# ')))
             .toEqual(['# Current Project', '# Assigned Task']);
         expect(dynamic).toContain('the assigned task');
@@ -572,7 +572,7 @@ describe('handing work over', () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
             newTestAgentConfig(), undefined, 'agent', '', 'sub',
-            {projectId: 'p9', taskTitle: 'design'}
+            {projectId: 'p9', taskId: 'design'}
         );
         expect(cacheable).toContain('.projects/p9/files');
     });

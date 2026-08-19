@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     updateGatewayConfig: vi.fn<(config: DeepclawConfig) => void>(),
     resetIM: vi.fn<() => void>(),
     revalidatePath: vi.fn<(path: string, type: string) => void>(),
+    changeLanguage: vi.fn<(lang: string) => Promise<void>>(() => Promise.resolve()),
 }));
 
 vi.mock('@deepclaw/config', () => ({
@@ -24,6 +25,15 @@ vi.mock('@deepclaw/loop-gateway', () => ({
         updateAgentIdentity: mocks.updateAgentIdentity,
         newAgentIdentity: mocks.newAgentIdentity,
         updateConfig: mocks.updateGatewayConfig,
+    },
+}));
+
+vi.mock('@deepclaw/i18n', () => ({
+    i18nInstance: {
+        get language() {
+            return 'en';
+        },
+        changeLanguage: mocks.changeLanguage,
     },
 }));
 
@@ -135,6 +145,22 @@ describe('saveFullConfig', () => {
         await saveFullConfig(newConfig());
         expect(mocks.resetIM).toHaveBeenCalledOnce();
         expect(mocks.updateGatewayConfig).toHaveBeenCalledWith(writtenConfig());
+    });
+
+    /**
+     * The browser switching its own side reaches nothing the agents write, and the questions a
+     * tool stops to ask are worded on this one.
+     */
+    test('switches the interface language when the config brings another one', async () => {
+        onDisk([newAgent()]);
+        await saveFullConfig({...newConfig(), ui: {lang: 'zh'}});
+        expect(mocks.changeLanguage).toHaveBeenCalledExactlyOnceWith('zh');
+    });
+
+    test('leaves the language alone when the config brings the one already running', async () => {
+        onDisk([newAgent()]);
+        await saveFullConfig(newConfig());
+        expect(mocks.changeLanguage).not.toHaveBeenCalled();
     });
 
     test('revalidates the whole layout', async () => {

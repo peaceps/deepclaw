@@ -10,7 +10,7 @@
 <!-- 截图：打开某个项目的看板，三列里都有任务，最好有几张卡片带着负责人头像和进度条。
      这是所有人看到的第一眼，挑最热闹的那个项目。 -->
 
-![项目看板](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/board.png)
+![项目看板](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/zh/board.png)
 
 ## 安装
 
@@ -47,7 +47,7 @@ deepclaw start --tui      # 终端界面
 <!-- 截图：Agent 页面并选中某个 agent，左边是列表右边是详情面板。最好选一个正忙的，
      这样"正在进行"那张卡片里能看到带进度条的任务。 -->
 
-![Agent 页面](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/agents.png)
+![Agent 页面](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/zh/agents.png)
 
 每个 agent 都是一个具体的人：名字、头像、角色、性格特点，还有它擅长的领域。招人和辞退都在设置里。
 
@@ -56,15 +56,16 @@ deepclaw start --tui      # 终端界面
 
 ### 对话
 
-<!-- 截图：一段 agent 调用了工具的对话，让工具卡片和回复一起出现在记录里。 -->
+<!-- 截图：一个权限请求弹在对话上面 —— 后面是压暗的聊天记录，前面是问题卡片，带着「仅此一次 /
+     总是允许 / 拒绝」几个按钮。让 agent 执行一条需要它先确认的命令就能弹出来。 -->
 
-![和 agent 对话](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/chat.png)
+![和 agent 对话](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/zh/permission.png)
 
-可以跟某个 agent 聊，也可以跟某个项目聊。回复是一边生成一边流式吐出来的，过程中 agent 伸手去用的
-工具 —— 读文件、执行命令、画图 —— 会同步出现在对话里，所以你看到的是活儿本身，不只是最后那个答案。
-消息里可以带图片。
+可以跟某个 agent 聊，也可以跟某个项目聊。回复是一边生成一边流式吐出来的，消息里可以带图片。
 
-碰上只有你能拍板的事，agent 会停下来问。问题直接弹到你面前；要是你人不在，会有通知告诉你有人在等。
+碰上只有你能拍板的事，agent 会停下来问 —— 比如要执行一条得先确认的命令，或者要碰工作目录之外的
+文件。问题直接弹到你面前：允许这一次、这类操作本次会话内都允许，或者拒绝。要是你人不在，会有通知
+告诉你有人在等。
 
 每段对话都会显示花了多少 token，其中有多少输入是从缓存里拿的。
 
@@ -78,11 +79,16 @@ deepclaw start --tui      # 终端界面
 
 做完的任务会附一份报告，可以当场读，也可以下载。
 
+<!-- 截图：某个已完成任务的报告窗口，点卡片上的「查看」打开。最好是 markdown 已经渲染出来的样子 ——
+     标题、列表，有表格更好 —— 内容多到看着像真干过活，底部的下载按钮要露出来。 -->
+
+![已完成任务的报告](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/zh/output.png)
+
 ### 定时任务
 
 <!-- 截图：定时任务页面，展开其中一个让执行历史露出来，能看到过去几次的执行记录。 -->
 
-![定时任务](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/cron.png)
+![定时任务](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/zh/cron.png)
 
 会重复的活儿：一段提示词、一个日程、一个接活的 agent。每条都显示上次什么时候跑的、下次什么时候跑，
 留着完整的执行历史，还能暂停和恢复，历史一条不丢。
@@ -93,7 +99,7 @@ deepclaw start --tui      # 终端界面
 
 <!-- 截图：技能页面，列着几个装好的技能，"应用于"那一列里最好有一个是限定给某个 agent 的。 -->
 
-![技能页面](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/skills.png)
+![技能页面](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/zh/skills.png)
 
 技能是你的 agent 会做的事，这里列着每个技能是干什么的、应用在哪些 agent 上。一个技能可以对所有人
 开放，也可以只留给某一个 agent。
@@ -115,7 +121,7 @@ Agent 页面和对话有专门为窄屏做的布局，看板的列在挤不下�
 <!-- 截图：把浏览器窗口拉窄后的 agent 页面（或者直接用手机截），展示移动端布局。
      这里放竖的窄图比宽图合适。 -->
 
-![手机上的样子](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/mobile.png)
+![手机上的样子](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/zh/mobile.png)
 
 ## 你的 agent 能做什么
 

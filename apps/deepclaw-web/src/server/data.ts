@@ -29,11 +29,24 @@ export async function updateProjectTags(projectId: string, tags: string[]): Prom
     }
 }
 
-export async function updateProjectTask(
-    projectId: string, task: UpdateContent<Task, 'title'>
-): Promise<void> {
+/** The id finds the task, the rest is everything a card on the board is allowed to write. */
+export type TaskEdit =
+    Pick<Task, 'id'> & Partial<Pick<Task, 'title' | 'description' | 'pause' | 'verified'>>;
+
+/**
+ * What this takes is what anyone who reaches the page can send, and the gateway behind it writes
+ * whole task patches, so the fields are copied over one by one: a request that also carried an
+ * output, an assignee or a closing date would otherwise have all of them filed as the user's doing.
+ */
+export async function updateProjectTask(projectId: string, task: TaskEdit): Promise<void> {
     try {
-        LoopGateway.updateProjectTask(projectId, task);
+        // Undefined is a value to the Object.assign at the end of this, so only what came in goes on.
+        const patch: TaskEdit = {id: task.id};
+        if (task.title !== undefined) patch.title = task.title;
+        if (task.description !== undefined) patch.description = task.description;
+        if (task.pause !== undefined) patch.pause = task.pause;
+        if (task.verified !== undefined) patch.verified = task.verified;
+        LoopGateway.updateProjectTask(projectId, patch);
         revalidatePath('/', 'layout');
     } catch (error) {
         console.error('Error saving project task:', error);

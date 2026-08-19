@@ -24,7 +24,7 @@ const events = {
     updateProject: {eventType: 'updateProject', content: {id: 'p1'}},
     updateAgent: {eventType: 'updateAgent', content: {id: 'a1'}},
     updateCron: {eventType: 'updateCron', content: {id: 'c1'}},
-    updateRunningTasks: {eventType: 'updateRunningTasks', content: [{projectId: 'p1', taskTitle: 't'}]},
+    updateRunningTasks: {eventType: 'updateRunningTasks', content: [{projectId: 'p1', taskId: 't1'}]},
     updateBusyLoops: {eventType: 'updateBusyLoops', content: [LOOP_ID]},
 };
 

@@ -109,10 +109,10 @@ describe('AnthropicLoop', () => {
     });
 
     test('gives a task loop its own session', () => {
-        const taskLoop = newLoop().createTaskLoop({projectId: 'p1', taskTitle: 'ship it'});
+        const taskLoop = newLoop().createTaskLoop({projectId: 'p1', taskId: 'ship-it'});
         expect(taskLoop).toBeInstanceOf(AnthropicLoop);
         expect(mocks.getSessionDir).toHaveBeenLastCalledWith('agent', 'a1', '', {
-            kind: 'task', runId: expect.any(String), assignedTask: {projectId: 'p1', taskTitle: 'ship it'},
+            kind: 'task', runId: expect.any(String), assignedTask: {projectId: 'p1', taskId: 'ship-it'},
         });
     });
 });

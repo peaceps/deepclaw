@@ -5,6 +5,7 @@ import {
 import {type SkillInfo} from '@deepclaw/loop-gateway';
 import {type UpdateContent} from '@deepclaw/utils';
 import {
+    type TaskEdit,
     getActiveAgents, getCronHistories, getSkills, setSkillAgents,
     updateAgentIdentity, updateCronTaskStatus, updateProjectTags, updateProjectTask,
 } from './data';
@@ -56,8 +57,8 @@ function newIdentity(avatar?: string): UpdateContent<AgentSoulIdentity> {
     return avatar === undefined ? {id: 'a1', role: 'boss'} : {id: 'a1', avatar};
 }
 
-function newTask(): UpdateContent<Task, 'title'> {
-    return {title: 'ship it'};
+function newTask(): TaskEdit {
+    return {id: 'ship-it', title: 'ship it'};
 }
 
 beforeEach(() => {
@@ -131,6 +132,21 @@ describe('updateProjectTask', () => {
         await updateProjectTask('p1', newTask());
         expect(mocks.updateProjectTask).toHaveBeenCalledWith('p1', newTask());
         expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    test('carries a pause and a verdict on', async () => {
+        await updateProjectTask('p1', {id: 'ship-it', pause: true, verified: false});
+        expect(mocks.updateProjectTask)
+            .toHaveBeenCalledWith('p1', {id: 'ship-it', pause: true, verified: false});
+    });
+
+    /** The board writes what a card offers, whatever else a request to this action carried. */
+    test('drops what no card on the board may write', async () => {
+        await updateProjectTask('p1', {
+            id: 'ship-it', title: 'ship it', status: 'done', assignee: 'a2',
+            output: {type: 'text', content: 'shipped'},
+        } as TaskEdit);
+        expect(mocks.updateProjectTask).toHaveBeenCalledWith('p1', {id: 'ship-it', title: 'ship it'});
     });
 
     test('reports a failing gateway', async () => {

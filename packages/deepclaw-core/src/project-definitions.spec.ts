@@ -6,6 +6,7 @@ import {
 
 function newTask(overrides: Partial<Task> = {}): Task {
     return {
+        id: 'task',
         title: 'task',
         description: '',
         status: 'todo',

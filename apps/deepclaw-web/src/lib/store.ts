@@ -80,7 +80,7 @@ type AppState = {
   getProjects: () => Project[];
   setProjects: (projects: Project[]) => void;
   updateProject: (project: UpdateContent<Project>) => void;
-  updateProjectTask: (projectId: string, task: UpdateContent<Task, 'title'>) => void;
+  updateProjectTask: (projectId: string, task: UpdateContent<Task>) => void;
   setRunningTasks: (runningTasks: RunningTask[]) => void;
   setBusyLoops: (busyLoops: string[]) => void;
   setCronTasks: (cronTasks: CronTask[]) => void;
@@ -143,20 +143,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateProject: (project: UpdateContent<Project>): void => {
     set((state) => ({ projects: handleUpdatedArrayContent(state.projects, project) }));
   },
-  updateProjectTask: (projectId: string, data: UpdateContent<Task, 'title'>): void => {
+  updateProjectTask: (projectId: string, data: UpdateContent<Task>): void => {
     set((state) => {
       const project = state.projects.find(p => p.id === projectId);
       if (!project) {
         throw new Error('Project not found.');
       }
-      const taskTitle = data.title;
-      const task = project.tasks[taskTitle];
-      if (!task) {
+      if (!project.tasks[data.id]) {
         throw new Error('Task not found.');
       }
       return { projects: state.projects.map(p => p.id === projectId ? {
         ...project,
-        tasks: handleUpdateRecordContent(project.tasks, { ...data, title: taskTitle }, false, 'title'),
+        tasks: handleUpdateRecordContent(project.tasks, data),
       } : p) };
     });
   },
