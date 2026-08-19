@@ -27,8 +27,9 @@ export const HISTORIES_READ_MAX = 5;
  * How much of an answer the reports of the runs may fill. A report is as long as the run made it,
  * so how many of them fit is nothing a count of runs can say: past what an answer holds, the whole
  * of it is filed away and comes back as a preview and a path, which is a worse answer than fewer
- * runs and the way to the rest of them. So the budget is what an answer holds, less the room the
- * one report that is carried whatever its length may take before the whole answer is filed.
+ * runs and the way to the rest of them. So the budget is a part of what an answer holds, and what
+ * it leaves is room for the one report that is carried whatever its length: no room is enough for
+ * any length, and the room there is buys the reports that are merely long an answer of their own.
  */
 const ANSWER_BUDGET = TRUNCATE_THRESHOLD * 0.6;
 
@@ -215,7 +216,7 @@ and read from there.`,
                 },
                 before: {
                     type: 'number',
-                    description: 'Read the runs started before this time (epoch ms) instead of the latest ones, to walk further back than one answer reaches.'
+                    description: 'Read the runs started before this time (epoch ms) instead of the latest ones, to walk further back than one answer reaches. A run started at this very time is not read back, so the start of the oldest run of an answer reads the ones before it and no run twice.'
                 },
             },
             required: ['id'],
@@ -226,23 +227,38 @@ and read from there.`,
     loopKinds: ['main'],
     invoke: async function(input: GetCronHistoriesInput): Promise<string> {
         const limit = Math.min(Math.max(input.limit || HISTORIES_READ, 1), HISTORIES_READ_MAX);
+        // One run more than was wanted is asked of the record, and whether it came is what says the
+        // record goes on: counting what is left after filtering and cutting to size cannot say it,
+        // there a run held back for reporting nothing looks like a run that was never in the record.
+        // Held back out of a window that came back full it reads as one run further back than it is,
+        // and the way on may lead to nothing: a call spent for an empty answer, which is the side to
+        // be wrong on. An end read into a record that goes on is read once and believed.
+        const found = CronService.getCronHistories(
+            input.id, input.before || Number.MAX_SAFE_INTEGER, limit + 1
+        );
         // The run that asks is a history of its own by then, and one that has nothing to report
         // until it records something. What it did record is its own to read back: a report long
         // enough to be filed is reachable no other way from inside the run that wrote it.
-        const histories = CronService.getCronHistories(
-            input.id, input.before || Number.MAX_SAFE_INTEGER, limit + 1
-        ).filter(history => history.completed || history.output).slice(0, limit);
+        const histories = found
+            .filter(history => history.completed || history.output).slice(0, limit);
         if (!histories.length) {
-            return 'This cron task has no finished run to read back.';
+            // A window of runs that all died mid way is no end of the record either, and the run
+            // that reported is further back than this call reached.
+            return found.length > limit
+                ? `No run in this window reported anything, read further back with before: ${
+                    found[found.length - 1]!.start}`
+                : 'This cron task has no finished run to read back.';
         }
-        // An answer as full as it was asked to be says nothing about what lies before it, so the
-        // way further back is named whenever the record may go on: no way named is the end of it.
-        return answerOf(histories, histories.length === limit);
+        return answerOf(histories, found.length > limit);
     },
 }
 
-/** As many of the runs as one answer carries, and where to read the ones it left for the next. */
-function answerOf(histories: CronJobHistory[], mayGoOn: boolean): string {
+/**
+ * As many of the runs as one answer carries, and where to read the ones it left for the next. The
+ * way further back is named for a run the budget dropped as much as for one the record still holds
+ * beyond this answer, and named nowhere else: a caller that reads no way on has read the record out.
+ */
+function answerOf(histories: CronJobHistory[], goesOn: boolean): string {
     const carried: (CronJobHistory | ReadableHistory)[] = [];
     let size = 0;
     for (const history of histories) {
@@ -255,7 +271,7 @@ function answerOf(histories: CronJobHistory[], mayGoOn: boolean): string {
         carried.push(one);
         size += length;
     }
-    if (carried.length === histories.length && !mayGoOn) {
+    if (carried.length === histories.length && !goesOn) {
         return JSON.stringify(carried);
     }
     // The time stands at the end of the sentence, where nothing of the sentence can be copied into

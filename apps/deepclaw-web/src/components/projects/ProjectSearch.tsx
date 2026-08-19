@@ -20,11 +20,23 @@ export type ProjectFilters = {
     owner: string;
 };
 
-export const DEFAULT_PROJECT_FILTERS: ProjectFilters = {
+/** Filters that hide no project, which whoever has one to show falls back on to be sure it shows. */
+export const ALL_PROJECT_FILTERS: Readonly<ProjectFilters> = Object.freeze({
     query: '',
-    status: 'ongoing',
+    status: 'all',
     owner: 'all',
-};
+});
+
+/**
+ * What the board opens with, its own object rather than a name of the one above: it hides nothing
+ * today, and narrowing it tomorrow is no reason for a link to one project to stop leading there,
+ * because what falls back does it on the filters that hide nothing by definition.
+ */
+export const DEFAULT_PROJECT_FILTERS: Readonly<ProjectFilters> = Object.freeze({
+    query: '',
+    status: 'all',
+    owner: 'all',
+});
 
 function textSearchProjects(projects: Project[], query: string): Project[] {
     const normalized = query.trim().toLowerCase();

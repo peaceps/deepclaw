@@ -259,17 +259,51 @@ describe('getCronHistoriesTool invoke', () => {
     });
 
     /**
-     * A caller that got as much as it asked for heard nothing about what lies before that, and a run
-     * walking back through the record reads no way further back as the end of it.
+     * The one run asked for beyond what is wanted came, so the record goes on past this answer and
+     * a run walking back through it is told where. The way on names the oldest run of the answer,
+     * which the next call reads before rather than again.
      */
-    test('names the way further back when the answer is as full as it was asked to be', async () => {
+    test('names the way further back when the record goes on beyond the answer', async () => {
+        getCronHistories.mockReturnValue([
+            newHistory({start: 1755172800000, completed: 1755172860000, finalText: 'of wednesday'}),
+            newHistory({start: 1755086400000, completed: 1755086460000, finalText: 'of tuesday'}),
+            newHistory({start: 1755000000000, completed: 1755000060000, finalText: 'of monday'}),
+        ]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 2}, newTestContext());
+        expect(result).toContain('of tuesday');
+        expect(result).not.toContain('of monday');
+        // Nothing of the sentence stands where the time is copied out of it.
+        expect(result).toMatch(/read them with before: 1755086400000$/);
+    });
+
+    /**
+     * A record that ended within the answer is a record read out, and saying otherwise sends the
+     * next call after runs that were never there. Asking for one run more than is wanted is what
+     * tells the two apart: the answer is as full as it was asked to be either way.
+     */
+    test('names no way further back when the record ends inside the answer', async () => {
         getCronHistories.mockReturnValue([
             newHistory({start: 1755086400000, completed: 1755086460000, finalText: 'of tuesday'}),
             newHistory({start: 1755000000000, completed: 1755000060000, finalText: 'of monday'}),
         ]);
         const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 2}, newTestContext());
         expect(result).toContain('of monday');
-        // Nothing of the sentence stands where the time is copied out of it.
+        expect(result).not.toContain('read them with before');
+    });
+
+    /**
+     * A run the machine stopped mid way stays in the record with nothing to report, and years of a
+     * task collect a few. Held back from the answer they make it shorter than it was asked to be,
+     * which is no word on the runs before them.
+     */
+    test('names the way further back past the runs that reported nothing', async () => {
+        getCronHistories.mockReturnValue([
+            newHistory({start: 1755172800000}),
+            newHistory({start: 1755086400000}),
+            newHistory({start: 1755000000000, completed: 1755000060000, finalText: 'of monday'}),
+        ]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 2}, newTestContext());
+        expect(result).toContain('of monday');
         expect(result).toMatch(/read them with before: 1755000000000$/);
     });
 
@@ -290,6 +324,26 @@ describe('getCronHistoriesTool invoke', () => {
 
     test('says so when the task has nothing to read back', async () => {
         expect(await getCronHistoriesTool.invoke({id: 'c1'}, newTestContext()))
+            .toBe('This cron task has no finished run to read back.');
+    });
+
+    /**
+     * A machine restarted a few days in a row leaves as many runs that never got to report, and a
+     * window of nothing but those is no more the end of the record than a full one is.
+     */
+    test('names the way further back when no run of the window reported at all', async () => {
+        getCronHistories.mockReturnValue([
+            newHistory({start: 1755172800000}),
+            newHistory({start: 1755086400000}),
+            newHistory({start: 1755000000000}),
+        ]);
+        const result = await getCronHistoriesTool.invoke({id: 'c1', limit: 2}, newTestContext());
+        expect(result).toMatch(/read further back with before: 1755000000000$/);
+    });
+
+    test('says so when every run there is died before reporting', async () => {
+        getCronHistories.mockReturnValue([newHistory({start: 1755000000000})]);
+        expect(await getCronHistoriesTool.invoke({id: 'c1', limit: 2}, newTestContext()))
             .toBe('This cron task has no finished run to read back.');
     });
 

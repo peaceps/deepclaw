@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {ProjectRow} from './ProjectRow';
 import { useTranslation } from 'react-i18next';
-import { getProjectStatus } from '@deepclaw/core';
-import { ProjectSearch, DEFAULT_PROJECT_FILTERS, filterProjects } from './ProjectSearch';
+import {
+  ProjectSearch, ALL_PROJECT_FILTERS, DEFAULT_PROJECT_FILTERS, filterProjects
+} from './ProjectSearch';
 import { usePersistentString } from '@/lib/use-persistent-state';
 
 export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string }) {
@@ -29,11 +30,9 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
   } else if (selectedProjectId && selectedProject && selectedProjectId !== handledSelectedProjectId) {
     setHandledSelectedProjectId(selectedProjectId);
     setExpandedProjectId(selectedProjectId);
+    // A link names the project to show, so a view it falls outside of gives way rather than the link.
     if (filterProjects([selectedProject], filters).length === 0) {
-      setFilters({
-        ...DEFAULT_PROJECT_FILTERS,
-        status: getProjectStatus(selectedProject),
-      });
+      setFilters(ALL_PROJECT_FILTERS);
     }
   }
 
