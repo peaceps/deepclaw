@@ -169,6 +169,18 @@ describe('mcp tools', () => {
         expect(names('main', 'agent')).toContain(mcpName);
     });
 
+    /**
+     * The tools are read before anything else of a prompt, so their order decides whether a cache
+     * is found at all. Servers answer in whatever order they answer in, which is none.
+     */
+    test('hands the served tools over by name, whatever order they arrived in', () => {
+        const served = [`${MCP_PREFIX}zebra`, `${MCP_PREFIX}apple`, `${MCP_PREFIX}mango`];
+        mocks.getTools.mockReturnValue(Object.fromEntries(
+            served.map(name => [name, newMcpTool(name)])
+        ));
+        expect(names('main', 'agent').slice(-served.length)).toEqual([...served].sort());
+    });
+
     test('looks a tool up by its prefixed name', () => {
         mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName)});
         expect(ToolsManager.getToolDesc('main', 'agent', mcpName)?.tool.name).toBe(mcpName);

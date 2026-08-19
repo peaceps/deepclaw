@@ -64,11 +64,8 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
     ): Promise<ThinkingResponse> {
         const stream = this.client.messages.stream({
             model: this.gw.model,
-            system: [
-                {type: 'text', text: system.cacheable, cache_control: {type: 'ephemeral'}},
-                {type: 'text', text: system.dynamic},
-            ],
-            messages,
+            system: this.systemBlocks(system),
+            messages: this.markHistoryEnd(messages),
             tools,
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature,
@@ -78,6 +75,45 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
 
         const response = await stream.finalMessage();
         return this.setTransitionReason(response as unknown as ThinkingResponse);
+    }
+
+    /**
+     * A breakpoint of its own for each of the two cached pieces, so what the agent learns of itself
+     * mid session rewrites only the shorter one. An empty piece is left out: a text block with
+     * nothing in it is refused, and a breakpoint on it would cache the same prefix twice.
+     */
+    private systemBlocks(system: SystemPrompt): TextBlockParam[] {
+        const cached: TextBlockParam[] = [system.cacheable, system.learned]
+            .filter(text => !!text.trim())
+            .map(text => ({type: 'text', text, cache_control: {type: 'ephemeral'}}));
+        return system.dynamic.trim()
+            ? [...cached, {type: 'text', text: system.dynamic}]
+            : cached;
+    }
+
+    /**
+     * The end of the history carries a breakpoint, which is what lets the next call read all of it
+     * back instead of paying for every turn again: the cache of this call is the prefix of the next.
+     * The mark goes on a copy of the last message, since the history itself is what the next call is
+     * built from and a mark left in it would be sent again, spending a breakpoint on a turn that
+     * has one behind it already.
+     */
+    private markHistoryEnd(messages: ThinkingMessage[]): ThinkingMessage[] {
+        const last = messages[messages.length - 1];
+        if (!last) {
+            return messages;
+        }
+        // Plain text becomes the one block it always was on the wire, unless it says nothing at
+        // all: an empty block is refused, and there is nothing to hold a mark in it anyway.
+        const content: ThinkingContent[] = typeof last.content === 'string'
+            ? (last.content ? [{type: 'text', text: last.content}] : [])
+            : [...last.content];
+        const end = content[content.length - 1];
+        if (!end) {
+            return messages;
+        }
+        content[content.length - 1] = {...end, cache_control: {type: 'ephemeral'}};
+        return [...messages.slice(0, -1), {...last, content}];
     }
 
     protected override isInputExceedLimit(error: any): boolean {

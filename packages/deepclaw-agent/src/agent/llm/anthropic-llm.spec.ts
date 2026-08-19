@@ -116,7 +116,7 @@ async function runWithoutWaiting<T>(start: () => Promise<T>): Promise<T> {
 
 function invoke(llm: AnthropicLLM, messages: ThinkingMessage[] = []): Promise<ThinkingResponse> {
     return llm.invoke(
-        'agent', {cacheable: 'cacheable prompt', dynamic: 'dynamic prompt'},
+        'agent', {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: 'dynamic prompt'},
         messages, () => undefined, newTestLogger()
     );
 }
@@ -152,16 +152,64 @@ describe('AnthropicLLM createLLMClient', () => {
     });
 });
 
+/** How many breakpoints the call asked for on the history, wherever they landed in it. */
+function cacheMarks(): number {
+    const sent = (mocks.stream.mock.calls[0]![0] as {messages: ThinkingMessage[]}).messages;
+    return sent
+        .flatMap(message => typeof message.content === 'string' ? [] : message.content)
+        .filter(block => !!block.cache_control).length;
+}
+
 describe('AnthropicLLM request', () => {
 
-    test('sends the stable system prompt as an ephemeral cached block', async () => {
+    test('caches the stable prompt and what was learned under a breakpoint each', async () => {
         await invoke(newLLM());
         expect(mocks.stream.mock.calls[0]![0]).toMatchObject({
             system: [
                 {type: 'text', text: 'cacheable prompt', cache_control: {type: 'ephemeral'}},
+                {type: 'text', text: 'learned prompt', cache_control: {type: 'ephemeral'}},
                 {type: 'text', text: 'dynamic prompt'},
             ],
         });
+    });
+
+    test('leaves out a piece of the system prompt that says nothing', async () => {
+        await newLLM().invoke(
+            'agent', {cacheable: 'cacheable prompt', learned: '', dynamic: ' '},
+            [], () => undefined, newTestLogger()
+        );
+        expect(mocks.stream.mock.calls[0]![0]!.system).toEqual([
+            {type: 'text', text: 'cacheable prompt', cache_control: {type: 'ephemeral'}},
+        ]);
+    });
+
+    test('marks the end of the history, so the next call reads it from the cache', async () => {
+        await invoke(newLLM(), [
+            {role: 'user', content: 'hi'},
+            {role: 'assistant', content: [{type: 'text', text: 'first'}, {type: 'text', text: 'last'}]},
+        ]);
+        expect(mocks.stream.mock.calls[0]![0]!.messages).toEqual([
+            {role: 'user', content: 'hi'},
+            {role: 'assistant', content: [
+                {type: 'text', text: 'first'},
+                {type: 'text', text: 'last', cache_control: {type: 'ephemeral'}},
+            ]},
+        ]);
+    });
+
+    test('marks the plain text of a message as the block it goes over as', async () => {
+        await invoke(newLLM(), [{role: 'user', content: 'hi'}]);
+        expect(mocks.stream.mock.calls[0]![0]!.messages).toEqual([
+            {role: 'user', content: [{type: 'text', text: 'hi', cache_control: {type: 'ephemeral'}}]},
+        ]);
+    });
+
+    test.for([
+        ['no history at all', [] as ThinkingMessage[]],
+        ['a last message that says nothing', [{role: 'user', content: ''}] as ThinkingMessage[]],
+    ] as const)('marks nothing on %s', async ([, messages]) => {
+        await invoke(newLLM(), [...messages]);
+        expect(cacheMarks()).toBe(0);
     });
 
     test('sends the model, the history, the tools and the gateway limits', async () => {
@@ -180,7 +228,7 @@ describe('AnthropicLLM request', () => {
         mocks.stream.mockReturnValue(newStream(newResponse(), ['he', 'llo']));
         const streamer = vi.fn<(text: string) => void>(() => undefined);
         await newLLM().invoke(
-            'agent', {cacheable: 'c', dynamic: 'd'}, [], streamer, newTestLogger()
+            'agent', {cacheable: 'c', learned: 'l', dynamic: 'd'}, [], streamer, newTestLogger()
         );
         expect(streamer.mock.calls).toEqual([['he'], ['llo']]);
     });
@@ -201,7 +249,7 @@ describe('AnthropicLLM image references', () => {
         const messages = withImage('dcimg://abc123.png');
         await invoke(newLLM(), messages);
         expect(mocks.readImage).toHaveBeenCalledWith('abc123.png');
-        expect(sentContent()[1]).toEqual({
+        expect(sentContent()[1]).toMatchObject({
             type: 'image',
             source: {type: 'base64', media_type: 'image/png', data: Buffer.from('the image').toString('base64')},
         });
@@ -211,21 +259,26 @@ describe('AnthropicLLM image references', () => {
     test('tells the model about an image whose bytes are gone', async () => {
         mocks.readImage.mockReturnValue(null);
         await invoke(newLLM(), withImage('dcimg://abc123.png'));
-        expect(sentContent()[1]).toEqual({type: 'text', text: '[image unavailable, its bytes are gone]'});
+        expect(sentContent()[1]).toMatchObject({type: 'text', text: '[image unavailable, its bytes are gone]'});
     });
 
     test('drops an image of a type the model does not take', async () => {
         mocks.readImage.mockReturnValue(Buffer.from('the image'));
         await invoke(newLLM(), withImage('dcimg://abc123.bin'));
-        expect(sentContent()[1]).toEqual({
+        expect(sentContent()[1]).toMatchObject({
             type: 'text', text: '[image dropped, unsupported type application/octet-stream]'
         });
     });
 
-    test('leaves a history without references untouched', async () => {
+    /**
+     * The history is what the next call is built from, so neither the bytes of an image nor the
+     * breakpoint of this call may be left in it: a mark sent again would spend a breakpoint on a
+     * turn that has one behind it already.
+     */
+    test('leaves the history it was given as it found it', async () => {
         const messages: ThinkingMessage[] = [{role: 'user', content: 'hi'}];
         await invoke(newLLM(), messages);
-        expect((mocks.stream.mock.calls[0]![0] as {messages: unknown}).messages).toBe(messages);
+        expect(messages[0]).toEqual({role: 'user', content: 'hi'});
         expect(mocks.readImage).not.toHaveBeenCalled();
     });
 });

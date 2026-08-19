@@ -61,15 +61,19 @@ ${this.agentMode(agentConfig.mode)}
 ${this.handOver(agentConfig.mode, loopKind, isCron, this.filesDir(isCron, projectId, assignedTask))}
 
 # Project Management
-${this.projectManagement(agentConfig.mode, !isCron && !spawned && !!projectId, personaId)}
+${this.projectManagement(agentConfig.mode, !isCron && !spawned && !!projectId, personaId)}`;
 
+        // What the agent picked up rather than what it is: saving a memory or installing a skill
+        // rewrites this in the middle of a session, which is why it stands apart from the block
+        // above rather than at the end of it.
+        const learned = `
 # Memory
 ${this.memory(role, personaId, projectId)}
 
 # Skills
 ${this.availableSkills(personaId)}`;
 
-        const dynamic = isCron
+        const current = isCron
             ? `
 # Current Cron Task
 ${this.cronCurrentTask(projectId)}`
@@ -80,7 +84,10 @@ ${this.projectCurrentProject(assignedTask?.projectId || projectId)}${
     // what of the task it should know is in the prompt the task loop wrote for it.
     this.assignedTask(loopKind === 'task' ? assignedTask : undefined)}`;
 
-        return {cacheable, dynamic};
+        return {
+            cacheable, learned,
+            dynamic: `${persona ? this.personalityChanged(persona) : ''}${current}`,
+        };
     }
 
     private static assignedTask(assignedTask?: AssignedTask): string {
@@ -183,18 +190,27 @@ get_cron_histories whenever your work stands on it, as saying what changed since
         };
     }
 
-    private static personality(agentIdentity: AgentIdentity): string {
-        let prompt = '';
-        if (AgentIdentityManager.isPersonalityChanged(agentIdentity.id)) {
-            prompt += `
-The user has changed your personality settings, please follow the new personalities and ignore the old ones.`;
+    /**
+     * The one turn that first hears of a change of personality says so, and the flag is spent on
+     * being read. Standing in a cached block that sentence would rewrite the whole prefix on the
+     * very next turn, so it belongs where nothing is cached to begin with.
+     */
+    private static personalityChanged(agentIdentity: AgentIdentity): string {
+        if (!AgentIdentityManager.isPersonalityChanged(agentIdentity.id)) {
+            return '';
         }
+        return `
+# Personality Changed
+The user has changed your personality settings, please follow the new personalities and ignore the old ones.
+`;
+    }
+
+    private static personality(agentIdentity: AgentIdentity): string {
         const personalities = agentIdentity.personalities.join(',');
-        prompt += `Your name is ${agentIdentity.name}, your role is ${agentIdentity.role}.
+        return `Your name is ${agentIdentity.name}, your role is ${agentIdentity.role}.
 ${personalities ? `You have the following personalities: ${personalities}.` : ""}
 ${agentIdentity.description ? `You are described as: ${agentIdentity.description}.` : ""}
 Of course you should always focus on the tasks to do, personalities are just for your reference.`;
-        return prompt;
     }
 
     private static emotions(): string {

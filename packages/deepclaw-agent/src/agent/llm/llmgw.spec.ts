@@ -106,7 +106,7 @@ function newLLM(loopKind: LoopKind = 'main', llmConfig: Partial<LLMConfig> = {})
 }
 
 function newSystem(): SystemPrompt {
-    return {cacheable: 'cacheable prompt', dynamic: 'dynamic prompt'};
+    return {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: 'dynamic prompt'};
 }
 
 function newTool(name: string): LLMTool {

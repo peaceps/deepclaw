@@ -210,12 +210,12 @@ export class ProjectManager {
         // The id both found this task and files it in the record, so it is no part of what a patch
         // may write: taken from here it would move the task off its own key, and nothing afterwards
         // would lead back to it.
-        const {id: _, ...patch} = taskInfo;
+        const {id, ...patch} = taskInfo;
         Object.assign(task, patch);
         // Only an output that just arrived is filed away. The one already on the task was filed
         // when it came in, and every later update of that task would file it over again.
         if (taskInfo.output) {
-            fileAwayOutput(taskInfo.output, projectOutputDir(projectId), FileUtils.hashString(task.id));
+            fileAwayOutput(taskInfo.output, projectOutputDir(projectId), FileUtils.hashString(id));
         }
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();

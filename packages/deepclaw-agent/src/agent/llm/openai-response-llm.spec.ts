@@ -129,7 +129,7 @@ function invoke(
     streamer: (text: string) => void = () => undefined
 ): Promise<ThinkingResponse> {
     return llm.invoke(
-        'agent', {cacheable: 'cacheable prompt', dynamic: 'dynamic prompt'},
+        'agent', {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: 'dynamic prompt'},
         messages, streamer, newTestLogger()
     );
 }
@@ -169,10 +169,10 @@ describe('OpenAIResponseLLM createLLMClient', () => {
 
 describe('OpenAIResponseLLM request', () => {
 
-    test('joins both system prompts into the instructions', async () => {
+    test('joins all three system prompts into the instructions', async () => {
         await invoke(newLLM());
         expect(mocks.create.mock.calls[0]![0])
-            .toMatchObject({instructions: 'cacheable prompt\ndynamic prompt'});
+            .toMatchObject({instructions: 'cacheable prompt\nlearned prompt\ndynamic prompt'});
     });
 
     test('sends the model, the tools and the gateway limits as a stream', async () => {

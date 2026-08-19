@@ -54,7 +54,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
 
         const stream = await this.client.responses.create({
             model: this.gw.model,
-            instructions: `${system.cacheable}\n${system.dynamic}`,
+            instructions: `${system.cacheable}\n${system.learned}\n${system.dynamic}`,
             input: messages,
             stream: true,
             tools,

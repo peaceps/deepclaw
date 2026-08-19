@@ -219,7 +219,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             loopConfig: this.agentConfig,
             browserId: options.browserId,
             sessionDir: this.sessionDir,
-            system: {cacheable: '', dynamic: ''},
+            system: {cacheable: '', learned: '', dynamic: ''},
             logger: getLoopLogger(this.getId(), this.spawned?.runId),
             actions: {
                 newTaskLoop: this.createTaskLoop.bind(this),

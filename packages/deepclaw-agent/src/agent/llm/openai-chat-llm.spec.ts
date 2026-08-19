@@ -93,7 +93,7 @@ function invoke(
     streamer: (text: string) => void = () => undefined
 ): Promise<ThinkingResponse> {
     return llm.invoke(
-        'agent', {cacheable: 'cacheable prompt', dynamic: 'dynamic prompt'},
+        'agent', {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: 'dynamic prompt'},
         messages, streamer, newTestLogger()
     );
 }
@@ -161,7 +161,8 @@ describe('OpenAIChatLLM system prompt', () => {
     test('prepends the joined system prompt to a history that has none', async () => {
         const messages: ThinkingMessage[] = [{role: 'user', content: 'hi'}];
         await invoke(newLLM(), messages);
-        expect(messages[0]).toEqual({role: 'system', content: 'cacheable prompt\ndynamic prompt'});
+        expect(messages[0])
+            .toEqual({role: 'system', content: 'cacheable prompt\nlearned prompt\ndynamic prompt'});
     });
 
     test('overwrites the existing system message instead of adding another one', async () => {
@@ -170,7 +171,7 @@ describe('OpenAIChatLLM system prompt', () => {
         ];
         await invoke(newLLM(), messages);
         expect(messages.filter(message => message.role === 'system')).toEqual([
-            {role: 'system', content: 'cacheable prompt\ndynamic prompt'}
+            {role: 'system', content: 'cacheable prompt\nlearned prompt\ndynamic prompt'}
         ]);
     });
 

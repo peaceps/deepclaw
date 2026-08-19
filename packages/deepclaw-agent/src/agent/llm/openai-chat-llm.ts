@@ -59,7 +59,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         tools: ChatCompletionTool[],
         streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
-        const systemContent = `${system.cacheable}\n${system.dynamic}`;
+        const systemContent = `${system.cacheable}\n${system.learned}\n${system.dynamic}`;
         const systemIdx = messages.findIndex(m => m.role === 'system');
         if (systemIdx >= 0) {
             (messages[systemIdx] as ChatCompletionSystemMessageParam).content = systemContent;

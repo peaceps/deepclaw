@@ -99,9 +99,13 @@ export class ToolsManager {
 
     public static getToolsArray(loopKind: LoopKind, mode: AgentMode): LLMTool[] {
         const builtIn = this.array[loopKind][mode];
+        // The tools are read before anything else of a prompt, so their order is the start of what
+        // a cache is found by. Servers answer whenever they answer, which is no order to hand over:
+        // by name they land the same way in every call, however they arrived in this one.
         const mcp = Object.values(MCPService.getTools())
             .filter(tool => this.isAvailable(tool, loopKind, mode))
-            .map(tool => tool.tool);
+            .map(tool => tool.tool)
+            .sort((left, right) => left.name.localeCompare(right.name));
         return [...builtIn, ...mcp];
     }
 

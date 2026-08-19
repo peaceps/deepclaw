@@ -55,7 +55,7 @@ export function newTestContext(overrides: Partial<OneLoopContext> = {}): OneLoop
         sessionDir: '.agents/a1/session/s1',
         loopKind: 'main',
         loopConfig: newTestAgentConfig(),
-        system: {cacheable: 'cacheable prompt', dynamic: 'dynamic prompt'},
+        system: {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: 'dynamic prompt'},
         logger: newTestLogger(),
         actions: {
             newTaskLoop: vi.fn(() => ({} as FlushAgent)),

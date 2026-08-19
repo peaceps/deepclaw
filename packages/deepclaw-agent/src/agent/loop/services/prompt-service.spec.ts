@@ -55,6 +55,7 @@ async function loadService(setup: () => void = () => undefined) {
             .mockReturnValue('the assigned task'),
         getAgent: vi.spyOn(AgentIdentityManager, 'getAgent').mockReturnValue(undefined),
         getAgents: vi.spyOn(AgentIdentityManager, 'getAgents').mockReturnValue([]),
+        personalityChanged: vi.spyOn(AgentIdentityManager, 'isPersonalityChanged').mockReturnValue(false),
         memoryPrompt: vi.spyOn(MemoryManager, 'getMemoryPrompt').mockReturnValue('the memory prompt'),
         skillPrompt: vi.spyOn(SkillsManager, 'generateSkillPrompt').mockReturnValue('the skills prompt'),
         currentProject: vi.spyOn(ProjectManager, 'promptCurrentProject')
@@ -129,8 +130,15 @@ describe('platform and language', () => {
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable.split('\n').filter(line => line.startsWith('# '))).toEqual([
             '# Platform', '# Language', '# Main Identity', '# Personality', '# Emotions',
-            '# Agent Mode', '# Handing Work Over', '# Project Management', '# Memory', '# Skills',
+            '# Agent Mode', '# Handing Work Over', '# Project Management',
         ]);
+    });
+
+    /** Behind the block that never moves, so saving a memory leaves that one read from the cache. */
+    test('keeps what the agent picked up out of the block that never moves', async () => {
+        const {PromptService} = await loadService();
+        const {learned} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
+        expect(learned.split('\n').filter(line => line.startsWith('# '))).toEqual(['# Memory', '# Skills']);
     });
 });
 
@@ -216,6 +224,35 @@ describe('personality and emotions', () => {
             newTestAgentConfig(), newIdentity({description: ''}), 'agent', '', 'main'
         );
         expect(cacheable).not.toContain('You are described as');
+    });
+
+    /**
+     * The flag is spent on being read, so the sentence is there for one turn and gone the next.
+     * In a cached block that alone would rewrite the whole prefix on the turn right after.
+     */
+    test('says a personality changed where nothing is cached', async () => {
+        const {PromptService, personalityChanged} = await loadService();
+        personalityChanged.mockReturnValue(true);
+        const {cacheable, dynamic} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'main'
+        );
+        expect(dynamic).toContain('The user has changed your personality settings');
+        expect(cacheable).not.toContain('The user has changed your personality settings');
+    });
+
+    test('says nothing of a personality that stayed as it was', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable, dynamic} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'main'
+        );
+        expect(`${cacheable}${dynamic}`).not.toContain('The user has changed your personality settings');
+    });
+
+    /** No personality to speak of, and no reason to spend the flag that says it changed. */
+    test('leaves the flag alone for a loop that wears no personality', async () => {
+        const {PromptService, personalityChanged} = await loadService();
+        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'cron', 'c1', 'main');
+        expect(personalityChanged).not.toHaveBeenCalled();
     });
 
     test('omits the personality when there is no identity', async () => {
@@ -605,12 +642,13 @@ describe('memory and skills', () => {
         expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a1', 'p1');
     });
 
-    test('embeds the memory prompt in the cacheable part', async () => {
+    test('embeds the memory prompt in the learned part', async () => {
         const {PromptService} = await loadService();
-        const {cacheable, dynamic} = PromptService.provideSystemPrompt(
+        const {cacheable, learned, dynamic} = PromptService.provideSystemPrompt(
             newTestAgentConfig(), undefined, 'agent', '', 'main'
         );
-        expect(cacheable).toContain('the memory prompt');
+        expect(learned).toContain('the memory prompt');
+        expect(cacheable).not.toContain('the memory prompt');
         expect(dynamic).not.toContain('the memory prompt');
     });
 

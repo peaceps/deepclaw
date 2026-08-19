@@ -17,8 +17,15 @@ export type FootPrint = {
 /** What a drawn picture is filed under, so a loop can name the images it produced. */
 export const IMAGE_FOOT_PRINT = 'image';
 
+/**
+ * The system prompt in the three pieces the cache reads it in. Both of the first two are cached,
+ * with a breakpoint of their own each: what the agent learns about itself mid session sits behind
+ * the part that never moves, so a memory it saves rewrites its own piece and leaves the rest read
+ * from the cache. The last piece is rebuilt every turn and never worth a breakpoint.
+ */
 export type SystemPrompt = {
     cacheable: string;
+    learned: string;
     dynamic: string;
 }
 
