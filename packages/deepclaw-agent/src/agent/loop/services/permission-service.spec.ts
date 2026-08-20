@@ -9,7 +9,7 @@ vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
 function ask(
     loopId: string, group: 'command' | 'file' = 'command', role: FlushAgentRole = 'agent'
 ): ToolGuardResult {
-    return PermissionService.askPermissionGuard('rm -rf / ', group, loopId, role);
+    return PermissionService.askPermissionGuard('rm -rf /', group, loopId, role);
 }
 
 function expectAsk(result: ToolGuardResult) {
@@ -25,9 +25,13 @@ describe('askPermissionGuard', () => {
         expect(ask('cron.c1', 'command', 'cron')).toEqual({result: 'allowed'});
     });
 
+    /**
+     * The reason is joined verbatim: whatever separates it from the request belongs to the
+     * translation, which is where each language spells its own (see the agent en bundle).
+     */
     test('asks the user with the reason in front of the request', () => {
         const asked = expectAsk(ask('agent.p1'));
-        expect(asked.question.content).toBe('rm -rf / agent.tools.permission.request');
+        expect(asked.question.content).toBe('rm -rf /agent.tools.permission.request');
         expect(asked.question.type).toBe('select');
     });
 

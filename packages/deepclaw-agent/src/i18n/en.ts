@@ -41,6 +41,9 @@ You can ask me continue to modify the output or mark the task as verified when y
         },
         tools: {
             permission: {
+                // The reason is prepended verbatim, so the separator has to live here, where
+                // each language decides its own: english needs the leading space, chinese
+                // follows a full stop and reads worse with one. Keep the space.
                 request: ' Request access permission.',
                 allowOnce: 'Allow once',
                 always: 'Always allow {{group}} operation in this session',

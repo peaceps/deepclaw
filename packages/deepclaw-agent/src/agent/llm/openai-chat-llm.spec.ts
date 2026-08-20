@@ -158,11 +158,10 @@ describe('OpenAIChatLLM createLLMClient', () => {
 
 describe('OpenAIChatLLM system prompt', () => {
 
-    test('prepends the joined system prompt to a history that has none', async () => {
+    test('prepends the cached prompts to a history that has none', async () => {
         const messages: ThinkingMessage[] = [{role: 'user', content: 'hi'}];
         await invoke(newLLM(), messages);
-        expect(messages[0])
-            .toEqual({role: 'system', content: 'cacheable prompt\nlearned prompt\ndynamic prompt'});
+        expect(messages[0]).toEqual({role: 'system', content: 'cacheable prompt\nlearned prompt'});
     });
 
     test('overwrites the existing system message instead of adding another one', async () => {
@@ -171,8 +170,34 @@ describe('OpenAIChatLLM system prompt', () => {
         ];
         await invoke(newLLM(), messages);
         expect(messages.filter(message => message.role === 'system')).toEqual([
-            {role: 'system', content: 'cacheable prompt\nlearned prompt\ndynamic prompt'}
+            {role: 'system', content: 'cacheable prompt\nlearned prompt'}
         ]);
+    });
+
+    test('sends the state of the moment behind the history', async () => {
+        await invoke(newLLM(), [{role: 'user', content: 'hi'}]);
+        expect((mocks.create.mock.calls[0]![0] as {messages: unknown[]}).messages).toEqual([
+            {role: 'system', content: 'cacheable prompt\nlearned prompt'},
+            {role: 'user', content: 'hi'},
+            {role: 'system', content: 'dynamic prompt'},
+        ]);
+    });
+
+    test('leaves the state out when there is none to send', async () => {
+        await newLLM().invoke(
+            'agent', {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: '  '},
+            [{role: 'user', content: 'hi'}], () => undefined, newTestLogger()
+        );
+        expect((mocks.create.mock.calls[0]![0] as {messages: unknown[]}).messages).toEqual([
+            {role: 'system', content: 'cacheable prompt\nlearned prompt'},
+            {role: 'user', content: 'hi'},
+        ]);
+    });
+
+    test('keeps the state out of the history, so the next call carries one only', async () => {
+        const messages: ThinkingMessage[] = [{role: 'user', content: 'hi'}];
+        await invoke(newLLM(), messages);
+        expect(messages.filter(message => message.content === 'dynamic prompt')).toEqual([]);
     });
 
     test('sends the model, the gateway limits, the tools and the streaming options', async () => {

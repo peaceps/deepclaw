@@ -169,10 +169,10 @@ describe('OpenAIResponseLLM createLLMClient', () => {
 
 describe('OpenAIResponseLLM request', () => {
 
-    test('joins all three system prompts into the instructions', async () => {
+    test('keeps only the cached prompts in the instructions', async () => {
         await invoke(newLLM());
         expect(mocks.create.mock.calls[0]![0])
-            .toMatchObject({instructions: 'cacheable prompt\nlearned prompt\ndynamic prompt'});
+            .toMatchObject({instructions: 'cacheable prompt\nlearned prompt'});
     });
 
     test('sends the model, the tools and the gateway limits as a stream', async () => {
@@ -187,10 +187,27 @@ describe('OpenAIResponseLLM request', () => {
         });
     });
 
-    test('sends the live history as the input', async () => {
+    test('sends the history followed by the state of the moment', async () => {
+        await invoke(newLLM(), [{role: 'user', content: 'hi'}]);
+        expect((mocks.create.mock.calls[0]![0] as {input: unknown}).input).toEqual([
+            {role: 'user', content: 'hi'},
+            {role: 'developer', content: 'dynamic prompt'},
+        ]);
+    });
+
+    test('leaves the state out when there is none to send', async () => {
+        await newLLM().invoke(
+            'agent', {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: '  '},
+            [{role: 'user', content: 'hi'}], () => undefined, newTestLogger()
+        );
+        expect((mocks.create.mock.calls[0]![0] as {input: unknown}).input)
+            .toEqual([{role: 'user', content: 'hi'}]);
+    });
+
+    test('keeps the state out of the history, so the next call carries one only', async () => {
         const messages: ThinkingMessage[] = [{role: 'user', content: 'hi'}];
         await invoke(newLLM(), messages);
-        expect((mocks.create.mock.calls[0]![0] as {input: unknown}).input).toBe(messages);
+        expect(messages).toEqual([{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}]);
     });
 
     test('sends the bytes the reference points at as a data url', async () => {

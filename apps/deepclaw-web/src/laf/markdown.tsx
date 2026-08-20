@@ -11,7 +11,7 @@ function transformUrl(url: string): string {
 
 export const Markdown = memo(function Markdown({ content }: { content: string }) {
   return (
-    <div className="prose prose-sm max-w-none min-w-0 wrap-anywhere">
+    <div className="prose prose-sm max-w-none wrap-anywhere">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         urlTransform={transformUrl}

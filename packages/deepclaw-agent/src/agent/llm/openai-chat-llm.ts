@@ -59,7 +59,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         tools: ChatCompletionTool[],
         streamer: (text: string) => void
     ): Promise<ThinkingResponse> {
-        const systemContent = `${system.cacheable}\n${system.learned}\n${system.dynamic}`;
+        const systemContent = `${system.cacheable}\n${system.learned}`;
         const systemIdx = messages.findIndex(m => m.role === 'system');
         if (systemIdx >= 0) {
             (messages[systemIdx] as ChatCompletionSystemMessageParam).content = systemContent;
@@ -68,7 +68,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         }
         const stream = await this.client.chat.completions.create({
             model: this.gw.model,
-            messages,
+            messages: this.withDynamicLast(system, messages),
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature,
             tools,
@@ -145,6 +145,24 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             return this.setTransitionReason(finalResponse);
         }
         return this.newResponse('Error: No response from LLM.', 'error');
+    }
+
+    /**
+     * The state of the moment goes behind the history instead of into the system message. This
+     * cache is a plain prefix match with no breakpoint to place: whatever moves has to sit as late
+     * as possible, because everything after the first changed byte is paid for again. In the system
+     * message a task the agent updates itself costs the whole conversation its cache; behind the
+     * history it costs only its own tokens.
+     *
+     * The history is copied rather than appended to, since the next call is built from it and a
+     * state left behind would be sent again next turn, stale by then and in front of the new one.
+     * Copied even with no state to add: what was sent stays what was sent, while the history it was
+     * read from goes on growing with the answer to this very call.
+     */
+    private withDynamicLast(system: SystemPrompt, messages: ThinkingMessage[]): ThinkingMessage[] {
+        return system.dynamic.trim()
+            ? [...messages, {role: 'system', content: system.dynamic}]
+            : [...messages];
     }
 
     protected override newResponse(content: string, transitionReason: LLMTransitionReason = 'endLoop'): ThinkingResponse {

@@ -48,6 +48,10 @@ describe('agent translations', () => {
         }
     });
 
+    test('keeps the space that separates the english permission request from its reason', () => {
+        expect(en.agent.tools.permission.request).toMatch(/^ \S/);
+    });
+
     test('leaves no translation empty', () => {
         for (const bundle of [en, zh]) {
             for (const path of leafPaths(bundle)) {

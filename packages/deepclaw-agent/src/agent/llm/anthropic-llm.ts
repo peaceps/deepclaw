@@ -97,6 +97,14 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
      * The mark goes on a copy of the last message, since the history itself is what the next call is
      * built from and a mark left in it would be sent again, spending a breakpoint on a turn that
      * has one behind it already.
+     *
+     * Known limitation: what is written here lives five minutes, so a cron task reads it back only
+     * within the run that wrote it, across its own tool turns. Between runs an hourly or daily
+     * schedule always arrives after the cache is gone and pays the write price for nothing. Left as
+     * it is on purpose: the longer lifetime is a beta that asks for an extra header and twice the
+     * write price, third party endpoints do not have to support it, and a schedule can still miss
+     * the window it bought. Writing nothing for cron would cost more than it saves, as the turns
+     * inside one run are seconds apart and do read the cache back.
      */
     private markHistoryEnd(messages: ThinkingMessage[]): ThinkingMessage[] {
         const last = messages[messages.length - 1];

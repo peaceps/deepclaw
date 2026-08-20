@@ -54,8 +54,8 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
 
         const stream = await this.client.responses.create({
             model: this.gw.model,
-            instructions: `${system.cacheable}\n${system.learned}\n${system.dynamic}`,
-            input: messages,
+            instructions: `${system.cacheable}\n${system.learned}`,
+            input: this.withDynamicLast(system, messages),
             stream: true,
             tools,
             max_output_tokens: this.gw.maxTokens,
@@ -81,6 +81,24 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
 
         return this.flushAndRespondError(streamer,
             i18nInstance.t('agent.llm.openai.response.output.empty'));
+    }
+
+    /**
+     * The state of the moment goes behind the history instead of into the instructions. This cache
+     * is a plain prefix match with no breakpoint to place: whatever moves has to sit as late as
+     * possible, because everything after the first changed byte is paid for again. In the
+     * instructions a task the agent updates itself costs the whole conversation its cache; behind
+     * the history it costs only its own tokens.
+     *
+     * The history is copied rather than appended to, since the next call is built from it and a
+     * state left behind would be sent again next turn, stale by then and in front of the new one.
+     * Copied even with no state to add: what was sent stays what was sent, while the history it was
+     * read from goes on growing with the answer to this very call.
+     */
+    private withDynamicLast(system: SystemPrompt, messages: ThinkingMessage[]): ThinkingMessage[] {
+        return system.dynamic.trim()
+            ? [...messages, {role: 'developer', content: system.dynamic}]
+            : [...messages];
     }
 
     protected override setTransitionReason(response: Response): ThinkingResponse {
