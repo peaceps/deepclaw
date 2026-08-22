@@ -9,6 +9,7 @@ import {
     getTokenUsage
 } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
+import { keepReply } from '@/lib/kept-reply';
 import {
     AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, FlushAgentRole, newMessage,
     TokenUsage, type ImageContent
@@ -246,15 +247,8 @@ function usePersistStream(
         if (!event.done) {
           updateMessage(event.loopId, msgId, event.text);
         } else {
-          // The chunks live nowhere but in this browser until they are sent back, so what the user
-          // read is what is kept. A reply that streamed nothing leaves nothing here to send, and
-          // sending that nothing would wipe the text the run ended with: an error of a call that
-          // never got off the ground is a whole answer that was never written a chunk at a time.
-          const held = getMessageById(event.loopId, msgId)?.content;
-          const text = held || event.text;
-          if (text) {
-            updateChatMessage(browserId, event.loopId, msgId, text);
-          }
+          keepReply(getMessageById(event.loopId, msgId)?.content, event.text,
+            text => updateChatMessage(browserId, event.loopId, msgId, text));
         }
       },
       {

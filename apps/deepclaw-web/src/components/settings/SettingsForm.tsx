@@ -31,7 +31,9 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
   const [edited, setEdited] = useState(false);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<DeepclawConfig>(initialConfig);
-  const [savedMessage, setSavedMessage] = useState<string>('');
+  // What was written and whether it went, kept apart so a word about the language alone is not
+  // read as the whole form having gone in.
+  const [savedMessage, setSavedMessage] = useState<{key: string, failed?: boolean}>();
   const [validationResult, setValidationResult] = useState<ValidationResult>(initialValidation);
   const [panelToggleStatus, setPanelToggleStatus] = useState<ValidationResult['panelState']>(initialValidation.panelState);
 
@@ -75,14 +77,14 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
     try {
       await updateLanguage(lang);
       clearLangError();
-      setSavedMessage('web.pages.settings.saved');
+      setSavedMessage({key: 'web.pages.settings.langSaved'});
     } catch (e) {
       // TODO change to logger
       console.error(e);
       setLang(previous);
-      setSavedMessage('web.pages.settings.saveFailed');
+      setSavedMessage({key: 'web.pages.settings.langSaveFailed', failed: true});
     } finally {
-      setTimeout(() => setSavedMessage(''), 5000);
+      setTimeout(() => setSavedMessage(undefined), 5000);
     }
   }, [clearLangError, config.ui.lang, setLang]);
 
@@ -184,19 +186,19 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
           return;
       }
       await onSave(cfg);
-      setSavedMessage('web.pages.settings.saved');
+      setSavedMessage({key: 'web.pages.settings.saved'});
       setEdited(false);
     } catch (e) {
       // TODO change to logger
       console.error(e);
-      setSavedMessage('web.pages.settings.saveFailed');
+      setSavedMessage({key: 'web.pages.settings.saveFailed', failed: true});
     } finally {
       setSaving(false);
-      setTimeout(() => setSavedMessage(''), 5000);
+      setTimeout(() => setSavedMessage(undefined), 5000);
     }
   }, [onSave, saving, validate]);
 
-  const savedMessageClass = savedMessage === 'web.pages.settings.saved' ? 'text-green-600' : 'text-red-600';
+  const savedMessageClass = savedMessage?.failed ? 'text-red-600' : 'text-green-600';
   const saveButtonDisabled = !edited || saving;
   const saveButtonClass = `flex items-center gap-2 px-6 py-3 rounded-lg transition-colors font-medium ${
     saveButtonDisabled
@@ -223,7 +225,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
           <Save size={20} />
           {t('web.pages.settings.saveButton')}
         </button>
-        {savedMessage && <span className={`${savedMessageClass} text-sm`}>{t(savedMessage)}</span>}
+        {savedMessage && <span className={`${savedMessageClass} text-sm`}>{t(savedMessage.key)}</span>}
       </div>
 
       <div className="space-y-4">
@@ -326,7 +328,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
           <Save size={20} />
           {t('web.pages.settings.saveButton')}
         </button>
-        {savedMessage && <span className={`${savedMessageClass} text-sm`}>{t(savedMessage)}</span>}
+        {savedMessage && <span className={`${savedMessageClass} text-sm`}>{t(savedMessage.key)}</span>}
       </div>
     </div>
   );

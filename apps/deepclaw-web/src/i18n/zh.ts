@@ -251,6 +251,8 @@ export const zh = {
                 saveButton: '保存设置',
                 saved: '设置已保存',
                 saveFailed: '设置保存失败',
+                langSaved: '语言已保存',
+                langSaveFailed: '语言保存失败',
                 errors: {
                     total: '个配置错误，请修正后保存',
                     ui: '界面设置: {{count}} 个错误',

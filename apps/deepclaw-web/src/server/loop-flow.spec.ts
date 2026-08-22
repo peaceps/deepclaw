@@ -6,6 +6,8 @@ import type {
     AgentHandler, AgentInteractionEvent, AgentInteractionEventPayload, AgentInvokeOptions,
     AgentInvokeResponse, AgentRuntime, ChatMessage,
 } from '@deepclaw/core';
+/** The rule the view keeps a finished run by, taken from where the view takes it. */
+import {keepReply} from '@/lib/kept-reply';
 
 /**
  * The way from a chat that sends a message to a run that answers it, walked over the parts the
@@ -178,6 +180,11 @@ class FakeBrowser {
      * What this tab still has to tell the server. The word of a run travels over the network, so it
      * arrives after the gateway has already written the end of that run itself: whatever the tab
      * says of a finished run is the last word on it.
+     *
+     * Which is an order the clock keeps rather than anything holding it: the gateway writes the end
+     * of the run in a microtask of its own, the tab needs a trip down the stream and one back up
+     * through a server action. Were the tab ever to arrive first, the run would be kept as the last
+     * round it was written in, and this fixture would go on believing otherwise.
      */
     private readonly owed: (() => Promise<unknown>)[] = [];
 
@@ -329,14 +336,9 @@ class FakeBrowser {
             return;
         }
         this.streaming = undefined;
-        // A run is over, and the chunks it was written in were nowhere but here: what was read is
-        // sent back to be kept. A run that streamed nothing leaves the text it ended with instead.
-        const text = message?.content || frame.text || '';
-        if (text) {
-            this.owed.push(
-                () => updateChatMessage(this.browserId, streaming.loopId, streaming.msgId, text)
-            );
-        }
+        keepReply(message?.content, frame.text, text => this.owed.push(
+            () => updateChatMessage(this.browserId, streaming.loopId, streaming.msgId, text)
+        ));
     }
 
     private async settle(): Promise<void> {

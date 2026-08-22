@@ -251,6 +251,8 @@ export const en = {
                 saveButton: 'Save',
                 saved: 'Settings saved',
                 saveFailed: 'Settings saving failed',
+                langSaved: 'Language saved',
+                langSaveFailed: 'Language saving failed',
                 errors: {
                     total: 'error(s) found, please fix before saving',
                     ui: 'UI Settings: {{count}} error(s)',

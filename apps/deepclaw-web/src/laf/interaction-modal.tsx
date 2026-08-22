@@ -59,10 +59,12 @@ function ModalContent({ event, onClose, t }: {
           share one scroll and the buttons keep their place at the bottom of the card. */}
       <div className="w-full max-w-md max-h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex-1 min-h-0 overflow-y-auto">
-          {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 whitespace-pre-wrap wrap-anywhere">{event.content}</h3>
-          </div>
+          {/* Header: a question, which the answers below are for. A notice is all body, said once. */}
+          {!isReadonly && (
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 whitespace-pre-wrap wrap-anywhere">{event.content}</h3>
+            </div>
+          )}
 
           {/* Body */}
           <div className="px-6 py-5">
