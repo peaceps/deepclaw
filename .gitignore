@@ -24,6 +24,7 @@ next-env.d.ts
 .images/
 .cron
 
+DEEPCLAW.md
 apps/*/DEEPCLAW.md
 packages/*/DEEPCLAW.md
 apps/*/skills

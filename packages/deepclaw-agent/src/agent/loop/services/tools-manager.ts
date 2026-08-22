@@ -1,7 +1,7 @@
 import { ALL_LOOP_KINDS, LLMTool, ToolDesc } from '../../definitions/tool-definitions';
 import { LoopKind } from '../../definitions/definitions';
 import {syncCommandTool} from '../tools/sync-command-tool';
-import {subLoopTool, taskLoopTool} from '../tools/sub-loop-tool';
+import {subLoopTool, taskLoopTool} from '../tools/spawned-loop-tool';
 import {loadSkillDetailsTool, refreshSkillsTool, createSkillTool, searchOnlineSkillsTool, downloadSkillTool, removeSkillTool} from '../tools/skill-tool';
 import {readFileTool, writeFileTool, editFileTool} from '../tools/file-tool';
 import {

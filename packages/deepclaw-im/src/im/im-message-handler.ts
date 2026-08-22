@@ -1,4 +1,6 @@
-import { AgentInteractionEvent, getLoopId, newMessage, type ImageContent } from "@deepclaw/core";
+import {
+    AgentInteractionEvent, getLoopId, INTERACTION_TIMEOUT, newMessage, type ImageContent
+} from "@deepclaw/core";
 import { isCurrentConfigValid } from "@deepclaw/config";
 import { i18nInstance } from '@deepclaw/i18n';
 import { parseStringifiedAnswer, stringifiedInteractionEvent } from "../utils/stringified-event";
@@ -30,15 +32,36 @@ export abstract class IMMessageHandler<E, M> {
 
     private handleInteractionEvent(messageId: string, event: AgentInteractionEvent): Promise<string> {
         this.sendMessage(messageId, stringifiedInteractionEvent(event));
-        return event.type === 'readonly' ? Promise.resolve('') : new Promise<string>((resolve) => {
-            this.interactionResolver = resolve;
-        }).then(async (answer: string) => {
-            return await parseStringifiedAnswer(
-                event,
-                answer,
-                c => this.sendMessage(messageId, c),
-                (e) => this.handleInteractionEvent(messageId, e)
-            );
+        return event.type === 'readonly' ? Promise.resolve('') : this.waitForAnswer()
+            .then(async (answer: string) => {
+                return await parseStringifiedAnswer(
+                    event,
+                    answer,
+                    c => this.sendMessage(messageId, c),
+                    (e) => this.handleInteractionEvent(messageId, e)
+                );
+            });
+    }
+
+    /**
+     * The next message of the chat is the answer. Nobody has to send one, and a question left in a
+     * chat forever would leave the run waiting forever with it: the agent would answer every message
+     * after that with busy. Giving up says the same thing to the tool as a browser nobody was at.
+     */
+    private waitForAnswer(): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
+            let timer: ReturnType<typeof setTimeout>;
+            const answer = (text: string) => {
+                clearTimeout(timer);
+                resolve(text);
+            };
+            timer = setTimeout(() => {
+                if (this.interactionResolver === answer) {
+                    this.interactionResolver = null;
+                }
+                reject('interactionAfk');
+            }, INTERACTION_TIMEOUT);
+            this.interactionResolver = answer;
         });
     }
 

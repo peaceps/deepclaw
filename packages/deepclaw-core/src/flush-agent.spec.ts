@@ -1,7 +1,6 @@
 import {describe, expect, test} from 'vitest';
 import {FlushAgent} from './flush-agent';
 import {
-    BREAK_POINTS,
     type AgentHandler, type AgentInvokeOptions, type AgentInvokeResponse,
     type AgentRuntime, type SealedAgentHandler
 } from './flush-agent-types';
@@ -13,7 +12,6 @@ class TestAgent extends FlushAgent {
     public failWith = '';
     public lastInput = '';
     public lastImages: ImageContent[] | undefined;
-    public lastResumeRuntime: AgentRuntime | undefined;
 
     protected async _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         this.lastInput = input;
@@ -22,14 +20,6 @@ class TestAgent extends FlushAgent {
             throw new Error(this.failWith);
         }
         return {text: this.reply, runtime: {...this.emptyRuntime(), turnCount: 3}};
-    }
-
-    protected async _resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse> {
-        this.lastResumeRuntime = options.runtime;
-        if (this.failWith) {
-            throw new Error(this.failWith);
-        }
-        return {text: this.reply, runtime: options.runtime};
     }
 
     public sealedHandler(): SealedAgentHandler {
@@ -170,36 +160,14 @@ describe('FlushAgent invoke', () => {
     });
 });
 
-describe('FlushAgent resume', () => {
-
-    test('hands the given runtime to the agent and returns it back', async () => {
-        const {handler} = newRecordingHandler();
-        const agent = new TestAgent('agent', 'a1', '', handler);
-        const runtime: AgentRuntime = {...agent.newEmptyRuntime(), turnCount: 7};
-        const response = await agent.resume({browserId: 'b1', runtime});
-        expect(agent.lastResumeRuntime).toBe(runtime);
-        expect(response.runtime.turnCount).toBe(7);
-    });
-
-    test('turns a thrown error into the error message with an empty runtime', async () => {
-        const {handler} = newRecordingHandler();
-        const agent = new TestAgent('agent', 'a1', '', handler);
-        agent.failWith = 'resume failed';
-        const response = await agent.resume({browserId: 'b1', runtime: agent.newEmptyRuntime()});
-        expect(response.text).toBe('resume failed');
-        expect(response.runtime.turnCount).toBe(0);
-    });
-});
-
 describe('FlushAgent emptyRuntime', () => {
 
-    test('starts every counter at zero without a break point', () => {
+    test('starts every counter at zero', () => {
         const {handler} = newRecordingHandler();
         const agent = new TestAgent('agent', 'a1', '', handler);
         expect(agent.newEmptyRuntime()).toEqual({
             turnCount: 0,
             historyPersistIndex: 0,
-            breakPoint: {point: BREAK_POINTS.none},
             recoveryState: {maxTokenRetries: 0, refusalState: ''},
             usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
         });

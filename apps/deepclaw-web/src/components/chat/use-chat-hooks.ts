@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/logger";
 import { useInteractionModalStore } from '@/lib/interaction-modal-store';
 import {
     invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
-    resolveInteraction, updateChatMessage, resumeLoop, inactiveLoop,
+    resolveInteraction, updateChatMessage, activeLoop, inactiveLoop,
     getTokenUsage
 } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
@@ -146,23 +146,25 @@ export function useSSEConnection(
     ]);
 }
 
-export function useLoopResume(listening: boolean, loopId: string) {
+/**
+ * Tells the server this view is on screen, which is what the events of the loop are sent by. A
+ * question asked while nobody watched is handed over on the way in, so opening the chat is how the
+ * user gets to the request a toast sent them after.
+ */
+export function useLoopWatch(listening: boolean, loopId: string) {
     const browserId = useAppStore(s => s.browserId);
-    const subscribeStream = usePersistStream(browserId, loopId);
+    const sseClient = useSSEClient();
 
     useEffect(() => {
         if (!listening) return;
-        let unsubscribe: (() => void) | null = null;
-
-        let cancelled = false;
-        resumeLoop(browserId, loopId).then(({resume, msgId}) => {
-          if (cancelled) return;
-          if (msgId && resume) unsubscribe = subscribeStream(msgId);
+        activeLoop(browserId, loopId);
+        // A stream that dropped and came back is a stream the server built anew, and it was told
+        // nothing of the loops this page shows: without saying it again the chat goes deaf until
+        // the user happens to open it once more.
+        return sseClient.onReopen(sseUrl(browserId), () => {
+            activeLoop(browserId, loopId);
         });
-
-        return () => { cancelled = true; unsubscribe?.(); };
-
-    }, [listening, browserId, loopId, subscribeStream])
+    }, [listening, browserId, loopId, sseClient])
 }
 
 export function useSend(

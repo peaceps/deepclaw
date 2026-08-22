@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import type {AgentEmployee, Project} from '@deepclaw/core';
+import {type AgentEmployee, INTERACTION_TIMEOUT, type Project} from '@deepclaw/core';
 import type {SSEToastEvent} from '@/app/api/sse-types';
 import {ToastService} from './toast-service';
 
@@ -75,6 +75,17 @@ describe('parseToastEvent', () => {
     test('needs neither projects nor agents for a plain toast', () => {
         expect(() => ToastService.parseToastEvent({key: 'imConnected', data: 'Ada'}, [], [])).not.toThrow();
         expect(paramsOf('web.toast.imConnected.title')).toBeUndefined();
+    });
+
+    /** The toast is what the user has to come back to the question by, so it lasts as long as it. */
+    test('keeps an interaction pause up for as long as the question waits', () => {
+        expect(ToastService.parseToastEvent(pauseEvent('agent.a1'), [], [newAgent()]).duration)
+            .toBe(INTERACTION_TIMEOUT);
+    });
+
+    test('lets a plain toast go away on its own', () => {
+        expect(ToastService.parseToastEvent({key: 'imConnected', data: 'Ada'}, [], []).duration)
+            .toBeUndefined();
     });
 
     test('titles an interaction pause with the shared title key', () => {

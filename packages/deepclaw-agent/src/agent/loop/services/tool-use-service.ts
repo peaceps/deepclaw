@@ -1,16 +1,17 @@
 import { FileUtils } from '@deepclaw/node-utils';
 import { ToolUseResult, ToolUseDef, ToolDesc } from "../../definitions/tool-definitions";
-import { isSpawnedLoop, OneLoopContext } from '../../definitions/definitions';
+import { OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
 import { TRUNCATE_THRESHOLD } from '../../loop-utils';
 import { ToolsManager } from './tools-manager';
 import { HookManager } from './hook-manager';
-import { isInternalInterruptReason } from '@deepclaw/core';
+import {
+    type InternalInterruptReason, isInternalInterruptReason, isInvalidInteractionReason
+} from '@deepclaw/core';
 
 export type ToolUseServiceResult = {
     result: ToolUseResult;
     success: boolean;
-    rerun?: boolean;
 }
 
 /** What a guard that had to ask ends up with, once the user answered or the guard changed its mind. */
@@ -22,6 +23,19 @@ const MAX_PARALLEL_TOOL_CALLS = 5;
 export class ToolUseService {
 
     private static questionQueues: Map<string, Promise<unknown>> = new Map();
+    /**
+     * The loops that already found nobody there. Questions are asked one at a time, so without this
+     * every tool call queued behind the one that timed out would spend the same ten minutes on the
+     * same silence: a run with a tree of subagents would be away for an afternoon to learn what the
+     * first question learned. They give up at once instead, until an answer comes or a run is asked
+     * for anew.
+     */
+    private static awayUsers: Set<string> = new Set();
+
+    /** Somebody wants something of this loop, so it is worth asking them again. */
+    public static clearAwayUser(loopId: string): void {
+        this.awayUsers.delete(loopId);
+    }
 
     /**
      * Splits the tool calls of one turn into groups meant to be run one group after the other.
@@ -92,10 +106,11 @@ export class ToolUseService {
         if (guardResult.result === 'allowed') {
             return undefined;
         }
-        // Nobody is there to answer inside a spawned loop, so the tool goes through on the trust the
-        // subagent was handed with the task: a denial only made it report the question back. Several
-        // of them run at once, and a question each would be a queue nobody asked the user for.
-        if (isSpawnedLoop(context.loopKind)) {
+        // A schedule is a permission given in advance: whoever set the task up will not be there
+        // when it runs, and a run that asks anyway spends its tools on questions nobody hears. What
+        // the guard refuses outright is refused here too, this only covers what it would have asked.
+        if (context.role === 'cron') {
+            context.logger.info(`Cron run granted ${tool.tool.name} without asking.`);
             return undefined;
         }
         try {
@@ -108,12 +123,25 @@ export class ToolUseService {
             }
             return undefined;
         } catch (error: any) {
+            // A question nobody answered in time is the end of that tool call, not of the run: what
+            // asked for the permission is told it never came and decides what that means. Stopping
+            // the run instead would be the same thing everywhere except in a spawned loop, which
+            // has no session to be continued in and would lose the whole task it was handed.
             if (isInternalInterruptReason(error)) {
-                context.runtime.agentBreakReason = error;
-                return {
-                    ...this.toolResult(toolUseDef.id, `User left page and not possible to interact. Need rerun this tool`, false),
-                    rerun: true,
-                };
+                return this.toolResult(
+                    toolUseDef.id,
+                    `Nobody answered the permission question for ${tool.tool.name} in time, so it was not run.`,
+                    false
+                );
+            }
+            // A run with no browser behind it has nobody to hear the question, and is told so at
+            // once instead of after the ten minutes it would have spent finding out.
+            if (isInvalidInteractionReason(error)) {
+                return this.toolResult(
+                    toolUseDef.id,
+                    `There is nobody to ask for the permission to run ${tool.tool.name}, so it was not run.`,
+                    false
+                );
             }
             return this.toolResult(toolUseDef.id, `Error, wait for user response failed: ${error}`, false);
         }
@@ -142,16 +170,21 @@ export class ToolUseService {
             if (guardResult.result === 'denied') {
                 return {answer: 'denied', reason: guardResult.reason};
             }
-            // The user was already found to be away while this question waited its turn. Asking
-            // anyway would only sit there until the interaction times out, once per queued tool.
-            const away = context.runtime.agentBreakReason;
-            if (isInternalInterruptReason(away)) {
-                throw away;
+            if (this.awayUsers.has(context.loopId)) {
+                throw 'interactionAfk' satisfies InternalInterruptReason;
             }
-            const choice = await context.actions.agentHandler.onInteractionEvent(
-                { ...guardResult.question, browserId: context.browserId }
-            );
-            return {answer: guardResult.checkAnswer(choice) ? 'allowed' : 'rejected'};
+            try {
+                const choice = await context.actions.agentHandler.onInteractionEvent(
+                    { ...guardResult.question, browserId: context.browserId }
+                );
+                this.awayUsers.delete(context.loopId);
+                return {answer: guardResult.checkAnswer(choice) ? 'allowed' : 'rejected'};
+            } catch (error: any) {
+                if (isInternalInterruptReason(error)) {
+                    this.awayUsers.add(context.loopId);
+                }
+                throw error;
+            }
         });
     }
 

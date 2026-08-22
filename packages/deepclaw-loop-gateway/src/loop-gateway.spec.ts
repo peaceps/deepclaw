@@ -1,11 +1,12 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {
-    BREAK_POINTS,
     type AgentHandler, type AgentInvokeResponse, type AgentRuntime, type CronTask
 } from '@deepclaw/core';
 import {type AgentConfig, type DeepclawConfig} from '@deepclaw/config';
 import {LoopGateway} from './loop-gateway';
-import {isLoopStreamEvent, type LoopGatewayEvent, type LoopInfo} from './loop-gateway-types';
+import {
+    isLoopStreamEvent, type InvokeSource, type LoopGatewayEvent, type LoopInfo
+} from './loop-gateway-types';
 
 const mocks = vi.hoisted(() => ({
     getLoop: vi.fn<(role: string, agentId: string, projectId: string, handler: AgentHandler) => unknown>(
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
     getCronTasks: vi.fn<() => unknown[]>(() => []),
     getCronHistories: vi.fn(),
     updateCronTaskStatus: vi.fn(),
+    clearAwayUser: vi.fn<(loopId: string) => void>(),
     addMessage: vi.fn(),
     replaceMessage: vi.fn(),
     saveImage: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
@@ -61,6 +63,10 @@ vi.mock('@deepclaw/agent', () => ({
     },
     SkillsManager: {getSkillList: mocks.getSkillList, updateSkillAgents: mocks.updateSkillAgents},
     RunningTaskService: {getRunningTasks: mocks.getRunningTasks},
+    ToolUseService: {clearAwayUser: mocks.clearAwayUser},
+    AGENTS_DIR: '.agents',
+    PROJECT_DIR: '.projects',
+    CHAT_FILE: 'chat.jsonl',
 }));
 
 vi.mock('./agent-runtime-service', () => ({
@@ -87,7 +93,6 @@ function newRuntime(overrides: Partial<AgentRuntime> = {}): AgentRuntime {
     return {
         turnCount: 1,
         historyPersistIndex: 0,
-        breakPoint: {point: BREAK_POINTS.none},
         recoveryState: {maxTokenRetries: 0, refusalState: ''},
         usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
         ...overrides,
@@ -98,7 +103,6 @@ function newFakeLoop() {
     return {
         isOutdated: vi.fn(() => false),
         invoke: vi.fn(async (): Promise<AgentInvokeResponse> => ({text: 'reply', runtime: newRuntime()})),
-        resume: vi.fn(async (): Promise<AgentInvokeResponse> => ({text: 'resumed', runtime: newRuntime()})),
         updateAgentConfig: vi.fn(),
         setExternalInterruptReason: vi.fn(),
     };
@@ -378,56 +382,6 @@ describe('invoke', () => {
     });
 });
 
-describe('resume', () => {
-
-    test('refuses to resume an unknown loop', () => {
-        expect(LoopGateway.resume('b1', 'web', 'agent.never-seen')).toEqual({resume: false, msgId: ''});
-    });
-
-    test('refuses to resume a loop that has no pending runtime', () => {
-        const {loopId} = nextLoop();
-        LoopGateway.initLoop(loopId);
-        expect(LoopGateway.resume('b1', 'web', loopId).resume).toBe(false);
-    });
-
-    test('keeps the runtime for a resume while the agent waits for a human', async () => {
-        const {loopInfo, loopId, loop} = nextLoop();
-        const runtime = newRuntime({agentBreakReason: 'interactionAfk', turnCount: 4});
-        loop.invoke.mockResolvedValue({text: 'waiting', runtime});
-        const {msgId} = LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
-        await vi.waitFor(() => expect(LoopGateway.resume('b1', 'web', loopId)).toEqual({resume: true, msgId}));
-        expect(loop.resume).toHaveBeenCalledWith(expect.objectContaining({
-            browserId: 'b1', runtime: expect.objectContaining({turnCount: 4})
-        }));
-        expect(mocks.replaceMessage).not.toHaveBeenCalledWith(loopId, msgId, 'waiting');
-    });
-
-    /** An agent board reads that list, and an agent that waits for an answer is not at work. */
-    test('leaves a loop that waits for a human out of the working ones', async () => {
-        const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({
-            text: 'waiting', runtime: newRuntime({agentBreakReason: 'interactionAfk'})
-        });
-        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
-        await vi.waitFor(() => expect(LoopGateway.getBusyLoops()).not.toContain(loopId));
-        expect(LoopGateway.isLoopBusy(loopId)).toBe(true);
-        expect(events.at(-1)).toEqual({
-            eventType: 'updateBusyLoops', content: expect.not.arrayContaining([loopId])
-        });
-    });
-
-    test('ignores a resume asked by another browser', async () => {
-        const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({
-            text: 'waiting', runtime: newRuntime({agentBreakReason: 'interactionAfk'})
-        });
-        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
-        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(true));
-        expect(LoopGateway.resume('other-browser', 'web', loopId).resume).toBe(false);
-        expect(loop.resume).not.toHaveBeenCalled();
-    });
-});
-
 describe('interactions', () => {
 
     function askQuestion(loopId: string, browserId = 'b1') {
@@ -449,14 +403,12 @@ describe('interactions', () => {
         expect(LoopGateway.resolveInteraction('b1', 'agent.nobody', 'Ada')).toBe(false);
     });
 
-    test('keeps the questions of two browsers apart', async () => {
+    test('takes an answer only from the browser the question is with', async () => {
         const {loopId} = nextLoop();
-        const first = askQuestion(loopId, 'b1');
-        const second = askQuestion(loopId, 'b2');
-        LoopGateway.resolveInteraction('b2', loopId, 'from b2');
+        const answer = askQuestion(loopId, 'b1');
+        expect(LoopGateway.resolveInteraction('b2', loopId, 'from b2')).toBe(false);
         LoopGateway.resolveInteraction('b1', loopId, 'from b1');
-        await expect(first).resolves.toBe('from b1');
-        await expect(second).resolves.toBe('from b2');
+        await expect(answer).resolves.toBe('from b1');
     });
 
     test('rejects a cancelled question with its reason', async () => {
@@ -464,6 +416,14 @@ describe('interactions', () => {
         const answer = askQuestion(loopId);
         LoopGateway.cancelInteraction('b1', loopId, 'disconnected');
         await expect(answer).rejects.toBe('disconnected');
+    });
+
+    /** A question no browser will ever be handed is not worth ten minutes of a run. */
+    test('refuses a question of a run that has no browser behind it at once', async () => {
+        const {loopId} = nextLoop();
+        await expect(askQuestion(loopId, '')).rejects.toBe('disconnected');
+        expect(events).not.toContainEqual(expect.objectContaining({eventType: 'interaction'}));
+        expect(LoopGateway.pendingInteraction('', loopId)).toBeUndefined();
     });
 
     test('cancels a question that stayed unanswered for too long as an absent user', async () => {
@@ -482,36 +442,105 @@ describe('interactions', () => {
         await answer;
         expect(LoopGateway.resolveInteraction('b1', loopId, 'again')).toBe(false);
     });
-});
 
-describe('disconnectBrowser', () => {
-
-    test('interrupts the loop that the browser was driving', async () => {
-        const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
-        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
-        LoopGateway.disconnectBrowser('b1');
-        expect(loop.setExternalInterruptReason).toHaveBeenCalledWith('clientLost');
-        expect(LoopGateway.isLoopBusy(loopId)).toBe(true);
-    });
-
-    test('leaves the loops of other browsers alone', () => {
-        const {loopInfo, loop} = nextLoop();
-        loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
-        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
-        LoopGateway.disconnectBrowser('b2');
-        expect(loop.setExternalInterruptReason).not.toHaveBeenCalled();
-    });
-
-    test('cancels the question the lost browser was asked', async () => {
-        const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
-        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
-        const answer = capturedHandler().onInteractionEvent({
+    /** What a page that opens while the question waits is handed, having missed the event itself. */
+    test('hands out the question a browser still owes an answer to', async () => {
+        const {loopId} = nextLoop();
+        const answer = askQuestion(loopId);
+        expect(LoopGateway.pendingInteraction('b1', loopId)).toEqual({
             eventType: 'interaction', loopId, browserId: 'b1', type: 'input', content: 'your name?'
         });
-        LoopGateway.disconnectBrowser('b1');
-        await expect(answer).rejects.toBe('disconnected');
+        expect(LoopGateway.pendingInteraction('b2', loopId)).toBeUndefined();
+        LoopGateway.resolveInteraction('b1', loopId, 'Ada');
+        await answer;
+        expect(LoopGateway.pendingInteraction('b1', loopId)).toBeUndefined();
+    });
+
+    test('lists what waits, with the browser each question waits for', async () => {
+        const {loopId} = nextLoop();
+        const answer = askQuestion(loopId, 'b1');
+        expect(LoopGateway.waitingQuestions().filter(question => question.loopId === loopId))
+            .toEqual([expect.objectContaining({loopId, browserId: 'b1', content: 'your name?'})]);
+        LoopGateway.resolveInteraction('b1', loopId, 'Ada');
+        await answer;
+        expect(LoopGateway.waitingQuestions().filter(question => question.loopId === loopId))
+            .toEqual([]);
+    });
+
+    /** The browser it was asked of is gone, and the run would otherwise wait out its ten minutes. */
+    test('puts a question to another browser, which is then the one it takes an answer from', async () => {
+        const {loopId} = nextLoop();
+        const answer = askQuestion(loopId, 'b1');
+        expect(LoopGateway.askAgainOf('b2', loopId)).toEqual({
+            eventType: 'interaction', loopId, browserId: 'b2', type: 'input', content: 'your name?'
+        });
+        expect(LoopGateway.pendingInteraction('b2', loopId)).toBeDefined();
+        expect(LoopGateway.pendingInteraction('b1', loopId)).toBeUndefined();
+        expect(LoopGateway.resolveInteraction('b1', loopId, 'from b1')).toBe(false);
+        LoopGateway.resolveInteraction('b2', loopId, 'from b2');
+        await expect(answer).resolves.toBe('from b2');
+    });
+
+    test('has nothing to put to another browser once the question is answered', async () => {
+        const {loopId} = nextLoop();
+        const answer = askQuestion(loopId, 'b1');
+        LoopGateway.resolveInteraction('b1', loopId, 'Ada');
+        await answer;
+        expect(LoopGateway.askAgainOf('b2', loopId)).toBeUndefined();
+    });
+
+    test('tells the browser a question ended up with that the waiting is over', async () => {
+        vi.useFakeTimers();
+        const {loopId} = nextLoop();
+        const answer = askQuestion(loopId, 'b1');
+        LoopGateway.askAgainOf('b2', loopId);
+        vi.advanceTimersByTime(INTERACTION_TIMEOUT);
+        await expect(answer).rejects.toBe('interactionAfk');
+        expect(events).toContainEqual({eventType: 'cancelInteraction', loopId, browserId: 'b2'});
+    });
+});
+
+describe('askedBrowser', () => {
+
+    function runningLoop(source: InvokeSource = 'web', browserId = 'b1') {
+        const {loopInfo, loopId, loop} = nextLoop();
+        const invoked = deferred<AgentInvokeResponse>();
+        loop.invoke.mockReturnValue(invoked.promise);
+        LoopGateway.invoke(loopInfo, {source, browserId}, 'hi');
+        return {loopId, invoked};
+    }
+
+    test('names the browser the questions of a run go to', () => {
+        const {loopId} = runningLoop();
+        expect(LoopGateway.askedBrowser(loopId)).toBe('b1');
+    });
+
+    /** A run started from a chat asks there, and no page is standing in for that chat. */
+    test('answers with nothing for a run that asks somewhere else', () => {
+        const {loopId} = runningLoop('im');
+        expect(LoopGateway.askedBrowser(loopId)).toBeUndefined();
+    });
+
+    /** With no run on there is nobody being asked: the next run is asked for and asks by itself. */
+    test('answers with nothing for a loop that is not running', async () => {
+        const {loopId, invoked} = runningLoop();
+        invoked.resolve({text: 'done', runtime: newRuntime()});
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        expect(LoopGateway.askedBrowser(loopId)).toBeUndefined();
+    });
+
+    test('answers with nothing for a loop it never heard of', () => {
+        expect(LoopGateway.askedBrowser('agent.ghost')).toBeUndefined();
+    });
+});
+
+/** The run gave up on asking after the silence, and somebody being there again undoes that. */
+describe('askAgain', () => {
+
+    test('lets the run of that loop ask again', () => {
+        const {loopId} = nextLoop();
+        LoopGateway.askAgain(loopId);
+        expect(mocks.clearAwayUser).toHaveBeenCalledExactlyOnceWith(loopId);
     });
 });
 

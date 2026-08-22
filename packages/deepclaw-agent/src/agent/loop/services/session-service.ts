@@ -7,7 +7,7 @@ import {
     isSpawnedLoop, LLMProtocol, LoopKind, LoopSessionStatus, OneLoopContext, SessionMetaData,
     SpawnedLoop,
 } from "../../definitions/definitions";
-import { isExternalInterruptReason, isAgentStopReason, isInternalInterruptReason, TokenUsage, splitLoopId, FlushAgentRole, addTokenUsage } from "@deepclaw/core";
+import { isExternalInterruptReason, isAgentStopReason, TokenUsage, splitLoopId, FlushAgentRole, addTokenUsage } from "@deepclaw/core";
 import { getLogger } from "@deepclaw/node-utils";
 
 const SAVE_THRESHOLD = 10;
@@ -192,7 +192,7 @@ export class SessionService {
         if (transitionReason === 'error') {
             return 'error';
         }
-        if (isAgentStopReason(agentBreakReason) || isInternalInterruptReason(agentBreakReason)) {
+        if (isAgentStopReason(agentBreakReason)) {
             return 'paused';
         }
         return 'running';

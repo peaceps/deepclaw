@@ -23,14 +23,22 @@ class SSEServerImpl {
     private static logger = getLogger('SSEServer');
     private static clients: Map<string, SSEClient> = new Map();
     private static unsubscriber?: () => void;
+    private static streamSeq = 0;
 
+    /** Answers with which stream of that browser this is, which is what ends it again. */
     public static addClient(
         browserId: string, controller: ReadableStreamDefaultController, encoder: TextEncoder
-    ): void {
+    ): number {
         this.unsubscriber ??= LoopGateway.subscribe((e: LoopGatewayEvent) => {
             this.broadcastEvent(e);
         });
-        this.clients.set(browserId, {browserId, loops: new Set(), controller, encoder});
+        const streamId = ++this.streamSeq;
+        this.clients.set(browserId, {browserId, streamId, loops: new Set(), controller, encoder});
+        // A question left behind by a browser that closed has nobody waiting for it, and this one is
+        // here now: it is told so, and handed the question itself when it opens that loop.
+        this.orphanQuestions().forEach(question =>
+            this.sendToast({key: 'interactionPause', data: question.loopId}, browserId));
+        return streamId;
     }
 
     /**
@@ -47,11 +55,50 @@ class SSEServerImpl {
             return;
         }
         client.loops.add(loopId);
+        this.askAgainIfSomebodyIsHere(browserId, loopId);
         // Whether the loop is busy is the one thing a view that just opened cannot wait for an
         // event to tell it: the loop may have been running long before it got here.
         this.sendEvent(client, {
             eventType: 'busy', loopId, content: '', busy: LoopGateway.isLoopBusy(loopId)
         });
+        // A question asked while nobody watched this loop was only toasted, and a toast is not
+        // something to answer. It is handed over now, which is what the toast sent them here for.
+        const pending = this.pendingQuestion(browserId, loopId);
+        if (pending) {
+            this.sendEvent(client, pending);
+        }
+    }
+
+    /**
+     * A run that asked something and was left with silence stopped asking. Opening the loop is the
+     * user saying they are here, so it is worth asking them again. It is worth it for a browser the
+     * run never asked as well, as long as the one it did ask is gone: nobody else will answer.
+     */
+    private static askAgainIfSomebodyIsHere(browserId: string, loopId: string): void {
+        const asked = LoopGateway.askedBrowser(loopId);
+        if (asked && (asked === browserId || !this.clients.has(asked))) {
+            LoopGateway.askAgain(loopId);
+        }
+    }
+
+    /**
+     * The question this browser is owed. One asked of a browser that is gone is put to this one
+     * instead, since a tab takes its name with it when it closes and would otherwise leave the run
+     * waiting out its ten minutes with a user sitting right there.
+     */
+    private static pendingQuestion(browserId: string, loopId: string): AgentInteractionEvent | undefined {
+        const own = LoopGateway.pendingInteraction(browserId, loopId);
+        if (own) {
+            return own;
+        }
+        return this.orphanQuestions().some(question => question.loopId === loopId)
+            ? LoopGateway.askAgainOf(browserId, loopId)
+            : undefined;
+    }
+
+    /** The questions whose browser is not here to answer them. */
+    private static orphanQuestions(): AgentInteractionEvent[] {
+        return LoopGateway.waitingQuestions().filter(question => !this.clients.has(question.browserId));
     }
 
     private static broadcastEvent(event: SSEEvent): void {
@@ -60,16 +107,20 @@ class SSEServerImpl {
             this.sendEvent(client, event);
         }
         if (isLoopInteractionEvent(event) && !clients.length) {
-            this.handleInteractionPause(event);
+            this.handleUnwatchedInteraction(event);
         }
     }
 
-    private static handleInteractionPause(event: AgentInteractionEvent) {
+    /**
+     * Nobody has this loop on screen, so the question is only announced: it stays waiting in the
+     * gateway and is handed over as soon as a view of that loop opens. A browser between two
+     * connections has nowhere to be announced to, and the question waits for it in silence rather
+     * than being dropped, since a reload comes back as the same browser. Waiting ends where the
+     * gateway ends it, ten minutes on.
+     */
+    private static handleUnwatchedInteraction(event: AgentInteractionEvent) {
         if (this.clients.has(event.browserId)) {
-            LoopGateway.cancelInteraction(event.browserId, event.loopId, 'interactionAfk');
             this.sendToast({key: 'interactionPause', data: event.loopId}, event.browserId);
-        } else {
-          LoopGateway.cancelInteraction(event.browserId, event.loopId, 'disconnected');
         }
     }
 
@@ -96,12 +147,9 @@ class SSEServerImpl {
         try {
             client.controller.enqueue(client.encoder.encode(message));
         } catch (err) {
-            // Dropped first, so that cancelling cannot come back around to this dead stream.
-            this.removeClient(client.browserId);
-            // A stream nobody can write to still owes an answer to every loop it was watching.
-            for (const loopId of client.loops) {
-                LoopGateway.cancelInteraction(client.browserId, loopId, 'error');
-            }
+            // A stream nobody can write to is dropped, and that is all: the questions it was
+            // watching over keep waiting for the browser to come back and be handed them again.
+            this.removeClient(client.browserId, client.streamId);
             this.logger.error(`Failed to send to client ${client.browserId}: ${err}`);
         }
     }
@@ -118,11 +166,17 @@ class SSEServerImpl {
         }
     }
 
-    public static removeClient(browserId: string): void {
-        if (!this.clients.delete(browserId)) {
+    /**
+     * Only the stream is dropped. The run behind it keeps going, and a question it left waiting is
+     * still owed an answer: the page that comes back is the same browser and is handed it again.
+     * Which stream ended has to be said, because a reload can open the new one before the old one
+     * is noticed to be gone, and dropping the browser by name would take the page that is here now.
+     */
+    public static removeClient(browserId: string, streamId: number): void {
+        if (this.clients.get(browserId)?.streamId !== streamId) {
             return;
         }
-        LoopGateway.disconnectBrowser(browserId);
+        this.clients.delete(browserId);
         if (this.clients.size === 0) {
             this.unsubscriber?.();
             this.unsubscriber = undefined;

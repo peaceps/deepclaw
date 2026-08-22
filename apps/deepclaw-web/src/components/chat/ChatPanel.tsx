@@ -10,7 +10,7 @@ import { useToastStore } from '@/lib/toast-store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate, imageSrc } from '../component-utils';
 import { Markdown } from "@/laf/markdown";
-import { useInitChat, useSSEConnection, useSend, useLoopResume } from "./use-chat-hooks";
+import { useInitChat, useSSEConnection, useSend, useLoopWatch } from "./use-chat-hooks";
 import { useScroll } from "./use-scroll-hooks";
 
 type ChatPanelProps = {
@@ -57,7 +57,7 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
 
   useInitChat(loopId, setChatInited, setInput, setTokenUsage);
   useSSEConnection(chatInited, loopId, setListening, setTokenUsage);
-  useLoopResume(listening, loopId);
+  useLoopWatch(listening, loopId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const handleScroll = useScroll(agentMessages, scrollRef, loopId);

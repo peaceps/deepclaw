@@ -1,6 +1,6 @@
 {
 	"name": "@sacephor/deepclaw",
-	"version": "0.0.10",
+	"version": "0.0.11",
 	"private": true,
 	"packageManager": "pnpm@10.33.0",
 	"license": "MIT",
@@ -8,13 +8,13 @@
 	"engines": {
 		"node": ">=21"
 	},
-    "repository": {
+	"repository": {
 		"type": "git",
 		"url": "https://github.com/peaceps/deepclaw.git"
-    },
-    "bin": {
-        "deepclaw": "./bin/cli.js"
-    },
+	},
+	"bin": {
+		"deepclaw": "./bin/cli.js"
+	},
 	"publishConfig": {
 		"access": "public"
 	},
@@ -28,6 +28,6 @@
 	},
 	"dependencies": {
 		"@deepclaw/tui": "workspace:*",
-        "meow": "14.1.0"
+		"meow": "14.1.0"
 	}
 }

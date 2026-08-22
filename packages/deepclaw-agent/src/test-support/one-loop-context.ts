@@ -1,5 +1,5 @@
 import {vi} from 'vitest';
-import {BREAK_POINTS, type AgentRuntime, type FlushAgent, type SealedAgentHandler} from '@deepclaw/core';
+import {type AgentRuntime, type FlushAgent, type SealedAgentHandler} from '@deepclaw/core';
 import {type AgentConfig} from '@deepclaw/config';
 import {type Logger} from '@deepclaw/node-utils';
 import {type OneLoopContext} from '../agent/definitions/definitions';
@@ -18,7 +18,6 @@ export function newTestRuntime(overrides: Partial<AgentRuntime> = {}): AgentRunt
     return {
         turnCount: 0,
         historyPersistIndex: 0,
-        breakPoint: {point: BREAK_POINTS.none},
         recoveryState: {maxTokenRetries: 0, refusalState: ''},
         usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
         ...overrides,

@@ -393,10 +393,6 @@ describe('saveHistory status', () => {
         expect(statusOf({transitionReason: 'toolUse', agentBreakReason: 'taskPause'})).toBe('paused');
     });
 
-    test('is paused when the user did not answer', () => {
-        expect(statusOf({transitionReason: 'toolUse', agentBreakReason: 'interactionAfk'})).toBe('paused');
-    });
-
     test('is running while the loop is still calling tools', () => {
         expect(statusOf({transitionReason: 'toolUse'})).toBe('running');
     });

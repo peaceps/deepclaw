@@ -16,6 +16,11 @@ export type SSEToastEvent = AgentInfoEvent & {
 
 export type SSEClient = {
     browserId: string;
+    /**
+     * Which stream of this browser it is. A browser comes back under the name it left with, so the
+     * name alone cannot tell the stream that ended from the one that took its place.
+     */
+    streamId: number;
     /** The loops this browser has on screen, the only ones whose events are worth sending it. */
     loops: Set<string>;
     controller: ReadableStreamDefaultController;

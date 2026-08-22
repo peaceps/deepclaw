@@ -1,8 +1,8 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type ChatMessage, type ImageContent, type TokenUsage} from '@deepclaw/core';
 import {
-    getTokenUsage, inactiveLoop, invoke, pullNewerMessages, pullOlderMessages,
-    pushChatMessage, resolveInteraction, resumeLoop, updateChatMessage,
+    activeLoop, getTokenUsage, inactiveLoop, invoke, pullNewerMessages, pullOlderMessages,
+    pushChatMessage, resolveInteraction, updateChatMessage,
 } from './loop-agent';
 
 const mocks = vi.hoisted(() => ({
@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
         options: {source: string; browserId: string; images?: ImageContent[]},
         input: string
     ) => {busy: boolean; msgId: string}>(),
-    resume: vi.fn<(browserId: string, source: string, loopId: string) => {resume: boolean; msgId: string}>(),
     getTokenUsage: vi.fn<(loopId: string) => TokenUsage | undefined>(),
     resolveInteraction: vi.fn<(browserId: string, loopId: string, answer: string) => boolean>(),
     addMessage: vi.fn<(browserId: string, loopId: string, message: ChatMessage) => void>(),
@@ -26,7 +25,6 @@ vi.mock('@/app/api/sse-server', () => ({SSEServer: {watchLoop: mocks.watchLoop}}
 vi.mock('@deepclaw/loop-gateway', () => ({
     LoopGateway: {
         invoke: mocks.invoke,
-        resume: mocks.resume,
         getTokenUsage: mocks.getTokenUsage,
         resolveInteraction: mocks.resolveInteraction,
         addMessage: mocks.addMessage,
@@ -77,25 +75,11 @@ describe('invoke', () => {
     });
 });
 
-describe('resumeLoop', () => {
+describe('activeLoop', () => {
 
-    test('resumes the loop for the browser', async () => {
-        mocks.resume.mockReturnValue({resume: true, msgId: 'm1'});
-        await expect(resumeLoop('b1', 'agent.a1')).resolves.toEqual({resume: true, msgId: 'm1'});
-        expect(mocks.resume).toHaveBeenCalledWith('b1', 'web', 'agent.a1');
-    });
-
-    test('starts watching the loop before resuming it', async () => {
-        mocks.resume.mockReturnValue({resume: true, msgId: 'm1'});
-        await resumeLoop('b1', 'agent.a1');
+    test('starts watching the loop of that browser', async () => {
+        await activeLoop('b1', 'agent.a1');
         expect(mocks.watchLoop).toHaveBeenCalledWith('b1', 'agent.a1', true);
-        expect(mocks.watchLoop.mock.invocationCallOrder[0]!)
-            .toBeLessThan(mocks.resume.mock.invocationCallOrder[0]!);
-    });
-
-    test('reports a loop that cannot be resumed', async () => {
-        mocks.resume.mockReturnValue({resume: false, msgId: ''});
-        await expect(resumeLoop('b1', 'agent.a1')).resolves.toEqual({resume: false, msgId: ''});
     });
 });
 
@@ -104,11 +88,6 @@ describe('inactiveLoop', () => {
     test('stops watching the loop of that browser', async () => {
         await inactiveLoop('b1', 'agent.a1');
         expect(mocks.watchLoop).toHaveBeenCalledWith('b1', 'agent.a1', false);
-    });
-
-    test('leaves the loop itself running', async () => {
-        await inactiveLoop('b1', 'agent.a1');
-        expect(mocks.resume).not.toHaveBeenCalled();
     });
 });
 

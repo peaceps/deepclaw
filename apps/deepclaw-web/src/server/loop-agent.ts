@@ -11,9 +11,8 @@ export async function invoke(
     return LoopGateway.invoke({role, agentId, projectId}, {source: 'web', browserId, images}, input);
 }
 
-export async function resumeLoop(browserId: string, loopId: string): Promise<{resume: boolean, msgId: string}> {
+export async function activeLoop(browserId: string, loopId: string): Promise<void> {
     SSEServer.watchLoop(browserId, loopId, true);
-    return LoopGateway.resume(browserId, 'web', loopId);
 }
 
 export async function getTokenUsage(loopId: string): Promise<TokenUsage | undefined> {

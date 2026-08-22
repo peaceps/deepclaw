@@ -95,9 +95,9 @@ export function InfoClient() {
         url,
         'toast',
         ({content}) => {
-          const {title, message} = ToastService.parseToastEvent(content, getProjects() , getAgents());
+          const {title, message, duration} = ToastService.parseToastEvent(content, getProjects() , getAgents());
           if (message) {
-            show({type: 'info', title, message});
+            show({type: 'info', title, message, duration});
           }
         },
       ),

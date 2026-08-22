@@ -18,6 +18,7 @@ class FakeEventSource {
 
     public readyState: number = FakeEventSource.OPEN;
     public onerror: ((event: Event) => void) | null = null;
+    public onopen: ((event: Event) => void) | null = null;
     public closeCount = 0;
 
     private readonly listeners = new Map<string, EventListener[]>();
@@ -37,6 +38,12 @@ class FakeEventSource {
     public close(): void {
         this.closeCount += 1;
         this.readyState = FakeEventSource.CLOSED;
+    }
+
+    /** What the browser does once the stream is through, on the first try and on every retry. */
+    public open(): void {
+        this.readyState = FakeEventSource.OPEN;
+        this.onopen?.({type: 'open'} as Event);
     }
 
     public listenerCount(eventName: string): number {
@@ -193,11 +200,11 @@ describe('SSEClient', () => {
         });
 
         test('registers only one listener per event name', () => {
-            const second = newHandler();
+            const first = newHandler();
+            client.subscribePersistent('/api/sse', 'chat', first);
             client.subscribePersistent('/api/sse', 'chat', newHandler());
-            client.subscribePersistent('/api/sse', 'chat', second);
             lastSource().emit('chat', '{}');
-            expect(second).not.toHaveBeenCalled();
+            expect(first).not.toHaveBeenCalled();
             expect(lastSource().listenerCount('chat')).toBe(1);
         });
 
@@ -211,20 +218,29 @@ describe('SSEClient', () => {
             expect(second).toHaveBeenCalledOnce();
         });
 
-        test('turns down a duplicate of the same key', () => {
+        /**
+         * A listener left over from a run that was never told it had ended, because the page had
+         * stopped watching the loop by then, would leave the run asked for now unheard.
+         */
+        test('hands the key to the newer listener of the same key', () => {
+            const first = newHandler();
             const second = newHandler();
-            client.subscribePersistent('/api/sse', 'chat', newHandler(), {key: 'agent.a1'});
+            client.subscribePersistent('/api/sse', 'chat', first, {key: 'agent.a1'});
             client.subscribePersistent('/api/sse', 'chat', second, {key: 'agent.a1'});
             lastSource().emit('chat', '{}');
-            expect(second).not.toHaveBeenCalled();
+            expect(first).not.toHaveBeenCalled();
+            expect(second).toHaveBeenCalledOnce();
         });
 
-        test('returns a dead unsubscribe for the rejected duplicate', () => {
-            const first = newHandler();
-            client.subscribePersistent('/api/sse', 'chat', first);
-            client.subscribePersistent('/api/sse', 'chat', newHandler())();
+        test('leaves the newer listener in place when the one it replaced unsubscribes', () => {
+            const second = newHandler();
+            const stale = client.subscribePersistent(
+                '/api/sse', 'chat', newHandler(), {key: 'agent.a1'});
+            client.subscribePersistent('/api/sse', 'chat', second, {key: 'agent.a1'});
+            stale();
             lastSource().emit('chat', '{}');
-            expect(first).toHaveBeenCalledOnce();
+            expect(second).toHaveBeenCalledOnce();
+            expect(lastSource().closeCount).toBe(0);
         });
 
         test('keeps listening while removeOn stays false', () => {
@@ -308,6 +324,64 @@ describe('SSEClient', () => {
             client.closeAll();
             client.closeAll();
             expect(lastSource().closeCount).toBe(1);
+        });
+    });
+
+    describe('onReopen', () => {
+
+        /** The stream opening for the first time is what the subscribers were already there for. */
+        test('says nothing about the first open of the stream', () => {
+            const listener = vi.fn();
+            client.subscribe('/api/sse', 'chat', newHandler());
+            client.onReopen('/api/sse', listener);
+            lastSource().open();
+            expect(listener).not.toHaveBeenCalled();
+        });
+
+        test('tells the listener every time the stream comes back', () => {
+            const listener = vi.fn();
+            client.subscribe('/api/sse', 'chat', newHandler());
+            const source = lastSource();
+            source.open();
+            client.onReopen('/api/sse', listener);
+            source.onerror?.({type: 'error'} as Event);
+            source.open();
+            source.open();
+            expect(listener).toHaveBeenCalledTimes(2);
+        });
+
+        test('keeps the listeners of two urls apart', () => {
+            const listener = vi.fn();
+            client.subscribe('/api/sse/info', 'chat', newHandler());
+            const info = lastSource();
+            client.subscribe('/api/sse/loop', 'chat', newHandler());
+            client.onReopen('/api/sse/loop', listener);
+            info.open();
+            info.open();
+            expect(listener).not.toHaveBeenCalled();
+        });
+
+        test('stops telling a listener that left', () => {
+            const listener = vi.fn();
+            client.subscribe('/api/sse', 'chat', newHandler());
+            const source = lastSource();
+            source.open();
+            client.onReopen('/api/sse', listener)();
+            source.open();
+            expect(listener).not.toHaveBeenCalled();
+        });
+
+        test('tells every listener of the same stream', () => {
+            const first = vi.fn();
+            const second = vi.fn();
+            client.subscribe('/api/sse', 'chat', newHandler());
+            const source = lastSource();
+            source.open();
+            client.onReopen('/api/sse', first);
+            client.onReopen('/api/sse', second);
+            source.open();
+            expect(first).toHaveBeenCalledOnce();
+            expect(second).toHaveBeenCalledOnce();
         });
     });
 

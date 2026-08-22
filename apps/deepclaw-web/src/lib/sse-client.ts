@@ -30,6 +30,9 @@ type SSEConnection = {
   source: EventSource;
   refCount: number;
   persistentListeners: Map<string, SSEPersistentListener>;
+  /** Marked by the first open, so that only the opens after it read as the stream coming back. */
+  opened: boolean;
+  reopenListeners: Set<() => void>;
 };
 
 export class SSEClient {
@@ -69,10 +72,10 @@ export class SSEClient {
   ): () => void {
     const connection = this.getOrCreateConnection(url);
     const listenerKey = `${eventName}:${options.key ?? ''}`;
-
-    if (connection.persistentListeners.has(listenerKey)) {
-      return () => {};
-    }
+    // The listener asked for now is the one that matters. A listener of what came before may have
+    // been left waiting for an end it was never told about, once the page stopped watching, and
+    // would hold the key against the answer the user is waiting for.
+    this.dropPersistentListener(connection, listenerKey);
 
     let active = true;
     const unsubscribe = () => {
@@ -80,7 +83,9 @@ export class SSEClient {
       active = false;
 
       connection.source.removeEventListener(eventName, listener);
-      connection.persistentListeners.delete(listenerKey);
+      if (connection.persistentListeners.get(listenerKey)?.listener === listener) {
+        connection.persistentListeners.delete(listenerKey);
+      }
       this.closeIfUnused(url, connection);
     };
 
@@ -100,6 +105,20 @@ export class SSEClient {
     return unsubscribe;
   }
 
+  /**
+   * Told whenever a stream that dropped is opened again. The server builds a client of its own for
+   * every stream and the new one knows nothing of what this page had told the one before it, so
+   * whoever said something on the way in is the one to say it again.
+   */
+  public onReopen(url: string, listener: () => void): () => void {
+    const connection = this.getOrCreateConnection(url);
+    connection.reopenListeners.add(listener);
+
+    return () => {
+      connection.reopenListeners.delete(listener);
+    };
+  }
+
   public close(url: string): void {
     const connection = this.connections.get(url);
     if (!connection) return;
@@ -112,6 +131,14 @@ export class SSEClient {
     for (const url of this.connections.keys()) {
       this.close(url);
     }
+  }
+
+  private dropPersistentListener(connection: SSEConnection, listenerKey: string): void {
+    const held = connection.persistentListeners.get(listenerKey);
+    if (!held) return;
+
+    connection.source.removeEventListener(held.eventName, held.listener);
+    connection.persistentListeners.delete(listenerKey);
   }
 
   private closeIfUnused(url: string, connection: SSEConnection): void {
@@ -142,6 +169,15 @@ export class SSEClient {
       source,
       refCount: 0,
       persistentListeners: new Map(),
+      opened: false,
+      reopenListeners: new Set(),
+    };
+    source.onopen = () => {
+      if (!connection.opened) {
+        connection.opened = true;
+        return;
+      }
+      connection.reopenListeners.forEach(listener => listener());
     };
     this.connections.set(url, connection);
 

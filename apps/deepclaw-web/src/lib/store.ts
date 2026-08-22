@@ -52,6 +52,27 @@ function isAtWork(agentId: string, {runningTasks, busyLoops}: AgentActivity): bo
     || busyLoops.some(loopId => splitLoopId(loopId).agentId === agentId);
 }
 
+const browserIdKey = 'browser.id';
+
+/**
+ * The name the server knows this tab by. It lives in the session so that a reload comes back as the
+ * same browser and is handed the question it left unanswered, while another tab is another browser
+ * with a chat of its own. A server render has no session, and its id is thrown away with the render.
+ */
+export function sessionBrowserId(): string {
+  try {
+    const stored = window.sessionStorage.getItem(browserIdKey);
+    if (stored) {
+      return stored;
+    }
+    const browserId = crypto.randomUUID();
+    window.sessionStorage.setItem(browserIdKey, browserId);
+    return browserId;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
 type AppState = {
   browserId: string;
   agents: AgentEmployee[];
@@ -97,7 +118,7 @@ type AppState = {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  browserId: crypto.randomUUID(),
+  browserId: sessionBrowserId(),
   agents: [],
   activeAgents: [],
   projects: [],
@@ -167,10 +188,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       cronTasks: handleUpdatedArrayContent(state.cronTasks, cronTask, !!cronTask.closed),
     }));
   },
+  /**
+   * A message that comes back is the message as it stands now: one this tab watched being written
+   * and left half way through is replaced by the whole of it, rather than joining it as a second.
+   */
   addPulledMessages: (loopId: string, messages: ChatMessage[], head: boolean = false) => set((state) => {
     const oldMessages = state.messages[loopId] || [];
+    const pulled = new Map(messages.map(message => [message.id, message]));
+    const held = oldMessages.map(message => pulled.get(message.id) ?? message);
+    const heldIds = new Set(oldMessages.map(message => message.id));
+    const added = messages.filter(message => !heldIds.has(message.id));
     return {
-      messages: {...state.messages, ...{[loopId]: head ? [...messages, ...oldMessages] : [...oldMessages, ...messages]}}
+      messages: {...state.messages, ...{[loopId]: head ? [...added, ...held] : [...held, ...added]}}
     };
   }),
   addMessage: (loopId: string, message: ChatMessage) => set((state) => {

@@ -1,4 +1,4 @@
-import { ExternalInterruptReason, InternalInterruptReason } from '@deepclaw/core';
+import { ExternalInterruptReason } from '@deepclaw/core';
 import type { OneLoopContext } from '../../definitions/definitions';
 import type { ToolUseDef } from '../../definitions/tool-definitions';
 import type { ToolUseServiceResult } from './tool-use-service';
@@ -20,8 +20,7 @@ type VisitorHook =
     'toolResultCompacted' |
     'historyCompacted' |
     'postEachToolUse' |
-    'externalInterrupt' |
-    'internalInterrupt';
+    'externalInterrupt';
 type Hook = InterceptorHook | VisitorHook;
 
 type HookContent = {
@@ -36,7 +35,6 @@ type HookContent = {
     toolResultCompacted: number;
     historyCompacted: number;
     externalInterrupt: ExternalInterruptReason;
-    internalInterrupt: InternalInterruptReason;
 };
 type HookContentMap = { [K in Hook]: HookContent[K] };
 

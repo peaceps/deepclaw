@@ -2,7 +2,7 @@ import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type FlushAgent, type TokenUsage} from '@deepclaw/core';
 import {newTestContext, newTestRuntime} from '../../../test-support/one-loop-context';
 import {type OneLoopContext} from '../../definitions/definitions';
-import {subLoopTool, taskLoopTool} from './sub-loop-tool';
+import {subLoopTool, taskLoopTool} from './spawned-loop-tool';
 
 const mocks = vi.hoisted(() => ({
     deleteDir: vi.fn<(dir: string) => void>(() => undefined),

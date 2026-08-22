@@ -46,7 +46,7 @@ function toolModules(): Promise<Record<string, unknown>[]> {
         import('../tools/project-tool'),
         import('../tools/save-memory-tool'),
         import('../tools/skill-tool'),
-        import('../tools/sub-loop-tool'),
+        import('../tools/spawned-loop-tool'),
         import('../tools/sync-command-tool'),
     ]);
 }

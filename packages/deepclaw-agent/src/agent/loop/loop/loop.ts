@@ -10,16 +10,14 @@ import {
     isExternalInterruptReason,
     isAgentStopReason,
     AgentInvokeResponse,
-    isInternalInterruptReason,
     ExternalInterruptReason,
-    AgentRuntime,
-    BREAK_POINTS,
     AgentBreakReason,
     isStopTransitionReason,
     FlushAgentRole,
     addTokenUsage,
     isImageRef,
     type ImageContent,
+    type SealedAgentHandler,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -40,7 +38,6 @@ import { SessionService } from '../services/session-service';
 type ToolRun = {
     toolUseDef: ToolUseDef;
     result: ToolUseResult;
-    rerun?: boolean;
 }
 
 export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionReason },
@@ -55,6 +52,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private footPrints: FootPrint[] = [];
     private agentConfig: AgentConfig;
     private externalInterruptReason: ExternalInterruptReason | undefined;
+    /**
+     * The way the run in progress asks the user, when whoever started it brought one of its own. A
+     * run from a chat is answered in that chat, and what a loop it spawned has to ask belongs to the
+     * same conversation: the handler the loop was built with knows nothing of it.
+     */
+    private runInteraction?: SealedAgentHandler['onInteractionEvent'];
     /**
      * What this loop was spawned as, unset for the main loop of a session. Taken in through the
      * constructor because the session a loop reads and writes is picked from it before anything
@@ -151,19 +154,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;
 
-    protected override async _resume(
-        options: AgentInvokeOptions & {runtime: AgentRuntime}
-    ): Promise<AgentInvokeResponse> {
-        const state: LoopState<I> = {
-            messages: this.history,
-            oneLoopContext: this.initContext(options)
-        };
-        return this._invokeLoopAndReturn(state);
-    }
-
     protected async _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         this.addUserMessage(input, options.images);
         this.externalInterruptReason = undefined;
+        this.runInteraction = options.agentHandler?.onInteractionEvent;
+        // Being asked for a run is a reason to believe somebody is there again, so the loop goes back
+        // to asking. A spawned loop is nobody: its run is a part of the one that found the silence.
+        if (this.loopKind() === 'main') {
+            ToolUseService.clearAwayUser(this.getId());
+        }
         const state: LoopState<I> = {
             messages: this.history,
             oneLoopContext: this.initContext(options)
@@ -187,7 +186,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             finalText = msg;
             return {text: msg, runtime};
         } finally {
-            runtime.breakPoint.break = undefined;
             try {
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
             } finally {
@@ -195,13 +193,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                     finalText, usage: runtime.usage
                 }, true);
                 this.historyPersistIndex = runtime.historyPersistIndex;
-                if (isInternalInterruptReason(runtime.agentBreakReason)) {
-                    runtime.usage = {
-                        cachedInputTokens: 0,
-                        noCachedInputTokens: 0,
-                        outputTokens: 0,
-                    };
-                }
             }
         }
     }
@@ -230,7 +221,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 },
                 addStringMessage: this.addStringMessage.bind(this),
             },
-            runtime: options.runtime ?? {
+            runtime: {
                 ...this.emptyRuntime(),
                 historyPersistIndex: this.historyPersistIndex,
             }
@@ -240,24 +231,21 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private async agentLoop(state: LoopState<I>): Promise<string> {
         while (true) {
             const runtime = state.oneLoopContext.runtime;
-            if (runtime.breakPoint.point <= BREAK_POINTS.loopStart) {
-                runtime.breakPoint.point = BREAK_POINTS.none;
-                if (runtime.turnCount >= this.turnLimit) {
-                    runtime.transitionReason = 'endLoop';
-                    const finalText = i18nInstance.t('agent.maxTurnReached', {
-                        finalText: this.extractFinalText(state.messages)
-                    });
-                    this.agentHandler.onStreamText({
-                        browserId: state.oneLoopContext.browserId,
-                        text: finalText
-                    });
-                    return finalText;
-                }
-                state.oneLoopContext.system = PromptService.provideSystemPrompt(
-                    this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
-                    this.role, this.projectId, this.loopKind(), this.assignedTask()
-                );
+            if (runtime.turnCount >= this.turnLimit) {
+                runtime.transitionReason = 'endLoop';
+                const finalText = i18nInstance.t('agent.maxTurnReached', {
+                    finalText: this.extractFinalText(state.messages)
+                });
+                this.agentHandler.onStreamText({
+                    browserId: state.oneLoopContext.browserId,
+                    text: finalText
+                });
+                return finalText;
             }
+            state.oneLoopContext.system = PromptService.provideSystemPrompt(
+                this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
+                this.role, this.projectId, this.loopKind(), this.assignedTask()
+            );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
                 let finalText = this.extractFinalText(state.messages);
@@ -269,8 +257,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 } else if (isExternalInterruptReason(runtime.agentBreakReason)) {
                     await HookManager.emitVisitor('externalInterrupt', state.oneLoopContext, runtime.agentBreakReason);
                     finalText = runtime.agentBreakDetail || this.wrapAgentBreakMessage(finalText, 'externalInterrupt', runtime.agentBreakReason);
-                } else if (isInternalInterruptReason(runtime.agentBreakReason)) {
-                    await HookManager.emitVisitor('internalInterrupt', state.oneLoopContext, runtime.agentBreakReason);
                 }
                 return finalText;
             }
@@ -296,40 +282,33 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
         const runtime = state.oneLoopContext.runtime;
-        let response: O | undefined = undefined;
-        if (!runtime.breakPoint.break && runtime.breakPoint.point <= BREAK_POINTS.callLLM) {
-            runtime.breakPoint.point = BREAK_POINTS.none;
-            await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
-            
-            await this.compactIfNeeded(state.oneLoopContext);
-            response = await this.llm.invoke(
-                state.oneLoopContext.loopConfig.mode,
-                state.oneLoopContext.system,
-                state.messages,
-                (text: string) => this.agentHandler.onStreamText({
-                    browserId: state.oneLoopContext.browserId,
-                    text
-                }),
-                state.oneLoopContext.logger
-            );
+        await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
 
-            this.addUsage(state.oneLoopContext, response);
+        await this.compactIfNeeded(state.oneLoopContext);
+        const response = await this.llm.invoke(
+            state.oneLoopContext.loopConfig.mode,
+            state.oneLoopContext.system,
+            state.messages,
+            (text: string) => this.agentHandler.onStreamText({
+                browserId: state.oneLoopContext.browserId,
+                text
+            }),
+            state.oneLoopContext.logger
+        );
 
-            state.oneLoopContext.runtime.turnCount++;
-            state.oneLoopContext.runtime.transitionReason = response.transitionReason;
-        }
+        this.addUsage(state.oneLoopContext, response);
+
+        runtime.turnCount++;
+        runtime.transitionReason = response.transitionReason;
 
         switch (runtime.transitionReason) {
-            case 'toolUse':
-                if (!runtime.breakPoint.break && runtime.breakPoint.point <= BREAK_POINTS.toolUse) {
-                    const toolUseDefs = runtime.breakPoint.point === BREAK_POINTS.toolUse ?
-                        runtime.breakPoint.input as ToolUseDef[] : this.extractToolUseFromResponse(response!);
-                    runtime.breakPoint.point = BREAK_POINTS.none;
-
-                    const results = await this.runTools(toolUseDefs, state.oneLoopContext);
-                    this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-                }
+            case 'toolUse': {
+                const results = await this.runTools(
+                    this.extractToolUseFromResponse(response), state.oneLoopContext
+                );
+                this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
                 break;
+            }
             case 'inputMaxTokens':
                 await this.compactIfNeeded(state.oneLoopContext);
                 break;
@@ -347,23 +326,19 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 // TODO: Handle refused 输入侧意图识别分类/模式匹配 -> 询问用户
                 break;
         }
-        if (!runtime.breakPoint.break && runtime.breakPoint.point <= BREAK_POINTS.postTurn) {
-            runtime.breakPoint.point = BREAK_POINTS.none;
-            try {
-                if (isStopTransitionReason(runtime.transitionReason) || isAgentStopReason(runtime.agentBreakReason)) {
-                    this.externalInterruptReason = undefined;
-                }
-                if (this.externalInterruptReason) {
-                    runtime.agentBreakReason = this.externalInterruptReason;
-                    this.externalInterruptReason = undefined;
-                }
-            } finally {
-                await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
-                SessionService.saveHistory(this.history, state.oneLoopContext);
+        try {
+            if (isStopTransitionReason(runtime.transitionReason) || isAgentStopReason(runtime.agentBreakReason)) {
+                this.externalInterruptReason = undefined;
             }
+            if (this.externalInterruptReason) {
+                runtime.agentBreakReason = this.externalInterruptReason;
+                this.externalInterruptReason = undefined;
+            }
+        } finally {
+            await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
+            SessionService.saveHistory(this.history, state.oneLoopContext);
         }
-        return !runtime.breakPoint.break && !isStopTransitionReason(runtime.transitionReason)
-            && !runtime.agentBreakReason;
+        return !isStopTransitionReason(runtime.transitionReason) && !runtime.agentBreakReason;
     }
 
     private addUsage(context: OneLoopContext, response: O): void {
@@ -374,23 +349,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {
         const results: ToolUseResult[] = [];
         const groups = ToolUseService.planExecutionGroups(toolUseDefs, context);
-        const ran = new Set<string>();
         for (const group of groups) {
             const runs = await Promise.all(group.map(toolUseDef => this.runOneTool(toolUseDef, context)));
-            group.forEach(toolUseDef => ran.add(toolUseDef.id));
-            results.push(...runs.filter(run => !run.rerun).map(run => run.result));
-            const pending = runs.filter(run => run.rerun).map(run => run.toolUseDef);
-            if (pending.length > 0) {
-                // Whatever never ran is taken from the whole list rather than from the groups
-                // behind this one, so the break point holds every call however they were grouped.
-                const untouched = toolUseDefs.filter(toolUseDef => !ran.has(toolUseDef.id));
-                context.runtime.breakPoint = {
-                    point: BREAK_POINTS.toolUse,
-                    input: [...pending, ...untouched],
-                    break: true
-                }
-                return results;
-            }
+            results.push(...runs.map(run => run.result));
         }
         return results;
     }
@@ -417,9 +378,6 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             };
         }
         const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
-        if (toolResult.rerun) {
-            return {toolUseDef, result: toolResult.result, rerun: true};
-        }
         await HookManager.emitVisitor('postEachToolUse', context, {toolUseDef, result: toolResult});
         return {toolUseDef, result: toolResult.result};
     }
@@ -450,6 +408,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             this.llm.getTextFromInputMessage(messages[messages.length - 1]!);
     }
 
+    // For stop button in the future
     public setExternalInterruptReason(reason: ExternalInterruptReason): void {
         this.externalInterruptReason = reason;
     }
@@ -486,9 +445,17 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private spawn(spawned: SpawnedLoop): LoopAgent<I, O, LLM> {
         return this.newLoop(this.role, this.agentId, this.projectId, {
             onStreamText: () => {},
-            onInteractionEvent: async (event: AgentInteractionEvent) => this.agentHandler.onInteractionEvent(event),
+            onInteractionEvent: async (event: AgentInteractionEvent) => this.askOfThisRun(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
         }, spawned);
+    }
+
+    /** Through the run in progress where it brought a way of its own, the loop's own way otherwise. */
+    private askOfThisRun(event: AgentInteractionEvent): Promise<string> {
+        if (this.runInteraction) {
+            return this.runInteraction(event);
+        }
+        return this.agentHandler.onInteractionEvent(event);
     }
 
     private assignedTask(): AssignedTask | undefined {

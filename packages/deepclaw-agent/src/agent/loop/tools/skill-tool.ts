@@ -83,7 +83,7 @@ Show the user what you found:
     parallelSafe: true,
     invoke: async function(input: SearchOnlineSkillsInput): Promise<string> {
         try {
-            const {output} = await runCommand(`npx ${getSkillCommand(false)} find ${input.keywords.join(' ')}`);
+            const {output} = await runCommand(`npx -y ${getSkillCommand(false)} find ${input.keywords.join(' ')}`);
             return output;
         } catch (e) {
             return `Search failed: ${e}`;
@@ -247,14 +247,19 @@ function skillsInjectionGuard<T>(reg: RegExp, getValue: (input: T) => string): (
     }
 }
 
+/**
+ * The first -y is npx being told to install the cli without asking, the last one is the cli itself
+ * being told to install the skill without asking. Nothing here answers a question: the command runs
+ * with a pipe for a stdin, so whatever asks one waits until the run times out.
+ */
 async function trySkillsWithMirror(command: string, input: string) {
     let output = '';
     try {
-        const result = await runCommand(`npx ${getSkillCommand(false)} ${command} ${input} -y`);
+        const result = await runCommand(`npx -y ${getSkillCommand(false)} ${command} ${input} -y`);
         output = result.output;
     } catch {
         try {
-            const result = await runCommand(`npx ${getSkillCommand(true)} ${command} ${input} -y`);
+            const result = await runCommand(`npx -y ${getSkillCommand(true)} ${command} ${input} -y`);
             output = result.output;
         } catch (e) {
             return `skills ${command} failed: ${e}`;

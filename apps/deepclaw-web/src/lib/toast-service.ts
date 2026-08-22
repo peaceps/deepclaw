@@ -1,17 +1,24 @@
 import type { SSEToastEvent } from "@/app/api/sse-types";
-import { AgentEmployee, Project, splitLoopId } from "@deepclaw/core";
+import { AgentEmployee, INTERACTION_TIMEOUT, Project, splitLoopId } from "@deepclaw/core";
 import {i18nInstance} from '@deepclaw/i18n';
 
 export class ToastService {
 
+    /**
+     * How long a toast stays is part of what it says: everything here passes soon, except the one
+     * that stands for a question waiting to be answered. That one is the only way back to the
+     * question, so it stays as long as the question does and goes when the answer is no longer
+     * wanted.
+     */
     public static parseToastEvent(
         content: SSEToastEvent['content'], projects: Project[], agents: AgentEmployee[]
-    ): {title: string; message: string} {
-        const res = {
+    ): {title: string; message: string; duration?: number} {
+        const res: {title: string; message: string; duration?: number} = {
             title: '',
             message: ''
         };
         if (content.key === 'interactionPause') {
+            res.duration = INTERACTION_TIMEOUT;
             const {projectId, agentId} = splitLoopId(content.data as string);
             let name = agentId;
             let role = 'agent';

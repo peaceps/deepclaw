@@ -4,8 +4,8 @@ import {newSSEEndpoint} from './sse-endpoint';
 const mocks = vi.hoisted(() => ({
     addClient: vi.fn<(
         browserId: string, controller: ReadableStreamDefaultController, encoder: TextEncoder
-    ) => void>(),
-    removeClient: vi.fn<(browserId: string) => void>(),
+    ) => number>(),
+    removeClient: vi.fn<(browserId: string, streamId: number) => void>(),
 }));
 
 vi.mock('./sse-server', () => ({
@@ -23,6 +23,7 @@ async function readFrame(response: Response): Promise<string> {
 
 beforeEach(() => {
     vi.resetAllMocks();
+    mocks.addClient.mockReturnValue(7);
 });
 
 describe('newSSEEndpoint', () => {
@@ -47,6 +48,7 @@ describe('newSSEEndpoint', () => {
     test('registers the client before the greeting is written', async () => {
         mocks.addClient.mockImplementation((_browserId, controller, encoder) => {
             controller.enqueue(encoder.encode('event: first\ndata: {}\n\n'));
+            return 7;
         });
         const frame = await readFrame(newSSEEndpoint('b1'));
         expect(frame).toBe('event: first\ndata: {}\n\n');
@@ -62,10 +64,11 @@ describe('newSSEEndpoint', () => {
         expect(decoder.decode(value)).toBe('event: busy\ndata: {}\n\n');
     });
 
-    test('forgets the client when the browser drops the stream', async () => {
+    /** Named, so that a stream ending late cannot take the one the browser holds by now with it. */
+    test('forgets the stream it opened when the browser drops it', async () => {
         const response = newSSEEndpoint('b1');
         await response.body!.cancel();
-        expect(mocks.removeClient).toHaveBeenCalledWith('b1');
+        expect(mocks.removeClient).toHaveBeenCalledWith('b1', 7);
     });
 
     test('does not forget the client while the stream is only being read', async () => {

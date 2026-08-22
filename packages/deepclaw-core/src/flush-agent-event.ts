@@ -33,6 +33,12 @@ export type AgentStreamEvent = AgentLoopEvent & {
     done?: boolean;
 };
 
+/**
+ * How long a question of an agent waits for its answer. Whoever shows the question and whoever
+ * waits for it read this same number, so that nothing is still on offer after the wait is over.
+ */
+export const INTERACTION_TIMEOUT = 10 * 60 * 1000;
+
 export type AgentInteractionEventOption = string | {label: string; value: string};
 
 export type AgentInteractionEvent = AgentLoopEvent & {

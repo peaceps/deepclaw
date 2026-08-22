@@ -6,7 +6,6 @@ import {
     AgentHandler, SealedAgentHandler,
     AgentInvokeOptions, AgentInvokeResponse,
     AgentRuntime,
-    BREAK_POINTS,
     FlushAgentRole
 } from './flush-agent-types';
 export abstract class FlushAgent {
@@ -46,19 +45,8 @@ export abstract class FlushAgent {
 
     protected abstract _invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse>;
 
-    protected abstract _resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse>;
-
     protected getId() {
         return getLoopId(this.role, this.agentId, this.projectId);
-    }
-
-    async resume(options: AgentInvokeOptions & {runtime: AgentRuntime}): Promise<AgentInvokeResponse> {
-        try {
-            const res = await this._resume(options);
-            return this.finishInvoke(options.browserId, res.text, res.runtime);
-        } catch (e: any) {
-            return this.finishInvoke(options.browserId, e?.message || '', this.emptyRuntime());
-        }
     }
 
     async invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
@@ -74,7 +62,6 @@ export abstract class FlushAgent {
         return {
             turnCount: 0,
             historyPersistIndex: 0,
-            breakPoint: {point: BREAK_POINTS.none},
             recoveryState: {
                 maxTokenRetries: 0,
                 refusalState: '' // TODO: 添加拒绝状态

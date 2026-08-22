@@ -59,9 +59,6 @@ export function installTraceHooks(maxTurns?: number): HookTrace {
     HookManager.onVisitor('externalInterrupt', (_context, reason) => {
         trace.interrupts.push(`external:${reason}`);
     });
-    HookManager.onVisitor('internalInterrupt', (_context, reason) => {
-        trace.interrupts.push(`internal:${reason}`);
-    });
 
     if (maxTurns) {
         // A runaway loop would otherwise burn the whole timeout, so the turn budget is

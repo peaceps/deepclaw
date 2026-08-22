@@ -180,14 +180,16 @@ describe('UIChatService pagination', () => {
         expect(UIChatService.getNewerMessages('agent.newer')).toHaveLength(15);
     });
 
-    test('returns only the messages after the cursor', () => {
+    test('returns the cursor along with the messages after it', () => {
         fill('agent.newerPage', 15);
-        expect(ids(UIChatService.getNewerMessages('agent.newerPage', 'm13'))).toEqual(['m14', 'm15']);
+        expect(ids(UIChatService.getNewerMessages('agent.newerPage', 'm13')))
+            .toEqual(['m13', 'm14', 'm15']);
     });
 
-    test('returns nothing newer than the last message', () => {
+    /** The caller may hold it as it was being written, so it is worth having again whole. */
+    test('returns the last message itself when nothing came after it', () => {
         fill('agent.newerEnd', 15);
-        expect(UIChatService.getNewerMessages('agent.newerEnd', 'm15')).toEqual([]);
+        expect(ids(UIChatService.getNewerMessages('agent.newerEnd', 'm15'))).toEqual(['m15']);
     });
 
     test('returns nothing for an unknown newer cursor', () => {
@@ -209,6 +211,15 @@ describe('UIChatService pagination', () => {
         fill('agent.live', 3);
         const seen = UIChatService.getOlderMessages('agent.live');
         UIChatService.addMessage('agent.live', newMessage('m4'));
-        expect(ids(UIChatService.getNewerMessages('agent.live', seen[seen.length - 1]!.id))).toEqual(['m4']);
+        expect(ids(UIChatService.getNewerMessages('agent.live', seen[seen.length - 1]!.id)))
+            .toEqual(['m3', 'm4']);
+    });
+
+    /** What a client left half written and stopped hearing about is what it comes back for. */
+    test('hands back the message as it stands now', () => {
+        fill('agent.finished', 2);
+        UIChatService.replaceMessage('agent.finished', 'm2', 'the whole answer');
+        expect(UIChatService.getNewerMessages('agent.finished', 'm2')[0]?.content)
+            .toBe('the whole answer');
     });
 });

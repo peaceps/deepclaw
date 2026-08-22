@@ -1,8 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
-    BREAK_POINTS,
     isAgentStopReason, isContinueTransitionReason, isExternalInterruptReason,
-    isInternalInterruptReason, isStopTransitionReason
+    isInternalInterruptReason, isInvalidInteractionReason, isStopTransitionReason
 } from './flush-agent-types';
 
 describe('transition reason guards', () => {
@@ -51,17 +50,12 @@ describe('break reason guards', () => {
         expect(isAgentStopReason('clientLost')).toBe(false);
         expect(isAgentStopReason(undefined)).toBe(false);
     });
-});
 
-describe('BREAK_POINTS', () => {
-
-    test('none is the only falsy break point so it can be used as a flag', () => {
-        const points = Object.entries(BREAK_POINTS);
-        expect(points.filter(([, value]) => !value).map(([key]) => key)).toEqual(['none']);
-    });
-
-    test('every break point has a distinct value', () => {
-        const values = Object.values(BREAK_POINTS);
-        expect(new Set(values).size).toBe(values.length);
+    test('isInvalidInteractionReason accepts only the ways a question went nowhere', () => {
+        expect(isInvalidInteractionReason('disconnected')).toBe(true);
+        expect(isInvalidInteractionReason('timeout')).toBe(true);
+        expect(isInvalidInteractionReason('error')).toBe(true);
+        expect(isInvalidInteractionReason('interactionAfk')).toBe(false);
+        expect(isInvalidInteractionReason(undefined)).toBe(false);
     });
 });

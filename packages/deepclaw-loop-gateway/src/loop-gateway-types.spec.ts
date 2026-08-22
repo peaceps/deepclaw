@@ -1,7 +1,6 @@
 import {describe, expect, test} from 'vitest';
 import {type AgentEvent, type ChatMessage} from '@deepclaw/core';
 import {
-    getClientKey,
     isAgentInfoEvent, isBusyLoopsInfoEvent, isCronInfoEvent, isInfoEvent, isLoopBusyEvent,
     isLoopCancelInteractionEvent, isLoopChatEvent, isLoopEvent, isLoopInteractionEvent,
     isLoopStreamEvent, isLoopTokenUsageEvent, isProjectInfoEvent, isRunningTasksInfoEvent
@@ -99,21 +98,5 @@ describe('event families', () => {
             const event = sample as AgentEvent;
             expect(isLoopEvent(event)).toBe(!isInfoEvent(event));
         }
-    });
-});
-
-describe('getClientKey', () => {
-
-    test('scopes the browser to a loop when a loopId is given', () => {
-        expect(getClientKey('b1', LOOP_ID)).toBe('b1::agent.a1');
-    });
-
-    test('falls back to the browserId alone', () => {
-        expect(getClientKey('b1')).toBe('b1');
-        expect(getClientKey('b1', '')).toBe('b1');
-    });
-
-    test('keeps different loops of one browser apart', () => {
-        expect(getClientKey('b1', 'agent.a1')).not.toBe(getClientKey('b1', 'agent.a2'));
     });
 });

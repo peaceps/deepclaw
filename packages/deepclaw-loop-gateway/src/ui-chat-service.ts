@@ -49,12 +49,17 @@ class UIChatServiceImpl {
         return this.getMessages(loopId, getRange);
     }
 
+    /**
+     * The message asked from comes back with the ones after it. A client holds the newest message
+     * it saw, and the answer it was watching being written may have been finished long after it
+     * stopped watching: asking only for what comes after would leave it with the half of it.
+     */
     public static getNewerMessages(loopId: string, startMessageId?: string): ChatMessage[] {
         const getRange = (msgLen: number): [number, number] => {
             if (!startMessageId) return [0, msgLen];
             const index = this.getCachedIndex(loopId, startMessageId);
             if (index === undefined) return EMPTY_RANGE;
-            return [index + 1, msgLen];
+            return [index, msgLen];
         }
         return this.getMessages(loopId, getRange);
     }

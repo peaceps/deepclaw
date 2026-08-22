@@ -1,6 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {
-    BREAK_POINTS,
     type AgentHandler, type AgentInvokeOptions, type AgentRuntime, type ImageContent,
     type FlushAgentRole, type LLMTransitionReason, type SealedAgentHandler, type TokenUsage
 } from '@deepclaw/core';
@@ -12,7 +11,7 @@ import {
 } from '../../definitions/definitions';
 import {type ToolUseDef, type ToolUseResult} from '../../definitions/tool-definitions';
 import {type LLMConstructor, type LLMModel} from '../../llm/llmgw';
-import {newTestAgentConfig, newTestRuntime} from '../../../test-support/one-loop-context';
+import {newTestAgentConfig} from '../../../test-support/one-loop-context';
 import {LoopAgent} from './loop';
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +29,7 @@ const mocks = vi.hoisted(() => ({
     emitInterceptor: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({result: 'continue'})),
     executeToolCall: vi.fn<(toolUseDef: ToolUseDef, context: unknown) => Promise<unknown>>(),
     planExecutionGroups: vi.fn<(toolUseDefs: ToolUseDef[], context: unknown) => ToolUseDef[][]>(),
+    clearAwayUser: vi.fn<(loopId: string) => void>(),
     compactOldResults: vi.fn(),
     compactFullHistory: vi.fn(async () => undefined),
 }));
@@ -77,6 +77,7 @@ vi.mock('../services/tool-use-service', () => ({
     ToolUseService: {
         executeToolCall: mocks.executeToolCall,
         planExecutionGroups: mocks.planExecutionGroups,
+        clearAwayUser: mocks.clearAwayUser,
     },
 }));
 
@@ -178,10 +179,6 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
 
     public runInvoke(input: string, options: AgentInvokeOptions): Promise<{text: string, runtime: AgentRuntime}> {
         return this._invoke(input, options);
-    }
-
-    public runResume(options: AgentInvokeOptions & {runtime: AgentRuntime}) {
-        return this._resume(options);
     }
 
     public newTestSubLoop(): TestLoop {
@@ -472,28 +469,21 @@ describe('tool use', () => {
         expect(toolTexts[1]).toContain('Tool call execution skipped');
     });
 
-    test('keeps the pending tools in a break point when the user walked away', async () => {
+    /** A tool nobody was there to answer for is one failed call, and the run goes on without it. */
+    test('runs the rest of the tools when one of them got no answer from the user', async () => {
         const {loop, llm} = newLoop();
-        llm.responses = [{transitionReason: 'toolUse', toolUses: [toolUse('tu1'), toolUse('tu2')]}];
-        mocks.executeToolCall.mockImplementationOnce(async (def, context) => {
-            (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'interactionAfk';
-            return {result: {id: def.id, content: 'needs the user'}, success: false, rerun: true};
-        });
-        const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(runtime.breakPoint.point).toBe(BREAK_POINTS.toolUse);
-        expect(runtime.breakPoint.input).toEqual([toolUse('tu1'), toolUse('tu2')]);
-        expect(mocks.executeToolCall).toHaveBeenCalledOnce();
-    });
-
-    test('drops the token usage of a turn that has to be replayed', async () => {
-        const {loop, llm} = newLoop();
-        llm.responses = [{transitionReason: 'toolUse', toolUses: [toolUse('tu1')]}];
-        mocks.executeToolCall.mockImplementationOnce(async (def, context) => {
-            (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'interactionAfk';
-            return {result: {id: def.id, content: 'needs the user'}, success: false, rerun: true};
-        });
-        const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(runtime.usage).toEqual({cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0});
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1'), toolUse('tu2')]},
+            {transitionReason: 'endLoop', text: 'went on'},
+        ];
+        mocks.executeToolCall.mockImplementationOnce(async (def) => ({
+            result: {id: def.id, content: 'nobody answered in time'}, success: false
+        }));
+        const {text} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.executeToolCall).toHaveBeenCalledTimes(2);
+        expect(text).toBe('went on');
+        expect(savedHistory().filter(message => message.role === 'tool').map(message => message.text))
+            .toEqual(['nobody answered in time', 'demo done']);
     });
 });
 
@@ -541,55 +531,35 @@ describe('parallel tool use', () => {
         expect(overlapped).toBe(false);
     });
 
-    test('keeps the results of the siblings of a tool call the user has to answer for', async () => {
+    /** A call that failed says so among the others, and the groups behind it are still run. */
+    test('keeps the results of the siblings of a tool call that failed', async () => {
         const {loop, llm} = newLoop();
         llm.responses = [{
             transitionReason: 'toolUse',
             toolUses: [toolUse('tu1'), toolUse('tu2'), toolUse('tu3')],
         }];
         mocks.planExecutionGroups.mockImplementation(defs => [defs.slice(0, 2), defs.slice(2)]);
-        mocks.executeToolCall.mockImplementation(async (def, context) => {
-            if (def.id !== 'tu1') {
-                return {result: {id: def.id, content: `${def.id} done`}, success: true};
-            }
-            (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'interactionAfk';
-            return {result: {id: def.id, content: 'needs the user'}, success: false, rerun: true};
-        });
-        const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(runtime.breakPoint.input).toEqual([toolUse('tu1'), toolUse('tu3')]);
+        mocks.executeToolCall.mockImplementation(async (def) => def.id === 'tu1'
+            ? {result: {id: def.id, content: 'needs the user'}, success: false}
+            : {result: {id: def.id, content: `${def.id} done`}, success: true});
+        await loop.runInvoke('hi', {browserId: 'b1'});
         expect(savedHistory().filter(message => message.role === 'tool').map(message => message.text))
-            .toEqual(['tu2 done']);
+            .toEqual(['needs the user', 'tu2 done', 'tu3 done']);
     });
 });
 
-describe('resume', () => {
+describe('turn limit', () => {
 
-    test('picks the pending tools up from the break point without asking the llm again', async () => {
-        const {loop, llm} = newLoop();
-        const runtime = newTestRuntime({
-            transitionReason: 'toolUse',
-            breakPoint: {point: BREAK_POINTS.toolUse, input: [toolUse('tu2')]},
+    test('ends the run with the final text once the turns are spent', async () => {
+        const {loop, llm, handler} = newLoop();
+        llm.invoke.mockImplementation(async (...args) => {
+            args[2].push({role: 'assistant', text: 'still going'});
+            return {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]};
         });
-        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
-        await loop.runResume({browserId: 'b1', runtime});
-        expect(mocks.executeToolCall).toHaveBeenCalledExactlyOnceWith(toolUse('tu2'), expect.anything());
-    });
-
-    test('does not add the input again on a resume', async () => {
-        const {loop, llm} = newLoop({history: [{role: 'user', text: 'earlier'}]});
-        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
-        await loop.runResume({browserId: 'b1', runtime: newTestRuntime()});
-        expect(savedHistory().map(message => message.text)).toEqual(['earlier', 'done']);
-    });
-
-    test('stops right away when the turn limit was already reached', async () => {
-        const {loop, handler} = newLoop();
-        const {text} = await loop.runResume({
-            browserId: 'b1', runtime: newTestRuntime({turnCount: 100})
-        });
+        const {text, runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(runtime.turnCount).toBe(100);
         expect(text).toContain('agent.maxTurnReached');
         expect(handler.onStreamText).toHaveBeenCalledWith(expect.objectContaining({browserId: 'b1'}));
-        expect(loop.fakeLLM().invoke).not.toHaveBeenCalled();
     });
 });
 
@@ -738,6 +708,23 @@ describe('spawned loops', () => {
         expect(handler.onInteractionEvent).toHaveBeenCalledWith(expect.objectContaining({content: 'which one?'}));
         subLoop.sealedHandler().onInfoEvent({eventType: 'updateAgent', content: {id: 'a1'}});
         expect(handler.onInfoEvent).toHaveBeenCalled();
+    });
+
+    /**
+     * A run started in a chat is answered in that chat, and there is nobody at the browser the loop
+     * was built to ask. What its subagents want to know belongs to the same conversation.
+     */
+    test('asks the questions of a sub loop where the run in progress asks', async () => {
+        const {loop, handler, llm} = newLoop();
+        const askInChat = vi.fn(async () => 'from the chat');
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1', agentHandler: {onInteractionEvent: askInChat}});
+        const subLoop = loop.newTestSubLoop();
+        const answer = subLoop.sealedHandler().onInteractionEvent(
+            {type: 'input', content: 'which one?', browserId: 'b1'}
+        );
+        await expect(answer).resolves.toBe('from the chat');
+        expect(handler.onInteractionEvent).not.toHaveBeenCalled();
     });
 
     test('refuses to nest another sub loop', () => {

@@ -12,8 +12,12 @@ const mocks = vi.hoisted(() => ({
     subscribe: vi.fn<(listener: (event: LoopGatewayEvent) => void) => () => void>(),
     unsubscribe: vi.fn<() => void>(),
     isLoopBusy: vi.fn<(loopId: string) => boolean>(),
+    pendingInteraction: vi.fn<(browserId: string, loopId: string) => AgentInteractionEvent | undefined>(),
     cancelInteraction: vi.fn<(browserId: string, loopId: string, reason: string) => void>(),
-    disconnectBrowser: vi.fn<(browserId: string) => void>(),
+    waitingQuestions: vi.fn<() => AgentInteractionEvent[]>(),
+    askAgainOf: vi.fn<(browserId: string, loopId: string) => AgentInteractionEvent | undefined>(),
+    askedBrowser: vi.fn<(loopId: string) => string | undefined>(),
+    askAgain: vi.fn<(loopId: string) => void>(),
     error: vi.fn<(message: string) => void>(),
 }));
 
@@ -25,8 +29,12 @@ vi.mock('@deepclaw/loop-gateway', async importOriginal => {
         LoopGateway: {
             subscribe: mocks.subscribe,
             isLoopBusy: mocks.isLoopBusy,
+            pendingInteraction: mocks.pendingInteraction,
             cancelInteraction: mocks.cancelInteraction,
-            disconnectBrowser: mocks.disconnectBrowser,
+            waitingQuestions: mocks.waitingQuestions,
+            askAgainOf: mocks.askAgainOf,
+            askedBrowser: mocks.askedBrowser,
+            askAgain: mocks.askAgain,
         },
     };
 });
@@ -60,6 +68,7 @@ type SSEServerType = (typeof import('./sse-server'))['SSEServer'];
 
 type FakeClient = {
     browserId: string;
+    streamId: number;
     frames: string[];
     enqueue: Mock<(chunk: Uint8Array) => void>;
 };
@@ -78,8 +87,13 @@ function addClient(server: SSEServerType, browserId: string): FakeClient {
         frames.push(decoder.decode(chunk));
     });
     const controller = {enqueue} as unknown as ReadableStreamDefaultController;
-    server.addClient(browserId, controller, new TextEncoder());
-    return {browserId, frames, enqueue};
+    const streamId = server.addClient(browserId, controller, new TextEncoder());
+    return {browserId, streamId, frames, enqueue};
+}
+
+/** What the endpoint does when a stream is over: it names the stream it held, not just the browser. */
+function removeClient(server: SSEServerType, client: FakeClient): void {
+    server.removeClient(client.browserId, client.streamId);
 }
 
 /** Drops the busy frame that every browser is greeted with when it starts watching a loop. */
@@ -123,6 +137,10 @@ beforeEach(async () => {
     vi.clearAllMocks();
     mocks.subscribe.mockReturnValue(mocks.unsubscribe);
     mocks.isLoopBusy.mockReturnValue(false);
+    mocks.pendingInteraction.mockReturnValue(undefined);
+    mocks.waitingQuestions.mockReturnValue([]);
+    mocks.askAgainOf.mockReturnValue(undefined);
+    mocks.askedBrowser.mockReturnValue(undefined);
     server = await loadServer();
 });
 
@@ -156,6 +174,26 @@ describe('addClient', () => {
         expect(first.frames).toEqual([]);
         expect(received(second)).toHaveLength(1);
     });
+
+    /** The browser that was asked closed for good, so this one is who the question is left to. */
+    test('tells a new browser about a question left behind by one that is gone', () => {
+        mocks.waitingQuestions.mockReturnValue([interactionEvent('gone', 'agent.a1')]);
+        expect(received(addClient(server, 'b1'))).toEqual([
+            {eventType: 'toast', content: {key: 'interactionPause', data: 'agent.a1'}},
+        ]);
+    });
+
+    /** Its own question is not news to it, and it is handed the question when it opens the loop. */
+    test('says nothing to a browser about the question it is itself being asked', () => {
+        mocks.waitingQuestions.mockReturnValue([interactionEvent('b1', 'agent.a1')]);
+        expect(addClient(server, 'b1').frames).toEqual([]);
+    });
+
+    test('says nothing about a question the browser it waits for is here to answer', () => {
+        addClient(server, 'b1');
+        mocks.waitingQuestions.mockReturnValue([interactionEvent('b1', 'agent.a1')]);
+        expect(addClient(server, 'b2').frames).toEqual([]);
+    });
 });
 
 describe('watchLoop', () => {
@@ -178,6 +216,87 @@ describe('watchLoop', () => {
         const client = addWatcher(server, 'b1', 'agent.a1');
         fire(busyEvent('agent.a1'));
         expect(received(client)).toHaveLength(1);
+    });
+
+    /** The toast that brought the user here says there is a question, the question itself is here. */
+    test('hands over the question this browser was asked while it watched nothing', () => {
+        mocks.pendingInteraction.mockReturnValue(interactionEvent('b1', 'agent.a1'));
+        const client = addClient(server, 'b1');
+        server.watchLoop('b1', 'agent.a1', true);
+        expect(mocks.pendingInteraction).toHaveBeenCalledWith('b1', 'agent.a1');
+        expect(eventTypes(client)).toEqual(['busy', 'interaction']);
+    });
+
+    /** The question was asked of a browser that closed, so this one is offered it instead. */
+    test('hands over a question left behind by a browser that is gone', () => {
+        mocks.waitingQuestions.mockReturnValue([interactionEvent('gone', 'agent.a1')]);
+        mocks.askAgainOf.mockReturnValue(interactionEvent('b1', 'agent.a1'));
+        const client = addClient(server, 'b1');
+        client.frames.length = 0;
+        server.watchLoop('b1', 'agent.a1', true);
+        expect(mocks.askAgainOf).toHaveBeenCalledExactlyOnceWith('b1', 'agent.a1');
+        expect(eventTypes(client)).toEqual(['busy', 'interaction']);
+    });
+
+    /** That browser is here and was asked: taking its question away would only confuse both. */
+    test('leaves the question of a browser that is still here to it', () => {
+        addClient(server, 'b1');
+        mocks.waitingQuestions.mockReturnValue([interactionEvent('b1', 'agent.a1')]);
+        const client = addClient(server, 'b2');
+        server.watchLoop('b2', 'agent.a1', true);
+        expect(mocks.askAgainOf).not.toHaveBeenCalled();
+        expect(eventTypes(client)).toEqual(['busy']);
+    });
+
+    test('leaves a question of another loop where it is', () => {
+        mocks.waitingQuestions.mockReturnValue([interactionEvent('gone', 'agent.a2')]);
+        const client = addClient(server, 'b1');
+        client.frames.length = 0;
+        server.watchLoop('b1', 'agent.a1', true);
+        expect(mocks.askAgainOf).not.toHaveBeenCalled();
+        expect(eventTypes(client)).toEqual(['busy']);
+    });
+
+    /** A run that gave up on asking this browser is told the user is back on the loop. */
+    test('has the run ask again the browser it puts its questions to', () => {
+        mocks.askedBrowser.mockReturnValue('b1');
+        addClient(server, 'b1');
+        server.watchLoop('b1', 'agent.a1', true);
+        expect(mocks.askAgain).toHaveBeenCalledExactlyOnceWith('agent.a1');
+    });
+
+    /** The one being asked is here, so another browser turning up buys the run nothing. */
+    test('leaves the run alone for a browser it is not asking', () => {
+        mocks.askedBrowser.mockReturnValue('b1');
+        addClient(server, 'b1');
+        addClient(server, 'b2');
+        server.watchLoop('b2', 'agent.a1', true);
+        expect(mocks.askAgain).not.toHaveBeenCalled();
+    });
+
+    /** Nobody else is going to answer for a browser that closed, so this one stands in for it. */
+    test('has the run ask again when the browser it was asking is gone', () => {
+        mocks.askedBrowser.mockReturnValue('gone');
+        addClient(server, 'b1');
+        server.watchLoop('b1', 'agent.a1', true);
+        expect(mocks.askAgain).toHaveBeenCalledExactlyOnceWith('agent.a1');
+    });
+
+    /** A run that asks in a chat instead of a browser is not waiting on any page. */
+    test('leaves a run that asks no browser alone', () => {
+        mocks.askedBrowser.mockReturnValue(undefined);
+        addClient(server, 'b1');
+        server.watchLoop('b1', 'agent.a1', true);
+        expect(mocks.askAgain).not.toHaveBeenCalled();
+    });
+
+    test('asks for nothing on the way out', () => {
+        addWatcher(server, 'b1', 'agent.a1');
+        mocks.pendingInteraction.mockClear();
+        mocks.askAgain.mockClear();
+        server.watchLoop('b1', 'agent.a1', false);
+        expect(mocks.pendingInteraction).not.toHaveBeenCalled();
+        expect(mocks.askAgain).not.toHaveBeenCalled();
     });
 
     test('stops sending them once the browser dropped the loop', () => {
@@ -319,27 +438,32 @@ describe('loop events', () => {
 
 describe('interactions nobody listens to', () => {
 
-    test('parks the interaction and toasts the browser that is still connected', () => {
+    /** The question keeps waiting in the gateway, so the toast has somewhere to send the user. */
+    test('toasts the browser that is still connected and leaves the question waiting', () => {
         const client = addClient(server, 'b1');
         fire(interactionEvent('b1', 'agent.a1'));
-        expect(mocks.cancelInteraction).toHaveBeenCalledWith('b1', 'agent.a1', 'interactionAfk');
+        expect(mocks.cancelInteraction).not.toHaveBeenCalled();
         expect(received(client)).toEqual([
             {eventType: 'toast', content: {key: 'interactionPause', data: 'agent.a1'}},
         ]);
     });
 
-    test('parks the interaction when the browser dropped the loop', () => {
+    test('toasts a browser that dropped the loop as well', () => {
         const client = addWatcher(server, 'b1', 'agent.a1');
         server.watchLoop('b1', 'agent.a1', false);
         fire(interactionEvent('b1', 'agent.a1'));
-        expect(mocks.cancelInteraction).toHaveBeenCalledWith('b1', 'agent.a1', 'interactionAfk');
+        expect(mocks.cancelInteraction).not.toHaveBeenCalled();
         expect(eventTypes(client)).toEqual(['toast']);
     });
 
-    test('cancels the interaction of a browser that left completely', () => {
+    /**
+     * A reload is a browser away for a moment, and the page that returns is handed the question. A
+     * run with no browser at all never reaches this: the gateway refuses to ask on its behalf.
+     */
+    test('leaves the question of a browser that is not connected waiting for it', () => {
         addClient(server, 'b2');
         fire(interactionEvent('b1', 'agent.a1'));
-        expect(mocks.cancelInteraction).toHaveBeenCalledWith('b1', 'agent.a1', 'disconnected');
+        expect(mocks.cancelInteraction).not.toHaveBeenCalled();
     });
 
     test('leaves other loop events alone when nobody listens', () => {
@@ -387,23 +511,22 @@ describe('a client whose stream is gone', () => {
         });
     }
 
-    test('drops the client and cancels the interaction it was waiting for', () => {
+    test('drops the client and writes to it no more', () => {
         const client = addWatcher(server, 'b1', 'agent.a1');
         breakClient(client);
         fire(busyEvent('agent.a1'));
-        expect(mocks.cancelInteraction).toHaveBeenCalledWith('b1', 'agent.a1', 'error');
         client.enqueue.mockClear();
         fire(busyEvent('agent.a1'));
         expect(client.enqueue).not.toHaveBeenCalled();
     });
 
-    test('cancels the interaction of every loop it was watching', () => {
+    /** The loops it watched are owed an answer still, and the browser it belonged to may return. */
+    test('leaves the questions of every loop it was watching waiting', () => {
         const client = addWatcher(server, 'b1', 'agent.a1');
         server.watchLoop('b1', 'agent.a2', true);
         breakClient(client);
         fire(busyEvent('agent.a1'));
-        expect(mocks.cancelInteraction).toHaveBeenCalledWith('b1', 'agent.a1', 'error');
-        expect(mocks.cancelInteraction).toHaveBeenCalledWith('b1', 'agent.a2', 'error');
+        expect(mocks.cancelInteraction).not.toHaveBeenCalled();
     });
 
     test('logs the browser it failed on', () => {
@@ -413,11 +536,13 @@ describe('a client whose stream is gone', () => {
         expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining('Failed to send to client b1'));
     });
 
-    test('drops a client that watches nothing without cancelling an interaction', () => {
+    test('drops a client that watches nothing as well', () => {
         const client = addClient(server, 'b1');
         breakClient(client);
         fire({eventType: 'updateAgent', content: {id: 'a1'}});
-        expect(mocks.disconnectBrowser).toHaveBeenCalledWith('b1');
+        client.enqueue.mockClear();
+        fire({eventType: 'updateAgent', content: {id: 'a1'}});
+        expect(client.enqueue).not.toHaveBeenCalled();
         expect(mocks.cancelInteraction).not.toHaveBeenCalled();
     });
 
@@ -432,35 +557,33 @@ describe('a client whose stream is gone', () => {
 
 describe('removeClient', () => {
 
-    test('disconnects the browser whose stream left', () => {
-        addClient(server, 'b1');
-        server.removeClient('b1');
-        expect(mocks.disconnectBrowser).toHaveBeenCalledWith('b1');
+    /** The run of that browser is none of the business of a stream that left: it keeps going. */
+    test('leaves the loops of the browser running and their questions waiting', () => {
+        removeClient(server, addWatcher(server, 'b1', 'agent.a1'));
+        expect(mocks.cancelInteraction).not.toHaveBeenCalled();
     });
 
     test('unsubscribes from the gateway once the last client left', () => {
-        addClient(server, 'b1');
-        server.removeClient('b1');
+        removeClient(server, addClient(server, 'b1'));
         expect(mocks.unsubscribe).toHaveBeenCalledOnce();
     });
 
     test('keeps the subscription while another client stays', () => {
-        addClient(server, 'b1');
+        const first = addClient(server, 'b1');
         addClient(server, 'b2');
-        server.removeClient('b1');
+        removeClient(server, first);
         expect(mocks.unsubscribe).not.toHaveBeenCalled();
     });
 
     test('subscribes again when a client comes back', () => {
-        addClient(server, 'b1');
-        server.removeClient('b1');
+        removeClient(server, addClient(server, 'b1'));
         addClient(server, 'b1');
         expect(mocks.subscribe).toHaveBeenCalledTimes(2);
     });
 
     test('stops sending to a client that left', () => {
         const client = addWatcher(server, 'b1', 'agent.a1');
-        server.removeClient('b1');
+        removeClient(server, client);
         addClient(server, 'b2');
         fire(busyEvent('agent.a1'));
         expect(client.frames).toEqual([]);
@@ -468,15 +591,29 @@ describe('removeClient', () => {
 
     test('forgets the loops it was watching', () => {
         const client = addWatcher(server, 'b1', 'agent.a1');
-        server.removeClient('b1');
+        removeClient(server, client);
         addClient(server, 'b1');
         fire(busyEvent('agent.a1'));
         expect(client.frames).toEqual([]);
     });
 
+    /**
+     * A reload can be through before the stream it left behind is noticed to be over, and the two
+     * are the same browser: the one that ends last would take the page that is here now with it.
+     */
+    test('leaves the stream that took its place alone', () => {
+        const before = addClient(server, 'b1');
+        const reloaded = addClient(server, 'b1');
+        removeClient(server, before);
+        watch(server, reloaded, 'agent.a1');
+        fire(busyEvent('agent.a1'));
+        expect(received(reloaded)).toHaveLength(1);
+        expect(mocks.unsubscribe).not.toHaveBeenCalled();
+    });
+
     test('accepts a browser that was never registered', () => {
-        addClient(server, 'b1');
-        expect(() => server.removeClient('ghost')).not.toThrow();
-        expect(mocks.disconnectBrowser).not.toHaveBeenCalled();
+        const client = addClient(server, 'b1');
+        expect(() => removeClient(server, {...client, browserId: 'ghost'})).not.toThrow();
+        expect(mocks.unsubscribe).not.toHaveBeenCalled();
     });
 });

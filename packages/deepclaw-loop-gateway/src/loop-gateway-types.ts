@@ -92,7 +92,3 @@ export function isInfoEvent(event: AgentEvent): event is AgentInfoEvent {
     return isProjectInfoEvent(event) || isAgentInfoEvent(event) || isCronInfoEvent(event)
         || isRunningTasksInfoEvent(event) || isBusyLoopsInfoEvent(event) || isAgentRuntimeStatusInfoEvent(event);
 }
-
-export function getClientKey(browserId: string, loopId?: string): string {
-    return loopId ? `${browserId}::${loopId}` : browserId;
-}

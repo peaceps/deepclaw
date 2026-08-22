@@ -355,6 +355,15 @@ describe('interacting through the chat', () => {
         await expect(answer).resolves.toBe('Ada');
     });
 
+    /** A chat nobody comes back to would leave the run waiting for good, and busy for every message. */
+    test('gives up on a question nobody comes back to answer', async () => {
+        vi.useFakeTimers();
+        const givenUp = expect(agentHandler().onInteractionEvent(interactionEvent()))
+            .rejects.toBe('interactionAfk');
+        await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+        await givenUp;
+    });
+
     test('does not start a second run for an answer', async () => {
         void agentHandler().onInteractionEvent(interactionEvent());
         await flush();

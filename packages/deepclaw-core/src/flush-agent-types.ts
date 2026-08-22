@@ -39,7 +39,11 @@ export type InternalInterruptReason = typeof INTERNAL_INTERRUPT_REASONS[number];
 export function isInternalInterruptReason(reason?: AgentBreakReason): reason is InternalInterruptReason {
     return (INTERNAL_INTERRUPT_REASONS as readonly string[]).includes(reason ?? '');
 }
-export type InvalidInteractionReason = 'timeout' | 'disconnected' | 'error';
+const INVALID_INTERACTION_REASONS = ['timeout', 'disconnected', 'error'] as const;
+export type InvalidInteractionReason = typeof INVALID_INTERACTION_REASONS[number];
+export function isInvalidInteractionReason(reason?: string): reason is InvalidInteractionReason {
+    return (INVALID_INTERACTION_REASONS as readonly string[]).includes(reason ?? '');
+}
 
 const AGENT_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
 export type AgentStopReason = typeof AGENT_STOP_REASONS[number];
@@ -63,7 +67,6 @@ export type AgentInvokeOptions = {
     browserId: string;
     images?: ImageContent[];
     agentHandler?: Partial<Omit<SealedAgentHandler, 'onInfoEvent'>>;
-    runtime?: AgentRuntime;
 }
 
 export type AgentInvokeResponse = {
@@ -71,20 +74,12 @@ export type AgentInvokeResponse = {
     runtime: AgentRuntime;
 };
 
-export const BREAK_POINTS = {none: 0, loopStart: 1, callLLM: 2, toolUse: 3, postTurn: 4} as const;
-export type BreakPoint = keyof typeof BREAK_POINTS;
-
 export type AgentRuntime = {
     turnCount: number;
     transitionReason?: LLMTransitionReason;
     agentBreakReason?: AgentBreakReason;
     agentBreakDetail?: string;
     historyPersistIndex: number;
-    breakPoint: {
-        point: typeof BREAK_POINTS[BreakPoint];
-        input?: unknown; // 必须是protocol无关
-        break?: boolean;
-    }
     recoveryState: {
         maxTokenRetries: number;
         refusalState: '' // TODO: 添加拒绝状态

@@ -66,14 +66,14 @@ describe('searchOnlineSkillsTool invoke', () => {
 
     test('searches the registry with all keywords joined', async () => {
         const result = await searchOnlineSkillsTool.invoke({keywords: ['pdf', 'excel']}, newTestContext());
-        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx skills find pdf excel');
+        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx -y skills find pdf excel');
         expect(result).toBe('command output');
     });
 
     test('uses the chinese package when the ui runs in chinese', async () => {
         mocks.loadLang.mockReturnValue('zh');
         await searchOnlineSkillsTool.invoke({keywords: ['pdf']}, newTestContext());
-        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx skills-cn find pdf');
+        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx -y skills-cn find pdf');
     });
 
     test('reports a failed search instead of throwing', async () => {
@@ -100,7 +100,7 @@ describe('downloadSkillTool invoke', () => {
 
     test('installs the skill and reloads the local skills', async () => {
         const result = await downloadSkillTool.invoke({target: 'vercel-labs/agent-skills@react'}, newTestContext());
-        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx skills add vercel-labs/agent-skills@react -y');
+        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx -y skills add vercel-labs/agent-skills@react -y');
         expect(reloadSkills).toHaveBeenCalledOnce();
         expect(result).toBe('command output');
     });
@@ -109,7 +109,7 @@ describe('downloadSkillTool invoke', () => {
         mocks.runCommand.mockRejectedValueOnce(new Error('registry down'))
             .mockResolvedValueOnce({output: 'installed from mirror', preview: ''});
         const result = await downloadSkillTool.invoke({target: 'org/repo@skill'}, newTestContext());
-        expect(mocks.runCommand.mock.calls[1]![0]).toBe('npx skills-cn add org/repo@skill -y');
+        expect(mocks.runCommand.mock.calls[1]![0]).toBe('npx -y skills-cn add org/repo@skill -y');
         expect(result).toBe('installed from mirror');
         expect(reloadSkills).toHaveBeenCalledOnce();
     });
@@ -133,7 +133,7 @@ describe('removeSkillTool', () => {
 
     test('removes the skill by its directory name and reloads', async () => {
         const result = await removeSkillTool.invoke({dirName: 'react-best-practices'}, newTestContext());
-        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx skills remove react-best-practices -y');
+        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx -y skills remove react-best-practices -y');
         expect(reloadSkills).toHaveBeenCalledOnce();
         expect(result).toBe('command output');
     });

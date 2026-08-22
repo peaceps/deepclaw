@@ -1,6 +1,8 @@
-import {beforeEach, describe, expect, test} from 'vitest';
+import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import type {AgentEmployee, ChatMessage, CronTask, Project, RunningTask, Task} from '@deepclaw/core';
-import {type AgentActivity, deriveAgentSummary, useAppStore} from './store';
+import {type AgentActivity, deriveAgentSummary, sessionBrowserId, useAppStore} from './store';
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function newAgent(overrides: Partial<AgentEmployee> = {}): AgentEmployee {
     return {
@@ -153,6 +155,39 @@ describe('deriveAgentSummary', () => {
     });
 });
 
+describe('sessionBrowserId', () => {
+
+    function stubSession(stored: Record<string, string>): void {
+        vi.stubGlobal('window', {
+            sessionStorage: {
+                getItem: (key: string) => stored[key] ?? null,
+                setItem: (key: string, value: string) => { stored[key] = value; },
+            },
+        });
+    }
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    test('answers with the id the session already holds', () => {
+        stubSession({'browser.id': 'the-same-tab'});
+        expect(sessionBrowserId()).toBe('the-same-tab');
+    });
+
+    test('leaves the id it generates in the session for the next load', () => {
+        const stored: Record<string, string> = {};
+        stubSession(stored);
+        const browserId = sessionBrowserId();
+        expect(browserId).toMatch(uuidPattern);
+        expect(stored).toEqual({'browser.id': browserId});
+    });
+
+    test('makes up an id where there is no session to keep it in', () => {
+        expect(sessionBrowserId()).toMatch(uuidPattern);
+    });
+});
+
 describe('app store', () => {
 
     beforeEach(() => {
@@ -171,8 +206,8 @@ describe('app store', () => {
 
     describe('browserId', () => {
 
-        test('is a uuid generated once for the session', () => {
-            expect(store().browserId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+        test('is a uuid taken once at load', () => {
+            expect(store().browserId).toMatch(uuidPattern);
         });
     });
 
@@ -484,6 +519,28 @@ describe('app store', () => {
         test('creates an empty conversation when nothing was pulled', () => {
             store().addPulledMessages('loop1', []);
             expect(store().messages.loop1).toEqual([]);
+        });
+
+        /**
+         * The answer this tab watched being written was finished while it looked elsewhere, and the
+         * pull is how it learns the rest: the message it holds half written is that message.
+         */
+        test('replaces a message it already holds instead of holding it twice', () => {
+            store().addMessage('loop1', newChatMessage({content: 'half of '}));
+            store().addPulledMessages('loop1', [
+                newChatMessage({content: 'half of an answer'}), newChatMessage({id: 'm2'}),
+            ]);
+            expect(store().messages.loop1.map(message => message.id)).toEqual(['m1', 'm2']);
+            expect(store().messages.loop1[0].content).toBe('half of an answer');
+        });
+
+        test('replaces a message it already holds when the history comes in front', () => {
+            store().addMessage('loop1', newChatMessage({id: 'm3', content: ''}));
+            store().addPulledMessages('loop1', [
+                newChatMessage(), newChatMessage({id: 'm3', content: 'the whole of it'}),
+            ], true);
+            expect(store().messages.loop1.map(message => message.id)).toEqual(['m1', 'm3']);
+            expect(store().messages.loop1[1].content).toBe('the whole of it');
         });
     });
 

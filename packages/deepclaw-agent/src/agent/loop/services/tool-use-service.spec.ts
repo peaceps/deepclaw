@@ -31,6 +31,12 @@ function newToolUse(overrides: Partial<ToolUseDef> = {}): ToolUseDef {
     return {id: 'tu1', name: 'demo', input: {value: 1}, ...overrides};
 }
 
+/** A loop found unattended stays that way until told otherwise, so each test starts fresh. */
+function forgetAwayUsers(): void {
+    ToolUseService.clearAwayUser('agent.a1');
+    ToolUseService.clearAwayUser('agent.a2');
+}
+
 describe('executeToolCall lookup', () => {
 
     beforeEach(() => {
@@ -96,6 +102,7 @@ describe('executeToolCall guard', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        forgetAwayUsers();
     });
 
     test('skips a denied tool and reports it to the hooks', async () => {
@@ -140,7 +147,8 @@ describe('executeToolCall guard', () => {
         expect(tool.invoke).not.toHaveBeenCalled();
     });
 
-    test('remembers the interrupt reason when the user left the page', async () => {
+    /** The run goes on without the permission: it is the tool call that failed, not the loop. */
+    test('fails the tool call when nobody answered the question', async () => {
         const tool = newTool({guard: () => ({
             result: 'ask',
             question: {type: 'input', content: 'may I?'},
@@ -149,11 +157,27 @@ describe('executeToolCall guard', () => {
         mocks.getToolDesc.mockReturnValue(tool);
         const context = newTestContext();
         vi.mocked(context.actions.agentHandler.onInteractionEvent).mockRejectedValue('interactionAfk');
-        const {result, success, rerun} = await ToolUseService.executeToolCall(newToolUse(), context);
+        const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
         expect(success).toBe(false);
-        expect(rerun).toBe(true);
-        expect(context.runtime.agentBreakReason).toBe('interactionAfk');
-        expect(result.content).toContain('Need rerun this tool');
+        expect(context.runtime.agentBreakReason).toBeUndefined();
+        expect(result.content).toContain('Nobody answered the permission question');
+        expect(tool.invoke).not.toHaveBeenCalled();
+    });
+
+    /** What a run with no browser behind it is told, its question having nobody to reach. */
+    test('fails the tool call when there was nobody to ask at all', async () => {
+        const tool = newTool({guard: () => ({
+            result: 'ask',
+            question: {type: 'input', content: 'may I?'},
+            checkAnswer: () => true,
+        })});
+        mocks.getToolDesc.mockReturnValue(tool);
+        const context = newTestContext({browserId: ''});
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockRejectedValue('disconnected');
+        const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
+        expect(success).toBe(false);
+        expect(result.content).toBe('There is nobody to ask for the permission to run demo, so it was not run.');
+        expect(tool.invoke).not.toHaveBeenCalled();
     });
 
     test('reports any other failure while waiting for the user', async () => {
@@ -171,8 +195,11 @@ describe('executeToolCall guard', () => {
         expect(context.runtime.agentBreakReason).toBeUndefined();
     });
 
-    /** The answer of the guard is never consulted, so this one would refuse whatever came in. */
-    test('runs a tool whose guard asks inside a sub loop without asking anyone', async () => {
+    /**
+     * A subagent asks the same as anybody else: the question travels under the loop id it shares
+     * with whoever spawned it, so it reaches the same page and the same answer counts for the tree.
+     */
+    test('asks the user for a tool of a spawned loop as well', async () => {
         const tool = newTool({guard: () => ({
             result: 'ask',
             question: {type: 'input', content: 'may I?'},
@@ -181,13 +208,11 @@ describe('executeToolCall guard', () => {
         mocks.getToolDesc.mockReturnValue(tool);
         const context = newTestContext({loopKind: 'sub'});
         const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
-        expect(success).toBe(true);
-        expect(result.content).toBe('tool output');
-        expect(context.actions.agentHandler.onInteractionEvent).not.toHaveBeenCalled();
-        expect(tool.invoke).toHaveBeenCalled();
-        expect(mocks.emitVisitor).not.toHaveBeenCalledWith(
-            'toolGuardDenied', expect.anything(), expect.anything()
-        );
+        expect(context.actions.agentHandler.onInteractionEvent)
+            .toHaveBeenCalledWith({type: 'input', content: 'may I?', browserId: 'b1'});
+        expect(success).toBe(false);
+        expect(result.content).toBe('Execution of tool demo is rejected by user.');
+        expect(tool.invoke).not.toHaveBeenCalled();
     });
 
     test('still denies a sub loop tool that the guard refused outright', async () => {
@@ -200,16 +225,33 @@ describe('executeToolCall guard', () => {
         expect(tool.invoke).not.toHaveBeenCalled();
     });
 
-    test('still asks in a top level loop', async () => {
+    /**
+     * Whoever set the schedule up granted the permission then: they are not there at three in the
+     * morning to grant it again, and a run that asks anyway gets nothing done.
+     */
+    test('grants a cron run what the guard would have asked about', async () => {
         const tool = newTool({guard: () => ({
             result: 'ask',
             question: {type: 'input', content: 'may I?'},
-            checkAnswer: () => true,
+            checkAnswer: () => false,
         })});
         mocks.getToolDesc.mockReturnValue(tool);
-        const context = newTestContext({loopKind: 'main'});
-        await ToolUseService.executeToolCall(newToolUse(), context);
-        expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalled();
+        const context = newTestContext({role: 'cron'});
+        const {success} = await ToolUseService.executeToolCall(newToolUse(), context);
+        expect(success).toBe(true);
+        expect(context.actions.agentHandler.onInteractionEvent).not.toHaveBeenCalled();
+        expect(tool.invoke).toHaveBeenCalled();
+    });
+
+    test('still denies a cron run what the guard refused outright', async () => {
+        const tool = newTool({guard: () => ({result: 'denied', reason: 'outside workspace'})});
+        mocks.getToolDesc.mockReturnValue(tool);
+        const {result, success} = await ToolUseService.executeToolCall(
+            newToolUse(), newTestContext({role: 'cron'})
+        );
+        expect(success).toBe(false);
+        expect(result.content).toBe('Tool run is not allowed: demo. outside workspace.');
+        expect(tool.invoke).not.toHaveBeenCalled();
     });
 
     test('runs a tool whose guard allows it right away', async () => {
@@ -240,6 +282,7 @@ describe('executeToolCall question queue', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        forgetAwayUsers();
     });
 
     test('asks the questions of one loop one after the other', async () => {
@@ -282,17 +325,45 @@ describe('executeToolCall question queue', () => {
         expect((await second).success).toBe(true);
     });
 
-    /** Without this the whole turn waits for one interaction timeout per queued question. */
-    test('stops asking once the user was found to be away', async () => {
+    /**
+     * The queue is what makes this worth remembering: the questions behind an unanswered one would
+     * each wait their own ten minutes for the silence the first one already found.
+     */
+    test('stops asking once a question went unanswered', async () => {
         mocks.getToolDesc.mockReturnValue(newAskingTool([]));
         const context = newTestContext();
-        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockRejectedValueOnce('interactionAfk');
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockRejectedValue('interactionAfk');
 
         const first = ToolUseService.executeToolCall(newToolUse(), context);
         const second = ToolUseService.executeToolCall(newToolUse({id: 'tu2'}), context);
-        expect((await first).rerun).toBe(true);
-        expect((await second).rerun).toBe(true);
+        expect((await first).success).toBe(false);
+        const {result, success} = await second;
+        expect(success).toBe(false);
+        expect(result.content).toContain('Nobody answered the permission question');
         expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalledOnce();
+    });
+
+    test('keeps asking the loops the silence was not on', async () => {
+        mocks.getToolDesc.mockReturnValue(newAskingTool([]));
+        const away = newTestContext();
+        const other = newTestContext({loopId: 'agent.a2'});
+        vi.mocked(away.actions.agentHandler.onInteractionEvent).mockRejectedValue('interactionAfk');
+        vi.mocked(other.actions.agentHandler.onInteractionEvent).mockResolvedValue('yes');
+
+        expect((await ToolUseService.executeToolCall(newToolUse(), away)).success).toBe(false);
+        expect((await ToolUseService.executeToolCall(newToolUse(), other)).success).toBe(true);
+    });
+
+    test('asks again once a run is asked for anew', async () => {
+        mocks.getToolDesc.mockReturnValue(newAskingTool([]));
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent)
+            .mockRejectedValueOnce('interactionAfk').mockResolvedValueOnce('yes');
+
+        expect((await ToolUseService.executeToolCall(newToolUse(), context)).success).toBe(false);
+        ToolUseService.clearAwayUser(context.loopId);
+        expect((await ToolUseService.executeToolCall(newToolUse({id: 'tu2'}), context)).success).toBe(true);
+        expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalledTimes(2);
     });
 
     test('keeps asking while the user is only slow to answer', async () => {

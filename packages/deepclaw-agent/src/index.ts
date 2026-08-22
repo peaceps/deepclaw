@@ -13,4 +13,5 @@ export * from './agent/loop/services/cron-service';
 export * from './agent/loop/services/session-service';
 export * from './agent/loop/services/mcp-service';
 export * from './agent/loop/services/hook-manager';
+export * from './agent/loop/services/tool-use-service';
 export * from './agent/paths';
