@@ -3,13 +3,13 @@
 import { useState, useCallback } from 'react';
 import type {
     CONFIGS_EVENTS, DeepclawConfig, AgentConfig, IMConfig,
-    LLMConfig, MultimodalConfig, UIConfig, ManagerConfig,
+    LLMConfig, MultimodalConfig, ManagerConfig,
     AdvancedConfig
 } from '@deepclaw/config';
 import { type AgentInteractionEvent } from '@deepclaw/core';
 import { Save, Plus, Bot, Globe, Settings } from 'lucide-react';
 import { AgentSettingsCard } from './AgentSettingsCard';
-import {validateConfig, type ValidationResult} from '@/server/configs';
+import {updateLanguage, validateConfig, type ValidationResult} from '@/server/configs';
 import {DeepExpandablePanel} from '@/laf/deep-expandable-panel';
 import {DeepSelect} from '@/laf/deep-select';
 import {DeepInput} from '@/laf/deep-input';
@@ -39,10 +39,52 @@ export function SettingsForm({settings}: {settings: SettingsProps}) {
     setPanelToggleStatus(pre => ({...pre, [name]: !pre[name]}));
   }, []);
 
-  const updateUIConfig = useCallback((updates: Partial<UIConfig>) => {
-    setConfig((prev) => ({ ...prev, ui: { ...prev.ui, ...updates } }));
-    setEdited(true);
+  const setLang = useCallback((lang: SupportedLanguage) => {
+    setConfig((prev) => ({ ...prev, ui: { ...prev.ui, lang } }));
+    i18n.changeLanguage(lang);
+  }, [i18n]);
+
+  /**
+   * The field was read as missing when the page came in, which on a first visit it is. A pick that
+   * reached the disk is not missing any more, and nothing else is spoken for: the other fields have
+   * not been through the button, so what was said about them still stands.
+   */
+  const clearLangError = useCallback(() => {
+    setValidationResult(prev => {
+      if (!prev.errors.includes('ui.lang')) {
+        return prev;
+      }
+      const errors = prev.errors.filter(e => e !== 'ui.lang');
+      return {
+        ...prev,
+        errors,
+        summary: {...prev.summary, uiErrorCount: errors.filter(e => e.startsWith('ui.')).length},
+      };
+    });
   }, []);
+
+  /**
+   * A language is picked from a list rather than typed, so it is stored as it is picked: the button
+   * is there for the fields still being filled in, and whether any of those are waiting on it is
+   * left as it was. A pick that never reached the disk is taken back, so that what the page is read
+   * in is what a reload would bring back.
+   */
+  const selectLanguage = useCallback(async (lang: SupportedLanguage) => {
+    const previous = config.ui.lang;
+    setLang(lang);
+    try {
+      await updateLanguage(lang);
+      clearLangError();
+      setSavedMessage('web.pages.settings.saved');
+    } catch (e) {
+      // TODO change to logger
+      console.error(e);
+      setLang(previous);
+      setSavedMessage('web.pages.settings.saveFailed');
+    } finally {
+      setTimeout(() => setSavedMessage(''), 5000);
+    }
+  }, [clearLangError, config.ui.lang, setLang]);
 
   const updateManagerConfig = useCallback((updates: Partial<ManagerConfig>) => {
     setConfig((prev) => ({ ...prev, manager: { ...prev.manager, ...updates } }));
@@ -198,8 +240,7 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
                 uiInfo={configEvents['ui.lang'] as Extract<AgentInteractionEvent, {type: 'select'}>}
                 value={config.ui.lang}
                 onSelect={e => {
-                  updateUIConfig({ lang: e.target.value as SupportedLanguage });
-                  i18n.changeLanguage(e.target.value);
+                  selectLanguage(e.target.value as SupportedLanguage);
                 }}
                 error={validationResult.errors.some(e => e === 'ui.lang')}
                 required

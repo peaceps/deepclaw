@@ -251,15 +251,21 @@ function skillsInjectionGuard<T>(reg: RegExp, getValue: (input: T) => string): (
  * The first -y is npx being told to install the cli without asking, the last one is the cli itself
  * being told to install the skill without asking. Nothing here answers a question: the command runs
  * with a pipe for a stdin, so whatever asks one waits until the run times out.
+ *
+ * Left alone the cli picks its folders from whichever coding agents it finds on the machine, and a
+ * skill can land in a folder nobody here reads. "universal" names the one folder SkillsManager
+ * reads, .agents/skills, so an install shows up and a removal takes the same copy away. It goes
+ * ahead of a flag rather than at the end of the line because -a takes a list.
  */
 async function trySkillsWithMirror(command: string, input: string) {
     let output = '';
+    const args = `${command} ${input} -a universal -y`;
     try {
-        const result = await runCommand(`npx -y ${getSkillCommand(false)} ${command} ${input} -y`);
+        const result = await runCommand(`npx -y ${getSkillCommand(false)} ${args}`);
         output = result.output;
     } catch {
         try {
-            const result = await runCommand(`npx -y ${getSkillCommand(true)} ${command} ${input} -y`);
+            const result = await runCommand(`npx -y ${getSkillCommand(true)} ${args}`);
             output = result.output;
         } catch (e) {
             return `skills ${command} failed: ${e}`;

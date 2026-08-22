@@ -25,7 +25,7 @@ const {LoopInitializer, ToolUseService} = await import('@deepclaw/agent');
 const {SSEServer} = await import('@/app/api/sse-server');
 const {
     activeLoop, inactiveLoop, invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
-    resolveInteraction,
+    resolveInteraction, updateChatMessage,
 } = await import('@/server/loop-agent');
 
 afterAll(() => {
@@ -50,13 +50,23 @@ type Frame = {
     content?: unknown;
 };
 
-let seq = 0;
+/** Loops and browsers are counted apart, so that the ids of a failing test read in order. */
+let loopSeq = 0;
+let browserSeq = 0;
 const openBrowsers: FakeBrowser[] = [];
 
 function nextLoop(): {loopId: string; agentId: string} {
-    seq += 1;
-    const agentId = `flow${seq}`;
+    loopSeq += 1;
+    const agentId = `flow${loopSeq}`;
     return {loopId: getLoopId('agent', agentId), agentId};
+}
+
+/** The other place a chat of this kind lives: a row of the board rather than a page of an agent. */
+function nextProjectLoop(): {loopId: string; agentId: string; projectId: string} {
+    loopSeq += 1;
+    const agentId = `flow${loopSeq}`;
+    const projectId = `project${loopSeq}`;
+    return {loopId: getLoopId('project', agentId, projectId), agentId, projectId};
 }
 
 function emptyRuntime(): AgentRuntime {
@@ -73,6 +83,8 @@ function emptyRuntime(): AgentRuntime {
  * answers, and what it streams or asks goes out the way a real loop's does.
  */
 class FakeAgent {
+    private static readonly standIns: Map<string, FakeAgent> = new Map();
+
     private readonly loopId: string;
     private handler!: AgentHandler;
     private options?: AgentInvokeOptions;
@@ -80,18 +92,43 @@ class FakeAgent {
 
     constructor(loopId: string) {
         this.loopId = loopId;
-        vi.spyOn(LoopInitializer, 'getLoop').mockImplementation((_role, _agentId, _projectId, handler) => {
-            this.handler = handler;
-            return {
-                isOutdated: () => false,
-                updateAgentConfig: () => undefined,
-                invoke: (_input: string, options: AgentInvokeOptions) =>
-                    new Promise<AgentInvokeResponse>(resolve => {
-                        this.options = options;
-                        this.finishRun = resolve;
-                    }),
-            } as unknown as ReturnType<typeof LoopInitializer.getLoop>;
+        FakeAgent.standIns.set(loopId, this);
+        FakeAgent.install();
+    }
+
+    public static forgetAll(): void {
+        this.standIns.clear();
+    }
+
+    /**
+     * One factory for all of them, answering with the stand-in of the loop it is asked for. A spy
+     * per agent would leave every loop with the handler of whichever was built last.
+     */
+    private static install(): void {
+        if (vi.isMockFunction(LoopInitializer.getLoop)) {
+            return;
+        }
+        vi.spyOn(LoopInitializer, 'getLoop').mockImplementation((role, agentId, projectId, handler) => {
+            const loopId = getLoopId(role, agentId, projectId);
+            const standIn = this.standIns.get(loopId);
+            if (!standIn) {
+                throw new Error(`No agent stands in for ${loopId}`);
+            }
+            return standIn.build(handler);
         });
+    }
+
+    private build(handler: AgentHandler): ReturnType<typeof LoopInitializer.getLoop> {
+        this.handler = handler;
+        return {
+            isOutdated: () => false,
+            updateAgentConfig: () => undefined,
+            invoke: (_input: string, options: AgentInvokeOptions) =>
+                new Promise<AgentInvokeResponse>(resolve => {
+                    this.options = options;
+                    this.finishRun = resolve;
+                }),
+        } as unknown as ReturnType<typeof LoopInitializer.getLoop>;
     }
 
     public stream(text: string, done = false): void {
@@ -137,6 +174,12 @@ class FakeBrowser {
     private readonly busyLoops: Map<string, boolean> = new Map();
     private streaming?: {loopId: string; msgId: string};
     private watching?: string;
+    /**
+     * What this tab still has to tell the server. The word of a run travels over the network, so it
+     * arrives after the gateway has already written the end of that run itself: whatever the tab
+     * says of a finished run is the last word on it.
+     */
+    private readonly owed: (() => Promise<unknown>)[] = [];
 
     constructor(browserId: string) {
         this.browserId = browserId;
@@ -156,7 +199,26 @@ class FakeBrowser {
         SSEServer.removeClient(this.browserId, this.streamId);
     }
 
+    /**
+     * The tab is reloaded. It comes back under the name it left with, since that name lived in the
+     * session rather than in the page, and the stream it left behind ends only after the one that
+     * took its place began. Everything the page held is gone, and it opens its chat anew.
+     */
+    public reload(): this {
+        const left = this.streamId;
+        this.messages.clear();
+        this.busyLoops.clear();
+        this.toasts.length = 0;
+        this.streaming = undefined;
+        this.watching = undefined;
+        this.modal = undefined;
+        this.open();
+        SSEServer.removeClient(this.browserId, left);
+        return this;
+    }
+
     public async openChat(loopId: string): Promise<void> {
+        await this.settle();
         const held = this.messages.get(loopId) ?? [];
         const newest = held[held.length - 1]?.id;
         const pulled = newest
@@ -168,13 +230,15 @@ class FakeBrowser {
     }
 
     public async leaveChat(): Promise<void> {
+        await this.settle();
         const loopId = this.watching!;
         this.watching = undefined;
         this.modal = undefined;
         await inactiveLoop(this.browserId, loopId);
     }
 
-    public async send(loopId: string, text: string): Promise<void> {
+    /** Answers whether the run was already on, which is the chat being told to wait its turn. */
+    public async send(loopId: string, text: string): Promise<boolean> {
         const {role, agentId, projectId = ''} = splitLoopId(loopId);
         const message = newMessage('user', agentId, text);
         this.append(loopId, message);
@@ -184,18 +248,32 @@ class FakeBrowser {
         if (!busy) {
             this.streaming = {loopId, msgId};
         }
+        return busy;
     }
 
     public async answer(choice: string): Promise<void> {
-        const loopId = this.modal!.loopId!;
+        const loopId = this.modal?.loopId;
+        if (!loopId) {
+            throw new Error(`${this.browserId} was shown no question to answer`);
+        }
         this.modal = undefined;
         await resolveInteraction(this.browserId, loopId, choice);
+    }
+
+    /** What a tab that was shown no question can still try, the server being the one that says no. */
+    public tryAnswer(loopId: string, choice: string): Promise<boolean> {
+        return resolveInteraction(this.browserId, loopId, choice);
     }
 
     /** The text of the answer as the panel has it, which is the last thing the agent said. */
     public textOf(loopId: string): string | undefined {
         return [...(this.messages.get(loopId) ?? [])].reverse()
             .find(message => message.type === 'agent')?.content;
+    }
+
+    /** Everything the panel lists, in the order it shows it. */
+    public contentsOf(loopId: string): string[] {
+        return (this.messages.get(loopId) ?? []).map(message => message.content);
     }
 
     /** An agent message with nothing in it is what the panel shows the thinking label for. */
@@ -244,11 +322,26 @@ class FakeBrowser {
         }
         const message = (this.messages.get(streaming.loopId) ?? [])
             .find(item => item.id === streaming.msgId);
-        if (message) {
-            message.content += frame.text ?? '';
+        if (!frame.done) {
+            if (message) {
+                message.content += frame.text ?? '';
+            }
+            return;
         }
-        if (frame.done) {
-            this.streaming = undefined;
+        this.streaming = undefined;
+        // A run is over, and the chunks it was written in were nowhere but here: what was read is
+        // sent back to be kept. A run that streamed nothing leaves the text it ended with instead.
+        const text = message?.content || frame.text || '';
+        if (text) {
+            this.owed.push(
+                () => updateChatMessage(this.browserId, streaming.loopId, streaming.msgId, text)
+            );
+        }
+    }
+
+    private async settle(): Promise<void> {
+        for (const tell of this.owed.splice(0)) {
+            await tell();
         }
     }
 
@@ -282,20 +375,22 @@ class FakeBrowser {
 }
 
 function newBrowser(): FakeBrowser {
-    seq += 1;
-    const browser = new FakeBrowser(`b${seq}`);
+    browserSeq += 1;
+    const browser = new FakeBrowser(`b${browserSeq}`);
     openBrowsers.push(browser);
     return browser;
 }
 
 afterEach(() => {
     openBrowsers.splice(0).forEach(browser => browser.close());
+    FakeAgent.forgetAll();
     vi.restoreAllMocks();
     vi.useRealTimers();
 });
 
 describe('a chat that sends a message', () => {
 
+    // 发消息的聊天：答案边写边显示，run 结束时再整个替换一遍
     test('sees the answer as it is written and then whole', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -316,6 +411,7 @@ describe('a chat that sends a message', () => {
     });
 
     /** What the first report of this was: the chat kept the thinking label of a run long over. */
+    // 回到一个在别处结束的 run，看到的是完整答案，而不是停在思考中
     test('finds the answer whole on coming back to a run that ended elsewhere', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -333,6 +429,31 @@ describe('a chat that sends a message', () => {
         expect(browser.isBusy(loopId)).toBe(false);
     });
 
+    /**
+     * A call that never got off the ground says all it has to say at once: there is nothing to
+     * stream, so the browser is left holding nothing of it. Sending that nothing back as what was
+     * read would leave the error of the run behind an empty message, read as a run still thinking.
+     */
+    // 一次没有流式输出的回答（比如 403 报错），离开再回来看到的还是那条报错，不是思考中
+    test('finds the answer of a run that streamed nothing on coming back', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'hi');
+
+        const failed = 'ERROR: Unrecoverable error: 403 Free quota exhausted.';
+        agent.stream(failed, true);
+        await agent.finish(failed);
+        expect(browser.textOf(loopId)).toBe(failed);
+
+        await browser.leaveChat();
+        await browser.openChat(loopId);
+        expect(browser.textOf(loopId)).toBe(failed);
+        expect(browser.showsThinking(loopId)).toBe(false);
+    });
+
+    // 回到一个还在跑的 run，重新接上它的流
     test('picks the stream up again on coming back to a run that is still on', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -354,6 +475,7 @@ describe('a chat that sends a message', () => {
         expect(browser.textOf(loopId)).toBe('one two three');
     });
 
+    // 回答 run 要的授权，本 loop 的和它派生出来的 loop 的都能答
     test('answers the permission a run asks for, of the loop and of one it spawned', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -376,6 +498,7 @@ describe('a chat that sends a message', () => {
         expect(browser.isBusy(loopId)).toBe(false);
     });
 
+    // 人在别处时被问，先收到 toast，点进来时再把问题交到手上
     test('is toasted about a question asked while it was elsewhere and handed it on the way in', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -397,7 +520,59 @@ describe('a chat that sends a message', () => {
         expect(browser.textOf(loopId)).toBe('cleaned up');
     });
 
+    /**
+     * The reload is what all of this was built for. A tab comes back under the name it left with,
+     * so the question it was asked is still its own to answer, and the stream it left behind ends
+     * only after the one that replaced it began: were that late ending taken at face value, the tab
+     * would be holding a stream the server no longer knows and would sit there hearing nothing.
+     */
+    // 刷新之后，原本问它的那个问题重新交回它手上
+    test('is handed its question again after a reload', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'clean it up');
+        const asked = agent.ask({type: 'select', content: 'run rm -rf?', options: ['yes', 'no']});
+        expect(browser.modal?.content).toBe('run rm -rf?');
+
+        browser.reload();
+        expect(browser.modal).toBeUndefined();
+
+        await browser.openChat(loopId);
+        expect(browser.contentsOf(loopId)).toEqual(['clean it up', '']);
+        expect(browser.isBusy(loopId)).toBe(true);
+        expect(browser.modal?.content).toBe('run rm -rf?');
+        await browser.answer('yes');
+        await expect(asked).resolves.toBe('yes');
+
+        await agent.finish('cleaned up');
+        expect(browser.textOf(loopId)).toBe('cleaned up');
+        expect(browser.isBusy(loopId)).toBe(false);
+    });
+
+    /**
+     * The run is one at a time. What the second message gets is an answer from the gateway rather
+     * than from the agent, and the run that was already on is left to end in its own time.
+     */
+    // run 还在跑时又发一条，会被告知等一等
+    test('is told to wait when it sends again while the run is on', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'hi');
+
+        expect(await browser.send(loopId, 'and this too')).toBe(true);
+        expect(browser.showsThinking(loopId)).toBe(false);
+
+        await agent.finish('the whole answer');
+        expect(browser.contentsOf(loopId)).toContain('the whole answer');
+        expect(browser.isBusy(loopId)).toBe(false);
+    });
+
     /** The messages are the server's, so a browser that was never there reads them all the same. */
+    // 换一个浏览器打开，照样读得到之前那个 run 留下的答案
     test('finds the answer of a run it left behind when a browser opens again', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -420,6 +595,7 @@ describe('a chat that sends a message', () => {
      * that opens next is another browser as far as anything here can tell, and it is the one the
      * question is put to, since there is nobody else to put it to.
      */
+    // 被提问的浏览器关掉了，问题转交给下一个打开的浏览器
     test('hands a question of a browser that closed to the one that opens next', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -443,12 +619,91 @@ describe('a chat that sends a message', () => {
 });
 
 /**
- * Ten minutes of silence end a question, and the loop is latched so that every tool call queued
- * behind it gives up at once instead of spending ten of its own on the same silence. The latch is
- * held by the run and lifted from here: somebody turning up on the loop is what undoes it.
+ * One loop with two views open on it, which is a second tab, or the board and the page of an agent
+ * at once. What is said in the loop is said to both. The question is not: it is asked of a browser
+ * rather than of a loop, and the tab that was not asked is an onlooker.
+ */
+describe('two browsers on one loop', () => {
+
+    // 两个浏览器看同一个 loop：一边发的消息和 run 的答案，另一边也看得到
+    test('shows in one what the other sent and what the run answered', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const sender = newBrowser().open();
+        const onlooker = newBrowser().open();
+        await sender.openChat(loopId);
+        await onlooker.openChat(loopId);
+
+        await sender.send(loopId, 'hi');
+        expect(onlooker.contentsOf(loopId)).toEqual(['hi', '']);
+        expect(onlooker.isBusy(loopId)).toBe(true);
+
+        // Tokens are sent to the view that asked for that answer by id, so the other is not written
+        // into as the answer is written: what it is shown is the answer, once there is one.
+        agent.stream('Hello');
+        expect(sender.textOf(loopId)).toBe('Hello');
+        expect(onlooker.textOf(loopId)).toBe('');
+
+        await agent.finish('Hello');
+        expect(onlooker.textOf(loopId)).toBe('Hello');
+        expect(onlooker.isBusy(loopId)).toBe(false);
+    });
+
+    // 问题只给 run 点名的那个浏览器，旁观的那个既看不到也答不了
+    test('puts a question to the browser the run asked and to no other', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const sender = newBrowser().open();
+        const onlooker = newBrowser().open();
+        await sender.openChat(loopId);
+        await onlooker.openChat(loopId);
+        await sender.send(loopId, 'clean it up');
+
+        const asked = agent.ask({type: 'select', content: 'run rm -rf?', options: ['yes', 'no']});
+        expect(sender.modal?.content).toBe('run rm -rf?');
+        expect(onlooker.modal).toBeUndefined();
+        // Somebody was shown the question, so nobody is toasted about it.
+        expect(onlooker.toasts).toEqual([]);
+
+        expect(await onlooker.tryAnswer(loopId, 'no')).toBe(false);
+        await sender.answer('yes');
+        await expect(asked).resolves.toBe('yes');
+    });
+});
+
+/** The same walk from a row of the board, where the loop is of a project rather than of an agent. */
+describe('a chat of a project', () => {
+
+    // 项目的聊天：项目 run 的消息、提问和答案，整条链路一样走得通
+    test('carries the message, the question and the answer of the project run', async () => {
+        const {loopId} = nextProjectLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'ship it');
+        expect(browser.showsThinking(loopId)).toBe(true);
+
+        const asked = agent.ask({type: 'input', content: 'which branch?'});
+        expect(browser.modal?.content).toBe('which branch?');
+        await browser.answer('main');
+        await expect(asked).resolves.toBe('main');
+
+        await agent.finish('shipped');
+        expect(browser.textOf(loopId)).toBe('shipped');
+        expect(browser.isBusy(loopId)).toBe(false);
+    });
+});
+
+/**
+ * Ten minutes of silence end a question. What the run makes of that silence is its own: it latches
+ * the loop so that the tool calls queued behind the one that timed out give up at once instead of
+ * spending ten minutes each on the same silence, which is walked in tool-use-service.spec. What is
+ * walked here is the other half of it, the half no unit test can see: which of the things a browser
+ * does amount to the user being back, and so tell the run that asking again is worth it.
  */
 describe('a question nobody answered', () => {
 
+    // 没人回答的问题：超时后弹框从屏幕上撤掉，run 不等它继续往下走
     test('is taken off the screen, and the run goes on without it', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -471,6 +726,7 @@ describe('a question nobody answered', () => {
         expect(browser.isBusy(loopId)).toBe(false);
     });
 
+    // 问题作废后，人在别处的浏览器只剩那条 toast，再进来不会又被塞一个问题
     test('leaves the toast of a browser that was elsewhere behind when it is over', async () => {
         const {loopId} = nextLoop();
         const agent = new FakeAgent(loopId);
@@ -492,6 +748,7 @@ describe('a question nobody answered', () => {
         expect(browser.modal).toBeUndefined();
     });
 
+    // 用户回到这个 loop，就让 run 可以重新发问
     test('lets the run ask again once the user is back on the loop', async () => {
         const {loopId} = nextLoop();
         new FakeAgent(loopId);
@@ -506,6 +763,7 @@ describe('a question nobody answered', () => {
     });
 
     /** The browser the run asks is here, so another page turning up buys the run nothing. */
+    // run 点名的浏览器还在，另开一个页面并不解闩
     test('is left latched while the browser the run asks is here', async () => {
         const {loopId} = nextLoop();
         new FakeAgent(loopId);
@@ -519,6 +777,7 @@ describe('a question nobody answered', () => {
         expect(askAgain).not.toHaveBeenCalled();
     });
 
+    // 顶替已关闭浏览器的那个页面，同样能让 run 重新发问
     test('lets the run ask again through the page that stands in for a browser that closed', async () => {
         const {loopId} = nextLoop();
         new FakeAgent(loopId);

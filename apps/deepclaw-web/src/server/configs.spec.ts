@@ -1,6 +1,9 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentConfig, type DeepclawConfig, type MissingAppConfig} from '@deepclaw/config';
-import {loadCurrentConfig, saveFullConfig, updateManagerAvatar, validateConfig} from './configs';
+import {type SupportedLanguage} from '@deepclaw/i18n';
+import {
+    loadCurrentConfig, saveFullConfig, updateLanguage, updateManagerAvatar, validateConfig,
+} from './configs';
 
 const mocks = vi.hoisted(() => ({
     loadConfig: vi.fn<(key?: string, defaultValue?: unknown) => unknown>(),
@@ -29,6 +32,7 @@ vi.mock('@deepclaw/loop-gateway', () => ({
 }));
 
 vi.mock('@deepclaw/i18n', () => ({
+    SUPPORTED_LANGUAGES: ['en', 'zh'],
     i18nInstance: {
         get language() {
             return 'en';
@@ -208,6 +212,38 @@ describe('updateManagerAvatar', () => {
 
     test('leaves the loops and the im connections alone', async () => {
         await updateManagerAvatar('🦊');
+        expect(mocks.updateGatewayConfig).not.toHaveBeenCalled();
+        expect(mocks.resetIM).not.toHaveBeenCalled();
+    });
+});
+
+describe('updateLanguage', () => {
+
+    /** The pick is stored on its own, so the config on disk is what the rest of it comes from. */
+    test('stores the language next to the rest of the config as it lies on disk', async () => {
+        await updateLanguage('zh');
+        expect(writtenConfig()).toEqual({...newConfig(), ui: {lang: 'zh'}});
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    test('switches the language of this process along with it', async () => {
+        await updateLanguage('zh');
+        expect(mocks.changeLanguage).toHaveBeenCalledExactlyOnceWith('zh');
+    });
+
+    test('leaves the language of this process alone when it is the one already running', async () => {
+        await updateLanguage('en');
+        expect(mocks.changeLanguage).not.toHaveBeenCalled();
+    });
+
+    /** Whatever a browser sends, only a language there is a translation for can be stored. */
+    test('rejects a language that is not supported', async () => {
+        await expect(updateLanguage('kl' as SupportedLanguage)).rejects.toThrow('Invalid language');
+        expect(mocks.writeAppConfig).not.toHaveBeenCalled();
+    });
+
+    test('leaves the loops and the im connections alone', async () => {
+        await updateLanguage('zh');
         expect(mocks.updateGatewayConfig).not.toHaveBeenCalled();
         expect(mocks.resetIM).not.toHaveBeenCalled();
     });

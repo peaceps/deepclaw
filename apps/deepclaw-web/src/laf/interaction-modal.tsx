@@ -53,61 +53,65 @@ function ModalContent({ event, onClose, t }: {
   // Above the toasts: a question waiting on the user is not something another one talks over.
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
     >
-      <div className="w-full max-w-md mx-4 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{event.content}</h3>
-        </div>
+      {/* A command can run to any length and hold its own line breaks, so question and answers
+          share one scroll and the buttons keep their place at the bottom of the card. */}
+      <div className="w-full max-w-md max-h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 whitespace-pre-wrap wrap-anywhere">{event.content}</h3>
+          </div>
 
-        {/* Body */}
-        <div className="px-6 py-5">
-          {isReadonly && (
-            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
-              {event.content}
-            </p>
-          )}
+          {/* Body */}
+          <div className="px-6 py-5">
+            {isReadonly && (
+              <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap wrap-anywhere">
+                {event.content}
+              </p>
+            )}
 
-          {isInput && (
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !isValueEmpty(inputValue)) handleSubmit();
-              }}
-              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-            />
-          )}
+            {isInput && (
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isValueEmpty(inputValue)) handleSubmit();
+                }}
+                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+              />
+            )}
 
-          {isSelect && (
-            <div className="space-y-2">
-              {event.options.map((opt: AgentInteractionEventOption, index: number) => {
-                const [label, value] = typeof opt === 'string' ? [opt, opt] : [opt.label, opt.value];
-                const isSelected = selectedValue === value;
-                const optionClass = isSelected
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50';
-                return (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedValue(value)}
-                    className={'w-full flex items-center justify-between px-4 py-2.5 rounded-lg border transition-colors text-left ' + optionClass}
-                  >
-                    <span className="text-sm">{label}</span>
-                    {isSelected && <Check size={18} className="text-blue-500" />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+            {isSelect && (
+              <div className="space-y-2">
+                {event.options.map((opt: AgentInteractionEventOption, index: number) => {
+                  const [label, value] = typeof opt === 'string' ? [opt, opt] : [opt.label, opt.value];
+                  const isSelected = selectedValue === value;
+                  const optionClass = isSelected
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50';
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedValue(value)}
+                      className={'w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg border transition-colors text-left ' + optionClass}
+                    >
+                      <span className="text-sm wrap-anywhere">{label}</span>
+                      {isSelected && <Check size={18} className="text-blue-500 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
         {!isReadonly && (
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="shrink-0 flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
             {isInput && (
               <button
                 onClick={handleSubmit}
@@ -132,7 +136,7 @@ function ModalContent({ event, onClose, t }: {
         )}
 
         {isReadonly && (
-          <div className="flex justify-end px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="shrink-0 flex justify-end px-6 py-4 border-t border-gray-200 dark:border-gray-700">
             <button
               onClick={() => onClose('')}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"

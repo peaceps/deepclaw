@@ -5,7 +5,7 @@ import {
   AgentsConfig,
 } from '@deepclaw/config';
 import { LoopGateway } from '@deepclaw/loop-gateway';
-import { i18nInstance } from '@deepclaw/i18n';
+import { i18nInstance, SUPPORTED_LANGUAGES, type SupportedLanguage } from '@deepclaw/i18n';
 import { revalidatePath } from 'next/cache';
 import { IMService } from '@/im/im-service';
 
@@ -36,6 +36,25 @@ export async function saveFullConfig(config: DeepclawConfig): Promise<void> {
   }
   IMService.reset();
   LoopGateway.updateConfig(merged);
+  revalidatePath('/', 'layout');
+}
+
+/**
+ * A language is picked from a list rather than typed, so there is nothing half done about a pick to
+ * wait for a button with. What is written is the config as it lies on disk with the language
+ * replaced: the form the pick came from may be holding edits of other fields that the user has not
+ * asked for yet, and a language is no reason to write those.
+ */
+export async function updateLanguage(lang: SupportedLanguage): Promise<void> {
+  if (!SUPPORTED_LANGUAGES.includes(lang)) {
+    throw new Error(`Invalid language: ${lang}`);
+  }
+  const config = loadConfig<DeepclawConfig>();
+  writeAppConfig({...config, ui: {...config.ui, lang}});
+  // The agents word what they put in front of the user out of this process, the same as after a save.
+  if (i18nInstance.language !== lang) {
+    await i18nInstance.changeLanguage(lang);
+  }
   revalidatePath('/', 'layout');
 }
 
