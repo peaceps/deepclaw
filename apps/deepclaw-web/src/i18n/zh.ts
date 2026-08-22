@@ -206,9 +206,13 @@ export const zh = {
                     name: '名称',
                     description: '描述',
                     agent: '应用给',
+                    remove: '删除',
                 },
                 empty: '暂无可用技能',
                 resetToAll: '全部 Agent',
+                remove: '删除该技能',
+                removeMissing: '{{name}} 已不在本地，列表已刷新。',
+                removeFailed: '删除 {{name}} 失败。',
                 installHint: '提示：可以直接和 Agent 聊天来安装新技能，让它帮你查找并安装即可。',
             },
             tokenUsage: {

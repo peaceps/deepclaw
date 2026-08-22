@@ -28,6 +28,10 @@ export const SKILLS = 'skills';
 export const SKILLS_DIR = `${AGENTS_DIR}/${SKILLS}`;
 export const SKILL_MD = 'SKILL.md';
 export const SKILL_AGENT_JSON = 'agent.json';
+// Leftovers of the "npx skills" cli: it links installed skills into a bare "skills" folder and
+// tracks them in a lock file beside it. Named apart from the folder above, which is ours to move.
+export const SKILLS_LINK_DIR = 'skills';
+export const SKILLS_LOCK_FILE = 'skills-lock.json';
 
 // Cron
 export const CRON_DIR = '.cron';

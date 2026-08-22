@@ -394,6 +394,10 @@ class LoopGatewayImpl {
         SkillsManager.updateSkillAgents(name, agentIds);
     }
 
+    public static removeSkill(name: string): boolean {
+        return SkillsManager.removeSkill(name);
+    }
+
     public static getCronTasks(): CronTask[] {
         return CronService.getCronTasks();
     }

@@ -27,6 +27,7 @@ const getSkillContent = vi.spyOn(SkillsManager, 'getSkillContent');
 const reloadSkills = vi.spyOn(SkillsManager, 'reloadSkills');
 const getAvailableSkillsPrompt = vi.spyOn(SkillsManager, 'getAvailableSkillsPrompt');
 const createSkill = vi.spyOn(SkillsManager, 'createSkill');
+const removeSkill = vi.spyOn(SkillsManager, 'removeSkill');
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -132,16 +133,33 @@ describe('downloadSkillTool invoke', () => {
 
 describe('removeSkillTool', () => {
 
-    test('removes the skill by its directory name and reloads', async () => {
-        const result = await removeSkillTool.invoke({dirName: 'react-best-practices'}, newTestContext());
-        expect(mocks.runCommand).toHaveBeenCalledExactlyOnceWith('npx -y skills remove react-best-practices -a universal -y');
-        expect(reloadSkills).toHaveBeenCalledOnce();
-        expect(result).toBe('command output');
+    /** Removal is a folder delete the manager owns; no cli run hides behind it. */
+    test('deletes the folder through the manager and lists what remains', async () => {
+        removeSkill.mockReturnValue(true);
+        const result = await removeSkillTool.invoke({name: 'react-best-practices'}, newTestContext());
+        expect(removeSkill).toHaveBeenCalledExactlyOnceWith('react-best-practices');
+        expect(mocks.runCommand).not.toHaveBeenCalled();
+        expect(result).toBe('Skill react-best-practices removed.\nAvailable skills:\n- demo: a demo skill\n');
     });
 
-    test('denies a directory name that walks out of the skills folder', () => {
-        expect(removeSkillTool.guard!({dirName: '../../etc'}, newTestContext()).result).toBe('denied');
-        expect(removeSkillTool.guard!({dirName: 'react-best-practices'}, newTestContext()))
+    test('tells what is installed when no such skill exists', async () => {
+        removeSkill.mockReturnValue(false);
+        const result = await removeSkillTool.invoke({name: 'ghost'}, newTestContext());
+        expect(result).toBe('No skill named "ghost" is installed, nothing removed.\n'
+            + 'Available skills:\n- demo: a demo skill\n');
+    });
+
+    test('denies a name that walks out of the skills folder', () => {
+        expect(removeSkillTool.guard!({name: '../../etc'}, newTestContext()).result).toBe('denied');
+        expect(removeSkillTool.guard!({name: 'react-best-practices'}, newTestContext()))
+            .toEqual({result: 'allowed'});
+    });
+
+    /** The prompt lists skills by name, and a name is written as its author wrote it. */
+    test('allows a name written as the skills list shows it', () => {
+        expect(removeSkillTool.guard!({name: 'Convex Best Practices'}, newTestContext()))
+            .toEqual({result: 'allowed'});
+        expect(removeSkillTool.guard!({name: 'next.js-best-practices'}, newTestContext()))
             .toEqual({result: 'allowed'});
     });
 });

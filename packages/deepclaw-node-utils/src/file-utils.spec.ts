@@ -103,6 +103,73 @@ describe('FileUtils', () => {
         expect(FileUtils.findLatest(root, 'messages.json')).toBe('s2');
     });
 
+    describe('isLink', () => {
+
+        test('tells a link from the folder it leads to', () => {
+            const base = path.join(process.cwd(), 'tmp', 'islink');
+            fs.mkdirSync(path.join(base, 'real'), {recursive: true});
+            fs.symlinkSync(path.join(base, 'real'), path.join(base, 'linked'), 'junction');
+            expect(FileUtils.isLink('tmp/islink/linked')).toBe(true);
+            expect(FileUtils.isLink('tmp/islink/real')).toBe(false);
+        });
+
+        /** What it leads to is not the question, or a leftover link could never be answered for. */
+        test('calls a link leading nowhere a link', () => {
+            const base = path.join(process.cwd(), 'tmp', 'islink-gone');
+            fs.mkdirSync(base, {recursive: true});
+            fs.symlinkSync(path.join(base, 'never-existed'), path.join(base, 'linked'), 'junction');
+            expect(FileUtils.isLink('tmp/islink-gone/linked')).toBe(true);
+        });
+
+        test('calls what is not there no link', () => {
+            expect(FileUtils.isLink('tmp/islink-nothing')).toBe(false);
+        });
+    });
+
+    describe('deleteDir', () => {
+
+        test('takes the folder and everything under it', () => {
+            FileUtils.writeFile('tmp/gone/deep/note.md', 'note');
+            FileUtils.deleteDir('tmp/gone');
+            expect(FileUtils.exists('tmp/gone')).toBe(false);
+        });
+
+        test('says nothing of a folder that was never there', () => {
+            expect(() => FileUtils.deleteDir('tmp/never-was')).not.toThrow();
+        });
+
+        /**
+         * An installer links a folder of its own into another, and what is asked of that link is
+         * what it leads to. A link left over its target answers nothing, and is there all the same.
+         */
+        test('takes a link that leads nowhere', () => {
+            const dir = path.join(process.cwd(), 'tmp', 'links');
+            fs.mkdirSync(dir, {recursive: true});
+            const link = path.join(dir, 'dangling');
+            fs.symlinkSync(path.join(dir, 'never-existed'), link, 'junction');
+            expect(FileUtils.exists('tmp/links/dangling')).toBe(false);
+
+            FileUtils.deleteDir('tmp/links/dangling');
+
+            expect(fs.readdirSync(dir)).toEqual([]);
+        });
+
+        /** The link is the leftover, not what it points at: a shared folder outlives its links. */
+        test('takes the link without following it', () => {
+            const base = path.join(process.cwd(), 'tmp', 'shared');
+            fs.mkdirSync(base, {recursive: true});
+            const target = path.join(base, 'skill');
+            fs.mkdirSync(target);
+            fs.writeFileSync(path.join(target, 'SKILL.md'), 'kept');
+            fs.symlinkSync(target, path.join(base, 'link'), 'junction');
+
+            FileUtils.deleteDir('tmp/shared/link');
+
+            expect(fs.existsSync(path.join(base, 'link'))).toBe(false);
+            expect(fs.readFileSync(path.join(target, 'SKILL.md'), 'utf8')).toBe('kept');
+        });
+    });
+
     test('enforceFileCountLimit removes the oldest files beyond the limit', () => {
         const dir = 'tmp/limited';
         for (let i = 1; i <= 4; i++) {

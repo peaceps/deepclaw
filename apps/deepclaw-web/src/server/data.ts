@@ -80,6 +80,21 @@ export async function setSkillAgents(skillName: string, agentIds?: string[]): Pr
     }
 }
 
+/**
+ * Deletes a skill and reads the list back, so the page shows what is on disk rather than the row
+ * it hoped to lose: a skill the manager no longer knows takes nothing with it, and the flag says so.
+ */
+export async function removeSkill(skillName: string): Promise<{removed: boolean, skills: SkillInfo[]}> {
+    try {
+        const removed = LoopGateway.removeSkill(skillName);
+        revalidatePath('/', 'layout');
+        return {removed, skills: LoopGateway.getSkills()};
+    } catch (error) {
+        console.error('Error removing skill:', error);
+        throw error;
+    }
+}
+
 export async function getCronHistories(
     id: string, beforeStart: number, limit?: number
 ): Promise<CronJobHistory[]> {

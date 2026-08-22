@@ -1,6 +1,12 @@
 import matter from 'gray-matter';
 import { FileUtils } from '@deepclaw/node-utils';
-import { SKILL_AGENT_JSON, SKILL_MD, SKILLS_DIR } from '../../paths';
+import {
+    SKILL_AGENT_JSON,
+    SKILL_MD,
+    SKILLS_DIR,
+    SKILLS_LINK_DIR,
+    SKILLS_LOCK_FILE,
+} from '../../paths';
 
 export type SkillManifest = {
     name: string;
@@ -74,6 +80,89 @@ export class SkillsManager {
         if (!registeredName) {
             FileUtils.deleteDir(skillDir);
             throw new Error('Invalid SKILL.md: frontmatter must define both "name" and "description".');
+        }
+    }
+
+    /**
+     * Deletes an installed skill, named as the prompt lists it or by its folder. Removal goes
+     * straight to the folder: the "npx skills remove" cli reports success while deleting nothing
+     * whenever another coding agent it found on the machine still points at the skill, and every
+     * agent that shares this folder is one of those, so its word is not worth a process spawn.
+     *
+     * Only a skill the manager read off the disk is deleted, and it is deleted by the folder it was
+     * read from. A name is the one thing the prompt hands out, so a name is what comes back here,
+     * and what comes back is not a path to follow anywhere.
+     *
+     * @returns whether a skill was found and deleted.
+     */
+    public static removeSkill(nameOrDir: string): boolean {
+        if (!this.skills) {
+            this.reloadSkills();
+        }
+        // A name the map does not know is worth one fresh look: a folder can go or arrive without
+        // this process hearing of it, and answering out of an old reading tells the caller nothing.
+        let known = this.findSkill(nameOrDir);
+        if (!known) {
+            this.reloadSkills();
+            known = this.findSkill(nameOrDir);
+        }
+        if (!known) {
+            return false;
+        }
+        const {name, dir} = known.manifest;
+        // Read off the disk as the folder is, writing it back has to reach the same one: a name the
+        // path sanitizer would rewrite would land on a sibling of it instead.
+        const skillDir = `${SKILLS_DIR}/${dir}`;
+        if (dir !== FileUtils.sanitizeFileName(dir) || !FileUtils.isPathInside(SKILLS_DIR, skillDir)) {
+            return false;
+        }
+        this.removeCliLeftovers(dir, name);
+        FileUtils.deleteDir(skillDir);
+        this.reloadSkills();
+        return true;
+    }
+
+    private static findSkill(nameOrDir: string): SkillDocument | undefined {
+        return this.skills.get(nameOrDir)
+            ?? Array.from(this.skills.values()).find(skill => skill.manifest.dir === nameOrDir);
+    }
+
+    /**
+     * The cli behind download_skill links an installed skill into "skills/<name>" for any agent
+     * that reads a folder of that name, and lists what it installs in "skills-lock.json" without
+     * ever taking an entry out again. Both are cleaned best effort: a skill that never went through
+     * the cli wrote neither, and a leftover entry keeps telling the cli the skill is installed.
+     *
+     * The lock is keyed by the name the cli read, the folder is that name sanitized, so the two
+     * part ways for a name that was not written as a folder name to begin with. Both are dropped.
+     *
+     * Only a link is dropped there, never a folder. That name sits outside the one folder deepclaw
+     * owns, and a data root is any folder somebody points deepclaw at: a real "skills" folder in it
+     * is somebody's own, and holding a skill of the same name is no reason to take it.
+     */
+    private static removeCliLeftovers(dir: string, name: string): void {
+        try {
+            const link = `${SKILLS_LINK_DIR}/${dir}`;
+            if (FileUtils.isLink(link)) {
+                FileUtils.deleteDir(link);
+            }
+        } catch {
+            // The link is a leftover, failing to drop it costs nothing.
+        }
+        try {
+            if (!FileUtils.exists(SKILLS_LOCK_FILE)) {
+                return;
+            }
+            const lock = JSON.parse(FileUtils.readFile(SKILLS_LOCK_FILE)) as
+                {skills?: Record<string, unknown>};
+            const listed = [dir, name].filter(key => !!lock.skills && key in lock.skills);
+            if (listed.length === 0) {
+                return;
+            }
+            listed.forEach(key => delete lock.skills![key]);
+            FileUtils.writeFile(SKILLS_LOCK_FILE, JSON.stringify(lock, null, 2));
+        } catch {
+            // An unreadable lock file is the cli's problem, not ours.
         }
     }
 

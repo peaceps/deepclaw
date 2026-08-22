@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
     getProjectList: vi.fn(),
     getSkillList: vi.fn(),
     updateSkillAgents: vi.fn(),
+    removeSkill: vi.fn(),
     getRunningTasks: vi.fn<() => unknown[]>(() => []),
     getAgentRuntimeStatus: vi.fn<(agentId: string) => unknown>(() => ({mood: 'none', emotions: []})),
     updateAgentRuntimeStatus: vi.fn<(agentId: string, mood?: string, emotion?: string) => unknown>(
@@ -61,7 +62,11 @@ vi.mock('@deepclaw/agent', () => ({
         getProjectDetail: mocks.getProjectDetail,
         getProjectList: mocks.getProjectList,
     },
-    SkillsManager: {getSkillList: mocks.getSkillList, updateSkillAgents: mocks.updateSkillAgents},
+    SkillsManager: {
+        getSkillList: mocks.getSkillList,
+        updateSkillAgents: mocks.updateSkillAgents,
+        removeSkill: mocks.removeSkill,
+    },
     RunningTaskService: {getRunningTasks: mocks.getRunningTasks},
     ToolUseService: {clearAwayUser: mocks.clearAwayUser},
     AGENTS_DIR: '.agents',
@@ -644,6 +649,12 @@ describe('delegations', () => {
     test('assigns a skill to the given agents', () => {
         LoopGateway.setSkillAgents('search', ['a1']);
         expect(mocks.updateSkillAgents).toHaveBeenCalledWith('search', ['a1']);
+    });
+
+    test('tells the caller whether the skills manager found a skill to remove', () => {
+        mocks.removeSkill.mockReturnValue(false);
+        expect(LoopGateway.removeSkill('search')).toBe(false);
+        expect(mocks.removeSkill).toHaveBeenCalledWith('search');
     });
 
     test('passes the history cursor and page size to the cron service', () => {

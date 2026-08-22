@@ -119,40 +119,48 @@ e.g. vercel-labs/agent-skills@vercel-react-best-practices`,
     agentMode: ['agent'],
     parallelSafe: false,
     invoke: async function(input: DownloadSkillInput): Promise<string> {
-        return await trySkillsWithMirror('add', input.target);
+        return await tryInstallWithMirror(input.target);
     },
     guard: skillsInjectionGuard(/^[\w./-]+@[\w-]+$/, input => input.target)
 };
 
 type RemoveSkillInput = {
-    dirName: string;
+    name: string;
 }
 
 export const removeSkillTool: ToolDesc<RemoveSkillInput> = {
     tool: {
         name: 'remove_skill',
-        description: `Remove installed skill.
-Will execute npx skills remove. e.g. npx skills remove vercel-react-best-practices -y
-The "vercel-react-best-practices" part is what you should provide to the tool, which is the "dir" field of the skill manifest.
-`,
+        description: `Remove an installed skill by deleting the folder it was installed in.
+The skill is gone from the available skills after this, for every agent that reads them here.`,
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
-                dirName: {
+                name: {
                     type: 'string',
-                    description: `The skill dir name, you can get it in the "dir" field of the skill manifest of available skill info.`, 
+                    description: `The name of an installed skill, written as the available skills list names it.`,
                 }
             },
-            required: ['dirName'],
+            required: ['name'],
         },
     },
     agentMode: ['agent'],
     parallelSafe: false,
-    invoke: async function(input: RemoveSkillInput): Promise<string> {
-        return await trySkillsWithMirror('remove', input.dirName);
+    invoke: async function(input: RemoveSkillInput, context: OneLoopContext): Promise<string> {
+        const {name} = input;
+        if (!SkillsManager.removeSkill(name)) {
+            return `No skill named "${name}" is installed, nothing removed.
+Available skills:
+${SkillsManager.getAvailableSkillsPrompt(personaOf(context))}`;
+        }
+        return `Skill ${name} removed.
+Available skills:
+${SkillsManager.getAvailableSkillsPrompt(personaOf(context))}`;
     },
-    guard: skillsInjectionGuard(/^[\w-]+$/, input => input.dirName)
+    // Nothing is spawned to remove a skill, so a shell has nothing to be smuggled into. What a name
+    // may not be is a path: the manager takes it for a name and looks for a skill of that name.
+    guard: skillsInjectionGuard(/^[^\\/]+$/, input => input.name)
 };
 
 type CreateSkillInput = {
@@ -254,12 +262,16 @@ function skillsInjectionGuard<T>(reg: RegExp, getValue: (input: T) => string): (
  *
  * Left alone the cli picks its folders from whichever coding agents it finds on the machine, and a
  * skill can land in a folder nobody here reads. "universal" names the one folder SkillsManager
- * reads, .agents/skills, so an install shows up and a removal takes the same copy away. It goes
- * ahead of a flag rather than at the end of the line because -a takes a list.
+ * reads, .agents/skills, and names it as a folder to copy the skill into rather than link: what
+ * lands there is the skill itself, which is why deleting that folder is the whole of removing it.
+ *
+ * Removal does not come back through here at all. The cli holds back the folder while any agent it
+ * found still points at it, and every agent that shares .agents/skills points at it by definition,
+ * so it reports success having deleted nothing. SkillsManager.removeSkill does the deleting.
  */
-async function trySkillsWithMirror(command: string, input: string) {
+async function tryInstallWithMirror(input: string) {
     let output = '';
-    const args = `${command} ${input} -a universal -y`;
+    const args = `add ${input} -a universal -y`;
     try {
         const result = await runCommand(`npx -y ${getSkillCommand(false)} ${args}`);
         output = result.output;
@@ -268,7 +280,7 @@ async function trySkillsWithMirror(command: string, input: string) {
             const result = await runCommand(`npx -y ${getSkillCommand(true)} ${args}`);
             output = result.output;
         } catch (e) {
-            return `skills ${command} failed: ${e}`;
+            return `skills add failed: ${e}`;
         }
     }
     SkillsManager.reloadSkills();

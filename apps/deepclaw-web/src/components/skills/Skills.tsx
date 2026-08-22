@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Trash2 } from 'lucide-react';
 import type { AgentOption } from '@/server/data';
-import { setSkillAgents } from '@/server/data';
+import { removeSkill, setSkillAgents } from '@/server/data';
 import type { SkillInfo } from '@deepclaw/loop-gateway';
 import { MultiSelect } from '@/laf/multi-select';
 import { InfoBar } from '@/laf/info-bar';
+import { useToastStore } from '@/lib/toast-store';
 
 type SkillsProps = {
     skills: SkillInfo[];
@@ -16,6 +18,8 @@ type SkillsProps = {
 export function Skills({ skills: initialSkills, agents }: SkillsProps) {
     const { t } = useTranslation();
     const [skills, setSkills] = useState(initialSkills);
+    const [removing, setRemoving] = useState<string>();
+    const showToast = useToastStore(s => s.show);
     const agentOptions = agents.map(a => ({ id: a.id, label: a.name }));
 
     const toggleAgent = async (skillName: string, agentId: string) => {
@@ -53,6 +57,22 @@ export function Skills({ skills: initialSkills, agents }: SkillsProps) {
         }
     };
 
+    const deleteSkill = async (skillName: string) => {
+        if (removing) return;
+        setRemoving(skillName);
+        try {
+            const { removed, skills: rest } = await removeSkill(skillName);
+            setSkills(rest);
+            if (!removed) {
+                showToast({ type: 'warning', message: t('web.pages.skills.removeMissing', { name: skillName }) });
+            }
+        } catch {
+            showToast({ type: 'error', message: t('web.pages.skills.removeFailed', { name: skillName }) });
+        } finally {
+            setRemoving(undefined);
+        }
+    };
+
     return (
         <div className="h-full w-full overflow-auto p-6">
             <h1 className="text-2xl font-bold text-gray-800 mb-4">{t('web.sidebar.links.skills')}</h1>
@@ -64,12 +84,15 @@ export function Skills({ skills: initialSkills, agents }: SkillsProps) {
                             <th className="px-4 py-3 font-medium">{t('web.pages.skills.columns.name')}</th>
                             <th className="px-4 py-3 font-medium">{t('web.pages.skills.columns.description')}</th>
                             <th className="px-4 py-3 font-medium">{t('web.pages.skills.columns.agent')}</th>
+                            <th className="px-4 py-3 font-medium w-px whitespace-nowrap">
+                                {t('web.pages.skills.columns.remove')}
+                            </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                         {skills.length === 0 ? (
                             <tr>
-                                <td colSpan={3} className="px-4 py-8 text-center text-gray-400">
+                                <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                                     {t('web.pages.skills.empty')}
                                 </td>
                             </tr>
@@ -88,6 +111,19 @@ export function Skills({ skills: initialSkills, agents }: SkillsProps) {
                                             onResetAll={() => resetToAll(skill.name)}
                                             resetLabel={t('web.pages.skills.resetToAll')}
                                         />
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                        <button
+                                            onClick={() => deleteSkill(skill.name)}
+                                            disabled={!!removing}
+                                            title={t('web.pages.skills.remove')}
+                                            aria-label={t('web.pages.skills.remove')}
+                                            className={`inline-flex items-center justify-center p-1.5 text-red-500
+                                                rounded-md hover:bg-red-50 transition-colors
+                                                disabled:opacity-40 disabled:hover:bg-transparent`}
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
                                     </td>
                                 </tr>
                             );

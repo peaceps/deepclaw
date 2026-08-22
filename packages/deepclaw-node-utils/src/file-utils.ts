@@ -27,6 +27,19 @@ export class FileUtils {
         return fs.readFileSync(absolutePath, 'utf8');
     }
 
+    /**
+     * Whether the path is a link rather than the thing itself, which is asked of a link left over
+     * by somebody else: it is deleted for being a link, and what it points at stays whoever's it is.
+     * A link leading nowhere is still one, so this is asked of the path and not of its target.
+     */
+    public static isLink(filePath: string): boolean {
+        try {
+            return fs.lstatSync(this.getAbsolutePath(this.sanitizeFileName(filePath))).isSymbolicLink();
+        } catch {
+            return false;
+        }
+    }
+
     /** A folder exists as much as a file does, and only one of the two can be handed over. */
     public static isFile(filePath: string): boolean {
         const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
@@ -98,11 +111,12 @@ export class FileUtils {
         }
     }
 
+    /**
+     * A link that leads nowhere is still a link to delete, and asking whether it exists is asking
+     * after what it points at. Nothing is asked: a path that is not there is what force is for.
+     */
     public static deleteDir(filePath: string): void {
-        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
-        if (fs.existsSync(absolutePath)) {
-            fs.rmSync(absolutePath, {force: true, recursive: true});
-        }
+        fs.rmSync(this.getAbsolutePath(this.sanitizeFileName(filePath)), {force: true, recursive: true});
     }
 
     public static findLatest(folder: string, subFile: string = ''): string {

@@ -218,9 +218,13 @@ export const en = {
                     name: 'Name',
                     description: 'Description',
                     agent: 'Applied to',
+                    remove: 'Remove',
                 },
                 empty: 'No skills available',
                 resetToAll: 'All agents',
+                remove: 'Remove this skill',
+                removeMissing: '{{name}} was not installed any more, the list is up to date now.',
+                removeFailed: 'Failed to remove {{name}}.',
                 installHint: 'Tip: you can install new skills by chatting with an agent — just ask it to find and install a skill for you.',
             },
             cron: {
