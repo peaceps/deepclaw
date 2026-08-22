@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToastStore, EXIT_MS, type ToastItem, type ToastType } from '@/lib/toast-store';
-import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Info, X, ArrowRight } from 'lucide-react';
 
 const ICONS: Record<ToastType, typeof Info> = {
   success: CheckCircle2,
@@ -30,7 +30,11 @@ export function ToastContainer() {
   const dismiss = useToastStore((s) => s.dismiss);
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)] pointer-events-none">
+    // 读屏用户先得知道 toast 来了，才谈得上点它
+    <div
+      aria-live="polite"
+      className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)] pointer-events-none"
+    >
       {toasts.map((t) => (
         <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
       ))}
@@ -72,11 +76,34 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
     };
   }, []);
 
+  // 点了就是去处理，toast 的活儿到此为止，留着只是挡住下一条
+  const handleClick = useCallback(() => {
+    if (!toast.onClick) return;
+    toast.onClick();
+    triggerDismiss();
+  }, [toast, triggerDismiss]);
+
+  // 这条 toast 可能是回到待答问题的唯一入口，键盘必须走得到
+  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handleClick();
+  }, [handleClick]);
+
+  const clickable = !!toast.onClick;
+
   return (
     <div
+      onClick={handleClick}
+      onKeyDown={clickable ? handleKeyDown : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
       className={[
         'pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-lg',
         'transition-all duration-200',
+        clickable
+          ? 'cursor-pointer hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current'
+          : '',
         leaving
           ? 'opacity-0 translate-x-4'
           : 'opacity-100 translate-x-0 animate-[toast-slide-in_0.2s_ease-out]',
@@ -92,8 +119,13 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
         <p className="text-sm break-words whitespace-pre-wrap">{toast.message}</p>
       </div>
 
+      {clickable && <ArrowRight size={16} className="shrink-0 mt-0.5 opacity-50" />}
+
       <button
-        onClick={triggerDismiss}
+        onClick={(event) => {
+          event.stopPropagation();
+          triggerDismiss();
+        }}
         className="shrink-0 p-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
         aria-label="close"
       >

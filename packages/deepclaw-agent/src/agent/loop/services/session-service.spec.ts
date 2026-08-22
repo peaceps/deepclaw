@@ -79,13 +79,17 @@ beforeEach(() => {
 describe('getSessionDir', () => {
 
     test('puts a sub loop into the temporary folder whatever its role is', () => {
-        expect(SessionService.getSessionDir('agent', 'a1', 'p1', {kind: 'sub', runId: 'sub9'}))
+        expect(SessionService.getSessionDir('agent', 'a1', 'p1', {
+            kind: 'sub', runId: 'sub9', permissionWhiteList: new Set(),
+        }))
             .toBe('/tmp/.deepclaw/subloop/sub9');
     });
 
     /** One folder per run, and never the folder of the session the run was spawned out of. */
     test('gives a task loop a run folder of its own', () => {
-        expect(SessionService.getSessionDir('project', 'a1', 'p1', {kind: 'task', runId: 'task7'}))
+        expect(SessionService.getSessionDir('project', 'a1', 'p1', {
+            kind: 'task', runId: 'task7', permissionWhiteList: new Set(),
+        }))
             .toBe('/tmp/.deepclaw/taskloop/task7');
     });
 

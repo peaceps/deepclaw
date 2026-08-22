@@ -2,6 +2,7 @@ import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentHandler} from '@deepclaw/core';
 import {type ToolUseResult} from '../../definitions/tool-definitions';
 import {type ThinkingResponse} from '../../llm/anthropic-llm';
+import {type SpawnedLoop} from '../../definitions/definitions';
 import {newTestAgentConfig, newTestAgentHandler} from '../../../test-support/one-loop-context';
 import {AnthropicLoop} from './anthropic-loop';
 
@@ -63,6 +64,11 @@ function newResponse(content: unknown[]): ThinkingResponse {
     return {content} as unknown as ThinkingResponse;
 }
 
+/** What the loop last told the session service it was spawning, the session folder is picked by it. */
+function spawnedOf(): SpawnedLoop {
+    return mocks.getSessionDir.mock.calls.at(-1)?.[3] as SpawnedLoop;
+}
+
 describe('AnthropicLoop', () => {
 
     beforeEach(() => {
@@ -105,6 +111,7 @@ describe('AnthropicLoop', () => {
         expect(subLoop).toBeInstanceOf(AnthropicLoop);
         expect(mocks.getSessionDir).toHaveBeenLastCalledWith('agent', 'a1', '', {
             kind: 'sub', runId: expect.any(String), assignedTask: undefined,
+            permissionWhiteList: expect.any(Set),
         });
     });
 
@@ -113,6 +120,19 @@ describe('AnthropicLoop', () => {
         expect(taskLoop).toBeInstanceOf(AnthropicLoop);
         expect(mocks.getSessionDir).toHaveBeenLastCalledWith('agent', 'a1', '', {
             kind: 'task', runId: expect.any(String), assignedTask: {projectId: 'p1', taskId: 'ship-it'},
+            permissionWhiteList: expect.any(Set),
         });
+    });
+
+    /**
+     * A permission is answered once for the conversation, so what a loop was allowed is what every
+     * loop under it works with, down the whole chain rather than one step of it.
+     */
+    test('hands the permission list of the loop down every loop it spawns', () => {
+        const loop = newLoop();
+        const taskLoop = loop.createTaskLoop({projectId: 'p1', taskId: 'ship-it'});
+        const handedToTask = spawnedOf().permissionWhiteList;
+        taskLoop.createSubLoop();
+        expect(spawnedOf().permissionWhiteList).toBe(handedToTask);
     });
 });

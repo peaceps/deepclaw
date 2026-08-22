@@ -107,11 +107,13 @@ describe('file tool guard', () => {
         expect(askPermissionGuard).not.toHaveBeenCalled();
     });
 
+    /** The list handed over is the one of the conversation, a grant belongs to it and to nothing else. */
     test('asks the user for a path outside the workspace', () => {
         mocks.isPathInWorkspace.mockReturnValue(false);
-        readFileTool.guard!({filePath: '/etc/passwd'}, newTestContext());
+        const context = newTestContext();
+        readFileTool.guard!({filePath: '/etc/passwd'}, context);
         expect(askPermissionGuard).toHaveBeenCalledExactlyOnceWith(
-            'agent.tools.file.guard', 'file', 'agent.a1', 'agent'
+            'agent.tools.file.guard', 'file', context.permissionWhiteList
         );
     });
 

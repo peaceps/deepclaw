@@ -32,9 +32,10 @@ export function ContentModal(
         };
     }, [handleKeyDown]);
 
+    // Above the toasts, and under the question of a loop, which is the one thing worth interrupting for.
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 cursor-default"
+            className="fixed inset-0 z-[105] flex items-center justify-center bg-black/50 cursor-default"
             onClick={onClose}
         >
             <div

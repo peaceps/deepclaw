@@ -9,6 +9,7 @@ export interface ToastItem {
   message: string;
   duration: number; // ms, 0 = manual close
   leaving?: boolean; // store 标记即将移除，组件据此触发退出动画
+  onClick?: () => void; // 有则整条可点，点完即走
 }
 
 const MAX_TOASTS = 5;
@@ -31,9 +32,9 @@ function genId() {
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
 
-  show: ({ id, type = 'info', title, message, duration = 4000 }) => {
+  show: ({ id, type = 'info', title, message, duration = 4000, onClick }) => {
     const toastId = id ?? genId();
-    const toast: ToastItem = { id: toastId, type, title, message, duration };
+    const toast: ToastItem = { id: toastId, type, title, message, duration, onClick };
 
     set((state) => {
       const next = [...state.toasts, toast];

@@ -34,6 +34,22 @@ export type LoopState<I> = {
     oneLoopContext: OneLoopContext;
 }
 
+/** What a permission is asked for as a whole, rather than one command or one path at a time. */
+export type PermissionGroup = 'command' | 'file';
+
+/**
+ * What the user waved through for the rest of the conversation. It belongs to the loop rather than
+ * to the turn, so an answer given once is not asked for again with the next message, and every loop
+ * a run spawns works with the very same set: a grant given deep inside a run is a grant the
+ * conversation has, and a copy handed down instead would leave each loop asking for itself.
+ *
+ * It lives exactly as long as the loop holding it, which is a shorter life than the conversation:
+ * the gateway builds the loop anew where the session no longer matches the protocol it was written
+ * in, so pointing the agent at another provider asks for the permissions again. Nothing granted
+ * here is written down anywhere either, and a restart is another fresh set.
+ */
+export type PermissionWhiteList = Set<PermissionGroup>;
+
 /**
  * The task a sub loop was spawned for. Kept as a reference instead of a copy of the task, so that
  * every turn reads the state the task is in by then, steps included.
@@ -60,6 +76,8 @@ export type SpawnedLoop = {
      * but to work as the agent it belongs to, with the memory and the skills of that agent.
      */
     assignedTask?: AssignedTask;
+    /** The list of the loop that spawned it, which it works with instead of asking for itself. */
+    permissionWhiteList: PermissionWhiteList;
 }
 
 /**
@@ -93,6 +111,7 @@ export type OneLoopContext = {
         agentHandler: SealedAgentHandler;
         addStringMessage: (message: string) => void;
     },
+    permissionWhiteList: PermissionWhiteList;
     runtime: AgentRuntime
 }
 

@@ -1,19 +1,19 @@
 import { i18nInstance } from "@deepclaw/i18n";
-import { FlushAgentRole } from "@deepclaw/core";
 import { ToolGuardResult } from "../../definitions/tool-definitions";
-
-type PermissionGroup = 'command' | 'file';
+import { PermissionGroup, PermissionWhiteList } from "../../definitions/definitions";
 
 export class PermissionService {
-    private static allowList: Partial<Record<PermissionGroup, Set<string>>> = {};
 
+    /**
+     * The list is the one of the conversation the guard was called in, and a group let through is
+     * let through for as long as the loop that holds the list stands (see PermissionWhiteList).
+     * Whether there is anybody to hear the question is not asked here: the service that carries it
+     * to the user answers that.
+     */
     public static askPermissionGuard(
-        reason: string, group: PermissionGroup, loopId: string, role: FlushAgentRole
+        reason: string, group: PermissionGroup, permissionWhiteList: PermissionWhiteList
     ): ToolGuardResult {
-        if (role === 'cron') {
-            return {result: 'allowed'};
-        }
-        if (this.permissionGranted(group, loopId)) {
+        if (permissionWhiteList.has(group)) {
             return {result: 'allowed'};
         }
         return {
@@ -31,31 +31,23 @@ export class PermissionService {
                 ]
             },
             checkAnswer: (answer: string) => {
-                return this.checkAnswer(answer, group, loopId);
+                return this.checkAnswer(answer, group, permissionWhiteList);
             }
         }
     }
 
-    private static checkAnswer(answer: string, group: PermissionGroup, loopId: string): boolean {
+    private static checkAnswer(
+        answer: string, group: PermissionGroup, permissionWhiteList: PermissionWhiteList
+    ): boolean {
         answer = answer.trim().toLowerCase();
         if (answer === 'y') {
             return true;
         } else if (answer === 'a') {
-            if (!this.allowList[group]) {
-                this.allowList[group] = new Set<string>();
-            }
-            this.allowList[group].add(loopId);
+            permissionWhiteList.add(group);
             return true;
         } else {
             return false;
         }
-    }
-
-    private static permissionGranted(group: PermissionGroup, loopId: string): boolean {
-        if (!this.allowList[group]) {
-            return false;
-        }
-        return this.allowList[group].has(loopId);
     }
 
 }

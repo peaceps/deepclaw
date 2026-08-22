@@ -1,17 +1,29 @@
 'use client';
 
 import { useState } from "react";
-import { AgentEmployee } from "@deepclaw/core";
+import { AgentEmployee, getLoopId } from "@deepclaw/core";
 import { MobileAgentHeader } from "./MobileAgentHeader";
 import { MobileView } from "@/component-types";
 import { AgentList } from "../AgentList";
 import { AgentDetail } from "../details/AgentDetail";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { useAppStore } from "@/lib/store";
 
 export function MobileAgentPage({selectedAgent}: {
     selectedAgent?: AgentEmployee;
 }) {
     const [mobileView, setMobileView] = useState<MobileView>('list');
+    const [answeredCall, setAnsweredCall] = useState(0);
+    const openChatCall = useAppStore(s => s.openChatCall);
+
+    // One view at a time: a chat called for from elsewhere is only shown by leaving the list for it.
+    const calledSeq = selectedAgent && openChatCall?.loopId === getLoopId('agent', selectedAgent.id)
+        ? openChatCall.seq
+        : 0;
+    if (calledSeq && calledSeq !== answeredCall) {
+        setAnsweredCall(calledSeq);
+        setMobileView('chat');
+    }
 
     return (
     <>

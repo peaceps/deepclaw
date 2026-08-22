@@ -131,6 +131,42 @@ describe('parseToastEvent', () => {
         expect(messageParams()?.name).toBe('');
     });
 
+    /** The toast is only worth a click where the page it would open has the chat of the loop on it. */
+    test('takes the click of an agent loop to the agent page', () => {
+        expect(ToastService.parseToastEvent(pauseEvent('agent.a1'), [], [newAgent()]).link)
+            .toEqual({loopId: 'agent.a1', href: '/agents'});
+    });
+
+    test('takes the click of a project loop to that project', () => {
+        expect(ToastService.parseToastEvent(pauseEvent('project.a1.p1'), [newProject()], []).link)
+            .toEqual({loopId: 'project.a1.p1', href: '/projects?project=p1'});
+    });
+
+    test('escapes a project id the query string would not carry as it is', () => {
+        const projects = [newProject({id: 'p 1&2'})];
+        expect(ToastService.parseToastEvent(pauseEvent('project.a1.p 1&2'), projects, []).link?.href)
+            .toBe('/projects?project=p%201%262');
+    });
+
+    test('leaves the toast to be read alone when the agent is unknown', () => {
+        expect(ToastService.parseToastEvent(pauseEvent('agent.ghost'), [], [newAgent()]).link)
+            .toBeUndefined();
+    });
+
+    test('leaves the toast to be read alone when the project is unknown', () => {
+        expect(ToastService.parseToastEvent(pauseEvent('project.a1.ghost'), [], [newAgent()]).link)
+            .toBeUndefined();
+    });
+
+    test('leaves the toast to be read alone when the loop id carries no agent', () => {
+        expect(ToastService.parseToastEvent(pauseEvent('agent'), [], [newAgent()]).link).toBeUndefined();
+    });
+
+    test('leaves a plain toast nowhere to go', () => {
+        expect(ToastService.parseToastEvent({key: 'imConnected', data: 'Ada'}, [], []).link)
+            .toBeUndefined();
+    });
+
     test('translates the role separately from the message', () => {
         mocks.t.mockImplementation((key: string, params?: Record<string, string>) => (
             params ? `${key}|${params.role}|${params.name}` : key.split('.').pop() ?? key

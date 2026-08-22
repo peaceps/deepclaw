@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { getLogger } from '@/lib/logger';
 import type { SSEConnectedEvent, SSEToastEvent } from '@/app/api/sse-types';
@@ -17,6 +18,7 @@ import {
 const logger = getLogger('InfoClient');
 
 export function InfoClient() {
+  const router = useRouter();
   const sseClient = useSSEClient();
   const browserId = useAppStore(s => s.browserId);
   const updateProject = useAppStore(s => s.updateProject);
@@ -27,6 +29,7 @@ export function InfoClient() {
   const setRunningTasks = useAppStore(s => s.setRunningTasks);
   const setBusyLoops = useAppStore(s => s.setBusyLoops);
   const updateCronTask = useAppStore(s => s.updateCronTask);
+  const openChat = useAppStore(s => s.openChat);
   const show = useToastStore(t => t.show);
 
   useEffect(() => {
@@ -95,10 +98,15 @@ export function InfoClient() {
         url,
         'toast',
         ({content}) => {
-          const {title, message, duration} = ToastService.parseToastEvent(content, getProjects() , getAgents());
-          if (message) {
-            show({type: 'info', title, message, duration});
-          }
+          const {title, message, duration, link} = ToastService.parseToastEvent(content, getProjects() , getAgents());
+          if (!message) return;
+          // A toast that stands for a waiting question is the way back to it: the click says which
+          // chat to show and goes to the page that holds it.
+          const onClick = link ? () => {
+            openChat(link.loopId);
+            router.push(link.href);
+          } : undefined;
+          show({type: 'info', title, message, duration, onClick});
         },
       ),
     ];
@@ -108,7 +116,7 @@ export function InfoClient() {
     };
   }, [
     sseClient, updateProject, updateAgentEmployee, showEmotionPopup, setRunningTasks, setBusyLoops,
-    updateCronTask, browserId, getAgents, getProjects, show,
+    updateCronTask, browserId, getAgents, getProjects, show, openChat, router,
   ]);
 
   return <></>;

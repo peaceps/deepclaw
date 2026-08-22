@@ -57,6 +57,9 @@ function assemble() {
     for (const readme of ['README.md', 'README.zh-CN.md']) {
         copy(path.join(repo, readme), path.join(release, readme));
     }
+    // what changed is asked by whoever is deciding whether to take the update, and they are as
+    // likely to be standing in the installed package as in the repository
+    copy(path.join(repo, 'CHANGELOG.md'), path.join(release, 'CHANGELOG.md'));
     if (fs.existsSync(path.join(repo, 'LICENSE'))) copy(path.join(repo, 'LICENSE'), path.join(release, 'LICENSE'));
 }
 

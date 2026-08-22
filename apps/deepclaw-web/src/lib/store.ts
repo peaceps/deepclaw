@@ -84,6 +84,13 @@ type AppState = {
   messages: {[key: string]: ChatMessage[]},
   busyChatKeys: Record<string, boolean>;
   selectedAgentId: string | null;
+  /**
+   * The chat a click from outside the page asked to be taken to. A wide layout has the chat beside
+   * the agent or inside the project row, so naming the loop is all it takes; a layout that shows one
+   * thing at a time, or a row the user folded away, has to be told to make room for it. The count is
+   * what asking twice for the same chat is told apart by, since a page answers each call once.
+   */
+  openChatCall: {loopId: string; seq: number} | null;
   initializedChat: Record<string, boolean>;
   /**
    * Transient emotion bubble anchored to an agent card; a bump of seq re-arms its timer, and at
@@ -115,6 +122,7 @@ type AppState = {
   replaceMessage: (loopId: string, id: string, text: string) => void;
   setChatBusy: (loopId: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
+  openChat: (loopId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -128,6 +136,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   messages: {},
   busyChatKeys: {},
   selectedAgentId: null,
+  openChatCall: null,
   initializedChat: {},
   emotionPopup: {},
 
@@ -202,8 +211,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       messages: {...state.messages, ...{[loopId]: head ? [...added, ...held] : [...held, ...added]}}
     };
   }),
+  /**
+   * A message is what its id says it is. Two chats of one loop can be on the page at once, a wide
+   * layout and a narrow one both being there to be shown, and each of them hears the loop say the
+   * same message arrived: told twice, it is still the one message, and holding it twice would grow
+   * both copies with every chunk that follows.
+   */
   addMessage: (loopId: string, message: ChatMessage) => set((state) => {
     const oldMessages = state.messages[loopId] || [];
+    if (oldMessages.some(held => held.id === message.id)) {
+      return {};
+    }
     return {
       messages: {...state.messages, ...{[loopId]: [...oldMessages, message]}}
     };
@@ -246,6 +264,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
   })),
   setSelectedAgent: (id) => set({ selectedAgentId: id }),
+  /**
+   * The chat of an agent is shown beside the agent the page has selected, so being called to one is
+   * also selecting it. A project chat hangs off the project row instead, and the agent behind it is
+   * the one the project names.
+   */
+  openChat: (loopId: string) => set((state) => {
+    const { agentId, projectId } = splitLoopId(loopId);
+    const openChatCall = { loopId, seq: (state.openChatCall?.seq ?? 0) + 1 };
+    return projectId ? { openChatCall } : { openChatCall, selectedAgentId: agentId };
+  }),
 }));
 
 /** A roster that arrives whole may no longer hold the agent the page was showing. */

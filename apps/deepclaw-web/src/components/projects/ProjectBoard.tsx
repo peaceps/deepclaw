@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { splitLoopId } from '@deepclaw/core';
 import { useAppStore } from '@/lib/store';
 import {ProjectRow} from './ProjectRow';
 import { useTranslation } from 'react-i18next';
@@ -11,13 +12,18 @@ import { usePersistentString } from '@/lib/use-persistent-state';
 
 export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string }) {
   const projects = useAppStore(s => s.projects);
+  const openChatCall = useAppStore(s => s.openChatCall);
   const selectedProject = selectedProjectId
     ? projects.find(project => project.id === selectedProjectId)
+    : undefined;
+  const calledProject = openChatCall
+    ? projects.find(project => project.id === splitLoopId(openChatCall.loopId).projectId)
     : undefined;
   const projectRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastScrolledProjectIdRef = useRef<string | undefined>(undefined);
   const [expandedProjectId, setExpandedProjectId] = usePersistentString('projects.expandedId');
   const [handledSelectedProjectId, setHandledSelectedProjectId] = useState<string | undefined>();
+  const [answeredCall, setAnsweredCall] = useState(0);
   const [filters, setFilters] = useState(DEFAULT_PROJECT_FILTERS);
   const filteredProjects = useMemo(
     () => [...filterProjects(projects, filters)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
@@ -32,6 +38,18 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
     setExpandedProjectId(selectedProjectId);
     // A link names the project to show, so a view it falls outside of gives way rather than the link.
     if (filterProjects([selectedProject], filters).length === 0) {
+      setFilters(ALL_PROJECT_FILTERS);
+    }
+  }
+
+  /**
+   * A link only names the project, and naming the one the page already showed leaves it as it is:
+   * the chat a click was sent to has to be there whatever the user folded away in between.
+   */
+  if (calledProject && openChatCall && openChatCall.seq !== answeredCall) {
+    setAnsweredCall(openChatCall.seq);
+    setExpandedProjectId(calledProject.id);
+    if (filterProjects([calledProject], filters).length === 0) {
       setFilters(ALL_PROJECT_FILTERS);
     }
   }

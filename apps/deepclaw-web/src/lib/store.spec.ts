@@ -199,6 +199,7 @@ describe('app store', () => {
             messages: {},
             busyChatKeys: {},
             selectedAgentId: null,
+            openChatCall: null,
             initializedChat: {},
             emotionPopup: {},
         });
@@ -504,6 +505,29 @@ describe('app store', () => {
             expect(store().messages.loop2.map(message => message.id)).toEqual(['m2']);
         });
 
+        /**
+         * Two chats of one loop can be on the page at once, and both are told the message arrived.
+         * A second copy would grow along with the first and read as a second answer.
+         */
+        test('holds a message told twice only once', () => {
+            store().addMessage('loop1', newChatMessage({content: ''}));
+            store().addMessage('loop1', newChatMessage({content: ''}));
+            store().updateMessage('loop1', 'm1', 'an answer');
+            expect(store().messages.loop1.map(message => message.content)).toEqual(['an answer']);
+        });
+
+        test('keeps the message it already holds rather than the one told again', () => {
+            store().addMessage('loop1', newChatMessage({content: 'half of an answer'}));
+            store().addMessage('loop1', newChatMessage({content: ''}));
+            expect(store().messages.loop1).toEqual([newChatMessage({content: 'half of an answer'})]);
+        });
+
+        test('takes the same message into another conversation', () => {
+            store().addMessage('loop1', newChatMessage());
+            store().addMessage('loop2', newChatMessage());
+            expect(store().messages.loop2).toEqual([newChatMessage()]);
+        });
+
         test('appends pulled messages at the end by default', () => {
             store().addMessage('loop1', newChatMessage());
             store().addPulledMessages('loop1', [newChatMessage({id: 'm2'}), newChatMessage({id: 'm3'})]);
@@ -700,6 +724,39 @@ describe('app store', () => {
             store().setAgents([newAgent()]);
             store().setSelectedAgent('ghost');
             expect(store().selectedAgentId).toBe('ghost');
+        });
+    });
+
+    describe('openChat', () => {
+
+        test('names the loop whose chat was called for', () => {
+            store().openChat('agent.a1');
+            expect(store().openChatCall).toEqual({loopId: 'agent.a1', seq: 1});
+        });
+
+        /** The chat of an agent is shown beside the selected agent, so it has to become that one. */
+        test('selects the agent of an agent loop', () => {
+            store().openChat('agent.a2');
+            expect(store().selectedAgentId).toBe('a2');
+        });
+
+        test('leaves the selected agent alone for a project loop', () => {
+            store().setSelectedAgent('a1');
+            store().openChat('project.a2.p1');
+            expect(store().selectedAgentId).toBe('a1');
+        });
+
+        test('replaces the loop of a call that came before', () => {
+            store().openChat('agent.a1');
+            store().openChat('project.a2.p1');
+            expect(store().openChatCall?.loopId).toBe('project.a2.p1');
+        });
+
+        /** A page answers a call once, so asking again for the chat it shows has to be a new call. */
+        test('counts every call, the same chat asked for twice included', () => {
+            store().openChat('agent.a1');
+            store().openChat('agent.a1');
+            expect(store().openChatCall).toEqual({loopId: 'agent.a1', seq: 2});
         });
     });
 });

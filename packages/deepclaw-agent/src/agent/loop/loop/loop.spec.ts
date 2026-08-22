@@ -191,7 +191,7 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
 }
 
 function newSpawned(kind: 'task' | 'sub', assignedTask?: AssignedTask): SpawnedLoop {
-    return {kind, runId: `${kind}1`, assignedTask};
+    return {kind, runId: `${kind}1`, assignedTask, permissionWhiteList: new Set()};
 }
 
 function newHandler(): AgentHandler {

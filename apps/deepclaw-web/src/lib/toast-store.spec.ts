@@ -91,6 +91,19 @@ describe('useToastStore', () => {
             show({message: 'saved'});
             expect(toasts()[0].leaving).toBeUndefined();
         });
+
+        /** A toast that leads somewhere carries the way there, the card only has to call it. */
+        test('keeps the click the toast was given', () => {
+            const onClick = vi.fn();
+            show({message: 'saved', onClick});
+            toasts()[0].onClick?.();
+            expect(onClick).toHaveBeenCalledOnce();
+        });
+
+        test('leaves a toast that leads nowhere without a click', () => {
+            show({message: 'saved'});
+            expect(toasts()[0].onClick).toBeUndefined();
+        });
     });
 
     describe('overflow', () => {

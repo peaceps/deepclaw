@@ -63,6 +63,7 @@ export function newTestContext(overrides: Partial<OneLoopContext> = {}): OneLoop
             agentHandler: newTestAgentHandler(),
             addStringMessage: vi.fn(),
         },
+        permissionWhiteList: new Set(),
         runtime: newTestRuntime(),
         ...overrides,
     };

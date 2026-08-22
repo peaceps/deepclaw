@@ -22,7 +22,7 @@ import {
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
     AssignedTask, FootPrint, IMAGE_FOOT_PRINT, LLMProtocol, LoopKind, LoopState, OneLoopContext,
-    SpawnedLoop,
+    PermissionWhiteList, SpawnedLoop,
 } from '../../definitions/definitions';
 import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
@@ -64,6 +64,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
      * else happens: a loop that learns what it is later has already read the wrong history.
      */
     private spawned?: SpawnedLoop;
+    /**
+     * What the user allowed for good, which outlives the turn it was allowed in: a runtime is built
+     * anew for every message, and a permission kept there would be asked for again with the next
+     * one. A spawned loop works with the list of the loop that spawned it. It goes down with this
+     * loop, so a loop the gateway had to build again is a loop that asks once more.
+     */
+    private readonly permissionWhiteList: PermissionWhiteList;
 
     constructor(
         role: FlushAgentRole,
@@ -74,6 +81,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     ) {
         super(role, agentId, projectId, handler);
         this.spawned = spawned;
+        this.permissionWhiteList = spawned?.permissionWhiteList ?? new Set();
         this.agentConfig = loadAgentConfig(this.agentId);
         if (this.role === 'cron') {
             this.agentConfig = {...this.agentConfig, mode: 'agent'};
@@ -221,6 +229,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 },
                 addStringMessage: this.addStringMessage.bind(this),
             },
+            permissionWhiteList: this.permissionWhiteList,
             runtime: {
                 ...this.emptyRuntime(),
                 historyPersistIndex: this.historyPersistIndex,
@@ -442,12 +451,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
      * and text of its own under the loop id they share would read as an answer of that loop. What
      * it has to ask and what it changed do travel on, there is nobody else to hear either.
      */
-    private spawn(spawned: SpawnedLoop): LoopAgent<I, O, LLM> {
+    private spawn(spawned: Omit<SpawnedLoop, 'permissionWhiteList'>): LoopAgent<I, O, LLM> {
         return this.newLoop(this.role, this.agentId, this.projectId, {
             onStreamText: () => {},
             onInteractionEvent: async (event: AgentInteractionEvent) => this.askOfThisRun(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
-        }, spawned);
+        }, {...spawned, permissionWhiteList: this.permissionWhiteList});
     }
 
     /** Through the run in progress where it brought a way of its own, the loop's own way otherwise. */

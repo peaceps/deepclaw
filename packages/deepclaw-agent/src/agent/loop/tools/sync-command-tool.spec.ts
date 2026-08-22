@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {runCommand} from '@deepclaw/node-utils';
 import {newTestContext} from '../../../test-support/one-loop-context';
+import {type OneLoopContext} from '../../definitions/definitions';
 import {PermissionService} from '../services/permission-service';
 import {syncCommandTool} from './sync-command-tool';
 
@@ -17,10 +18,13 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
 
 const askPermissionGuard = vi.spyOn(PermissionService, 'askPermissionGuard');
 
+/** The context of the last guarded command, which the list a question is asked with belongs to. */
+let guardedContext: OneLoopContext;
+
 function guard(command: string, mode: 'agent' | 'chat' = 'agent') {
-    const context = newTestContext();
-    context.loopConfig.mode = mode;
-    return syncCommandTool.guard!({command}, context);
+    guardedContext = newTestContext();
+    guardedContext.loopConfig.mode = mode;
+    return syncCommandTool.guard!({command}, guardedContext);
 }
 
 describe('syncCommandTool guard', () => {
@@ -44,14 +48,14 @@ describe('syncCommandTool guard', () => {
     test('asks for permission for a command with shell metacharacters', () => {
         guard('ls | wc -l');
         expect(askPermissionGuard).toHaveBeenCalledExactlyOnceWith(
-            'agent.tools.syncCommand.guard.warn', 'command', 'agent.a1', 'agent'
+            'agent.tools.syncCommand.guard.warn', 'command', guardedContext.permissionWhiteList
         );
     });
 
     test('asks for permission when the loop is not running in agent mode', () => {
         guard('ls -l', 'chat');
         expect(askPermissionGuard).toHaveBeenCalledExactlyOnceWith(
-            'agent.tools.syncCommand.guard.mode', 'command', 'agent.a1', 'agent'
+            'agent.tools.syncCommand.guard.mode', 'command', guardedContext.permissionWhiteList
         );
     });
 
