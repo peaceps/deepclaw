@@ -12,10 +12,27 @@ remove a skill from the skills page too: a bin at the end of its row asks first,
 it takes the skill off the disk. the table is redrawn from what is left there rather than from the
 row that was clicked, so a skill already gone says so instead of leaving a row nothing stands behind.
 ask before deleting a scheduled task as well, by the same dialog: what cannot be taken back is worth
-one question, and escape or a click beside it answers no, as does the key a dialog opens under.
+one question, and escape or a click beside it answers no, as does the key a dialog opens under. the
+keyboard stays in the dialog while it stands, rather than tabbing off into the page it is asking
+about, where half of what it would reach is what the answer undoes.
 hand a task to another agent from the card it stands on, by a pencil beside the name that opens the
 roster. Only a task nobody has started yet: work under way stays with whoever took it up, and the
-board is held to an agent that works here, so a card cannot name one nobody would answer for.
+board is held to an agent that works here, so a card cannot name one nobody would answer for. the
+roster is answered by escape as the dialogs are, and hangs above the pencil where the card sits too
+near the foot of the page to hold it below, cut to the room of the side it took either way. the
+filter menu of a list is hung and answered by the same rules, being the same thing on another page.
+an agent hands a task on the same way, naming the one it goes to in update_task, and reads the rule
+off the tool rather than off the refusal it would otherwise walk into.
+let a run put a question of its own and stand still until it is answered, in the dialog a permission
+is asked in: answers to pick between where the answer is a choice, a line to write in where it is
+not, and what the user said read back into the run. it waits in the queue a permission waits in, a
+loop asking one thing at a time, and gives up at once where the last question already found nobody.
+no more answers are offered than fit in front of a reader, and what was left out is named in what
+comes back, so a choice is never read as having been made against it. a scheduled run asks nobody,
+being set up by somebody who is not there when it runs: it carries no browser for a question to go
+to, and is told what to do about that instead of being turned away with nothing. a subagent asks
+through the conversation of the run that spawned it, one question of that whole family at a time,
+so what it needs of the user no longer has to be guessed into the prompt it was handed.
 say of a saved language that a language was saved, the other fields of the form having gone nowhere.
 let a notice of a loop be read once rather than said twice over.
 

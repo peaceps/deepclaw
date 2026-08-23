@@ -18,6 +18,7 @@ import { AgentMode } from '@deepclaw/config';
 import { base64Tool } from '../tools/encode-decode-tool';
 import { generateImageTool } from '../tools/image-tool';
 import { updateAgentRuntimeTool } from '../tools/agent-runtime-tool';
+import { askUserTool } from '../tools/ask-user-tool';
 import { MCP_PREFIX, MCPService } from './mcp-service';
 
 const tools: ToolDesc<any>[] = [
@@ -53,6 +54,7 @@ const tools: ToolDesc<any>[] = [
     checkAllBackgroundCommandStatusTool,
     checkBackgroundCommandStatusTool,
     updateAgentRuntimeTool,
+    askUserTool,
 ];
 
 type ToolsStrorage<T extends (Record<string, ToolDesc<any>> | LLMTool[])> = Record<LoopKind, Record<AgentMode, T>>;

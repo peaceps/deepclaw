@@ -4,7 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
 import type { AgentEmployee } from '@deepclaw/core';
+import { popupPlacement, type PopupPlacement } from '@/laf/popup-placement';
 import { avatarBG } from '../styles-mapping';
+
+/**
+ * What the list asks for: the width it is drawn at, which is the width it is kept inside the page
+ * by, and the most of it worth scrolling through. A long name is cut rather than allowed to widen
+ * the list past what it was placed by.
+ */
+const LIST_WIDTH = 160;
+const LIST_MAX_HEIGHT = 240;
 
 type AssigneePickerProps = {
     agents: AgentEmployee[];
@@ -15,17 +24,21 @@ type AssigneePickerProps = {
 };
 
 /**
- * The roster of a card, hung under the pencil that opened it. It goes in a portal because a card
- * sits in a column that scrolls its own way, and a list drawn inside one would be cut off by it.
+ * The roster of a card, hung on the pencil that opened it, under it or above it by whichever side
+ * of the pencil the page has room on. It goes in a portal because a card sits in a column that
+ * scrolls its own way, and a list drawn inside one would be cut off by it.
  */
 export function AssigneePicker({ agents, selectedId, anchorRef, onPick, onClose }: AssigneePickerProps) {
     const listRef = useRef<HTMLDivElement>(null);
-    const [position, setPosition] = useState<{ top: number; left: number }>();
+    const [placement, setPlacement] = useState<PopupPlacement>();
 
     useEffect(() => {
         if (anchorRef.current) {
-            const rect = anchorRef.current.getBoundingClientRect();
-            setPosition({ top: rect.bottom + 4, left: rect.left });
+            setPlacement(popupPlacement(
+                anchorRef.current.getBoundingClientRect(),
+                { width: window.innerWidth, height: window.innerHeight },
+                { width: LIST_WIDTH, maxHeight: LIST_MAX_HEIGHT },
+            ));
         }
     }, [anchorRef]);
 
@@ -36,24 +49,36 @@ export function AssigneePicker({ agents, selectedId, anchorRef, onPick, onClose 
                 onClose();
             }
         };
+        // Escape answers a list the way it answers a dialog: nothing was picked, and it goes away.
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
         document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
         window.addEventListener('resize', onClose);
         window.addEventListener('scroll', onClose, true);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('resize', onClose);
             window.removeEventListener('scroll', onClose, true);
         };
     }, [anchorRef, onClose]);
 
-    if (!position) return null;
+    if (!placement) return null;
 
     return createPortal(
         <div
             ref={listRef}
-            style={{ position: 'fixed', top: position.top, left: position.left }}
-            className="z-50 min-w-[10rem] max-h-60 overflow-auto rounded-md border border-gray-200
-                bg-white shadow-lg"
+            style={{
+                position: 'fixed',
+                top: placement.top,
+                bottom: placement.bottom,
+                left: placement.left,
+                width: LIST_WIDTH,
+                maxHeight: placement.maxHeight,
+            }}
+            className="z-50 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg"
         >
             {agents.map(agent => (
                 <button

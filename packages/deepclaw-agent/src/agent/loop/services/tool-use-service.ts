@@ -6,7 +6,8 @@ import { TRUNCATE_THRESHOLD } from '../../loop-utils';
 import { ToolsManager } from './tools-manager';
 import { HookManager } from './hook-manager';
 import {
-    type InternalInterruptReason, isInternalInterruptReason, isInvalidInteractionReason
+    type AgentInteractionEventPayload, type InternalInterruptReason,
+    isInternalInterruptReason, isInvalidInteractionReason
 } from '@deepclaw/core';
 
 export type ToolUseServiceResult = {
@@ -35,6 +36,18 @@ export class ToolUseService {
     /** Somebody wants something of this loop, so it is worth asking them again. */
     public static clearAwayUser(loopId: string): void {
         this.awayUsers.delete(loopId);
+    }
+
+    /**
+     * Puts a question of a tool to the user and answers with what they said. It waits in the same
+     * queue a permission question waits in, since both of them are this loop asking the one user,
+     * and it gives up on the same silence: whoever was not there for the last question is not
+     * asked to be there for this one.
+     */
+    public static askQuestion(
+        question: AgentInteractionEventPayload, context: OneLoopContext
+    ): Promise<string> {
+        return this.enqueueQuestion(context.loopId, () => this.putQuestion(question, context));
     }
 
     /**
@@ -170,22 +183,30 @@ export class ToolUseService {
             if (guardResult.result === 'denied') {
                 return {answer: 'denied', reason: guardResult.reason};
             }
-            if (this.awayUsers.has(context.loopId)) {
-                throw 'interactionAfk' satisfies InternalInterruptReason;
-            }
-            try {
-                const choice = await context.actions.agentHandler.onInteractionEvent(
-                    { ...guardResult.question, browserId: context.browserId }
-                );
-                this.awayUsers.delete(context.loopId);
-                return {answer: guardResult.checkAnswer(choice) ? 'allowed' : 'rejected'};
-            } catch (error: any) {
-                if (isInternalInterruptReason(error)) {
-                    this.awayUsers.add(context.loopId);
-                }
-                throw error;
-            }
+            const choice = await this.putQuestion(guardResult.question, context);
+            return {answer: guardResult.checkAnswer(choice) ? 'allowed' : 'rejected'};
         });
+    }
+
+    /** The asking itself, which belongs inside a slot of the queue rather than beside it. */
+    private static async putQuestion(
+        question: AgentInteractionEventPayload, context: OneLoopContext
+    ): Promise<string> {
+        if (this.awayUsers.has(context.loopId)) {
+            throw 'interactionAfk' satisfies InternalInterruptReason;
+        }
+        try {
+            const answer = await context.actions.agentHandler.onInteractionEvent(
+                { ...question, browserId: context.browserId }
+            );
+            this.awayUsers.delete(context.loopId);
+            return answer;
+        } catch (error: any) {
+            if (isInternalInterruptReason(error)) {
+                this.awayUsers.add(context.loopId);
+            }
+            throw error;
+        }
     }
 
     /** A loop asks the user one question at a time, two of them would fight over the same browser. */

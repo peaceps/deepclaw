@@ -38,6 +38,7 @@ function names(loopKind: LoopKind, mode: AgentMode): string[] {
 function toolModules(): Promise<Record<string, unknown>[]> {
     return Promise.all([
         import('../tools/agent-runtime-tool'),
+        import('../tools/ask-user-tool'),
         import('../tools/background-command-tool'),
         import('../tools/cron-tool'),
         import('../tools/encode-decode-tool'),

@@ -774,7 +774,7 @@ describe('prompts', () => {
         expect(prompt).toContain('call the task_loop tool with the id of the task');
         expect(prompt).toContain('Use sub_loop instead where there is nothing on the board');
         expect(prompt).toContain('Handing a task over marks it ongoing');
-        expect(prompt).toContain('A subagent reaches no user');
+        expect(prompt).toContain('A subagent can put a question to the user');
     });
 
     test('describes the task a sub loop was assigned to', () => {

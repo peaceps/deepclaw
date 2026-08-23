@@ -358,8 +358,10 @@ Handing a task over marks it ongoing; you mark it done once you accepted what ca
 subagent itself only moves the step index inside the task.
 Use sub_loop instead where there is nothing on the board to work on, for a question to look into or
 a piece of work of your own.
-A subagent reaches no user: it never gets an answer to a question. Put everything it needs into the
-prompt you give it, and keep the talking to the user yours.`;
+A subagent can put a question to the user where only they can settle something, and it is asked in
+this conversation as though you had asked it, with the work of that subagent standing still until
+it is answered. Put everything you already know into the prompt you give it, so that what is asked
+of the user is only ever what none of you knew, and keep the rest of the talking to them yours.`;
     }
 
     public static promptAssignedTask(projectId: string, taskId: string): string {

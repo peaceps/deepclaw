@@ -3,6 +3,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
+import { popupPlacement, type PopupPlacement } from './popup-placement';
+
+/**
+ * The menu is at least this wide whatever the button it hangs on is, and never taller than this.
+ * A label longer than that wraps: the menu keeps to the width it was pulled back from the edge by.
+ */
+const MENU_MIN_WIDTH = 224;
+const MENU_MAX_HEIGHT = 240;
 
 export type MultiSelectOption = {
     id: string;
@@ -27,7 +35,7 @@ export function MultiSelect({
     emptyLabel = '—',
 }: MultiSelectProps) {
     const [open, setOpen] = useState(false);
-    const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+    const [pos, setPos] = useState<(PopupPlacement & { width: number }) | null>(null);
     const ref = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const isAll = selected.size === options.length;
@@ -35,7 +43,14 @@ export function MultiSelect({
     const toggle = () => {
         if (!open && ref.current) {
             const rect = ref.current.getBoundingClientRect();
-            setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+            // The width it is drawn at is the width it is placed by, or a menu wider than the
+            // button it hangs on would reach past the edge it was just pulled back from.
+            const width = Math.max(rect.width, MENU_MIN_WIDTH);
+            const viewport = { width: window.innerWidth, height: window.innerHeight };
+            setPos({
+                ...popupPlacement(rect, viewport, { width, maxHeight: MENU_MAX_HEIGHT }),
+                width,
+            });
         }
         setOpen(v => !v);
     };
@@ -52,11 +67,17 @@ export function MultiSelect({
             }
         };
         const close = () => setOpen(false);
+        // Escape closes the menu the way it answers a dialog: nothing picked, and it is out of the way.
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') close();
+        };
         document.addEventListener('mousedown', handler);
+        document.addEventListener('keydown', handleKeyDown);
         window.addEventListener('resize', close);
         window.addEventListener('scroll', close, true);
         return () => {
             document.removeEventListener('mousedown', handler);
+            document.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('resize', close);
             window.removeEventListener('scroll', close, true);
         };
@@ -87,8 +108,15 @@ export function MultiSelect({
             {open && pos && createPortal(
                 <div
                     ref={menuRef}
-                    style={{ position: 'fixed', top: pos.top, left: pos.left, minWidth: Math.max(pos.width, 224) }}
-                    className="z-50 rounded-md border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
+                    style={{
+                        position: 'fixed',
+                        top: pos.top,
+                        bottom: pos.bottom,
+                        left: pos.left,
+                        width: pos.width,
+                        maxHeight: pos.maxHeight,
+                    }}
+                    className="z-50 rounded-md border border-gray-200 bg-white shadow-lg overflow-auto"
                 >
                     <button
                         type="button"

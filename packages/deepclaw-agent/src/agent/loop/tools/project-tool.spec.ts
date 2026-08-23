@@ -243,6 +243,33 @@ describe('updateTaskTool invoke', () => {
         );
     });
 
+    /** The board is the one place a task is handed on from, and the agent works it from here. */
+    test('hands a task to another agent', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design', assignee: 'a2',
+        }, newTestContext());
+        expect(updateTask).toHaveBeenCalledExactlyOnceWith(
+            'pr1', {id: 'design', assignee: 'a2'}, undefined
+        );
+    });
+
+    test('refuses to hand a task to somebody who does not work here', async () => {
+        getAgent.mockReturnValue(undefined);
+        await expect(updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design', assignee: 'ghost',
+        }, newTestContext())).rejects.toThrow('No agent "ghost" works here');
+        expect(updateTask).not.toHaveBeenCalled();
+    });
+
+    test('refuses to hand a task to an agent that was let go', async () => {
+        getAgent.mockImplementation(id => newIdentity(id, true));
+        await expect(updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design', assignee: 'a3',
+        }, newTestContext())).rejects.toThrow('No agent "a3" works here');
+        expect(updateTask).not.toHaveBeenCalled();
+    });
+
     test('hands new words on to the manager beside the id it looked the task up by', async () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
         await updateTaskTool.invoke({

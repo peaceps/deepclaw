@@ -130,15 +130,17 @@ It works as the agent the task is assigned to, with the memory and the skills of
 the description and the steps of the task in its prompt. It can split the task among subagents of its
 own, so hand the whole task over rather than a piece of it.
 Tasks that block nothing and wait for nothing go out at the same time, one call each.
-Nothing the subagent says reaches the user, only what you write down out of what it hands back.`,
+Nothing the subagent says reaches the user, only what you write down out of what it hands back. The
+one thing of it they do see is a question it puts to them, which is asked in this conversation.`,
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
                 prompt: {
                     type: 'string',
-                    description: `What the subagent has to know beyond the task itself: it never gets
-an answer to a question, so everything it needs is in here.`,
+                    description: `What the subagent has to know beyond the task itself. It can ask
+the user where only they can settle something, but its work stands still until they answer, so
+everything you already know it needs goes in here rather than into a question.`,
                 },
                 taskId: {
                     type: 'string',
@@ -178,7 +180,8 @@ filesystem but not the conversation history.
 A subagent of a subagent spawns nothing further, so give it work that stands on its own, and give out
 work that waits for nothing at the same time, one call each.
 Use task_loop for a task of the project: that is what the tasks on the board are worked on with.
-Nothing the subagent says reaches the user, only what you write down out of what it hands back.`,
+Nothing the subagent says reaches the user, only what you write down out of what it hands back. The
+one thing of it they do see is a question it puts to them, which is asked in this conversation.`,
         schema: {
             type: 'object',
             additionalProperties: false,
@@ -186,7 +189,8 @@ Nothing the subagent says reaches the user, only what you write down out of what
                 prompt: {
                     type: 'string',
                     description: `The work the subagent has to do, whole: it starts with nothing of
-this conversation and never gets an answer to a question.`,
+this conversation. It can ask the user where only they can settle something, and waits where it
+asked, so what you already know belongs in here rather than in a question.`,
                 },
             },
             required: ['prompt']}

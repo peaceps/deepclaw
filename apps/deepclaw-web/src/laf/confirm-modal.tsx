@@ -4,6 +4,14 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]),'
+    + ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** What the keyboard may land on inside the dialog, in the order Tab would walk them. */
+function focusStops(card: HTMLElement | null): HTMLElement[] {
+    return [...(card?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
+}
+
 type ConfirmModalProps = {
     title: string;
     message: string;
@@ -16,15 +24,37 @@ type ConfirmModalProps = {
 /**
  * The question in front of something that cannot be taken back. Escape and the backdrop answer no,
  * which is also what the keyboard lands on: a dialog that opens under the finger already on Enter
- * would otherwise answer itself.
+ * would otherwise answer itself. The keyboard stays in it for as long as it stands, since what is
+ * behind it is what the question is about.
  */
 export function ConfirmModal({
     title, message, confirmLabel, cancelLabel, onConfirm, onCancel,
 }: ConfirmModalProps) {
     const { t } = useTranslation();
+    const cardRef = useRef<HTMLDivElement>(null);
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
-        if (e.key === 'Escape') onCancel();
+        if (e.key === 'Escape') {
+            onCancel();
+            return;
+        }
+        if (e.key !== 'Tab') {
+            return;
+        }
+        // A dialog that calls itself modal has to be one. Tab walks the page behind it otherwise,
+        // where the answer is still owed and half of what can be clicked is what the question is
+        // about, and a keyboard that left has no way back in.
+        const stops = focusStops(cardRef.current);
+        if (stops.length === 0) {
+            return;
+        }
+        const first = stops[0]!;
+        const last = stops[stops.length - 1]!;
+        const leaving = e.shiftKey ? first : last;
+        if (document.activeElement === leaving || !cardRef.current?.contains(document.activeElement)) {
+            e.preventDefault();
+            (e.shiftKey ? last : first).focus();
+        }
     }, [onCancel]);
 
     useEffect(() => {
@@ -64,6 +94,7 @@ export function ConfirmModal({
             onClick={onCancel}
         >
             <div
+                ref={cardRef}
                 className="w-full max-w-sm rounded-lg bg-white shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >

@@ -411,6 +411,83 @@ describe('executeToolCall question queue', () => {
     });
 });
 
+describe('askQuestion', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        forgetAwayUsers();
+    });
+
+    test('puts the question to the user of the loop and answers with what they said', async () => {
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockResolvedValue('the second one');
+        await expect(ToolUseService.askQuestion(
+            {type: 'select', content: 'which one?', options: ['the first one', 'the second one']}, context
+        )).resolves.toBe('the second one');
+        expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalledExactlyOnceWith({
+            type: 'select', content: 'which one?', options: ['the first one', 'the second one'],
+            browserId: 'b1',
+        });
+    });
+
+    /** One user, one question at a time, whether a tool asks it or the guard in front of one does. */
+    test('waits behind the permission question of the same loop', async () => {
+        mocks.getToolDesc.mockReturnValue(newAskingTool([]));
+        const context = newTestContext();
+        const answers: ((answer: string) => void)[] = [];
+        vi.mocked(context.actions.agentHandler.onInteractionEvent)
+            .mockImplementation(() => new Promise<string>(resolve => answers.push(resolve)));
+
+        const permission = ToolUseService.executeToolCall(newToolUse(), context);
+        const question = ToolUseService.askQuestion({type: 'input', content: 'which one?'}, context);
+        await flush();
+        expect(answers).toHaveLength(1);
+
+        answers[0]!('yes');
+        await permission;
+        await flush();
+        expect(answers).toHaveLength(2);
+
+        answers[1]!('the second one');
+        await expect(question).resolves.toBe('the second one');
+    });
+
+    test('gives up at once on a loop whose user was already found away', async () => {
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockRejectedValue('interactionAfk');
+
+        await expect(ToolUseService.askQuestion({type: 'input', content: 'which one?'}, context))
+            .rejects.toBe('interactionAfk');
+        await expect(ToolUseService.askQuestion({type: 'input', content: 'and now?'}, context))
+            .rejects.toBe('interactionAfk');
+        expect(context.actions.agentHandler.onInteractionEvent).toHaveBeenCalledOnce();
+    });
+
+    /** Nobody to carry the question is not the same silence, and is worth asking again after. */
+    test('passes on a question that never reached anybody', async () => {
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent)
+            .mockRejectedValueOnce('disconnected').mockResolvedValueOnce('the first one');
+
+        await expect(ToolUseService.askQuestion({type: 'input', content: 'which one?'}, context))
+            .rejects.toBe('disconnected');
+        await expect(ToolUseService.askQuestion({type: 'input', content: 'which one?'}, context))
+            .resolves.toBe('the first one');
+    });
+
+    test('asks a loop again once its run is asked for anew', async () => {
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent)
+            .mockRejectedValueOnce('interactionAfk').mockResolvedValueOnce('the first one');
+
+        await expect(ToolUseService.askQuestion({type: 'input', content: 'which one?'}, context))
+            .rejects.toBe('interactionAfk');
+        ToolUseService.clearAwayUser(context.loopId);
+        await expect(ToolUseService.askQuestion({type: 'input', content: 'which one?'}, context))
+            .resolves.toBe('the first one');
+    });
+});
+
 describe('planExecutionGroups', () => {
 
     beforeEach(() => {
