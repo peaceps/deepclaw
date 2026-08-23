@@ -171,6 +171,7 @@ export const en = {
                     running: 'A subagent is working on this task',
                     editTitle: 'Rename this task',
                     editDescription: 'Rewrite what this task asks for',
+                    editAssignee: 'Hand this task to another agent',
                 }
             },
             chat: {
@@ -223,7 +224,8 @@ export const en = {
                 empty: 'No skills available',
                 resetToAll: 'All agents',
                 remove: 'Remove this skill',
-                removeMissing: '{{name}} was not installed any more, the list is up to date now.',
+                confirmRemove: '{{name}} goes off the disk with every file in its folder.',
+                removeMissing: '{{name}} is no longer installed, the list is up to date now.',
                 removeFailed: 'Failed to remove {{name}}.',
                 installHint: 'Tip: you can install new skills by chatting with an agent — just ask it to find and install a skill for you.',
             },
@@ -243,6 +245,7 @@ export const en = {
                     pause: 'Pause',
                     resume: 'Resume',
                     delete: 'Delete',
+                    confirmDelete: '{{name}} is deleted for good, with everything it has run so far.',
                 },
                 history: {
                     title: 'Execution History',

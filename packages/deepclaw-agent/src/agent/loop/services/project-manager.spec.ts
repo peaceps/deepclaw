@@ -412,6 +412,36 @@ describe('updateTask status transitions', () => {
             .toMatchObject({description: 'sketch it first', status: 'ongoing'});
     });
 
+    /** Who works on a task is the user's to change, up until somebody has taken it up. */
+    test('hands a task still in todo to another agent', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(manager.updateTask(id, {id: 'design', assignee: 'a2'}).task.assignee).toBe('a2');
+    });
+
+    test('refuses to hand an ongoing task to another agent', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(() => manager.updateTask(id, {id: 'design', assignee: 'a2'}))
+            .toThrow('Only a task still in todo can be handed to another agent.');
+        expect(manager.getTask(id, 'design')!.assignee).toBe('a1');
+    });
+
+    test('refuses to hand a done task to another agent', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(() => manager.updateTask(id, {id: 'design', assignee: 'a2'}))
+            .toThrow('Only a task still in todo can be handed to another agent.');
+    });
+
+    /** Naming the agent already on it asks for nothing, and an update carrying it is no reassignment. */
+    test('takes an update that repeats the assignee of an ongoing task', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(manager.updateTask(id, {id: 'design', assignee: 'a1', title: 'design it'}).task)
+            .toMatchObject({assignee: 'a1', title: 'design it'});
+    });
+
     test('trims the words it is given', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         const {task} = manager.updateTask(

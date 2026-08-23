@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
     deleteDir: vi.fn<(filePath: string) => void>(),
     isPathInside: vi.fn<(baseDir: string, targetPath: string) => boolean>(),
     isLink: vi.fn<(filePath: string) => boolean>(),
+    linkTarget: vi.fn<(filePath: string) => string | null>(),
+    warn: vi.fn<(message: string) => void>(),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => {
@@ -24,11 +26,12 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
             deleteDir: mocks.deleteDir,
             isPathInside: mocks.isPathInside,
             isLink: mocks.isLink,
+            linkTarget: mocks.linkTarget,
             // Naming a path is what the real one does and no disk is touched doing it, so the
             // question of which name lands where is answered here as it is answered on disk.
             sanitizeFileName: (name: string) => original.FileUtils.sanitizeFileName(name),
         },
-        getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+        getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: mocks.warn, error: vi.fn()}),
         getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     };
 });
@@ -59,6 +62,8 @@ async function loadManager(folders: Record<string, SkillFolder> = {}) {
     mocks.isPathInside.mockReturnValue(true);
     // What the cli leaves beside the skills folder is a link, which is the only thing taken there.
     mocks.isLink.mockReturnValue(true);
+    // The skill folder itself holds the skill, an install that only linked it there is the odd one.
+    mocks.linkTarget.mockReturnValue(null);
     return (await import('./skills-manager')).SkillsManager;
 }
 
@@ -330,8 +335,8 @@ describe('removeSkill', () => {
 
         expect(manager.removeSkill('pptx')).toBe(true);
 
-        // The link goes first: asking after it once its target is gone answers nothing.
-        expect(mocks.deleteDir.mock.calls.map(call => call[0])).toEqual(['skills/pptx', '.agents/skills/pptx']);
+        // The folder goes first: what the lock still stands for is read off the disk after it.
+        expect(mocks.deleteDir.mock.calls.map(call => call[0])).toEqual(['.agents/skills/pptx', 'skills/pptx']);
         const writtenLock = JSON.parse(mocks.writeFile.mock.calls[0]![1] as string);
         expect(writtenLock.skills).toEqual({other: {source: 'org/repo'}});
     });
@@ -352,7 +357,7 @@ describe('removeSkill', () => {
         expect(manager.removeSkill('Convex Best Practices')).toBe(true);
 
         expect(mocks.deleteDir.mock.calls.map(call => call[0]))
-            .toEqual(['skills/convex-best-practices', '.agents/skills/convex-best-practices']);
+            .toEqual(['.agents/skills/convex-best-practices', 'skills/convex-best-practices']);
         expect(JSON.parse(mocks.writeFile.mock.calls[0]![1] as string).skills)
             .toEqual({other: {source: 'org/repo'}});
     });
@@ -363,7 +368,7 @@ describe('removeSkill', () => {
 
         expect(manager.removeSkill('pptx')).toBe(true);
 
-        expect(mocks.deleteDir.mock.calls.map(call => call[0])).toEqual(['skills/pptx', '.agents/skills/pptx']);
+        expect(mocks.deleteDir.mock.calls.map(call => call[0])).toEqual(['.agents/skills/pptx', 'skills/pptx']);
         expect(mocks.writeFile).not.toHaveBeenCalled();
     });
 
@@ -376,7 +381,7 @@ describe('removeSkill', () => {
         expect(manager.removeSkill('pptx')).toBe(true);
 
         expect(mocks.deleteDir.mock.calls.map(call => call[0]))
-            .toEqual(['skills/pptx-folder', '.agents/skills/pptx-folder']);
+            .toEqual(['.agents/skills/pptx-folder', 'skills/pptx-folder']);
     });
 
     test('takes a skill named by its folder as readily as by its name', async () => {
@@ -388,7 +393,7 @@ describe('removeSkill', () => {
         expect(manager.removeSkill('pptx-folder')).toBe(true);
 
         expect(mocks.deleteDir.mock.calls.map(call => call[0]))
-            .toEqual(['skills/pptx-folder', '.agents/skills/pptx-folder']);
+            .toEqual(['.agents/skills/pptx-folder', 'skills/pptx-folder']);
     });
 
     /** The disk can lose or gain a folder without this process hearing of it. */
@@ -446,7 +451,52 @@ describe('removeSkill', () => {
 
         expect(manager.removeSkill('pptx')).toBe(true);
 
-        expect(mocks.deleteDir.mock.calls.map(call => call[0])).toEqual(['skills/pptx', '.agents/skills/pptx']);
+        expect(mocks.deleteDir.mock.calls.map(call => call[0])).toEqual(['.agents/skills/pptx', 'skills/pptx']);
         expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A folder spared for being nobody's link is still installed as far as anything reading the
+     * lock can tell, and the entry is that reader's record of it. The one is left with the other.
+     */
+    test('keeps the lock entry of a real folder it left standing', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        mocks.isLink.mockReturnValue(false);
+        mocks.exists.mockImplementation(
+            (filePath: string) => filePath === 'skills-lock.json' || filePath === 'skills/pptx'
+        );
+        mocks.readFile.mockImplementation(lockOf({pptx: {source: 'org/repo'}}));
+
+        expect(manager.removeSkill('pptx')).toBe(true);
+
+        expect(mocks.deleteDir).toHaveBeenCalledExactlyOnceWith('.agents/skills/pptx');
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The cli can install a skill elsewhere and only link it here, and the copy it links to is
+     * nobody's to delete from here. Nothing else would say where the skill of that name went.
+     */
+    test('says where a skill folder led when it was only a link', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        mocks.exists.mockReturnValue(false);
+        mocks.linkTarget.mockImplementation(
+            (filePath: string) => filePath === '.agents/skills/pptx' ? '/elsewhere/pptx' : null
+        );
+
+        expect(manager.removeSkill('pptx')).toBe(true);
+
+        expect(mocks.warn).toHaveBeenCalledWith(
+            'Skill pptx is a link to /elsewhere/pptx, only the link here is removed.'
+        );
+    });
+
+    test('says nothing of a skill folder that holds the skill itself', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        mocks.exists.mockReturnValue(false);
+
+        expect(manager.removeSkill('pptx')).toBe(true);
+
+        expect(mocks.warn).not.toHaveBeenCalled();
     });
 });

@@ -1,9 +1,10 @@
 'use client';
 
 import { useTranslation } from 'react-i18next';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { InfoBar } from '@/laf/info-bar';
+import { ConfirmModal } from '@/laf/confirm-modal';
 import { CollapseTask } from './CollapseTask';
 import { useTaskOperation } from './use-cron-hooks';
 
@@ -12,6 +13,9 @@ export function Cron({ selectedTaskId }: { selectedTaskId?: string }) {
     const { tasks, expandedId, toggle, toggleStatus, deleteTask } = useTaskOperation(selectedTaskId);
     const selectedTaskRef = useRef<HTMLDivElement | null>(null);
     const scrolledTaskIdRef = useRef<string | undefined>(undefined);
+    // A deleted task is gone with its history, so the click only asks and the dialog does the rest.
+    const [pendingDelete, setPendingDelete] = useState<string>();
+    const taskToDelete = tasks.find(task => task.id === pendingDelete);
 
     // Opening a row below the fold looks like nothing happened, so the deep link brings it into view.
     useEffect(() => {
@@ -52,11 +56,24 @@ export function Cron({ selectedTaskId }: { selectedTaskId?: string }) {
                             isExpanded={expandedId === task.id}
                             onToggle={() => toggle(task.id)}
                             onToggleStatus={() => toggleStatus(task.id)}
-                            onDelete={() => deleteTask(task.id)}
+                            onDelete={() => setPendingDelete(task.id)}
                         />
                     </div>
                 ))}
             </div>
+
+            {taskToDelete && (
+                <ConfirmModal
+                    title={t('web.pages.cron.actions.delete')}
+                    message={t('web.pages.cron.actions.confirmDelete', { name: taskToDelete.title })}
+                    confirmLabel={t('web.pages.cron.actions.delete')}
+                    onConfirm={() => {
+                        deleteTask(taskToDelete.id);
+                        setPendingDelete(undefined);
+                    }}
+                    onCancel={() => setPendingDelete(undefined)}
+                />
+            )}
         </div>
     );
 }

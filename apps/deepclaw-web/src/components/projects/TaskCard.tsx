@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Ban, CirclePause, ClipboardCheck, Loader2, Pencil } from 'lucide-react';
 import  { type Task, type AgentEmployee, getTaskProgress, PROJECT_CONFIG } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
+import { AssigneePicker } from './AssigneePicker'
 import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
 import { ProgressBar } from '@/laf/progress-bar';
@@ -54,10 +55,13 @@ function useEditableField(value: string, save: (next: string) => void) {
 
 export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCardProps) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [pickingAssignee, setPickingAssignee] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
+  const assigneePencilRef = useRef<HTMLButtonElement>(null);
   const {t} = useTranslation();
   const progress = getTaskProgress(task);
   const updateProjectTask = useAppStore(s => s.updateProjectTask);
+  const activeAgents = useAppStore(s => s.activeAgents);
   // An ongoing task only says the work was taken up, this says a subagent is on it right now.
   const running = useAppStore(s => s.runningTasks)
     .some(run => run.projectId === projectId && run.taskId === task.id);
@@ -82,6 +86,16 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
     const next = !task.pause;
     patchTask({ pause: next }, { pause: !next });
   }, [task.pause, awaitingVerify, patchTask]);
+
+  // Only a task nobody started yet: work under way belongs to the agent that took it up, and the
+  // server says so as well, so the pencil is not there to be refused.
+  const canReassign = task.status === 'todo';
+
+  const handleAssigneePick = useCallback((agentId: string) => {
+    setPickingAssignee(false);
+    if (agentId === task.assignee) return;
+    patchTask({ assignee: agentId }, { assignee: task.assignee });
+  }, [task.assignee, patchTask]);
 
   const handleVerifiedClick = useCallback(() => {
     if (!task.pause || task.status !== 'ongoing') return;
@@ -183,6 +197,19 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
             </div>
             <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
+          {canReassign && (
+            <button
+              ref={assigneePencilRef}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setPickingAssignee(v => !v); }}
+              title={t('web.pages.projects.task.editAssignee')}
+              aria-label={t('web.pages.projects.task.editAssignee')}
+              className="flex-shrink-0 p-1 -ml-1 rounded text-gray-300 hover:text-gray-600
+                hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
           <div className='flex-1'></div>
           {task.status !== 'done' && <button
               onClick={handlePauseClick}
@@ -230,6 +257,16 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
         anchorRef={assigneeRef}
         onClose={() => setTooltipVisible(false)}
       />
+
+      {pickingAssignee && (
+        <AssigneePicker
+          agents={activeAgents}
+          selectedId={task.assignee}
+          anchorRef={assigneePencilRef}
+          onPick={handleAssigneePick}
+          onClose={() => setPickingAssignee(false)}
+        />
+      )}
     </>
   );
 }

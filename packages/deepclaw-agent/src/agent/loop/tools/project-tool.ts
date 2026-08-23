@@ -333,7 +333,6 @@ type UpdateTaskInput = {
     description?: string;
     status?: MissionStatus;
     steps?: string[];
-    assignee?: string;
     /** generatedFiles names what to hand over to the user, it is no part of the kept output. */
     output?: LLMTaskOutput & {generatedFiles?: string[]};
 };
@@ -376,11 +375,6 @@ to be something else. Rewriting it is free at any point of the work, the same as
                     description: `The steps to update, it can be set when a task is in todo status, or when there is no steps in an ongoing task.
 They shoudl be short descriptions of each step, should not be too long for user to read.`,
                     maxItems: PROJECT_CONFIG.maxTaskStepsCount,
-                },
-                assignee: {
-                    type: 'string',
-                    description: `The id of the agent the task is assigned to, it works on the task
-through a subagent that stands for it.`,
                 },
                 output: {
                     type: 'object',
@@ -435,8 +429,6 @@ Only files inside the workspace can be handed over, and only files, not folders.
     loopKinds: ['main'],
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
         const taskInfo: UpdateContent<Task> = {id: input.taskId};
-        requireHiredAssignee(input.assignee);
-        if (input.assignee) taskInfo.assignee = input.assignee;
         if (input.title) taskInfo.title = input.title;
         if (input.description) taskInfo.description = input.description;
         if (input.status) taskInfo.status = input.status;

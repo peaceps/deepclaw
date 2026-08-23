@@ -1,5 +1,5 @@
 import matter from 'gray-matter';
-import { FileUtils } from '@deepclaw/node-utils';
+import { FileUtils, getLogger } from '@deepclaw/node-utils';
 import {
     SKILL_AGENT_JSON,
     SKILL_MD,
@@ -7,6 +7,8 @@ import {
     SKILLS_LINK_DIR,
     SKILLS_LOCK_FILE,
 } from '../../paths';
+
+const logger = getLogger('SkillsManager');
 
 export type SkillManifest = {
     name: string;
@@ -116,8 +118,15 @@ export class SkillsManager {
         if (dir !== FileUtils.sanitizeFileName(dir) || !FileUtils.isPathInside(SKILLS_DIR, skillDir)) {
             return false;
         }
-        this.removeCliLeftovers(dir, name);
+        // A skill is read from this folder, so this folder is taken for the skill itself. An
+        // installer that put the skill somewhere else and linked it here leaves that copy behind,
+        // since only a link of ours is followed up on: say where it led, or nobody could ever tell.
+        const target = FileUtils.linkTarget(skillDir);
+        if (target) {
+            logger.warn(`Skill ${name} is a link to ${target}, only the link here is removed.`);
+        }
         FileUtils.deleteDir(skillDir);
+        this.removeCliLeftovers(dir, name);
         this.reloadSkills();
         return true;
     }
@@ -139,6 +148,10 @@ export class SkillsManager {
      * Only a link is dropped there, never a folder. That name sits outside the one folder deepclaw
      * owns, and a data root is any folder somebody points deepclaw at: a real "skills" folder in it
      * is somebody's own, and holding a skill of the same name is no reason to take it.
+     *
+     * The lock is held to the same rule, the file being somebody's own for the same reason: an
+     * entry is dropped only once nothing of that name is left installed here. A folder that was
+     * spared for being nobody's link keeps its entry, which is the record of that folder.
      */
     private static removeCliLeftovers(dir: string, name: string): void {
         try {
@@ -155,7 +168,8 @@ export class SkillsManager {
             }
             const lock = JSON.parse(FileUtils.readFile(SKILLS_LOCK_FILE)) as
                 {skills?: Record<string, unknown>};
-            const listed = [dir, name].filter(key => !!lock.skills && key in lock.skills);
+            const listed = [dir, name].filter(key => !!lock.skills && key in lock.skills)
+                .filter(key => !this.stillInstalled(key));
             if (listed.length === 0) {
                 return;
             }
@@ -164,6 +178,11 @@ export class SkillsManager {
         } catch {
             // An unreadable lock file is the cli's problem, not ours.
         }
+    }
+
+    /** Whether either folder a lock entry could stand for is still there to be read as a skill. */
+    private static stillInstalled(key: string): boolean {
+        return FileUtils.exists(`${SKILLS_DIR}/${key}`) || FileUtils.exists(`${SKILLS_LINK_DIR}/${key}`);
     }
 
     private static parseSkillDocument(fileContent: string, dir: string): string | undefined {

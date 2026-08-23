@@ -40,6 +40,15 @@ export class FileUtils {
         }
     }
 
+    /** Where a link leads, for saying so in a log. Null for what is no link, or for an unreadable one. */
+    public static linkTarget(filePath: string): string | null {
+        try {
+            return fs.readlinkSync(this.getAbsolutePath(this.sanitizeFileName(filePath)));
+        } catch {
+            return null;
+        }
+    }
+
     /** A folder exists as much as a file does, and only one of the two can be handed over. */
     public static isFile(filePath: string): boolean {
         const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));

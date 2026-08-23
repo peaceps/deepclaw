@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     newAgentIdentity: vi.fn(),
     updateAgentIdentity: vi.fn(),
     getAgents: vi.fn(),
+    getAgent: vi.fn<(id: string) => {id: string, fired: boolean} | undefined>(),
     updateProject: vi.fn(),
     updateTask: vi.fn(),
     getProjectDetail: vi.fn(),
@@ -55,6 +56,7 @@ vi.mock('@deepclaw/agent', () => ({
         newAgentIdentity: mocks.newAgentIdentity,
         updateAgentIdentity: mocks.updateAgentIdentity,
         getAgents: mocks.getAgents,
+        getAgent: mocks.getAgent,
     },
     ProjectManager: {
         updateProject: mocks.updateProject,
@@ -169,6 +171,7 @@ function capturedHandler(): AgentHandler {
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.getLoop.mockImplementation(() => currentLoop);
+    mocks.getAgent.mockImplementation(id => ({id, fired: false}));
     mocks.replaceMessage.mockImplementation((_loopId: string, id: string, content: string) => ({
         id, agentId: 'a1', content, type: 'agent', timestamp: '2026-01-01T00:00:00.000Z'
     }));
@@ -595,6 +598,27 @@ describe('data updates', () => {
         LoopGateway.updateProjectTask('p1', {id: 't1', status: 'done'});
         expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', status: 'done'});
         expect(events).toContainEqual({eventType: 'updateProject', content: {id: 'p1', tasks}});
+    });
+
+    test('hands a task to an agent that works here', () => {
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {}});
+        LoopGateway.updateProjectTask('p1', {id: 't1', assignee: 'a2'});
+        expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', assignee: 'a2'});
+    });
+
+    /** An id off a request reaches this, and a task nobody works under is never worked on. */
+    test('refuses a task handed to an agent that does not work here', () => {
+        mocks.getAgent.mockReturnValue(undefined);
+        expect(() => LoopGateway.updateProjectTask('p1', {id: 't1', assignee: 'ghost'}))
+            .toThrow('No agent "ghost" works here.');
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+    });
+
+    test('refuses a task handed to an agent that was fired', () => {
+        mocks.getAgent.mockReturnValue({id: 'a2', fired: true});
+        expect(() => LoopGateway.updateProjectTask('p1', {id: 't1', assignee: 'a2'}))
+            .toThrow('No agent "a2" works here.');
+        expect(mocks.updateTask).not.toHaveBeenCalled();
     });
 
     test('collects agents and full project details', () => {

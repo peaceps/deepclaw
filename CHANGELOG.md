@@ -4,10 +4,18 @@ the installer keeps the folder while any coding agent it finds still points at i
 that reads skills from there does by reading them from there, and reports a removal it never made.
 a skill is named for removal as the list of skills names it, and what the installer left beside the
 folder goes with it: the link it made of the install, the entry it wrote and never takes back out.
-a folder of that name that is nobody's link is nobody's to delete, and is left where it stands.
-remove a skill from the skills page too: a bin at the end of its row takes the skill off the disk,
-and the table is redrawn from what is left there rather than from the row that was clicked, so a
-skill already gone says so instead of leaving a row nothing stands behind.
+a folder of that name that is nobody's link is nobody's to delete, and is left where it stands, its
+entry in the lock kept with it: an entry is dropped once nothing of that name is installed here.
+an install that put the skill elsewhere and only linked it here leaves the copy where it lies, and
+says in the log where that was, since nothing else would tell where the skill of that name went.
+remove a skill from the skills page too: a bin at the end of its row asks first, and the answer to
+it takes the skill off the disk. the table is redrawn from what is left there rather than from the
+row that was clicked, so a skill already gone says so instead of leaving a row nothing stands behind.
+ask before deleting a scheduled task as well, by the same dialog: what cannot be taken back is worth
+one question, and escape or a click beside it answers no, as does the key a dialog opens under.
+hand a task to another agent from the card it stands on, by a pencil beside the name that opens the
+roster. Only a task nobody has started yet: work under way stays with whoever took it up, and the
+board is held to an agent that works here, so a card cannot name one nobody would answer for.
 say of a saved language that a language was saved, the other fields of the form having gone nowhere.
 let a notice of a loop be read once rather than said twice over.
 

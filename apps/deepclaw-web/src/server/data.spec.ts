@@ -140,10 +140,15 @@ describe('updateProjectTask', () => {
             .toHaveBeenCalledWith('p1', {id: 'ship-it', pause: true, verified: false});
     });
 
+    test('carries the agent a task was handed to on', async () => {
+        await updateProjectTask('p1', {id: 'ship-it', assignee: 'a2'});
+        expect(mocks.updateProjectTask).toHaveBeenCalledWith('p1', {id: 'ship-it', assignee: 'a2'});
+    });
+
     /** The board writes what a card offers, whatever else a request to this action carried. */
     test('drops what no card on the board may write', async () => {
         await updateProjectTask('p1', {
-            id: 'ship-it', title: 'ship it', status: 'done', assignee: 'a2',
+            id: 'ship-it', title: 'ship it', status: 'done',
             output: {type: 'text', content: 'shipped'},
         } as TaskEdit);
         expect(mocks.updateProjectTask).toHaveBeenCalledWith('p1', {id: 'ship-it', title: 'ship it'});

@@ -31,12 +31,13 @@ export async function updateProjectTags(projectId: string, tags: string[]): Prom
 
 /** The id finds the task, the rest is everything a card on the board is allowed to write. */
 export type TaskEdit =
-    Pick<Task, 'id'> & Partial<Pick<Task, 'title' | 'description' | 'pause' | 'verified'>>;
+    Pick<Task, 'id'> & Partial<Pick<Task, 'title' | 'description' | 'pause' | 'verified' | 'assignee'>>;
 
 /**
  * What this takes is what anyone who reaches the page can send, and the gateway behind it writes
  * whole task patches, so the fields are copied over one by one: a request that also carried an
- * output, an assignee or a closing date would otherwise have all of them filed as the user's doing.
+ * output or a closing date would otherwise have those filed as the user's doing too. Who a task
+ * falls to is the user's to write, and the gateway holds it to an agent that works here.
  */
 export async function updateProjectTask(projectId: string, task: TaskEdit): Promise<void> {
     try {
@@ -46,6 +47,7 @@ export async function updateProjectTask(projectId: string, task: TaskEdit): Prom
         if (task.description !== undefined) patch.description = task.description;
         if (task.pause !== undefined) patch.pause = task.pause;
         if (task.verified !== undefined) patch.verified = task.verified;
+        if (task.assignee !== undefined) patch.assignee = task.assignee;
         LoopGateway.updateProjectTask(projectId, patch);
         revalidatePath('/', 'layout');
     } catch (error) {

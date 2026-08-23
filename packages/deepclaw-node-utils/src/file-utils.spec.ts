@@ -126,6 +126,23 @@ describe('FileUtils', () => {
         });
     });
 
+    describe('linkTarget', () => {
+
+        test('says where a link leads', () => {
+            const base = path.join(process.cwd(), 'tmp', 'linktarget');
+            fs.mkdirSync(path.join(base, 'real'), {recursive: true});
+            fs.symlinkSync(path.join(base, 'real'), path.join(base, 'linked'), 'junction');
+            expect(FileUtils.linkTarget('tmp/linktarget/linked')?.replace(/\\/g, '/'))
+                .toContain('tmp/linktarget/real');
+        });
+
+        test('answers nothing for a real folder or a path that is not there', () => {
+            FileUtils.writeFile('tmp/linktarget-real/note.md', 'note');
+            expect(FileUtils.linkTarget('tmp/linktarget-real')).toBeNull();
+            expect(FileUtils.linkTarget('tmp/linktarget-nothing')).toBeNull();
+        });
+    });
+
     describe('deleteDir', () => {
 
         test('takes the folder and everything under it', () => {

@@ -8,6 +8,7 @@ import { removeSkill, setSkillAgents } from '@/server/data';
 import type { SkillInfo } from '@deepclaw/loop-gateway';
 import { MultiSelect } from '@/laf/multi-select';
 import { InfoBar } from '@/laf/info-bar';
+import { ConfirmModal } from '@/laf/confirm-modal';
 import { useToastStore } from '@/lib/toast-store';
 
 type SkillsProps = {
@@ -19,6 +20,8 @@ export function Skills({ skills: initialSkills, agents }: SkillsProps) {
     const { t } = useTranslation();
     const [skills, setSkills] = useState(initialSkills);
     const [removing, setRemoving] = useState<string>();
+    // A skill deleted is gone off the disk with nothing to undo it, so the bin only asks.
+    const [confirming, setConfirming] = useState<string>();
     const showToast = useToastStore(s => s.show);
     const agentOptions = agents.map(a => ({ id: a.id, label: a.name }));
 
@@ -60,6 +63,7 @@ export function Skills({ skills: initialSkills, agents }: SkillsProps) {
     const deleteSkill = async (skillName: string) => {
         if (removing) return;
         setRemoving(skillName);
+        setConfirming(undefined);
         try {
             const { removed, skills: rest } = await removeSkill(skillName);
             setSkills(rest);
@@ -112,9 +116,9 @@ export function Skills({ skills: initialSkills, agents }: SkillsProps) {
                                             resetLabel={t('web.pages.skills.resetToAll')}
                                         />
                                     </td>
-                                    <td className="px-4 py-3 text-center">
+                                    <td className="px-4 py-3 text-center whitespace-nowrap">
                                         <button
-                                            onClick={() => deleteSkill(skill.name)}
+                                            onClick={() => setConfirming(skill.name)}
                                             disabled={!!removing}
                                             title={t('web.pages.skills.remove')}
                                             aria-label={t('web.pages.skills.remove')}
@@ -131,6 +135,16 @@ export function Skills({ skills: initialSkills, agents }: SkillsProps) {
                     </tbody>
                 </table>
             </div>
+
+            {confirming && (
+                <ConfirmModal
+                    title={t('web.pages.skills.remove')}
+                    message={t('web.pages.skills.confirmRemove', { name: confirming })}
+                    confirmLabel={t('web.pages.skills.columns.remove')}
+                    onConfirm={() => deleteSkill(confirming)}
+                    onCancel={() => setConfirming(undefined)}
+                />
+            )}
         </div>
     );
 }

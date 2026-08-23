@@ -232,14 +232,14 @@ describe('updateTaskTool invoke', () => {
         );
     });
 
-    test('passes assignee, output and steps through to the manager', async () => {
+    test('passes output and steps through to the manager', async () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: false});
         const output = {type: 'markdown' as const, content: '# done'};
         await updateTaskTool.invoke({
-            projectId: 'pr1', taskId: 'design', assignee: 'a2', output, steps: ['one', 'two'],
+            projectId: 'pr1', taskId: 'design', output, steps: ['one', 'two'],
         }, newTestContext());
         expect(updateTask).toHaveBeenCalledExactlyOnceWith(
-            'pr1', {id: 'design', assignee: 'a2', output}, ['one', 'two']
+            'pr1', {id: 'design', output}, ['one', 'two']
         );
     });
 
@@ -252,14 +252,6 @@ describe('updateTaskTool invoke', () => {
         expect(updateTask).toHaveBeenCalledExactlyOnceWith(
             'pr1', {id: 'design', title: 'design the thing', description: 'sketch it first'}, undefined
         );
-    });
-
-    test('refuses to reassign a task to somebody who does not work here', async () => {
-        getAgent.mockReturnValue(undefined);
-        await expect(updateTaskTool.invoke(
-            {projectId: 'pr1', taskId: 'design', assignee: 'ghost'}, newTestContext()
-        )).rejects.toThrow('No agent "ghost" works here');
-        expect(updateTask).not.toHaveBeenCalled();
     });
 
     test('breaks the loop when the task still waits for a user verification', async () => {

@@ -317,6 +317,14 @@ class LoopGatewayImpl {
     }
 
     public static updateProjectTask(projectId: string, task: UpdateContent<Task>): void {
+        // The board hands a task to an agent by id, and an id is anything the request cared to
+        // send: a task assigned to a name nobody works under would never be worked on again.
+        if (task.assignee) {
+            const agent = AgentIdentityManager.getAgent(task.assignee);
+            if (!agent || agent.fired) {
+                throw new Error(`No agent "${task.assignee}" works here.`);
+            }
+        }
         ProjectManager.updateTask(projectId, task);
         this.fireSSEEvent({ eventType: 'updateProject', content: {
             id: projectId, tasks: ProjectManager.getProjectDetail(projectId).tasks

@@ -171,6 +171,7 @@ export const zh = {
                     running: '子智能体正在执行这个任务',
                     editTitle: '重命名这个任务',
                     editDescription: '修改这个任务的描述',
+                    editAssignee: '把这个任务交给其他 Agent',
                 }
             },
             chat: {
@@ -211,6 +212,7 @@ export const zh = {
                 empty: '暂无可用技能',
                 resetToAll: '全部 Agent',
                 remove: '删除该技能',
+                confirmRemove: '{{name}} 会连同文件夹里的文件一起从磁盘上删除。',
                 removeMissing: '{{name}} 已不在本地，列表已刷新。',
                 removeFailed: '删除 {{name}} 失败。',
                 installHint: '提示：可以直接和 Agent 聊天来安装新技能，让它帮你查找并安装即可。',
@@ -243,6 +245,7 @@ export const zh = {
                     pause: '暂停',
                     resume: '恢复',
                     delete: '删除',
+                    confirmDelete: '{{name}} 会被彻底删除，连同它已经跑过的记录。',
                 },
                 history: {
                     title: '执行历史',

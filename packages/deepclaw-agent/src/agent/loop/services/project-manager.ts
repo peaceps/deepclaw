@@ -180,6 +180,11 @@ export class ProjectManager {
                 }
             }
         }
+        // Work already taken up stays with whoever took it: a task handed on midway leaves the
+        // subagent of the first agent running under a name the board no longer shows for it.
+        if (taskInfo.assignee && taskInfo.assignee !== task.assignee && task.status !== 'todo') {
+            throw new Error('Only a task still in todo can be handed to another agent.');
+        }
         if (task.status === 'todo' && taskInfo.status === 'done' ||
             task.status === 'ongoing' && taskInfo.status === 'todo' ||
             task.status === 'done' && taskInfo.status && taskInfo.status !== 'done') {
