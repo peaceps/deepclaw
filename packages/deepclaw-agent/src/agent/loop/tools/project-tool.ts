@@ -1,6 +1,9 @@
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
-import { type LLMTaskOutput, type MissionPriority, type MissionStatus, PROJECT_CONFIG, type Task } from "@deepclaw/core";
+import {
+    type LLMTaskOutput, type MissionPriority, type MissionStatus, PROJECT_CONFIG,
+    type Project, type Task
+} from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
@@ -11,14 +14,36 @@ import { projectFilesDir } from "../../paths";
 /** Where the report of a task stood in an answer that is not the one to ask for it. */
 const OUTPUT_KEPT = '<Output kept, read it with get_project_detail>';
 
-/** The project as an answer to a write of it, with what its tasks produced left out. */
-function projectAfterWrite(projectId: string): string {
-    const project = ProjectManager.getProjectDetail(projectId);
+/** The project as an answer to a write of it, with what it and its tasks produced left out. */
+function projectAfterWrite(project: Project): string {
     const tasks: Record<string, Task> = {};
     for (const [id, task] of Object.entries(project.tasks)) {
         tasks[id] = task.output ? {...task, output: keptOutput(task.output, OUTPUT_KEPT)} : task;
     }
-    return JSON.stringify({...project, tasks});
+    const output = project.output && keptOutput(project.output, OUTPUT_KEPT);
+    return JSON.stringify({...project, output, tasks});
+}
+
+/**
+ * A project closes the moment its last task does, which is no occasion of its own: nothing after it
+ * asks the run for a word on the whole of it, and by the next turn there may be no run left to ask.
+ * Said here, where the closing happened, the project is still in front of whoever closed it. It
+ * keeps being said until the report is written, since every later write is another such moment.
+ */
+function reportReminder(project: Project): string {
+    if (!project.closedAt || project.output) {
+        return '';
+    }
+    // A project of one task is the wrapper a simple task is kept in, and a report of the whole of
+    // one task is the report of that task written twice.
+    if (Object.keys(project.tasks).length < 2) {
+        return '';
+    }
+    return `
+
+Every task of this project is done, so the project is closed and nothing further will be asked of
+it. What is missing is the report of the project itself: write it now with update_project, in
+output. The user reads it off the project without opening a task.`;
 }
 
 type ProjectTaskInput = {
@@ -181,7 +206,7 @@ so do not call tools updating project/tasks immediately with create_project`,
         context.runtime.agentBreakReason = 'projectCreated';
         return `Project created successfully.
 Here's the project info:
-${projectAfterWrite(project.id)}`;
+${projectAfterWrite(project)}`;
     },
 }
 
@@ -258,7 +283,7 @@ All steps should be done when task is going to be marked as done.`,
         context.runtime.agentBreakReason = 'projectCreated';
         return `Task created successfully.
 Here's the wrapper project info:
-${projectAfterWrite(project.id)}`;
+${projectAfterWrite(project)}`;
     }
 };
 
@@ -267,13 +292,15 @@ type UpdateProjectInput = {
     title?: string;
     description?: string;
     priority?: MissionPriority;
+    output?: LLMTaskOutput;
     tasks?: ProjectTaskInput[];
 };
 
 export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
     tool: {
         name: 'update_project',
-        description: 'Update project info, tasks can only be updated when a project is in todo state.',
+        description: `Update project info, tasks can only be updated when a project is in todo state.
+The report of the finished project goes here as well, in output.`,
         schema: {
             type: 'object',
             additionalProperties: false,
@@ -296,6 +323,32 @@ export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
                     enum: ['low', 'medium', 'high', 'urgent'],
                     description: 'The priority of the project.'
                 },
+                output: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description: `The report of the project as a whole, what the user reads to learn
+how the work went without opening a single task. Write it once the project is finished: what was
+asked for, what came of it, what is worth knowing before using it, and anything left undone. It is
+no list of the task reports, those the user can already read one by one; it is what none of them
+can say. Large content is filed away for you, so there is no size to work around. A file the project
+produced is handed over from the task that produced it, in generatedFiles of update_task.`,
+                    properties: {
+                        type: {
+                            type: 'string', enum: ['markdown', 'text'],
+                            description: 'Type of the project report.'
+                        },
+                        content: {
+                            type: 'string',
+                            description: 'Content of the project report, what the user reads of it.'
+                        },
+                        ext: {
+                            type: 'string',
+                            description: `The extension of the file a large content is filed into,
+"md" for markdown and "txt" for text unless the content is really something else, e.g. "csv".`
+                        },
+                    },
+                    required: ['type', 'content'],
+                },
                 tasks: {
                     type: 'array',
                     description: `The full task list of the project, it replaces the one there is.
@@ -314,15 +367,18 @@ the old one away along with everything pointing at it. Leave a task out only to 
     loopKinds: ['main'],
     invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
         const {projectId, tasks, ...patch} =  input;
+        if (patch.output) {
+            requireReadableOutput(patch.output);
+        }
         const projectTasks = tasks && buildTasks(tasks, context);
-        ProjectManager.updateProject({
+        const project = ProjectManager.updateProject({
             id: projectId,
             ...patch,
         }, projectTasks);
         ProjectManager.fireProjectInfoEvent(projectId, context);
         return `Project updated successfully.
 Here's the project info:
-${projectAfterWrite(projectId)}`;
+${projectAfterWrite(project)}${reportReminder(project)}`;
     }
 }
 
@@ -464,16 +520,17 @@ Only files inside the workspace can be handed over, and only files, not folders.
         }
         ProjectManager.fireProjectInfoEvent(input.projectId, context);
 
+        const project = ProjectManager.getProjectDetail(input.projectId);
         let res = `Task updated successfully.
 Here's the related info:
-${projectAfterWrite(input.projectId)}`;
+${projectAfterWrite(project)}`;
         if (stop) {
             res += `
 
 Task is not set done because the user requires it to be verified before it can be marked done.
 After user set task.verified to true, it can be successfully set done.`;
         }
-        return res + skippedFilesNote(skippedFiles);
+        return res + reportReminder(project) + skippedFilesNote(skippedFiles);
     },
 };
 

@@ -78,6 +78,10 @@ should check on first, or before touching a file outside the folder it works in.
 in front of you: allow it once, allow that kind of thing for the rest of the session, or refuse. If
 you have wandered off, a notification tells you someone is waiting.
 
+An agent can also put a question of its own to you, with answers to pick between or a line to write
+in, and it stands still where it asked until you answer. A subagent asks through the conversation of
+the run that sent it out, so work going on somewhere down the tree still comes to you here.
+
 Each conversation shows what it cost in tokens, including how much of the input was served from
 cache.
 
@@ -90,9 +94,13 @@ title, description, or tag, or narrow the board to one owner.
 Two buttons on a task card give you a way in. **Pause** tells the agent to stop once that task is
 finished instead of rolling on to the next one. When it stops there, the task waits for your
 **verification**: nothing continues until you have looked at it and said so. Use it on the steps you
-want to see before they are built on.
+want to see before they are built on. A task nobody has picked up yet can also be handed to someone
+else, from the pencil beside its owner — once the work has been taken, it stays with whoever took
+it.
 
-Finished tasks carry a report you can read in place or download.
+Finished tasks carry a report you can read in place or download. A finished project carries one of
+its own, on the project's row: what the whole of the work came to, which no single task report
+says.
 
 <!-- Screenshot: the report window of a finished task, opened by the "View" link on a done card.
      Best with the markdown rendered out — headings, a list, maybe a table — and enough of it to
@@ -125,7 +133,8 @@ Skills are things your agents know how to do, listed here with what each one is 
 it applies to. A skill can be open to everyone or kept to one agent.
 
 Like scheduled tasks, you install these by asking. Tell an agent to go find a skill and set it up,
-and it will search, download, and install it for you.
+and it will search, download, and install it for you. One that has served its purpose goes off the
+disk from the bin at the end of its row, which asks before it does.
 
 ### Settings
 
@@ -235,6 +244,7 @@ alongside the built-in ones. Set the server URL in the advanced settings.
 | `get_cron_histories` | Read back what earlier runs of a cron task produced |
 | `load_skill_details` / `search_online_skills` / `download_skill` / `create_skill` / `remove_skill` / `refresh_skills` | Skill operations |
 | `save_memory` / `read_memory_detail` | Keep something worth remembering, and read it back |
+| `ask_user` | Put a question to you and wait on the answer |
 | `update_agent_runtime` | Let an agent set its own mood and emotion |
 | `base64` | Encode / decode base64 |
 

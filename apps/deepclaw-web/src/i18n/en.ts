@@ -149,6 +149,7 @@ export const en = {
                     noTasksAtStatus: 'No tasks',
                     owner: 'Owner',
                     progress: 'Progress',
+                    report: 'Project report',
                     blockedBy: 'Prerequisites: {{titles}}',
                     labels: {
                         save: 'Press Enter to save',

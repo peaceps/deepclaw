@@ -336,6 +336,62 @@ describe('updateProject', () => {
     test('throws for an unknown project id', () => {
         expect(() => manager.updateProject({id: 'ghost'})).toThrow('Project ghost not found.');
     });
+
+    /** The same thing a task is held to: nothing was done yet, so there is nothing to report. */
+    test('refuses a report while the project has not been started', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateProject({id, output: {type: 'markdown', content: '# done'}}))
+            .toThrow('Cannot set output when project is in todo state.');
+        expect(manager.getProjectDetail(id).output).toBeUndefined();
+    });
+
+    test('keeps a short report on the project', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        const updated = manager.updateProject({id, output: {type: 'markdown', content: '# done'}});
+        expect(updated.output).toEqual({type: 'markdown', content: '# done'});
+        expect(manager.getProjectDetail(id).output).toEqual({type: 'markdown', content: '# done'});
+    });
+
+    /** One report of one project, so the second one of the same kind lands where the first lies. */
+    test('files a long report away under a name of the project rather than of a task', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        const content = 'x'.repeat(1501);
+        const updated = manager.updateProject({id, output: {type: 'markdown', content}});
+        expect(mocks.writeFile).toHaveBeenCalledWith(`.projects/${id}/output/report.md`, content);
+        expect(updated.output).toEqual({
+            type: 'markdown',
+            content: '<Content saved to file>',
+            path: `/api/file/projects/${id}/output/report.md`,
+        });
+        manager.updateProject({id, output: {type: 'markdown', content: 'y'.repeat(1501)}});
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            `.projects/${id}/output/report.md`, 'y'.repeat(1501)
+        );
+    });
+
+    /** The kind of report names the file, so one rewritten as another kind lands beside the old. */
+    test('files a report of another kind beside the one it replaces', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateProject({id, output: {type: 'markdown', content: 'x'.repeat(1501)}});
+        const updated = manager.updateProject({id, output: {type: 'text', content: 'y'.repeat(1501)}});
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            `.projects/${id}/output/report.txt`, 'y'.repeat(1501)
+        );
+        expect(updated.output?.path).toBe(`/api/file/projects/${id}/output/report.txt`);
+    });
+
+    /** A closed project is what a report is written about, so writing one may not be refused. */
+    test('takes a report after the last task closed the project', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(manager.getProjectDetail(id).closedAt).toBeTruthy();
+        expect(manager.updateProject({id, output: {type: 'text', content: 'it went well'}}).output)
+            .toEqual({type: 'text', content: 'it went well'});
+    });
 });
 
 describe('updateTask status transitions', () => {

@@ -22,6 +22,12 @@ export type Project = {
     creator: string;
     priority: MissionPriority;
     tags?: string[];
+    /**
+     * What the whole of the work came to, as opposed to what each task of it produced. The tasks
+     * are handed out one by one and read back the same way, so nothing of a project says how it
+     * went until someone writes it here.
+     */
+    output?: LLMTaskOutput;
     /** The tasks under the id each of them is referred to by, which is the id it carries. */
     tasks: Record<string, Task>;
     /** Ids, as everything that points at a task holds one. */

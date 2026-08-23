@@ -1,4 +1,11 @@
 v0.0.13
+say how a project went as a whole, and not only how each task of it went: a report written with
+update_project hangs on the row of the project, beside the badge of what it stands at, and opens
+from there rather than from anything under it. it is asked for the moment the last task closes the
+project, which is the last moment anything is asked of that project at all, and asked for again on
+every later write until it is written. a project wrapping a single task is spared the question, the
+report of that one task being the whole of it already, and one nobody has started yet is refused a
+report as a task not yet started is, having nothing to report on.
 remove a skill by deleting the folder it was installed in, rather than by asking the installer to.
 the installer keeps the folder while any coding agent it finds still points at it, which every agent
 that reads skills from there does by reading them from there, and reports a removal it never made.

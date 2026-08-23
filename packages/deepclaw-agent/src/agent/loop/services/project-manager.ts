@@ -4,6 +4,9 @@ import { type Project, type Task, type TaskStepsContext, getProjectStatus, Missi
 import { fileAwayOutput } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
 
+/** What the report of a project is filed under, beside the reports of its tasks. */
+const PROJECT_REPORT = 'report';
+
 export type ProjectListInfo = {
     projects: {
         open: {id: string; title: string; description: string}[]; 
@@ -101,8 +104,21 @@ export class ProjectManager {
         if (getProjectStatus(project) !== 'todo' && !!tasks) {
             throw new Error('Only projects in todo state can update tasks.')
         }
+        // A report is of work that was done, and a project nobody has started yet has none to
+        // report on: the same thing a task is held to before it goes ongoing. Refused before
+        // anything is written, so a project turned away keeps the words it had.
+        if (projectInfo.output && getProjectStatus(project) === 'todo') {
+            throw new Error('Cannot set output when project is in todo state.');
+        }
         if (tasks) {
             project.tasks = this.convertTasks(tasks);
+        }
+        // A report of the whole project outgrows a task report rather than the other way around, so
+        // it is filed under a name of its own beside them. The kind of report it is names the file:
+        // rewritten as the kind it was, it lands on the file the last one did; rewritten as another
+        // kind it lands beside it, and the one before is left to go with the project.
+        if (projectInfo.output) {
+            fileAwayOutput(projectInfo.output, projectOutputDir(project.id), PROJECT_REPORT);
         }
         Object.assign(project, projectInfo);
         if (projectInfo.tags) {
@@ -344,7 +360,12 @@ The title beside it is what the user reads: they may rename a task at any time, 
 its id and never by the words on it.
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
 For simple tasks just set the wrapped project id.
-A subagent cannot update a task, it only moves the step index of the task it works on.`;
+A subagent cannot update a task, it only moves the step index of the task it works on.
+
+## Report a finished project
+A project closes itself once its last task is done. What it produced as a whole is no task report,
+so write it with the update_project tool, in output: the user reads that off the project without
+opening a task. A project wrapping a single task needs none, the task report is already the whole.`;
     }
 
     public static promptTaskDelegation(): string {

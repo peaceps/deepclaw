@@ -211,7 +211,7 @@ describe('updateProjectTool invoke', () => {
 
     /** A rename of the project is no reason to read every report of it back. */
     test('leaves what the tasks produced out of the answer', async () => {
-        getProjectDetail.mockReturnValue(newProject({tasks: {
+        updateProject.mockReturnValue(newProject({tasks: {
             design: {...newTask('design'), output: {type: 'markdown', content: '# the whole report'}},
         }}));
         const result = await updateProjectTool.invoke(
@@ -219,6 +219,101 @@ describe('updateProjectTool invoke', () => {
         );
         expect(result).not.toContain('the whole report');
         expect(result).toContain('<Output kept, read it with get_project_detail>');
+    });
+
+    test('passes the report of the project through to the manager', async () => {
+        const output = {type: 'markdown' as const, content: '# how it went'};
+        await updateProjectTool.invoke({projectId: 'pr1', output}, newTestContext());
+        expect(updateProject).toHaveBeenCalledExactlyOnceWith({id: 'pr1', output}, undefined);
+    });
+
+    test('refuses a report that is the bytes of a file', async () => {
+        await expect(updateProjectTool.invoke({
+            projectId: 'pr1', output: {type: 'binary', content: 'MjAyNQ=='},
+        }, newTestContext())).rejects.toThrow('An output carries what the user reads');
+        expect(updateProject).not.toHaveBeenCalled();
+    });
+
+    /** The run that just wrote the report would otherwise read its own words straight back. */
+    test('leaves the report of the project out of the answer', async () => {
+        updateProject.mockReturnValue(
+            newProject({output: {type: 'markdown', content: '# the whole report'}})
+        );
+        const result = await updateProjectTool.invoke(
+            {projectId: 'pr1', output: {type: 'markdown', content: '# the whole report'}},
+            newTestContext()
+        );
+        expect(result).not.toContain('the whole report');
+        expect(result).toContain('<Output kept, read it with get_project_detail>');
+    });
+});
+
+describe('the report a closed project is asked for', () => {
+
+    /** Two tasks, both done: a project that closed and has nothing said about the whole of it. */
+    function closedProject(overrides: Partial<Project> = {}): Project {
+        return newProject({
+            closedAt: '2024-01-02T00:00:00.000Z',
+            tasks: {design: newTask('design'), build: newTask('build')},
+            ...overrides,
+        });
+    }
+
+    const ASKED = 'write it now with update_project';
+
+    beforeEach(() => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+    });
+
+    test('is asked for once the last task closed the project', async () => {
+        getProjectDetail.mockReturnValue(closedProject());
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, newTestContext()
+        );
+        expect(result).toContain(ASKED);
+    });
+
+    test('is not asked for again once it was written', async () => {
+        getProjectDetail.mockReturnValue(
+            closedProject({output: {type: 'markdown', content: '# how it went'}})
+        );
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, newTestContext()
+        );
+        expect(result).not.toContain(ASKED);
+    });
+
+    test('is not asked for while a task of the project is still open', async () => {
+        getProjectDetail.mockReturnValue(closedProject({closedAt: undefined}));
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, newTestContext()
+        );
+        expect(result).not.toContain(ASKED);
+    });
+
+    /** The wrapper of a simple task, whose one task report already says the whole of it. */
+    test('is not asked for from a project of a single task', async () => {
+        getProjectDetail.mockReturnValue(closedProject({tasks: {design: newTask('design')}}));
+        const result = await updateTaskTool.invoke(
+            {projectId: 'pr1', taskId: 'design', status: 'done'}, newTestContext()
+        );
+        expect(result).not.toContain(ASKED);
+    });
+
+    /** Every write of a closed project is another moment to ask, not only a write of a task. */
+    test('is asked for again where the project was written to for something else', async () => {
+        updateProject.mockReturnValue(closedProject());
+        const result = await updateProjectTool.invoke(
+            {projectId: 'pr1', title: 'ship it faster'}, newTestContext()
+        );
+        expect(result).toContain(ASKED);
+    });
+
+    test('is not asked for in the answer to writing it', async () => {
+        const output = {type: 'markdown' as const, content: '# how it went'};
+        updateProject.mockReturnValue(closedProject({output}));
+        const result = await updateProjectTool.invoke({projectId: 'pr1', output}, newTestContext());
+        expect(result).not.toContain(ASKED);
     });
 });
 
