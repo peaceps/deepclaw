@@ -1,4 +1,13 @@
-v0.0.13
+v0.0.14
+read a chat thirty messages to a page rather than ten, and go on pulling until the panel it is drawn
+in holds more than it can show. a page that stopped short of the bottom left nothing to scroll, and
+scrolling was the only thing that asked for the page before it, so a conversation shorter than the
+panel it sits in kept its beginning out of reach. it pulls once per message it pulled from, so a page
+holding nothing that was not already held ends it rather than starting it again, and a panel
+measuring nothing is left alone: one nobody is looking at never comes to overflow however much is
+handed to it, and would be handed the whole conversation. the wider page is worth more to a
+conversation that was closed than to the one being talked in, a closed one being read off the disk
+whole for every page taken out of it.
 close a conversation and start the agent over from an empty context, and read back the ones that were
 closed. the two buttons sit in the header of the agent chat beside the token count, and pressing the
 first moves the whole session folder aside: the history the answers came out of, the transcript they
@@ -16,6 +25,8 @@ opposite reason: it holds what somebody typed, and it is listed under the name i
 though no run ever wrote a word about it. reading one back is reading only, the input row giving way
 to the way back, and the tokens a closed conversation spent are not shown as the count of the empty
 one that took its place.
+
+v0.0.13
 hand a run only the tools it could have a use for, and tell it of no tool it was not handed: the one
 that records the result of a scheduled run now goes to a scheduled run alone, where before every
 ordinary chat carried it along with no run of its own to record it for, and a subagent working

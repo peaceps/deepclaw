@@ -22,6 +22,7 @@ export function useScroll(
     const hasMoreRef = useRef(true);
     const prevScrollHeightRef = useRef(0);
     const adjustingScrollRef = useRef(false);
+    const filledAboveRef = useRef<string | undefined>(undefined);
 
     const getOldestMessageId = useAppStore(s => s.getOldestMessageId);
     const addPulledMessages = useAppStore(s => s.addPulledMessages);
@@ -70,6 +71,7 @@ export function useScroll(
         loadingOlderRef.current = false;
         adjustingScrollRef.current = false;
         stickToBottomRef.current = true;
+        filledAboveRef.current = undefined;
     }, [chatKey, nothingHeld]);
 
     const loadOlder = useCallback(async () => {
@@ -98,6 +100,24 @@ export function useScroll(
             loadingOlderRef.current = false;
         }
     }, [chatKey, pull, getOldestMessageId, addPulledMessages, scrollRef]);
+
+    /**
+     * A page that stops short of the bottom of the panel leaves nothing to scroll, and scrolling is
+     * the only thing that asks for the page before it: a short conversation would sit there with its
+     * beginning out of reach. Pulled once per message it pulled from, so that a page holding nothing
+     * that was not already held is the end of it rather than the start of it over again.
+     */
+    useEffect(() => {
+        // Asked of the store before the panel, since reading a height is what forces the layout.
+        const oldest = getOldestMessageId(chatKey);
+        if (!oldest || oldest === filledAboveRef.current) return;
+        const el = scrollRef.current;
+        // A panel measuring nothing is one nobody is looking at, not one with room left in it. It
+        // never comes to overflow however much is pulled in, so it would pull the whole history.
+        if (!el || el.clientHeight === 0 || el.scrollHeight > el.clientHeight) return;
+        filledAboveRef.current = oldest;
+        loadOlder();
+    }, [agentMessages, chatKey, getOldestMessageId, loadOlder, scrollRef]);
 
     return () => {
       const el = scrollRef.current;

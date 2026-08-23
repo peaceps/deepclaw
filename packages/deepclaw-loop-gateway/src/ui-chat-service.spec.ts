@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type ChatMessage} from '@deepclaw/core';
-import {UIChatService} from './ui-chat-service';
+import {PAGE_SIZE, UIChatService} from './ui-chat-service';
 
 const mocks = vi.hoisted(() => ({
     readFile: vi.fn<(path: string) => string>(),
@@ -50,6 +50,11 @@ function fill(loopId: string, count: number): ChatMessage[] {
 
 function ids(messages: ChatMessage[]): string[] {
     return messages.map(message => message.id);
+}
+
+/** The ids of m{from} through m{to}, which is what a page of that stretch comes back as. */
+function idRange(from: number, to: number): string[] {
+    return Array.from({length: to - from + 1}, (_, i) => `m${from + i}`);
 }
 
 describe('UIChatService message store', () => {
@@ -197,16 +202,15 @@ describe('UIChatService pagination', () => {
     });
 
     test('returns the last page when no cursor is given', () => {
-        fill('agent.older', 15);
-        expect(ids(UIChatService.getOlderMessages('agent.older'))).toEqual([
-            'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'm12', 'm13', 'm14', 'm15'
-        ]);
+        fill('agent.older', PAGE_SIZE + 5);
+        expect(ids(UIChatService.getOlderMessages('agent.older')))
+            .toEqual(idRange(6, PAGE_SIZE + 5));
     });
 
     test('returns the page right before the cursor', () => {
-        fill('agent.olderPage', 15);
+        fill('agent.olderPage', PAGE_SIZE + 5);
         expect(ids(UIChatService.getOlderMessages('agent.olderPage', 'm6')))
-            .toEqual(['m1', 'm2', 'm3', 'm4', 'm5']);
+            .toEqual(idRange(1, 5));
     });
 
     test('returns nothing older than the very first message', () => {
@@ -242,11 +246,12 @@ describe('UIChatService pagination', () => {
     });
 
     test('pages backwards through the whole history', () => {
-        fill('agent.walk', 25);
+        const total = PAGE_SIZE * 2 + 5;
+        fill('agent.walk', total);
         const last = UIChatService.getOlderMessages('agent.walk');
         const middle = UIChatService.getOlderMessages('agent.walk', last[0]!.id);
         const first = UIChatService.getOlderMessages('agent.walk', middle[0]!.id);
-        expect(ids(last).concat(ids(middle), ids(first))).toHaveLength(25);
+        expect(ids(last).concat(ids(middle), ids(first))).toHaveLength(total);
         expect(first[0]!.id).toBe('m1');
         expect(UIChatService.getOlderMessages('agent.walk', first[0]!.id)).toEqual([]);
     });
@@ -303,7 +308,7 @@ describe('UIChatService forgetting a conversation', () => {
     });
 
     test('forgets the cursors of the conversation it forgot', () => {
-        fill('agent.cursors', 15);
+        fill('agent.cursors', PAGE_SIZE + 5);
         const page = UIChatService.getOlderMessages('agent.cursors');
         UIChatService.forget('agent.cursors');
         expect(UIChatService.getOlderMessages('agent.cursors', page[0]!.id)).toEqual([]);
@@ -329,7 +334,7 @@ describe('UIChatService forgetting a conversation', () => {
     });
 
     test('pages back through a conversation it is not holding on to', () => {
-        const messages = Array.from({length: 15}, (_, i) => newMessage(`a${i + 1}`));
+        const messages = Array.from({length: PAGE_SIZE + 5}, (_, i) => newMessage(`a${i + 1}`));
         mocks.readFile.mockReturnValue(messages.map(m => `${JSON.stringify(m)}\n`).join(''));
         const last = UIChatService.getOlderMessages('agent.page', undefined, '20260101000000000');
         expect(ids(UIChatService.getOlderMessages('agent.page', last[0]!.id, '20260101000000000')))

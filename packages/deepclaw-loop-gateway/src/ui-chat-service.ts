@@ -4,7 +4,13 @@ import { globalize } from '@deepclaw/utils';
 import { FileUtils } from '@deepclaw/node-utils';
 import { storeImages } from './image-refs';
 
-const PAGE_SIZE = 10;
+/**
+ * How many messages a page of a chat carries. Enough to fill a tall panel and leave room above the
+ * fold, since a reader who reaches the top of a page waits there for the next one; and enough that
+ * a conversation read back, which is read off the disk whole for every page of it, is asked fewer
+ * times for the same walk through it.
+ */
+export const PAGE_SIZE = 30;
 const EMPTY_RANGE: [number, number] = [0, 0];
 /**
  * What the caches and the file are looked up by. A conversation that was closed is read under a key
