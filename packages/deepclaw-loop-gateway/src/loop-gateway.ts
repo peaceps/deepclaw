@@ -18,7 +18,8 @@ import { globalize, UpdateContent } from "@deepclaw/utils";
 import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent, SkillsManager,
     type SkillInfo, SessionService, CronService,
-    MCPService, RunningTaskService, ToolUseService,
+    MCPService, RunningTaskService, ToolUseService, BackgroundCommandManager,
+    type SessionSummary,
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
@@ -26,7 +27,7 @@ import { AgentRuntimeService } from "./agent-runtime-service";
 import { storeImages } from "./image-refs";
 import {
     LoopInfo, InvokeSource, LoopGatewayEvent, InvokeOption,
-    isAgentRuntimeStatusInfoEvent,
+    isAgentRuntimeStatusInfoEvent, NewSessionResult,
 } from "./loop-gateway-types";
 import { i18nInstance } from "@deepclaw/i18n";
 import { getLogger } from "@deepclaw/node-utils";
@@ -194,6 +195,78 @@ class LoopGatewayImpl {
 
     public static isLoopBusy(loopId: string): boolean {
         return this.loops[loopId]?.running ?? false;
+    }
+
+    /**
+     * Closes the conversation of this loop and leaves an empty one in its place. The folder is moved
+     * aside on disk, and the loop that was holding that history in memory is built again: without
+     * that the next turn would go on answering out of a conversation the user has already closed.
+     *
+     * Refused while a run is going, and refused while a background command is still writing into
+     * the session folder, which is a thing that outlives the run that started it.
+     */
+    public static startNewSession(loopId: string): NewSessionResult {
+        const {role, agentId, projectId = ''} = splitLoopId(loopId);
+        // A cron session lives in the temp folder and is thrown away after every run, so there is
+        // no conversation there to close and nothing that would be kept by archiving it.
+        if (role === 'cron') {
+            return {started: false, reason: 'unsupported'};
+        }
+        if (this.isLoopBusy(loopId)) {
+            return {started: false, reason: 'busy'};
+        }
+        if (BackgroundCommandManager.hasRunningCommand(loopId)) {
+            return {started: false, reason: 'backgroundCommand'};
+        }
+        // Everything after this point is said on the strength of the folder having moved. A failure
+        // read as a conversation closed would empty the chat and build the loop again, and the loop
+        // would read the same history back off the disk it never left: the user would be told they
+        // are starting over while the agent went on remembering all of it.
+        let sessionId: string | undefined;
+        try {
+            UIChatService.migrateLegacyChatFile(loopId);
+            sessionId = SessionService.archiveSession(loopId);
+        } catch (error) {
+            logger.error(`Failed to archive the conversation of ${loopId}: ${error}`);
+            return {started: false, reason: 'archiveFailed'};
+        }
+        // Past here the conversation is closed and there is nothing left to refuse: the folder has
+        // moved. A loop that cannot be built again is dropped instead, for the next turn to build
+        // lazily and fail there if the agent is still broken. Keeping the one that is holding the
+        // closed conversation would be keeping an agent that answers out of it.
+        UIChatService.forget(loopId);
+        const loopState = this.loops[loopId];
+        if (loopState) {
+            try {
+                loopState.loop = this.createLoop(role, agentId, projectId, loopState.agentHandler);
+            } catch (error) {
+                logger.error(`Failed to build ${loopId} again after closing its conversation: ${error}`);
+                delete this.loops[loopId];
+            }
+        }
+        this.fireSSEEvent({eventType: 'sessionReset', loopId});
+        return {started: true, sessionId};
+    }
+
+    /** The conversations of this loop that were closed, for a view that lists them to be read back. */
+    public static listSessions(loopId: string): SessionSummary[] {
+        return SessionService.listSessions(loopId);
+    }
+
+    /**
+     * A page of a conversation that was closed, read back from the end the same way the live one is.
+     *
+     * Which conversation has to be said outright. An empty name reads as the one being talked in
+     * everywhere below here, which would walk past the check on the name and hand back the live
+     * chat under the guise of an archived one, holding on to it afterwards as if it were live.
+     */
+    public static getSessionMessages(
+        loopId: string, sessionId: string, endMessageId?: string
+    ): ChatMessage[] {
+        if (!sessionId) {
+            throw new Error(`No session was named to read back from ${loopId}.`);
+        }
+        return UIChatService.getOlderMessages(loopId, endMessageId, sessionId);
     }
 
     public static invoke(

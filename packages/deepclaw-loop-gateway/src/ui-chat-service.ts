@@ -1,4 +1,4 @@
-import {AGENTS_DIR, CHAT_FILE, PROJECT_DIR} from '@deepclaw/agent';
+import {AGENTS_DIR, CHAT_FILE, PROJECT_DIR, SessionService} from '@deepclaw/agent';
 import { ChatMessage, splitLoopId } from '@deepclaw/core';
 import { globalize } from '@deepclaw/utils';
 import { FileUtils } from '@deepclaw/node-utils';
@@ -6,6 +6,11 @@ import { storeImages } from './image-refs';
 
 const PAGE_SIZE = 10;
 const EMPTY_RANGE: [number, number] = [0, 0];
+/**
+ * What the caches and the file are looked up by. A conversation that was closed is read under a key
+ * of its own so that it never shares a page or an index with the one being talked in.
+ */
+const ARCHIVED_KEY_SEPARATOR = '#';
 
 // TODO FULL MEMORY
 class UIChatServiceImpl {
@@ -37,16 +42,33 @@ class UIChatServiceImpl {
         return message;
     }
 
-    public static getOlderMessages(loopId: string, endMessageId?: string): ChatMessage[] {
+    /**
+     * Reads back from the end, of the conversation being talked in or of one that was closed. The
+     * paging is the same either way: a session that was closed is longer than a page just as often.
+     *
+     * What was closed is let go of again as soon as the page is out. One live conversation per loop
+     * is a bounded thing to hold; one more for every conversation anybody ever opens is not, and a
+     * transcript nobody is going to add to is no cheaper to keep than to read again.
+     */
+    public static getOlderMessages(
+        loopId: string, endMessageId?: string, sessionId?: string
+    ): ChatMessage[] {
+        const chatKey = this.chatKey(loopId, sessionId);
         const getRange = (msgLen: number): [number, number] => {
             if (!endMessageId) return [Math.max(0, msgLen - PAGE_SIZE), msgLen];
-            const end = this.getCachedIndex(loopId, endMessageId);
+            const end = this.getCachedIndex(chatKey, endMessageId);
             // Callers merge the result into what they already hold, so an unresolvable
             // cursor has to yield nothing rather than a page they may already have.
             if (end === undefined) return EMPTY_RANGE;
             return [Math.max(0, end - PAGE_SIZE), end];
         }
-        return this.getMessages(loopId, getRange);
+        try {
+            return this.getMessages(chatKey, getRange);
+        } finally {
+            if (sessionId) {
+                this.forget(chatKey);
+            }
+        }
     }
 
     /**
@@ -64,69 +86,130 @@ class UIChatServiceImpl {
         return this.getMessages(loopId, getRange);
     }
 
-    private static getMessages(loopId: string, getRange: (msgLen: number) => [number, number]): ChatMessage[] {
-        this.ensureMessageLoaded(loopId);
-        const messages = this.messageStore.get(loopId);
+    private static getMessages(chatKey: string, getRange: (msgLen: number) => [number, number]): ChatMessage[] {
+        this.ensureMessageLoaded(chatKey);
+        const messages = this.messageStore.get(chatKey);
         if (!messages) {
             return [];
         }
         const [start, end] = getRange(messages.length);
         const page = messages.slice(start, end);
         if (page.length > 0) {
-            this.addCachedIndex(loopId, page[0]!.id, start);
-            this.addCachedIndex(loopId, page[page.length - 1]!.id, end - 1);
+            this.addCachedIndex(chatKey, page[0]!.id, start);
+            this.addCachedIndex(chatKey, page[page.length - 1]!.id, end - 1);
         }
         return page;
     }
 
-    private static addCachedIndex(loopId: string, lastMessageId: string, index: number): void {
-        if (!this.messageIndexCache.has(loopId)) {
-            this.messageIndexCache.set(loopId, new Map());
-        }
-        this.messageIndexCache.get(loopId)!.set(lastMessageId, index);
+    /**
+     * Forgets everything held about a conversation, named by its chat key. All three of these have
+     * to go together: a store emptied while the persist index still counts the messages that were
+     * in it would start writing from the middle of a file that is no longer there, and the messages
+     * before that point would never be written at all.
+     */
+    public static forget(chatKey: string): void {
+        this.messageStore.delete(chatKey);
+        this.persistedIndex.delete(chatKey);
+        this.messageIndexCache.delete(chatKey);
     }
 
-    private static getCachedIndex(loopId: string, messageId: string): number | undefined {
-        const cached = this.messageIndexCache.get(loopId)?.get(messageId);
+    private static addCachedIndex(chatKey: string, lastMessageId: string, index: number): void {
+        if (!this.messageIndexCache.has(chatKey)) {
+            this.messageIndexCache.set(chatKey, new Map());
+        }
+        this.messageIndexCache.get(chatKey)!.set(lastMessageId, index);
+    }
+
+    private static getCachedIndex(chatKey: string, messageId: string): number | undefined {
+        const cached = this.messageIndexCache.get(chatKey)?.get(messageId);
         if (cached !== undefined) return cached;
-        const arr = this.messageStore.get(loopId);
+        const arr = this.messageStore.get(chatKey);
         const idx = arr?.findIndex(m => m.id === messageId);
         return idx !== undefined && idx > -1 ? idx : undefined;
     }
 
-    private static ensureMessageLoaded(loopId: string) {
-        if (!this.messageStore.has(loopId)) {
-            this.loadPersistedMessages(loopId);
+    private static ensureMessageLoaded(chatKey: string) {
+        if (!this.messageStore.has(chatKey)) {
+            this.loadPersistedMessages(chatKey);
         }
     }
 
-    private static loadPersistedMessages(loopId: string): void {
-        const chatFilePath = this.getChatFile(loopId);
-        this.messageStore.set(loopId, []);
+    private static loadPersistedMessages(chatKey: string): void {
+        const {loopId, sessionId} = this.splitChatKey(chatKey);
+        if (!sessionId) {
+            this.migrateLegacyChatFile(loopId);
+        }
+        const chatFilePath = this.getChatFile(chatKey);
+        this.messageStore.set(chatKey, []);
         try {
             const file = FileUtils.readFile(chatFilePath);
             const lines = file.split('\n').filter(line => !!line.trim());
             for (const line of lines) {
                 try {
                     const message: ChatMessage = JSON.parse(line);
-                    this.messageStore.get(loopId)!.push(message);
+                    this.messageStore.get(chatKey)!.push(message);
                 } catch {
                     continue;
                 }
             }
-            this.persistedIndex.set(loopId, this.messageStore.get(loopId)!.length);
+            this.persistedIndex.set(chatKey, this.messageStore.get(chatKey)!.length);
         } catch {
             // TODO PASS
         }
     }
 
-    private static getChatFile(loopId: string): string {
+    private static chatKey(loopId: string, sessionId?: string): string {
+        return !sessionId ? loopId : `${loopId}${ARCHIVED_KEY_SEPARATOR}${sessionId}`;
+    }
+
+    private static splitChatKey(chatKey: string): {loopId: string, sessionId?: string} {
+        const [loopId = '', sessionId] = chatKey.split(ARCHIVED_KEY_SEPARATOR);
+        return {loopId, sessionId};
+    }
+
+    /**
+     * The transcript lives in the session folder it is the transcript of, so that closing a
+     * conversation carries the reading of it along with the history it came out of.
+     *
+     * A cron run is the exception: its session folder is thrown away with the run, and its log is
+     * a conversation nobody opens. Left where it was rather than deleted along with the session.
+     */
+    private static getChatFile(chatKey: string): string {
+        const {loopId, sessionId} = this.splitChatKey(chatKey);
+        if (sessionId) {
+            return `${SessionService.getArchivedSessionDir(loopId, sessionId)}/${CHAT_FILE}`;
+        }
+        const {role} = splitLoopId(loopId);
+        if (role === 'cron') {
+            return this.getLegacyChatFile(loopId);
+        }
+        return `${SessionService.getLoopSessionDir(loopId)}/${CHAT_FILE}`;
+    }
+
+    private static getLegacyChatFile(loopId: string): string {
         const {agentId, projectId} = splitLoopId(loopId);
         if (projectId) {
             return `${PROJECT_DIR}/${projectId}/${CHAT_FILE}`;
         } else {
             return `${AGENTS_DIR}/${agentId}/${CHAT_FILE}`;
         }
+    }
+
+    /**
+     * The transcript used to be kept beside the session folder instead of inside it, from before a
+     * conversation could be closed. One left out there would be read back under whichever session
+     * came after it, so it is moved in the first time the log is opened, and before a conversation
+     * is closed: archiving one that was still outside would hand it to the empty session next.
+     */
+    public static migrateLegacyChatFile(loopId: string): void {
+        if (splitLoopId(loopId).role === 'cron') {
+            return;
+        }
+        const chatFile = this.getChatFile(loopId);
+        if (FileUtils.exists(chatFile)) {
+            return;
+        }
+        FileUtils.movePath(this.getLegacyChatFile(loopId), chatFile);
     }
 
     private static saveMessages(loopId: string): void {

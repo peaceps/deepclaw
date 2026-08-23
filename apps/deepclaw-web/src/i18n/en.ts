@@ -202,6 +202,30 @@ export const en = {
                     title: '😔 Sorry',
                     description: 'This Agent seems to be lost...',
                 },
+                session: {
+                    new: 'New conversation',
+                    newConfirm: 'Close this conversation and start {{name}} from an empty context?'
+                        + ' You can still read it back afterwards.',
+                    newConfirmAction: 'Start new',
+                    busyHint: 'Still working, wait for the answer first.',
+                    history: 'Past conversations',
+                    loading: 'Loading...',
+                    empty: 'No conversation was closed yet.',
+                    emptyRead: 'Nothing was said in this conversation.',
+                    noSummary: 'Ended without a word.',
+                    meta: '{{turns}} turns · {{tokens}} tokens',
+                    readonly: 'Reading a conversation that was closed.',
+                    backToCurrent: 'Back',
+                    refused: {
+                        busy: 'The agent is working. Wait for the answer, then start over.',
+                        backgroundCommand: 'A background command is still running.'
+                            + ' Wait for it to finish, then start over.',
+                        unsupported: 'This chat cannot start a new conversation.',
+                        archiveFailed: 'The conversation could not be filed away, so it was left'
+                            + ' open. Nothing was changed, and it is worth trying again.',
+                    },
+                    error: 'Starting a new conversation failed.',
+                },
             },
             tokenUsage: {
                 cachedInput: 'Cached input',

@@ -120,6 +120,7 @@ type AppState = {
   getNewestMessageId: (loopId: string) => string | undefined;
   updateMessage: (loopId: string, id: string, text: string) => void;
   replaceMessage: (loopId: string, id: string, text: string) => void;
+  clearMessages: (chatKey: string) => void;
   setChatBusy: (loopId: string, busy: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
   openChat: (loopId: string) => void;
@@ -256,6 +257,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         return {};
     }
     return { messages: { ...state.messages, ...{[loopId]: state.messages[loopId].map(m => m.id === id ? { ...m, content: text } : m) } } };
+  }),
+  /**
+   * Drops a transcript whole, named by the chat it was held under. A conversation that was closed
+   * is dropped because adding to a transcript that is no longer the one being written would make a
+   * record of two conversations read as one; one that was read back is dropped because the reading
+   * is over, and a tab that kept every conversation its user ever opened would only grow.
+   */
+  clearMessages: (chatKey: string) => set((state) => {
+    const {[chatKey]: dropped, ...rest} = state.messages;
+    return !dropped ? {} : {messages: rest};
   }),
   setChatBusy: (loopId: string, busy: boolean) => set((state) => ({
     busyChatKeys: {

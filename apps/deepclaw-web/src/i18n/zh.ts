@@ -202,6 +202,27 @@ export const zh = {
                     title: '😔 非常遗憾',
                     description: '这个Agent好像已经不在了...',
                 },
+                session: {
+                    new: '新对话',
+                    newConfirm: '结束当前对话，让 {{name}} 从空白上下文重新开始？结束后仍然可以回看。',
+                    newConfirmAction: '开始新对话',
+                    busyHint: '正在工作，先等这轮回答完。',
+                    history: '历史对话',
+                    loading: '加载中...',
+                    empty: '还没有结束过的对话。',
+                    emptyRead: '这段对话里什么都没说。',
+                    noSummary: '结束时没有留下话。',
+                    meta: '{{turns}} 轮 · {{tokens}} tokens',
+                    readonly: '正在回看一段已结束的对话。',
+                    backToCurrent: '返回',
+                    refused: {
+                        busy: 'Agent 正在工作，等这轮回答完再开新对话。',
+                        backgroundCommand: '还有后台命令在运行，等它结束再开新对话。',
+                        unsupported: '这个对话不能开新会话。',
+                        archiveFailed: '归档没成功，当前对话原样保留，什么都没有改动，可以再试一次。',
+                    },
+                    error: '开新对话失败。',
+                },
             },
             skills: {
                 columns: {

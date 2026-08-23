@@ -1,4 +1,21 @@
 v0.0.13
+close a conversation and start the agent over from an empty context, and read back the ones that were
+closed. the two buttons sit in the header of the agent chat beside the token count, and pressing the
+first moves the whole session folder aside: the history the answers came out of, the transcript they
+were read in and everything filed away beside them travel together, so what is read back is the
+transcript of the very conversation that produced it. that transcript used to be kept beside the
+folder rather than inside it, and is moved in the first time a chat opens and again before anything is
+archived, since one left outside would have been handed to whichever conversation came next. the loop
+holding that history in memory is built anew, without which the folder would sit empty on disk while
+the next turn went on answering out of a conversation the user had already closed. every tab watching
+the loop is told, whoever asked for it, each of them holding that transcript too. it is refused while
+a run is going, and refused while a background command is still writing into the folder being moved,
+which is a thing that outlives the run that started it. a conversation nothing was said in stays where
+it is rather than being filed as an empty folder, and one whose turn never ran is kept for the
+opposite reason: it holds what somebody typed, and it is listed under the name it was filed by even
+though no run ever wrote a word about it. reading one back is reading only, the input row giving way
+to the way back, and the tokens a closed conversation spent are not shown as the count of the empty
+one that took its place.
 hand a run only the tools it could have a use for, and tell it of no tool it was not handed: the one
 that records the result of a scheduled run now goes to a scheduled run alone, where before every
 ordinary chat carried it along with no run of its own to record it for, and a subagent working

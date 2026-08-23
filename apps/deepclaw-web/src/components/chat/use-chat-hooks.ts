@@ -1,12 +1,13 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSSEClient } from '@/components/layout/SSEProvider';
 import { sseUrl } from '@/lib/sse-client';
 import { getLogger } from "@/lib/logger";
 import { useInteractionModalStore } from '@/lib/interaction-modal-store';
+import { useToastStore } from '@/lib/toast-store';
 import {
     invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
     resolveInteraction, updateChatMessage, activeLoop, inactiveLoop,
-    getTokenUsage
+    getTokenUsage, pullSessionMessages, startNewSession
 } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import { keepReply } from '@/lib/kept-reply';
@@ -15,7 +16,10 @@ import {
     TokenUsage, type ImageContent
 } from "@deepclaw/core";
 import { useTranslation } from "react-i18next";
-import { AgentCancelInteractionEvent, AgentChatEvent, AgentLoopBusyEvent, AgentTokenUsageEvent } from "@deepclaw/loop-gateway";
+import {
+    AgentCancelInteractionEvent, AgentChatEvent, AgentLoopBusyEvent, AgentSessionResetEvent,
+    AgentTokenUsageEvent, NewSessionRefusal
+} from "@deepclaw/loop-gateway";
 
 const logger = getLogger('useChatHooks');
 
@@ -75,6 +79,7 @@ export function useSSEConnection(
     const addMessage = useAppStore(s => s.addMessage);
     const updateMessage = useAppStore(s => s.updateMessage);
     const replaceMessage = useAppStore(s => s.replaceMessage);
+    const clearMessages = useAppStore(s => s.clearMessages);
     const setChatBusy = useAppStore(s => s.setChatBusy);
 
     useEffect(() => {
@@ -132,6 +137,17 @@ export function useSSEConnection(
                 setTokenUsage(event.usage);
             },
           ),
+          // Whoever closed the conversation is told along with the rest: their own view holds the
+          // transcript too, and the tokens the closed session had spent are not this one's.
+          sseClient.subscribe<AgentSessionResetEvent>(
+            url,
+            'sessionReset',
+            (event) => {
+              if (event.loopId !== loopId) return;
+              clearMessages(loopId);
+              setTokenUsage(undefined);
+            },
+          ),
         ];
 
         setListening(true);
@@ -143,8 +159,93 @@ export function useSSEConnection(
     }, [
         chatInited, loopId, sseClient, setChatBusy,
         showModal, closeModal, addMessage, setTokenUsage,
-        setListening, browserId, updateMessage, replaceMessage
+        setListening, browserId, updateMessage, replaceMessage, clearMessages
     ]);
+}
+
+/**
+ * What the store holds a conversation that was closed under. It is read beside the live one rather
+ * than in place of it, so the two cannot share a name: closing a conversation empties what the live
+ * chat holds, and what is being read back is not that.
+ */
+export function archivedChatKey(loopId: string, sessionId: string): string {
+    return `${loopId}#${sessionId}`;
+}
+
+/** Reads the newest page of a conversation that was closed. Nothing is ever written back to it. */
+export function useArchivedChat(loopId: string, sessionId: string | null) {
+    const addPulledMessages = useAppStore(s => s.addPulledMessages);
+    const clearMessages = useAppStore(s => s.clearMessages);
+    const held = useAppStore(s => !sessionId ? undefined : s.messages[archivedChatKey(loopId, sessionId)]);
+    const loaded = !!held?.length;
+
+    useEffect(() => {
+        if (!sessionId || loaded) return;
+        let cancelled = false;
+        pullSessionMessages(loopId, sessionId).then(messages => {
+            if (cancelled) return;
+            addPulledMessages(archivedChatKey(loopId, sessionId), messages);
+        }).catch(err => {
+            logger.error(`Failed to pull an archived conversation: ${err}`);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [loopId, sessionId, loaded, addPulledMessages]);
+
+    /**
+     * Let go of once the reading is over, and kept for as long as it lasts however far back the
+     * user pages. Held on to after that, every conversation anybody opened would stay in the tab
+     * for as long as the tab did. Kept apart from the effect that loads it, which runs again the
+     * moment the first page lands and would throw it away as soon as it arrived.
+     */
+    useEffect(() => {
+        if (!sessionId) return;
+        return () => clearMessages(archivedChatKey(loopId, sessionId));
+    }, [loopId, sessionId, clearMessages]);
+
+    // Paging back only means anything while a conversation that was closed is being read. Asked
+    // without one, the name would have to be made up, and an empty one reads as the live chat.
+    const pullOlder = useCallback(
+        (endMessageId: string): Promise<ChatMessage[]> => !sessionId
+            ? Promise.resolve([])
+            : pullSessionMessages(loopId, sessionId, endMessageId),
+        [loopId, sessionId]
+    );
+
+    return {messages: held ?? [], pullOlder};
+}
+
+/**
+ * Closes the conversation of this loop. The transcript is not cleared here: the server says it was
+ * closed to every view of the loop, this one included, and clearing it twice would race that.
+ */
+export function useNewSession(loopId: string): {
+    startNew: () => Promise<void>, starting: boolean
+} {
+    const [starting, setStarting] = useState(false);
+    const showToast = useToastStore(s => s.show);
+    const {t} = useTranslation();
+
+    const startNew = useCallback(async () => {
+        setStarting(true);
+        try {
+            const result = await startNewSession(loopId);
+            if (!result.started) {
+                showToast({
+                    type: 'warning',
+                    message: t(`web.pages.chat.session.refused.${result.reason satisfies NewSessionRefusal}`)
+                });
+            }
+        } catch (err) {
+            logger.error(`Failed to start a new conversation of ${loopId}: ${err}`);
+            showToast({type: 'error', message: t('web.pages.chat.session.error')});
+        } finally {
+            setStarting(false);
+        }
+    }, [loopId, showToast, t]);
+
+    return {startNew, starting};
 }
 
 /**

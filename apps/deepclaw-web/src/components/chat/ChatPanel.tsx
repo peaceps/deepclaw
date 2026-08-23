@@ -1,7 +1,7 @@
 'use client';
 
 import { AgentEmployee, getLoopId, TokenUsage, type ImageContent } from "@deepclaw/core";
-import { Send, ImagePlus, X } from 'lucide-react';
+import { Send, ImagePlus, X, ArrowLeft } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
@@ -10,7 +10,10 @@ import { useToastStore } from '@/lib/toast-store';
 import { messageFlexStyles, messageTextStyles, messageTimeStyles } from '../styles-mapping';
 import { formatDate, imageSrc } from '../component-utils';
 import { Markdown } from "@/laf/markdown";
-import { useInitChat, useSSEConnection, useSend, useLoopWatch } from "./use-chat-hooks";
+import {
+  useInitChat, useSSEConnection, useSend, useLoopWatch, useArchivedChat, useNewSession,
+  archivedChatKey
+} from "./use-chat-hooks";
 import { useScroll } from "./use-scroll-hooks";
 
 type ChatPanelProps = {
@@ -23,6 +26,8 @@ type ChatPanelProps = {
    * height would push the input row out of the visible area.
    */
   fitContainer?: boolean;
+  /** Whether this chat may close its conversation and read the ones that were closed. */
+  sessionActions?: boolean;
 };
 
 // as many as an image model takes as the pictures to draw from
@@ -41,26 +46,39 @@ function fileToImageContent(file: File): Promise<ImageContent> {
     });
 }
 
-export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelProps) {
+export function ChatPanel({
+  agent, projectId, fitContainer = false, sessionActions = false
+}: ChatPanelProps) {
   const { t, i18n } = useTranslation();
   const role = !projectId ? 'agent' : 'project';
   const loopId = getLoopId(role, agent.id, projectId);
-  const agentMessages = useAppStore(s => s.messages[loopId]);
+  const liveMessages = useAppStore(s => s.messages[loopId]);
   const [input, setInput] = useState('');
   const [pendingImages, setPendingImages] = useState<ImageContent[]>([]);
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | undefined>(undefined);
   const [chatInited, setChatInited] = useState(false);
   const [listening, setListening] = useState(false);
+  const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
   const locked = useAppStore(s => !!s.busyChatKeys[loopId]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const showToast = useToastStore(s => s.show);
 
+  // The live chat is kept listening while one that was closed is read, so that going back to it
+  // shows what the agent said in the meantime rather than a transcript that stopped.
   useInitChat(loopId, setChatInited, setInput, setTokenUsage);
   useSSEConnection(chatInited, loopId, setListening, setTokenUsage);
   useLoopWatch(listening, loopId);
+  const archived = useArchivedChat(loopId, viewingSessionId);
+  const { startNew, starting } = useNewSession(loopId);
 
+  const agentMessages = !viewingSessionId ? liveMessages : archived.messages;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const handleScroll = useScroll(agentMessages, scrollRef, loopId);
+  const handleScroll = useScroll(
+    agentMessages,
+    scrollRef,
+    !viewingSessionId ? loopId : archivedChatKey(loopId, viewingSessionId),
+    !viewingSessionId ? undefined : archived.pullOlder,
+  );
 
   const { handleSend, handleKeyDown } = useSend(
     loopId, role, agent, projectId, input, setInput, pendingImages, () => setPendingImages([])
@@ -88,6 +106,10 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
   };
 
   const canAddImage = chatInited && !locked && pendingImages.length < MAX_IMAGES;
+  const reading = !!viewingSessionId;
+  // The last message of a run being written is shown as plain text until it is whole. The last of a
+  // conversation that was closed was written long ago, whatever the loop happens to be doing now.
+  const writing = locked && !reading;
 
   const removePendingImage = (index: number) => {
     setPendingImages(prev => prev.filter((_, i) => i !== index));
@@ -102,11 +124,24 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
 
   return (
     <div className={`flex flex-col h-full bg-white ${fitContainer ? '' : 'min-h-140'}`}>
-      {<ChatHeader agent={agent} tokenUsage={tokenUsage}/>}
+      <ChatHeader
+        agent={agent}
+        tokenUsage={reading ? undefined : tokenUsage}
+        sessionActions={sessionActions}
+        loopId={loopId}
+        viewingSessionId={viewingSessionId}
+        startingSession={starting}
+        onNewSession={startNew}
+        onViewSession={setViewingSessionId}
+      />
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
         {!agentMessages?.length ? (
           <div className="text-center py-12 text-gray-400">
-            <p className="text-sm mt-1">{t(`web.pages.chat.type.${!projectId ? 'agent' : 'project'}.emptyPrompt`, {name: agent.name})}</p>
+            <p className="text-sm mt-1">{t(
+              reading ? 'web.pages.chat.session.emptyRead'
+                : `web.pages.chat.type.${!projectId ? 'agent' : 'project'}.emptyPrompt`,
+              {name: agent.name}
+            )}</p>
           </div>
         ) : (
           agentMessages.map((message, i) => (
@@ -134,11 +169,11 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
                 )}
                 {message.type === 'user' && !!message.content &&
                     <p className="text-sm whitespace-pre-wrap wrap-anywhere">{message.content}</p>}
-                {message.type === 'agent' && (i === agentMessages.length - 1 && locked) &&
+                {message.type === 'agent' && (i === agentMessages.length - 1 && writing) &&
                     <p className="text-sm whitespace-pre-wrap wrap-anywhere">
                         {message.content || t('web.pages.chat.loading')}
                     </p>}
-                {message.type === 'agent' && !(i === agentMessages.length - 1 && locked) &&
+                {message.type === 'agent' && !(i === agentMessages.length - 1 && writing) &&
                     <Markdown content={message.content || t('web.pages.chat.loading')} />}
                 <p className={`text-xs mt-1 ${messageTimeStyles[message.type]}`}>
                   {formatDate(i18n.language, message.timestamp)}
@@ -148,7 +183,21 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
           ))
         )}
       </div>
-      {pendingImages.length > 0 && (
+      {reading && (
+        <div className="flex items-center gap-2 border-t border-gray-100 bg-gray-50 px-4 py-3">
+          <p className="flex-1 text-xs text-gray-500">{t('web.pages.chat.session.readonly')}</p>
+          <button
+            type="button"
+            onClick={() => setViewingSessionId(null)}
+            className="flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs
+              font-medium text-gray-600 transition-colors hover:bg-gray-100 cursor-pointer"
+          >
+            <ArrowLeft size={14} />
+            {t('web.pages.chat.session.backToCurrent')}
+          </button>
+        </div>
+      )}
+      {!reading && pendingImages.length > 0 && (
         <div className="px-4 pt-2 flex flex-wrap gap-2">
           {pendingImages.map((img, idx) => (
             <div key={idx} className="relative group">
@@ -169,7 +218,7 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
           ))}
         </div>
       )}
-      <div className="p-4 border-t border-gray-100">
+      {!reading && <div className="p-4 border-t border-gray-100">
         <div className="flex gap-2">
           <input
             type="file"
@@ -208,7 +257,7 @@ export function ChatPanel({ agent, projectId, fitContainer = false }: ChatPanelP
             <Send size={18} />
           </button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

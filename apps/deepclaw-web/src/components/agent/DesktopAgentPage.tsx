@@ -60,6 +60,7 @@ export function DesktopAgentPage({selectedAgent}: {
         {selectedAgent && <ChatSidebar
           projectId=""
           agent={selectedAgent}
+          sessionActions
         />}
       </div>
     );

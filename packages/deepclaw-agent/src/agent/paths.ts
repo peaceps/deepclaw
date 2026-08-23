@@ -1,9 +1,14 @@
+/**
+ * The session being talked in. Starting a new conversation moves the whole of this folder under
+ * ARCHIVED_DIR, so what reads a session never has to ask which one is current.
+ */
 export const SESSION_DIR = 'session';
+/** Where the conversations that were closed are kept, one folder per session. */
+export const ARCHIVED_DIR = 'archived';
 // Agent session
 export const AGENTS_DIR = '.agents';
 export const AGENT_MD = 'AGENT.md';
 export const AGENT_SOUL_JSON = 'SOUL.json';
-export const AGENT_CURRENT_SESSION_DIR = 'current';
 
 // Project session
 export const PROJECT_DIR = '.projects';

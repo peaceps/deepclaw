@@ -37,6 +37,12 @@ const mocks = vi.hoisted(() => ({
     clearAwayUser: vi.fn<(loopId: string) => void>(),
     addMessage: vi.fn(),
     replaceMessage: vi.fn(),
+    archiveSession: vi.fn<(loopId: string) => string | undefined>(() => 'archived1'),
+    listSessions: vi.fn<() => unknown[]>(() => []),
+    hasRunningCommand: vi.fn<(loopId: string) => boolean>(() => false),
+    forget: vi.fn<(loopId: string) => void>(),
+    migrateLegacyChatFile: vi.fn<(loopId: string) => void>(),
+    getOlderMessages: vi.fn<() => unknown[]>(() => []),
     saveImage: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
         (_bytes, extension, loopId) => `${loopId}/abc123.${extension}`
     ),
@@ -51,7 +57,12 @@ vi.mock('@deepclaw/agent', () => ({
         updateCronTaskStatus: mocks.updateCronTaskStatus,
     },
     MCPService: {connect: mocks.mcpConnect},
-    SessionService: {getTokenUsage: mocks.getTokenUsage},
+    SessionService: {
+        getTokenUsage: mocks.getTokenUsage,
+        archiveSession: mocks.archiveSession,
+        listSessions: mocks.listSessions,
+    },
+    BackgroundCommandManager: {hasRunningCommand: mocks.hasRunningCommand},
     AgentIdentityManager: {
         newAgentIdentity: mocks.newAgentIdentity,
         updateAgentIdentity: mocks.updateAgentIdentity,
@@ -84,7 +95,13 @@ vi.mock('./agent-runtime-service', () => ({
 }));
 
 vi.mock('./ui-chat-service', () => ({
-    UIChatService: {addMessage: mocks.addMessage, replaceMessage: mocks.replaceMessage},
+    UIChatService: {
+        addMessage: mocks.addMessage,
+        replaceMessage: mocks.replaceMessage,
+        forget: mocks.forget,
+        migrateLegacyChatFile: mocks.migrateLegacyChatFile,
+        getOlderMessages: mocks.getOlderMessages,
+    },
 }));
 
 vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
@@ -387,6 +404,161 @@ describe('invoke', () => {
         loop.isOutdated.mockReturnValue(true);
         LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'second');
         expect(mocks.getLoop).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('startNewSession', () => {
+
+    async function idleLoop() {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockResolvedValue({text: 'done', runtime: newRuntime()});
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        return {loopInfo, loopId, loop};
+    }
+
+    test('closes the conversation and names the one it kept', async () => {
+        const {loopId} = await idleLoop();
+        expect(LoopGateway.startNewSession(loopId)).toEqual({started: true, sessionId: 'archived1'});
+        expect(mocks.archiveSession).toHaveBeenCalledExactlyOnceWith(loopId);
+    });
+
+    test('says nothing was kept when there was nothing in the conversation', async () => {
+        const {loopId} = await idleLoop();
+        mocks.archiveSession.mockReturnValueOnce(undefined);
+        expect(LoopGateway.startNewSession(loopId)).toEqual({started: true, sessionId: undefined});
+    });
+
+    /**
+     * Without this the folder would be empty on disk while the loop went on answering out of the
+     * history it still held in memory.
+     */
+    test('builds the loop again so the next turn starts from an empty history', async () => {
+        const {loopId} = await idleLoop();
+        LoopGateway.startNewSession(loopId);
+        expect(mocks.getLoop).toHaveBeenCalledTimes(2);
+    });
+
+    test('forgets the transcript it was holding', async () => {
+        const {loopId} = await idleLoop();
+        LoopGateway.startNewSession(loopId);
+        expect(mocks.forget).toHaveBeenCalledExactlyOnceWith(loopId);
+    });
+
+    /** Archiving one that still sat outside the session would hand it to the empty session next. */
+    test('brings a transcript left beside the session in before archiving', async () => {
+        const {loopId} = await idleLoop();
+        LoopGateway.startNewSession(loopId);
+        expect(mocks.migrateLegacyChatFile.mock.invocationCallOrder[0]!)
+            .toBeLessThan(mocks.archiveSession.mock.invocationCallOrder[0]!);
+    });
+
+    test('tells every view of the loop that the conversation was closed', async () => {
+        const {loopId} = await idleLoop();
+        LoopGateway.startNewSession(loopId);
+        expect(events).toContainEqual({eventType: 'sessionReset', loopId});
+    });
+
+    test('refuses while a run is going', () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        expect(LoopGateway.startNewSession(loopId)).toEqual({started: false, reason: 'busy'});
+        expect(mocks.archiveSession).not.toHaveBeenCalled();
+    });
+
+    /** Outliving the turn that started it is the whole point of a background command. */
+    test('refuses while a background command is still writing into the session', async () => {
+        const {loopId} = await idleLoop();
+        mocks.hasRunningCommand.mockReturnValueOnce(true);
+        expect(LoopGateway.startNewSession(loopId))
+            .toEqual({started: false, reason: 'backgroundCommand'});
+        expect(mocks.archiveSession).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The folder is still there with everything in it, so the conversation is still open. Told it
+     * closed, the view would empty itself and the loop would be built from the history it never
+     * stopped having: the user reads an empty chat while the agent remembers all of it.
+     */
+    test('refuses when the conversation could not be filed away', async () => {
+        const {loopId} = await idleLoop();
+        mocks.archiveSession.mockImplementationOnce(() => {
+            throw new Error('the folder would not move');
+        });
+        expect(LoopGateway.startNewSession(loopId))
+            .toEqual({started: false, reason: 'archiveFailed'});
+    });
+
+    test('leaves everything as it was when the conversation could not be filed away', async () => {
+        const {loopId} = await idleLoop();
+        mocks.getLoop.mockClear();
+        mocks.archiveSession.mockImplementationOnce(() => {
+            throw new Error('the folder would not move');
+        });
+        LoopGateway.startNewSession(loopId);
+        expect(mocks.forget).not.toHaveBeenCalled();
+        expect(mocks.getLoop).not.toHaveBeenCalled();
+        expect(events).not.toContainEqual({eventType: 'sessionReset', loopId});
+    });
+
+    /** The folder has moved by the time the loop is built again, so there is nothing left to refuse. */
+    test('still says the conversation was closed when the loop could not be built again', async () => {
+        const {loopId} = await idleLoop();
+        mocks.getLoop.mockImplementationOnce(() => {
+            throw new Error('the agent is gone');
+        });
+        expect(LoopGateway.startNewSession(loopId)).toEqual({started: true, sessionId: 'archived1'});
+        expect(events).toContainEqual({eventType: 'sessionReset', loopId});
+    });
+
+    /**
+     * What must not survive is the loop still holding the conversation that was just closed: kept,
+     * it would answer the next turn out of it and write that history into the session which took
+     * its place. Losing the instance costs a build; keeping it costs the conversation.
+     */
+    test('drops a loop that could not be built again, for the next turn to build a clean one', async () => {
+        const {loopInfo, loopId} = await idleLoop();
+        mocks.getLoop.mockImplementationOnce(() => {
+            throw new Error('the agent is gone');
+        });
+        LoopGateway.startNewSession(loopId);
+        mocks.getLoop.mockClear();
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        expect(mocks.getLoop).toHaveBeenCalledOnce();
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+    });
+
+    /** Its session is in the temp folder and thrown away per run, so there is nothing to close. */
+    test('refuses a cron run', () => {
+        expect(LoopGateway.startNewSession('cron.a1.c1'))
+            .toEqual({started: false, reason: 'unsupported'});
+        expect(mocks.archiveSession).not.toHaveBeenCalled();
+    });
+
+    test('closes the conversation of a loop it never built', () => {
+        expect(LoopGateway.startNewSession('agent.neverTalked').started).toBe(true);
+        expect(mocks.getLoop).not.toHaveBeenCalled();
+    });
+
+    test('reads a page of a conversation that was closed', () => {
+        mocks.getOlderMessages.mockReturnValueOnce([{id: 'm1'}]);
+        expect(LoopGateway.getSessionMessages('agent.a1', 's1', 'm2')).toEqual([{id: 'm1'}]);
+        expect(mocks.getOlderMessages).toHaveBeenCalledWith('agent.a1', 'm2', 's1');
+    });
+
+    /**
+     * An empty name reads as the conversation being talked in everywhere below here, which would
+     * walk past the check on the name and hand the live chat back dressed as an archived one.
+     */
+    test('refuses to read back without being told which conversation', () => {
+        expect(() => LoopGateway.getSessionMessages('agent.a1', '')).toThrow('No session was named');
+        expect(mocks.getOlderMessages).not.toHaveBeenCalled();
+    });
+
+    test('lists the conversations that were closed', () => {
+        mocks.listSessions.mockReturnValueOnce([{sessionId: 's1'}]);
+        expect(LoopGateway.listSessions('agent.a1')).toEqual([{sessionId: 's1'}]);
     });
 });
 

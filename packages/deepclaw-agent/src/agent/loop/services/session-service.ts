@@ -1,17 +1,28 @@
 import { FileUtils } from "@deepclaw/node-utils";
 import {
-    AGENTS_DIR, CRON_DIR, PROJECT_DIR, SESSION_DIR, SESSION_HISTORY_FILE, SESSION_METADATA_FILE,
-    SUB_LOOP_DIR, TASK_LOOP_DIR
+    AGENTS_DIR, ARCHIVED_DIR, CHAT_FILE, CRON_DIR, PROJECT_DIR, SESSION_DIR,
+    SESSION_HISTORY_FILE, SESSION_METADATA_FILE, SUB_LOOP_DIR, TASK_LOOP_DIR
 } from "../../paths";
 import {
     isSpawnedLoop, LLMProtocol, LoopKind, LoopSessionStatus, OneLoopContext, SessionMetaData,
-    SpawnedLoop,
+    SessionSummary, SpawnedLoop,
 } from "../../definitions/definitions";
 import { isExternalInterruptReason, isAgentStopReason, TokenUsage, splitLoopId, FlushAgentRole, addTokenUsage } from "@deepclaw/core";
 import { getLogger } from "@deepclaw/node-utils";
 
 const SAVE_THRESHOLD = 10;
 const logger = getLogger('SessionService');
+/**
+ * What names a conversation that was closed: the moment it was closed at, to the millisecond. Both
+ * what is offered in a list and what is accepted back from one are held to it.
+ */
+const SESSION_ID = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{3})$/;
+/**
+ * How much of the last thing an archived conversation said travels with the list of them. A list
+ * shows two lines of it, and a run can end with a report of thirty thousand characters: sending the
+ * whole of every one of them to draw two lines is a page that grows heavier with every conversation.
+ */
+const SUMMARY_TEXT_LIMIT = 200;
 
 export type MetaDataConfig = {
     sessionDir: string,
@@ -49,9 +60,168 @@ export class SessionService {
         }
     }
 
+    /** The folder the given loop is talking in. */
+    public static getLoopSessionDir(loopId: string): string {
+        const {role, agentId, projectId} = splitLoopId(loopId);
+        return this.getSessionDir(role, agentId, projectId ?? '');
+    }
+
+    /**
+     * The folder a conversation of this loop that was closed was moved to.
+     *
+     * The id arrives from a browser and is about to become a path. Nothing but a timestamp is a
+     * session, and a name that is anything else is asking to be read somewhere it has no business
+     * being: two dots would walk out of the agent's folder and into the live chat of another.
+     */
+    public static getArchivedSessionDir(loopId: string, sessionId: string): string {
+        if (!SESSION_ID.test(sessionId)) {
+            throw new Error(`Not a session id: ${sessionId}`);
+        }
+        return `${this.getArchivedDir(this.getLoopSessionDir(loopId))}/${sessionId}`;
+    }
+
+    /**
+     * Where the conversations of this loop that were closed are kept. Derived from the folder being
+     * talked in rather than named again per role: the two would drift apart, and a session archived
+     * beside the wrong agent is a conversation nobody finds again.
+     */
+    private static getArchivedDir(sessionDir: string): string {
+        const parent = sessionDir.lastIndexOf('/');
+        if (parent < 0) {
+            throw new Error(`Not a session folder: ${sessionDir}`);
+        }
+        return `${sessionDir.slice(0, parent)}/${ARCHIVED_DIR}`;
+    }
+
     /** Called when a session folder is gone for good, otherwise its metadata would be kept forever. */
     public static dropSession(sessionDir: string): void {
         this.sessionMeta.delete(sessionDir);
+    }
+
+    /**
+     * Closes the conversation of this loop by moving the whole session folder aside, so that the
+     * next turn starts from an empty history. The chat log travels with it: what the user reads
+     * back has to be the transcript of the very history the answers came out of.
+     *
+     * Answers with nothing when there was no conversation to close, and throws when there was one
+     * and it did not move. Those two are worth telling apart by whoever asked: a caller that reads
+     * a failure as an empty conversation goes on to empty the chat and build the loop again, and
+     * the loop reads the very same history back off the disk it was never moved from. The user is
+     * told they are starting over and the agent remembers everything.
+     */
+    public static archiveSession(loopId: string): string | undefined {
+        const sessionDir = this.getLoopSessionDir(loopId);
+        if (!FileUtils.exists(sessionDir) || this.isSessionEmpty(sessionDir)) {
+            return undefined;
+        }
+        const sessionId = FileUtils.timestamp();
+        const archived = `${this.getArchivedDir(sessionDir)}/${sessionId}`;
+        // What the conversation ended as is read before the move and written after it. Stamped
+        // where it stands, a move that then failed would leave the session still being talked in
+        // marked as one that is over.
+        const ended = this.endedMeta(sessionDir);
+        if (!FileUtils.movePath(sessionDir, archived)) {
+            throw new Error(`The session folder of ${loopId} went missing before it was archived.`);
+        }
+        this.dropSession(sessionDir);
+        this.saveArchivedMeta(archived, ended);
+        return sessionId;
+    }
+
+    /**
+     * Whether closing this conversation would keep anything. A folder holding only what the loop
+     * left lying around is nothing to read back, and filing one away per click would fill the list
+     * with conversations that were never had.
+     */
+    private static isSessionEmpty(sessionDir: string): boolean {
+        const meta = this.getMeta(sessionDir);
+        if (meta && meta.runtime.turnCount > 0) {
+            return false;
+        }
+        // A turn that never ran still leaves what the user typed and whatever the loop had already
+        // been told, and losing either without a word is worse than keeping a short session around.
+        return !FileUtils.exists(`${sessionDir}/${CHAT_FILE}`)
+            && !FileUtils.exists(`${sessionDir}/${SESSION_HISTORY_FILE}`);
+    }
+
+    /** The metadata of this session as it stands, marked as over. Written nowhere yet. */
+    private static endedMeta(sessionDir: string): SessionMetaData | undefined {
+        const meta = this.getMeta(sessionDir);
+        if (!meta) {
+            return undefined;
+        }
+        const now = new Date().toISOString();
+        return {
+            ...meta,
+            runtime: {...meta.runtime, endedAt: meta.runtime.endedAt ?? now, updatedAt: now},
+        };
+    }
+
+    /** The conversation is already archived by now, so failing to stamp it is worth no more than a line. */
+    private static saveArchivedMeta(archived: string, meta?: SessionMetaData): void {
+        if (!meta) {
+            return;
+        }
+        try {
+            FileUtils.writeFile(
+                `${archived}/${SESSION_METADATA_FILE}`, JSON.stringify(meta, null, 2)
+            );
+        } catch (error) {
+            logger.warn(`Marking the archived session ${archived} as ended failed: ${error}`);
+        }
+    }
+
+    /**
+     * The conversations of this loop that were closed, the most recent one first.
+     *
+     * A folder is listed whether it has metadata or not. A conversation whose turn never ran has a
+     * transcript and nothing else, and it is archived for exactly that reason: left off the list it
+     * would be a folder holding what somebody typed that they can never open again. A folder whose
+     * name is not a timestamp is not one of ours and is not offered as one, since it is a name that
+     * would be refused the moment it was clicked.
+     */
+    public static listSessions(loopId: string): SessionSummary[] {
+        const archivedDir = this.getArchivedDir(this.getLoopSessionDir(loopId));
+        const sessions = FileUtils.listDirs(archivedDir)
+            .filter(sessionId => SESSION_ID.test(sessionId))
+            .map(sessionId => this.summarize(archivedDir, sessionId));
+        return sessions.sort((a, b) => b.sessionId.localeCompare(a.sessionId));
+    }
+
+    private static summarize(archivedDir: string, sessionId: string): SessionSummary {
+        const closedAt = this.sessionIdTime(sessionId);
+        const empty: SessionSummary = {
+            sessionId,
+            startedAt: closedAt,
+            updatedAt: closedAt,
+            turnCount: 0,
+            finalText: '',
+            usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+        };
+        try {
+            const file = FileUtils.readFile(`${archivedDir}/${sessionId}/${SESSION_METADATA_FILE}`);
+            const {runtime} = JSON.parse(file) as SessionMetaData;
+            return {
+                sessionId,
+                startedAt: runtime.startedAt ?? closedAt,
+                updatedAt: runtime.updatedAt ?? closedAt,
+                turnCount: runtime.turnCount ?? 0,
+                finalText: (runtime.finalText ?? '').slice(0, SUMMARY_TEXT_LIMIT),
+                usage: runtime.usage ?? empty.usage,
+            };
+        } catch {
+            return empty;
+        }
+    }
+
+    /**
+     * The moment a session folder is named after: the name is a timestamp with its separators taken
+     * out, and is the one thing known about a conversation whose metadata never made it to disk.
+     * Only ever asked of a name that is one, which is the only kind that is listed.
+     */
+    private static sessionIdTime(sessionId: string): string {
+        const [, year, month, day, hour, minute, second, ms] = SESSION_ID.exec(sessionId)!;
+        return `${year}-${month}-${day}T${hour}:${minute}:${second}.${ms}Z`;
     }
 
     private static getMeta(sessionDir: string): SessionMetaData | null {
@@ -101,6 +271,7 @@ export class SessionService {
     }
 
     private static newSessionMetaData(config: MetaDataConfig): SessionMetaData {
+        const now = new Date().toISOString();
         return {
             llmProtocol: config.llmProtocol,
             agentId: config.agentId,
@@ -113,7 +284,8 @@ export class SessionService {
                 status: 'idle',
                 turnCount: 0,
                 finalText: '',
-                updatedAt: new Date().toISOString(),
+                startedAt: now,
+                updatedAt: now,
                 usage: {
                     cachedInputTokens: 0,
                     noCachedInputTokens: 0,
@@ -199,9 +371,7 @@ export class SessionService {
     }
 
     public static getTokenUsage(loopId: string): TokenUsage | undefined {
-        const {role, agentId, projectId} = splitLoopId(loopId);
-        const sessionDir = this.getSessionDir(role, agentId, projectId ?? '');
-        const meta = this.getMeta(sessionDir);
+        const meta = this.getMeta(this.getLoopSessionDir(loopId));
         if (!meta) {
             return undefined;
         }

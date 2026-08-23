@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
     writeFile: vi.fn<(filePath: string, content: string) => string>(),
     appendFile: vi.fn<(filePath: string, content: string) => void>(),
     getTmpDir: vi.fn<() => string>(),
+    exists: vi.fn<(filePath: string) => boolean>(),
+    movePath: vi.fn<(from: string, to: string) => boolean>(),
+    timestamp: vi.fn<() => string>(),
+    readDir: vi.fn<(dirPath: string, fileToRead?: (name: string) => string) =>
+        {[key: string]: {dir: string, content: string}}>(),
+    listDirs: vi.fn<(dirPath: string) => string[]>(),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -17,6 +23,11 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
         writeFile: mocks.writeFile,
         appendFile: mocks.appendFile,
         getTmpDir: mocks.getTmpDir,
+        exists: mocks.exists,
+        movePath: mocks.movePath,
+        timestamp: mocks.timestamp,
+        readDir: mocks.readDir,
+        listDirs: mocks.listDirs,
     },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
@@ -24,6 +35,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
 
 const disk: {[filePath: string]: string} = {};
 let sessionCounter = 0;
+let timestampCounter = 0;
 
 /** The metadata cache is keyed by session directory, so every test works in a directory of its own. */
 function nextSessionDir(): string {
@@ -74,6 +86,37 @@ beforeEach(() => {
     });
     mocks.writeFile.mockImplementation((filePath: string) => filePath);
     mocks.getTmpDir.mockReturnValue('/tmp/.deepclaw');
+    // A folder is whatever has something under it, which is as much of one as the disk has.
+    mocks.exists.mockImplementation((filePath: string) =>
+        Object.keys(disk).some(path => path === filePath || path.startsWith(`${filePath}/`)));
+    mocks.movePath.mockImplementation((from: string, to: string) => {
+        const moved = Object.keys(disk).filter(path => path === from || path.startsWith(`${from}/`));
+        for (const path of moved) {
+            disk[`${to}${path.slice(from.length)}`] = disk[path]!;
+            delete disk[path];
+        }
+        return moved.length > 0;
+    });
+    // A session id is a timestamp to the millisecond, and only a name shaped like one is a session.
+    mocks.timestamp.mockImplementation(
+        () => `2026010100000${String(timestampCounter++).padStart(4, '0')}`
+    );
+    mocks.listDirs.mockImplementation((dirPath: string) => [...new Set(Object.keys(disk)
+        .filter(path => path.startsWith(`${dirPath}/`))
+        .map(path => path.slice(dirPath.length + 1).split('/')[0]!))]);
+    mocks.readDir.mockImplementation((dirPath: string, fileToRead?: (name: string) => string) => {
+        const files: {[key: string]: {dir: string, content: string}} = {};
+        const children = new Set(Object.keys(disk)
+            .filter(path => path.startsWith(`${dirPath}/`))
+            .map(path => path.slice(dirPath.length + 1).split('/')[0]!));
+        for (const child of children) {
+            const filePath = fileToRead ? fileToRead(child) : child;
+            const content = disk[`${dirPath}/${filePath}`];
+            if (content === undefined) continue;
+            files[filePath] = {dir: child, content};
+        }
+        return files;
+    });
 });
 
 describe('getSessionDir', () => {
@@ -514,5 +557,231 @@ describe('getTokenUsage', () => {
             loopId: 'cron.a1.usageCron', loopKind: 'main' as const, llmProtocol: 'Anthropic',
         });
         expect(SessionService.getTokenUsage('cron.a1.usageCron')).toBeDefined();
+    });
+});
+
+describe('archiveSession', () => {
+
+    /** The loop id has to name the folder, since that is what archiving is asked by. */
+    function startTalking(turnCount = 0): {context: OneLoopContext, loopId: string} {
+        const sessionDir = nextSessionDir();
+        const agentId = sessionDir.split('/')[1]!;
+        const loopId = `agent.${agentId}`;
+        const context = startSession({sessionDir, loopId, agentId, projectId: ''});
+        // The folder is there either way. What a run left lying around in it is not a conversation.
+        disk[`${sessionDir}/tool_results/r1.txt`] = 'the result of some tool call';
+        if (turnCount > 0) {
+            disk[`${sessionDir}/messages.jsonl`] = '{"i":1}\n';
+            SessionService.saveHistory([], context, {turnCount});
+        }
+        return {context, loopId};
+    }
+
+    test('moves the whole session folder aside and names where it went', () => {
+        const {context, loopId} = startTalking(3);
+        const sessionId = SessionService.archiveSession(loopId);
+        expect(sessionId).toBeDefined();
+        expect(disk[`.agents/${context.agentId}/archived/${sessionId}/messages.jsonl`]).toBe('{"i":1}\n');
+        expect(disk[`${context.sessionDir}/messages.jsonl`]).toBeUndefined();
+    });
+
+    /** What the user reads back has to be the transcript of the history the answers came out of. */
+    test('takes the chat log along with the history', () => {
+        const {context, loopId} = startTalking(3);
+        disk[`${context.sessionDir}/chat.jsonl`] = '{"id":"m1"}\n';
+        const sessionId = SessionService.archiveSession(loopId);
+        expect(disk[`.agents/${context.agentId}/archived/${sessionId}/chat.jsonl`]).toBe('{"id":"m1"}\n');
+    });
+
+    test('leaves a conversation nothing was said in where it is', () => {
+        const {loopId} = startTalking();
+        expect(SessionService.archiveSession(loopId)).toBeUndefined();
+        expect(mocks.movePath).not.toHaveBeenCalled();
+    });
+
+    /** Losing what somebody typed is worse than keeping a conversation of one line around. */
+    test('keeps a conversation whose turn never ran', () => {
+        const {context, loopId} = startTalking();
+        disk[`${context.sessionDir}/chat.jsonl`] = '{"id":"m1"}\n';
+        expect(SessionService.archiveSession(loopId)).toBeDefined();
+    });
+
+    test('says nothing went anywhere when there is no session at all', () => {
+        expect(SessionService.archiveSession('agent.neverTalked')).toBeUndefined();
+    });
+
+    /**
+     * Held on to, the metadata of the conversation that was closed would be read as the state of the
+     * empty one taking its place, down to the tokens it had spent.
+     */
+    test('forgets what it knew about the conversation it closed', () => {
+        const {loopId} = startTalking(3);
+        SessionService.archiveSession(loopId);
+        expect(SessionService.getTokenUsage(loopId)).toBeUndefined();
+    });
+
+    /** Stamped where the conversation now is, and only once it got there. */
+    test('stamps the archived session as ended, in the folder it was moved to', () => {
+        const {context, loopId} = startTalking(3);
+        const writesBefore = mocks.writeFile.mock.calls.length;
+        const sessionId = SessionService.archiveSession(loopId);
+        const archived = `.agents/${context.agentId}/archived/${sessionId}`;
+        expect(persistedMeta(archived).runtime.endedAt).toBeDefined();
+        // Nothing is written where the conversation stood: stamped there, a move that then failed
+        // would leave the session still being talked in marked as one that is over.
+        expect(mocks.writeFile.mock.calls.slice(writesBefore)
+            .some(([filePath]) => filePath === metaPath(context.sessionDir))).toBe(false);
+    });
+
+    /**
+     * A folder that did not move is a conversation still open, and saying it closed is worse than
+     * saying nothing: what asked would go on to empty the chat and build the loop from that history.
+     */
+    test('reports a session folder that would not move rather than answering with nothing', () => {
+        const {loopId} = startTalking(3);
+        mocks.movePath.mockReturnValueOnce(false);
+        expect(() => SessionService.archiveSession(loopId)).toThrow('went missing');
+    });
+
+    test('leaves the session where it is when the move failed', () => {
+        const {context, loopId} = startTalking(3);
+        mocks.movePath.mockReturnValueOnce(false);
+        expect(() => SessionService.archiveSession(loopId)).toThrow();
+        expect(disk[`${context.sessionDir}/messages.jsonl`]).toBe('{"i":1}\n');
+        expect(SessionService.getTokenUsage(loopId)).toBeDefined();
+    });
+
+    /** A turn that never finished still left the loop something it had been told. */
+    test('keeps a session that has a history and no transcript', () => {
+        const {context, loopId} = startTalking();
+        disk[`${context.sessionDir}/messages.jsonl`] = '{"i":1}\n';
+        expect(SessionService.archiveSession(loopId)).toBeDefined();
+    });
+});
+
+describe('getArchivedSessionDir', () => {
+
+    test('names the folder a conversation of this loop was moved to', () => {
+        expect(SessionService.getArchivedSessionDir('agent.a1', '20260823142100123'))
+            .toBe('.agents/a1/archived/20260823142100123');
+    });
+
+    /**
+     * The id comes in from a browser and is about to be a path. Two dots would walk out of the
+     * agent's own folder and read the live chat of another one.
+     */
+    test('refuses an id that would climb out of the folder it belongs to', () => {
+        expect(() => SessionService.getArchivedSessionDir('agent.a1', '../../other/session'))
+            .toThrow('Not a session id');
+    });
+
+    test('refuses a name that is not a timestamp', () => {
+        expect(() => SessionService.getArchivedSessionDir('agent.a1', 'session'))
+            .toThrow('Not a session id');
+    });
+
+    test('refuses an id dressed up as a timestamp with a path on the end', () => {
+        expect(() => SessionService.getArchivedSessionDir('agent.a1', '20260823142100123/../..'))
+            .toThrow('Not a session id');
+    });
+});
+
+describe('listSessions', () => {
+
+    /** Sessions are named after the moment they were closed, which is the order they are listed in. */
+    const OLDER = '20260101120000000';
+    const NEWER = '20260101130000000';
+
+    function archived(agentId: string, sessionId: string, runtime: Record<string, unknown>): void {
+        disk[`.agents/${agentId}/archived/${sessionId}/session.json`] = JSON.stringify({
+            llmProtocol: 'Anthropic', agentId, projectId: '', loopId: `agent.${agentId}`,
+            loopKind: 'main', messagesPath: '',
+            runtime: {
+                status: 'idle', turnCount: 1, updatedAt: '2026-01-01T00:00:00.000Z',
+                usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+                ...runtime,
+            },
+        });
+    }
+
+    test('answers with nothing when no conversation was ever closed', () => {
+        expect(SessionService.listSessions('agent.listEmpty')).toEqual([]);
+    });
+
+    test('lists what each conversation was, the most recent one first', () => {
+        archived('listTwo', OLDER, {turnCount: 2, finalText: 'the older one'});
+        archived('listTwo', NEWER, {turnCount: 9, finalText: 'the newer one'});
+        const sessions = SessionService.listSessions('agent.listTwo');
+        expect(sessions.map(session => session.sessionId)).toEqual([NEWER, OLDER]);
+        expect(sessions[0]).toMatchObject({turnCount: 9, finalText: 'the newer one'});
+    });
+
+    test('carries the token usage of each conversation', () => {
+        archived('listUsage', OLDER, {
+            usage: {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3},
+        });
+        expect(SessionService.listSessions('agent.listUsage')[0]?.usage)
+            .toEqual({cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3});
+    });
+
+    test('answers with an empty summary text for a session that ended saying nothing', () => {
+        archived('listSilent', OLDER, {finalText: undefined});
+        expect(SessionService.listSessions('agent.listSilent')[0]?.finalText).toBe('');
+    });
+
+    /**
+     * A list shows two lines of what a conversation ended with, and a run can end with a report of
+     * thirty thousand characters. Sending every one of them to draw two lines makes opening the
+     * list heavier with every conversation that was ever closed.
+     */
+    test('cuts the summary of a conversation down to what a list can show', () => {
+        archived('listLong', OLDER, {finalText: 'x'.repeat(30000)});
+        expect(SessionService.listSessions('agent.listLong')[0]?.finalText).toHaveLength(200);
+    });
+
+    /**
+     * A conversation whose turn never ran has a transcript and no metadata at all, and it is
+     * archived for exactly that reason: left off the list it would be unreachable for good.
+     */
+    test('lists a session that has nothing but a transcript', () => {
+        disk[`.agents/listBare/archived/${OLDER}/chat.jsonl`] = '{"id":"m1"}\n';
+        expect(SessionService.listSessions('agent.listBare')).toEqual([{
+            sessionId: OLDER, startedAt: '2026-01-01T12:00:00.000Z',
+            updatedAt: '2026-01-01T12:00:00.000Z', turnCount: 0, finalText: '',
+            usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+        }]);
+    });
+
+    test('lists a session whose metadata is not readable', () => {
+        archived('listBroken', OLDER, {});
+        disk[`.agents/listBroken/archived/${NEWER}/session.json`] = 'not json';
+        const sessions = SessionService.listSessions('agent.listBroken');
+        expect(sessions.map(session => session.sessionId)).toEqual([NEWER, OLDER]);
+        expect(sessions[0]?.turnCount).toBe(0);
+    });
+
+    /** One that would be refused the moment it was clicked is not worth offering. */
+    test('leaves out a folder that is not named after a session', () => {
+        archived('listStray', OLDER, {});
+        disk['.agents/listStray/archived/notes/session.json'] = 'not json';
+        expect(SessionService.listSessions('agent.listStray').map(session => session.sessionId))
+            .toEqual([OLDER]);
+    });
+
+    /** The name a session was archived under is a timestamp, and so is the one thing always known. */
+    test('reads the time a session was closed out of the name it was filed under', () => {
+        disk['.agents/listTimed/archived/20260823142100123/chat.jsonl'] = '{"id":"m1"}\n';
+        expect(SessionService.listSessions('agent.listTimed')[0]?.updatedAt)
+            .toBe('2026-08-23T14:21:00.123Z');
+    });
+
+    test('resolves a project loop id to the sessions of the project', () => {
+        disk[`.projects/listProject/archived/${OLDER}/session.json`] = JSON.stringify({
+            runtime: {
+                turnCount: 4, updatedAt: '2026-01-01T00:00:00.000Z',
+                usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+            },
+        });
+        expect(SessionService.listSessions('project.a1.listProject')[0]?.turnCount).toBe(4);
     });
 });

@@ -8,11 +8,14 @@ import { ChatPanel } from './ChatPanel';
 type ChatSidebarProps = {
   agent: AgentEmployee;
   projectId: string;
+  /** Whether this chat may close its conversation and read the ones that were closed. */
+  sessionActions?: boolean;
 };
 
 export function ChatSidebar({
   agent,
   projectId,
+  sessionActions = false,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
 
@@ -28,7 +31,7 @@ export function ChatSidebar({
           </div>
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
-          <ChatPanel agent={agent} projectId={projectId}/>
+          <ChatPanel agent={agent} projectId={projectId} sessionActions={sessionActions}/>
       </div>
     </div>
   );

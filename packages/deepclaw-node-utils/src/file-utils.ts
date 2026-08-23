@@ -5,9 +5,14 @@ import { createHash } from 'crypto';
 
 export class FileUtils {
 
+    /** A moment as a name a file or a folder can carry, which sorts the way the clock ran. */
+    public static timestamp(): string {
+        return new Date().toISOString().replace(/[\-TZ\.:]/g, '');
+    }
+
     public static wrapTimestamp(file: string): string {
         const [name, ext = 'log'] = file.split('.');
-        return `${name}_${new Date().toISOString().replace(/[\-TZ\.:]/g, '')}.${ext}`;
+        return `${name}_${this.timestamp()}.${ext}`;
     }
 
     public static hashString(text: string | Buffer, length: number = 16): string {
@@ -126,6 +131,32 @@ export class FileUtils {
      */
     public static deleteDir(filePath: string): void {
         fs.rmSync(this.getAbsolutePath(this.sanitizeFileName(filePath)), {force: true, recursive: true});
+    }
+
+    /** The folders directly under this one, by name. A path that is not there holds none. */
+    public static listDirs(dirPath: string): string[] {
+        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(dirPath));
+        if (!fs.existsSync(absolutePath)) {
+            return [];
+        }
+        return fs.readdirSync(absolutePath, {withFileTypes: true})
+            .filter(entry => entry.isDirectory())
+            .map(entry => entry.name);
+    }
+
+    /**
+     * Moves a file or a whole folder, making the parent of the target first. A path that is not
+     * there is nothing to move, so asking twice costs no more than asking once.
+     */
+    public static movePath(from: string, to: string): boolean {
+        const source = this.getAbsolutePath(this.sanitizeFileName(from));
+        if (!fs.existsSync(source)) {
+            return false;
+        }
+        const target = this.getAbsolutePath(this.sanitizeFileName(to));
+        this.ensureFolderExist(target);
+        fs.renameSync(source, target);
+        return true;
     }
 
     public static findLatest(folder: string, subFile: string = ''): string {

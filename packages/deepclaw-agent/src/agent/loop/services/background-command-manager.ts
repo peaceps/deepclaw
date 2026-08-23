@@ -57,6 +57,16 @@ export class BackgroundCommandManager {
         }
     }
 
+    /**
+     * Whether a command of this loop is still running, which is to say still writing into the
+     * session folder. A loop being idle says nothing about it: outliving the turn that started it
+     * is what a background command is for.
+     */
+    public static hasRunningCommand(creator: string): boolean {
+        return Array.from(this.commands.values())
+            .some(command => command.creator === creator && command.status === 'running');
+    }
+
     public static getAllCommandsStatus(creator: string): BackGroundCommandInfo[] {
         return Array.from(this.commands.values())
             .filter(command => command.creator === creator)

@@ -51,6 +51,7 @@ export function MobileAgentPage({selectedAgent}: {
                   projectId=""
                   agent={selectedAgent}
                   fitContainer
+                  sessionActions
                 />
             </div>
           )}

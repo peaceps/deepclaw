@@ -2,7 +2,7 @@ import {
     isInfoEvent, isLoopBusyEvent, isLoopCancelInteractionEvent,
     isLoopChatEvent, isLoopInteractionEvent, isLoopStreamEvent,
     LoopGateway, LoopGatewayEvent,
-    isLoopTokenUsageEvent
+    isLoopTokenUsageEvent, isLoopSessionResetEvent
 } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
@@ -131,7 +131,9 @@ class SSEServerImpl {
         if (!('loopId' in event) || !client.loops.has(event.loopId)) {
             return false;
         }
-        if (isLoopBusyEvent(event) || isLoopTokenUsageEvent(event)) {
+        // What became of the loop itself goes to everyone watching it, whoever asked for it: a tab
+        // still showing a conversation that was closed would write into a record of two.
+        if (isLoopBusyEvent(event) || isLoopTokenUsageEvent(event) || isLoopSessionResetEvent(event)) {
             return true;
         } else if (isLoopChatEvent(event)) {
             return 'browserId' in event && client.browserId !== event.browserId;

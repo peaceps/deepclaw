@@ -138,8 +138,23 @@ export type SessionMetaData = {
         transitionReason?: LLMTransitionReason;
         turnCount: number;
         finalText?: string;
+        /** Absent in a session that was already on disk before conversations could be closed. */
+        startedAt?: string;
         updatedAt: string;
         endedAt?: string;
         usage: TokenUsage;
     }
+}
+
+/**
+ * A conversation that was closed, as a chat lists it to be read back. The id is the folder it was
+ * moved to, which is also the order they are listed in.
+ */
+export type SessionSummary = {
+    sessionId: string;
+    startedAt?: string;
+    updatedAt: string;
+    turnCount: number;
+    finalText: string;
+    usage: TokenUsage;
 }

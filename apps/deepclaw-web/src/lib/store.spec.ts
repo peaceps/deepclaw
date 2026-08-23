@@ -568,6 +568,36 @@ describe('app store', () => {
         });
     });
 
+    describe('clearMessages', () => {
+
+        test('drops what the chat held', () => {
+            store().addMessage('loop1', newChatMessage());
+            store().clearMessages('loop1');
+            expect(store().messages.loop1).toBeUndefined();
+        });
+
+        test('leaves the other conversations alone', () => {
+            store().addMessage('loop1', newChatMessage());
+            store().addMessage('loop2', newChatMessage({id: 'm2'}));
+            store().clearMessages('loop1');
+            expect(store().messages.loop2.map(message => message.id)).toEqual(['m2']);
+        });
+
+        /** A tab keeping every conversation its user ever opened would only ever grow. */
+        test('drops a conversation that was read back by the name it was read under', () => {
+            store().addPulledMessages('loop1#20260101000000000', [newChatMessage()]);
+            store().clearMessages('loop1#20260101000000000');
+            expect(store().messages).toEqual({});
+        });
+
+        test('says nothing changed when there was no such conversation', () => {
+            store().addMessage('loop1', newChatMessage());
+            const before = store().messages;
+            store().clearMessages('loop2');
+            expect(store().messages).toBe(before);
+        });
+    });
+
     describe('message lookups', () => {
 
         test('reads the oldest and the newest id', () => {

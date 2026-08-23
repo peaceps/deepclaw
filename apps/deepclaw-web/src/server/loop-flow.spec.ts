@@ -27,7 +27,7 @@ const {LoopInitializer, ToolUseService} = await import('@deepclaw/agent');
 const {SSEServer} = await import('@/app/api/sse-server');
 const {
     activeLoop, inactiveLoop, invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
-    resolveInteraction, updateChatMessage,
+    resolveInteraction, updateChatMessage, listSessions, pullSessionMessages, startNewSession,
 } = await import('@/server/loop-agent');
 
 afterAll(() => {
@@ -258,6 +258,18 @@ class FakeBrowser {
         return busy;
     }
 
+    /** The button in the header. Nothing is emptied here: the server says so, to every tab. */
+    public async startNew(loopId: string) {
+        await this.settle();
+        return startNewSession(loopId);
+    }
+
+    /** What a conversation that was closed reads as, which is a page of it and no writing back. */
+    public async readSession(loopId: string, sessionId: string): Promise<string[]> {
+        const messages = await pullSessionMessages(loopId, sessionId);
+        return messages.map(message => message.content);
+    }
+
     public async answer(choice: string): Promise<void> {
         const loopId = this.modal?.loopId;
         if (!loopId) {
@@ -313,6 +325,9 @@ class FakeBrowser {
         }
         if (frame.eventType === 'busy') {
             this.busyLoops.set(loopId, !!frame.busy);
+        } else if (frame.eventType === 'sessionReset') {
+            // Whoever asked for it is told along with the rest, so the panel is emptied here alone.
+            this.messages.set(loopId, []);
         } else if (frame.eventType === 'chat' && frame.browserId !== this.browserId) {
             this.handleChat(loopId, frame);
         } else if (frame.eventType === 'interaction' && frame.browserId === this.browserId) {
@@ -670,6 +685,118 @@ describe('two browsers on one loop', () => {
         expect(await onlooker.tryAnswer(loopId, 'no')).toBe(false);
         await sender.answer('yes');
         await expect(asked).resolves.toBe('yes');
+    });
+});
+
+/**
+ * Closing a conversation, from the button in the header down to the folder on disk. What the header
+ * offers is only worth as much as the whole of it holds together: the transcript has to be gone from
+ * every tab, the history has to be gone from the loop that answers, and what was said has to be
+ * readable afterwards. Any one of those alone is a conversation half closed.
+ */
+describe('a chat that closes its conversation', () => {
+
+    // 开新对话：面板清空，说过的话进历史，还能读回来
+    test('empties the panel and keeps what was said to be read back', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'hi');
+        await agent.finish('Hello');
+
+        const result = await browser.startNew(loopId);
+        expect(result.started).toBe(true);
+        expect(browser.contentsOf(loopId)).toEqual([]);
+
+        const sessions = await listSessions(loopId);
+        expect(sessions).toHaveLength(1);
+        expect(await browser.readSession(loopId, sessions[0]!.sessionId)).toEqual(['hi', 'Hello']);
+    });
+
+    // 另一个标签页也被告知，否则它会接着往一段已经不存在的对话里写
+    test('tells the other tab, which was holding the same transcript', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const sender = newBrowser().open();
+        const onlooker = newBrowser().open();
+        await sender.openChat(loopId);
+        await onlooker.openChat(loopId);
+        await sender.send(loopId, 'hi');
+        await agent.finish('Hello');
+        expect(onlooker.contentsOf(loopId)).toEqual(['hi', 'Hello']);
+
+        await sender.startNew(loopId);
+        expect(onlooker.contentsOf(loopId)).toEqual([]);
+    });
+
+    /** The next turn has to start from an empty history, which is a loop built again. */
+    // 下一轮从空上下文开始：新消息只剩它自己，不接在已结束的对话后面
+    test('starts the next turn from an empty conversation', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'hi');
+        await agent.finish('Hello');
+        await browser.startNew(loopId);
+
+        await browser.send(loopId, 'and again');
+        await agent.finish('Hi there');
+        expect(browser.contentsOf(loopId)).toEqual(['and again', 'Hi there']);
+
+        // What a tab that reloads is handed is the new conversation too, not the file as it was.
+        await browser.reload().openChat(loopId);
+        expect(browser.contentsOf(loopId)).toEqual(['and again', 'Hi there']);
+    });
+
+    // run 还在跑的时候拒绝：它正在写的东西会被截断，写进去的目录正要被移走
+    test('refuses while the run is still going', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'hi');
+
+        expect(await browser.startNew(loopId)).toEqual({started: false, reason: 'busy'});
+        expect(browser.contentsOf(loopId)).toEqual(['hi', '']);
+
+        await agent.finish('Hello');
+        expect((await browser.startNew(loopId)).started).toBe(true);
+    });
+
+    // 空对话不留下空目录：连点两次只归档说过话的那一段
+    test('leaves nothing behind for a conversation nothing was said in', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'hi');
+        await agent.finish('Hello');
+
+        await browser.startNew(loopId);
+        expect(await browser.startNew(loopId)).toEqual({started: true, sessionId: undefined});
+        expect(await listSessions(loopId)).toHaveLength(1);
+    });
+
+    // 每段对话的用量各算各的，回看旧的不会把用量算到新的头上
+    test('lists what each conversation was', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'first');
+        await agent.finish('one');
+        await browser.startNew(loopId);
+        await browser.send(loopId, 'second');
+        await agent.finish('two');
+        await browser.startNew(loopId);
+
+        const sessions = await listSessions(loopId);
+        expect(sessions).toHaveLength(2);
+        // The most recent one first, which is the one the second conversation was.
+        expect(await browser.readSession(loopId, sessions[0]!.sessionId)).toEqual(['second', 'two']);
+        expect(await browser.readSession(loopId, sessions[1]!.sessionId)).toEqual(['first', 'one']);
     });
 });
 

@@ -2,7 +2,7 @@
 
 import { SSEServer } from '@/app/api/sse-server';
 import { ChatMessage, FlushAgentRole, TokenUsage, type ImageContent } from '@deepclaw/core';
-import { LoopGateway, UIChatService } from '@deepclaw/loop-gateway';
+import { LoopGateway, UIChatService, type NewSessionResult, type SessionSummary } from '@deepclaw/loop-gateway';
 
 export async function invoke(
     browserId: string, role: FlushAgentRole, agentId: string, projectId: string,
@@ -33,6 +33,20 @@ export async function pullOlderMessages(loopId: string, endMessageId?: string): 
 
 export async function pullNewerMessages(loopId: string, startMessageId?: string): Promise<ChatMessage[]> {
     return UIChatService.getNewerMessages(loopId, startMessageId);
+}
+
+export async function pullSessionMessages(
+    loopId: string, sessionId: string, endMessageId?: string
+): Promise<ChatMessage[]> {
+    return LoopGateway.getSessionMessages(loopId, sessionId, endMessageId);
+}
+
+export async function startNewSession(loopId: string): Promise<NewSessionResult> {
+    return LoopGateway.startNewSession(loopId);
+}
+
+export async function listSessions(loopId: string): Promise<SessionSummary[]> {
+    return LoopGateway.listSessions(loopId);
 }
 
 export async function pushChatMessage(browserId: string, loopId: string, message: ChatMessage): Promise<void> {

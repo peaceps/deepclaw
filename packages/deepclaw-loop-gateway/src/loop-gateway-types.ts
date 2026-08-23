@@ -7,7 +7,7 @@ import {
     TokenUsage
 } from "@deepclaw/core";
 
-export type { SkillInfo } from "@deepclaw/agent";
+export type { SkillInfo, SessionSummary } from "@deepclaw/agent";
 
 export type InvokeSource = 'web' | 'tui' | 'im';
 
@@ -22,6 +22,17 @@ export type LoopInfo = {
     agentId: string;
     projectId?: string;
 };
+
+/**
+ * Why a conversation was not closed, for a view to say it in its own words. A run that is still
+ * going and a command still writing into the session folder are what it is refused for; the folder
+ * failing to move is the conversation staying open despite nothing being in the way.
+ */
+export type NewSessionRefusal = 'busy' | 'backgroundCommand' | 'unsupported' | 'archiveFailed';
+
+/** The id names the conversation that was archived, and is absent when there was nothing to keep. */
+export type NewSessionResult =
+    {started: true, sessionId?: string} | {started: false, reason: NewSessionRefusal};
 
 export type AgentLoopBusyEvent = AgentLoopEvent & {
     eventType: 'busy';
@@ -45,7 +56,16 @@ export type AgentTokenUsageEvent = AgentLoopEvent & {
     usage: TokenUsage;
 };
 
-export type LoopGatewayEvent = AgentEvent | AgentLoopBusyEvent | AgentChatEvent | AgentCancelInteractionEvent | AgentTokenUsageEvent;
+/**
+ * The conversation of this loop was closed and an empty one took its place. Every view of the loop
+ * is told, not only the one that asked: a tab still showing the old transcript would go on adding
+ * to a record of a conversation that no longer exists.
+ */
+export type AgentSessionResetEvent = AgentLoopEvent & {
+    eventType: 'sessionReset';
+};
+
+export type LoopGatewayEvent = AgentEvent | AgentLoopBusyEvent | AgentChatEvent | AgentCancelInteractionEvent | AgentTokenUsageEvent | AgentSessionResetEvent;
 
 export function isLoopBusyEvent(event: AgentEvent): event is AgentLoopBusyEvent {
     return event.eventType === 'busy';
@@ -64,6 +84,9 @@ export function isLoopChatEvent(event: AgentEvent): event is AgentChatEvent {
 }
 export function isLoopTokenUsageEvent(event: AgentEvent): event is AgentTokenUsageEvent {
     return event.eventType === 'tokenUsage';
+}
+export function isLoopSessionResetEvent(event: AgentEvent): event is AgentSessionResetEvent {
+    return event.eventType === 'sessionReset';
 }
 export function isProjectInfoEvent(event: AgentEvent): event is AgentProjectInfoEvent {
     return event.eventType === 'updateProject';
@@ -86,7 +109,7 @@ export function isBusyLoopsInfoEvent(event: AgentEvent): event is AgentBusyLoops
 
 export function isLoopEvent(event: AgentEvent): event is AgentLoopEvent {
     return isLoopBusyEvent(event) || isLoopStreamEvent(event) || isLoopInteractionEvent(event) || isLoopCancelInteractionEvent(event)
-        || isLoopChatEvent(event) || isLoopTokenUsageEvent(event);
+        || isLoopChatEvent(event) || isLoopTokenUsageEvent(event) || isLoopSessionResetEvent(event);
 }
 export function isInfoEvent(event: AgentEvent): event is AgentInfoEvent {
     return isProjectInfoEvent(event) || isAgentInfoEvent(event) || isCronInfoEvent(event)
