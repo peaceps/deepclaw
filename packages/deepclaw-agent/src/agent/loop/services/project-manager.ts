@@ -347,7 +347,6 @@ They will also be persisted in file system.
 You can get all projects info with get_project_list tool, and get detailed info of a project with get_project_detail tool.
 
 ## Create project and simple task
-If you are not a subloop agent, you can create projects and simple tasks.
 If you consider a job should be a project, use create_project tool to create it.
 If one job is not big enough to be a project, you can directly create a simple task with create_simple_task without putting it into a project.
 Always create a project/simple task if asked to do something, even if the user didn\'t explicitly ask you to create one.
@@ -360,7 +359,6 @@ The title beside it is what the user reads: they may rename a task at any time, 
 its id and never by the words on it.
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
 For simple tasks just set the wrapped project id.
-A subagent cannot update a task, it only moves the step index of the task it works on.
 
 ## Report a finished project
 A project closes itself once its last task is done. What it produced as a whole is no task report,

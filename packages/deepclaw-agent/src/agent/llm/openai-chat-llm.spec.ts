@@ -74,7 +74,7 @@ function newStream(chunks: unknown[]): AsyncIterable<unknown> {
 }
 
 function newLLM(): TestableOpenAIChatLLM {
-    return new TestableOpenAIChatLLM('main', {
+    return new TestableOpenAIChatLLM('main', 'agent', {
         baseURL: 'https://api.openai.example.com', apiKey: 'key', model: 'gpt-test'
     });
 }

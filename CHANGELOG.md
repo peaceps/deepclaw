@@ -1,4 +1,26 @@
 v0.0.13
+hand a run only the tools it could have a use for, and tell it of no tool it was not handed: the one
+that records the result of a scheduled run now goes to a scheduled run alone, where before every
+ordinary chat carried it along with no run of its own to record it for, and a subagent working
+inside such a run is no longer told to call it, having never been given it. the tool that puts a task
+of a project to a subagent goes the same way and to a run of a project alone: a scheduled run keeps
+the id of its scheduled task where a project run keeps its project, and an ordinary chat runs no
+project at all, so neither ever had a board to take a task from. both were handed the tool anyway
+and refused at the point of calling, which spent the turn to say so. the section that teaches a run
+to hand its tasks out is shown to the runs that hold that tool now, rather than to the ones holding
+a project id, which was the same set of runs by agreement of the callers and not by anything saying
+so. a subagent is no longer read the rules of the board at all: creating a project, updating a task
+and reporting one finished are the work of the run that owns the board, and the roster of who a task
+could go to is read to choose between them, which a subagent never does. it had been given both on
+every spawn, each with a line inside it taking back what the rest had just offered, and those lines
+go with them. a subagent is told it may work this computer, where the line describing agent mode had
+been telling it the opposite: the files and the commands go to every run there is, and the rest of
+its own prompt has always sent it off to write files and run commands with them. a section left with
+nothing to say is left out with its heading, rather than standing as a heading over nothing: naming
+a thing and then showing none of it is the same sentence again, one line shorter. what the tools say
+for themselves is said once instead of once in every tool that touches the same thing, and said
+nowhere the schema beside it already says it, so a turn opens with a shorter list and no rule
+missing from it.
 say how a project went as a whole, and not only how each task of it went: a report written with
 update_project hangs on the row of the project, beside the badge of what it stands at, and opens
 from there rather than from anything under it. it is asked for the moment the last task closes the

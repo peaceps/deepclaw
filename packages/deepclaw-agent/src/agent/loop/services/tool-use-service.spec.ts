@@ -4,7 +4,7 @@ import {newTestContext} from '../../../test-support/one-loop-context';
 import {ToolUseService} from './tool-use-service';
 
 const mocks = vi.hoisted(() => ({
-    getToolDesc: vi.fn<(loopKind: string, mode: string, name: string) => unknown>(),
+    getToolDesc: vi.fn<(run: unknown, name: string) => unknown>(),
     emitVisitor: vi.fn(),
     wrapTimestamp: vi.fn((file: string) => `stamped-${file}`),
     writeFile: vi.fn((path: string) => path),
@@ -49,12 +49,14 @@ describe('executeToolCall lookup', () => {
         expect(result).toEqual({result: {id: 'tu1', content: 'Unknown tool: ghost'}, success: false});
     });
 
-    test('looks the tool up for the current loop kind and agent mode', async () => {
+    test('looks the tool up for the run it is called in', async () => {
         mocks.getToolDesc.mockReturnValue(newTool());
-        const context = newTestContext({loopKind: 'sub'});
+        const context = newTestContext({loopKind: 'sub', role: 'cron'});
         context.loopConfig.mode = 'chat';
         await ToolUseService.executeToolCall(newToolUse(), context);
-        expect(mocks.getToolDesc).toHaveBeenCalledWith('sub', 'chat', 'demo');
+        expect(mocks.getToolDesc).toHaveBeenCalledWith(
+            {loopKind: 'sub', role: 'cron', mode: 'chat'}, 'demo'
+        );
     });
 });
 
@@ -503,7 +505,7 @@ describe('planExecutionGroups', () => {
     test('gives a tool call that is not parallel safe a group of its own', () => {
         const safe = newTool();
         const exclusive = newTool({parallelSafe: false});
-        mocks.getToolDesc.mockImplementation((_kind, _mode, name) => name === 'lonely' ? exclusive : safe);
+        mocks.getToolDesc.mockImplementation((_run, name) => name === 'lonely' ? exclusive : safe);
         const defs = [
             newToolUse(), newToolUse({id: 'tu2', name: 'lonely'}), newToolUse({id: 'tu3'}),
         ];
@@ -535,7 +537,7 @@ describe('planExecutionGroups', () => {
     test('holds a mixed group to the tool in it that allows the least', () => {
         const wide = newTool();
         const narrow = newTool({maxParallel: 3});
-        mocks.getToolDesc.mockImplementation((_kind, _mode, name) => name === 'narrow' ? narrow : wide);
+        mocks.getToolDesc.mockImplementation((_run, name) => name === 'narrow' ? narrow : wide);
         const defs = [
             newToolUse(), newToolUse({id: 'tu2'}),
             newToolUse({id: 'tu3', name: 'narrow'}), newToolUse({id: 'tu4'}),
@@ -544,12 +546,14 @@ describe('planExecutionGroups', () => {
             .toEqual([defs.slice(0, 3), defs.slice(3)]);
     });
 
-    test('looks the tools up for the current loop kind and agent mode', () => {
+    test('looks the tools up for the run they are called in', () => {
         mocks.getToolDesc.mockReturnValue(newTool());
-        const context = newTestContext({loopKind: 'sub'});
+        const context = newTestContext({loopKind: 'sub', role: 'cron'});
         context.loopConfig.mode = 'chat';
         ToolUseService.planExecutionGroups([newToolUse()], context);
-        expect(mocks.getToolDesc).toHaveBeenCalledWith('sub', 'chat', 'demo');
+        expect(mocks.getToolDesc).toHaveBeenCalledWith(
+            {loopKind: 'sub', role: 'cron', mode: 'chat'}, 'demo'
+        );
     });
 });
 

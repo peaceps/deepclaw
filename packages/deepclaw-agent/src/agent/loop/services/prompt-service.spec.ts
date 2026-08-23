@@ -1,6 +1,7 @@
 import process from 'node:process';
 import {describe, expect, test, vi} from 'vitest';
 import {type AgentIdentity, type CronTask, type Task} from '@deepclaw/core';
+import {type LoopKind} from '../../definitions/definitions';
 import {newTestAgentConfig} from '../../../test-support/one-loop-context';
 
 const WORKING_DIR = '/home/someone/.deepclaw';
@@ -127,10 +128,23 @@ describe('platform and language', () => {
 
     test('keeps the sections in a stable order', async () => {
         const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'main'
+        );
         expect(cacheable.split('\n').filter(line => line.startsWith('# '))).toEqual([
             '# Platform', '# Language', '# Main Identity', '# Personality', '# Emotions',
             '# Agent Mode', '# Handing Work Over', '# Project Management',
+        ]);
+    });
+
+    /** A heading over nothing names something the run is meant to have and then shows none of it. */
+    test('leaves out the heading of a section this run has nothing under', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'agent', '', 'sub'
+        );
+        expect(cacheable.split('\n').filter(line => line.startsWith('# '))).toEqual([
+            '# Platform', '# Language', '# Main Identity', '# Agent Mode', '# Handing Work Over',
         ]);
     });
 
@@ -435,7 +449,24 @@ describe('agent mode and project management', () => {
     test('lets an agent use every tool', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
-        expect(cacheable).toContain('You are running at agent mode. You can use all tools');
+        expect(cacheable).toContain('You can use every tool you were handed');
+        expect(cacheable).toContain('includes operating this computer');
+    });
+
+    /**
+     * The files and the commands are handed to every loop kind, and the identity of a spawned loop
+     * tells it to use them. Saying here that the computer is open to whoever is not a subagent read
+     * the other way round, and this is the section a chat agent is refused by, so it has to be right.
+     */
+    test('opens the computer to a spawned loop as well', async () => {
+        const {PromptService} = await loadService();
+        for (const loopKind of ['task', 'sub'] as LoopKind[]) {
+            const {cacheable} = PromptService.provideSystemPrompt(
+                newTestAgentConfig(), undefined, 'agent', '', loopKind
+            );
+            expect(cacheable).toContain('includes operating this computer');
+            expect(cacheable).not.toContain('if you are not a subloop agent');
+        }
     });
 
     test('restricts a chat agent to answering', async () => {
@@ -459,6 +490,21 @@ describe('agent mode and project management', () => {
             newTestAgentConfig({mode: 'chat'}), undefined, 'agent', '', 'main'
         );
         expect(cacheable).not.toContain('the project tools');
+        expect(managementTools).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Creating a project, updating a task, reporting one finished: all of it is handed to a main
+     * loop and to no spawned one. A task loop is told about the one task it holds instead.
+     */
+    test('hides the project tools from a spawned loop', async () => {
+        const {PromptService, managementTools} = await loadService();
+        for (const loopKind of ['task', 'sub'] as LoopKind[]) {
+            const {cacheable} = PromptService.provideSystemPrompt(
+                newTestAgentConfig(), undefined, 'project', 'p1', loopKind
+            );
+            expect(cacheable).not.toContain('the project tools');
+        }
         expect(managementTools).not.toHaveBeenCalled();
     });
 
@@ -492,6 +538,21 @@ describe('agent mode and project management', () => {
         expect(cacheable).not.toContain('## The agents of the company');
     });
 
+    /**
+     * The roster is read to pick an assignee, and a spawned loop picks none: it cannot update a
+     * task, cannot hand one over, and sub_loop takes a prompt and nobody to give it to.
+     */
+    test('hides the list of agents from a spawned loop', async () => {
+        const {PromptService, getAgents} = await loadService();
+        getAgents.mockReturnValue([newIdentity(), newIdentity({id: 'a2'})]);
+        for (const loopKind of ['task', 'sub'] as LoopKind[]) {
+            const {cacheable} = PromptService.provideSystemPrompt(
+                newTestAgentConfig(), newIdentity(), 'project', 'p1', loopKind
+            );
+            expect(cacheable).not.toContain('## The agents of the company');
+        }
+    });
+
     test('hides the list of agents in chat mode', async () => {
         const {PromptService, getAgents} = await loadService();
         getAgents.mockReturnValue([newIdentity(), newIdentity({id: 'a2'})]);
@@ -512,6 +573,17 @@ describe('agent mode and project management', () => {
         const {PromptService, taskDelegation} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain('the project tools');
+        expect(taskDelegation).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A project id under the plain role is a run the board never built, and the tool registry
+     * answers it by handing over no task_loop. Naming the tool here would be naming one it has not
+     * got, which is the one thing the section must not do.
+     */
+    test('says nothing about delegation to a run holding a project under the plain role', async () => {
+        const {PromptService, taskDelegation} = await loadService();
+        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', 'p1', 'main');
         expect(taskDelegation).not.toHaveBeenCalled();
     });
 
@@ -703,5 +775,17 @@ describe('dynamic part', () => {
         const {PromptService} = await loadService();
         const {dynamic} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'cron', 'c1', 'sub');
         expect(dynamic).toContain('# Current Cron Task');
+        expect(dynamic).toContain('You are executing the cron task "nightly report" (id: c1).');
+    });
+
+    // update_cron_output 是 main loop 的工具，子循环手里没有，讲了它只会白费一轮
+    test('leaves the recording tool unnamed for a loop spawned inside a cron run', async () => {
+        const {PromptService} = await loadService();
+        for (const loopKind of ['sub', 'task'] as const) {
+            const {dynamic} = PromptService.provideSystemPrompt(
+                newTestAgentConfig(), undefined, 'cron', 'c1', loopKind
+            );
+            expect(dynamic).not.toContain('update_cron_output');
+        }
     });
 });

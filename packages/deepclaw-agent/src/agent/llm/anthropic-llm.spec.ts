@@ -49,7 +49,7 @@ class TestableAnthropicLLM extends AnthropicLLM {
 }
 
 function newLLM(): TestableAnthropicLLM {
-    return new TestableAnthropicLLM('main', {
+    return new TestableAnthropicLLM('main', 'agent', {
         baseURL: 'https://api.anthropic.example.com', apiKey: 'key', model: 'sonnet'
     });
 }

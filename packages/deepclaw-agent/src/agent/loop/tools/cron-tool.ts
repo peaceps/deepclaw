@@ -4,7 +4,8 @@ import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
 import {
-    keptOutput, MAX_GENERATED_FILES, requireReadableOutput, skippedFilesNote, TRUNCATE_THRESHOLD
+    EXT_DESCRIPTION, keptOutput, MAX_GENERATED_FILES, requireReadableOutput, skippedFilesNote,
+    TRUNCATE_THRESHOLD
 } from "../../loop-utils";
 
 /** Where the report of a run stood in an answer that is not the one to ask for it. */
@@ -136,12 +137,16 @@ type UpdateCronOutputInput = {
 export const updateCronOutputTool: ToolDesc<UpdateCronOutputInput> = {
     tool: {
         name: 'update_cron_output',
-        description: 'Update the output of a cron task',
+        description: `Record the result of this scheduled run: it is what the user reads of the run
+later, and all that is left of it once the run ends.`,
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
-                id: {type: 'string'},
+                id: {
+                    type: 'string',
+                    description: 'The id of the cron task, the one named in Current Cron Task.'
+                },
                 output: {
                     type: 'object',
                     additionalProperties: false,
@@ -154,23 +159,18 @@ export const updateCronOutputTool: ToolDesc<UpdateCronOutputInput> = {
                             type: 'string',
                             description: `Content of the cron task output, what the user reads of
 this run. Large content is filed away into a file of its own, so there is no size to work around.
-A file this run produced never goes in here as its bytes: hand it over in generatedFiles instead.`
+A file this run produced goes in generatedFiles rather than in here as its bytes.`
                         },
-                        ext: {
-                            type: 'string',
-                            description: `The extension of the file a large content is filed into,
-"md" for markdown and "txt" for text unless the content is really something else, e.g. "csv".`
-                        },
+                        ext: {type: 'string', description: EXT_DESCRIPTION},
                         generatedFiles: {
                             type: 'array',
                             items: {type: 'string'},
                             maxItems: MAX_GENERATED_FILES,
-                            description: `The files this run produced, by their path in the workspace.
-Each one is linked at the end of the content, so hand a file over here rather than writing its path
-into the content: a path in a report is nothing the user can open. One written into the files folder
-of this cron task is handed over as it lies, one from anywhere else is copied in there first.
-A picture handed over this way is shown in the output rather than linked under it.
-Only files inside the workspace can be handed over, and only files, not folders.`
+                            description: `The files this run produced, by their path in the
+workspace, each linked at the end of the content: a path written into the content itself is nothing
+the user can open. One in the files folder of this cron task is handed over as it lies, one from
+anywhere else is copied in there first. A picture is shown in the output rather than linked under
+it. Only files, not folders, and only inside the workspace.`
                         }
                     },
                     required: ['type', 'content'],
@@ -182,6 +182,9 @@ Only files inside the workspace can be handed over, and only files, not folders.
     parallelSafe: true,
     agentMode: ['agent'],
     loopKinds: ['main'],
+    // What this writes is the result of the run doing the writing, so only a run that is one has
+    // anything to say here. Anywhere else it is a tool for filing a report on somebody else's work.
+    roles: ['cron'],
     invoke: async function(input: UpdateCronOutputInput): Promise<string> {
         const {generatedFiles, ...output} = input.output;
         requireReadableOutput(output);

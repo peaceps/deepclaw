@@ -35,7 +35,7 @@ import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
 import { SessionService } from '../services/session-service';
 
-type ToolRun = {
+type ToolRunResult = {
     toolUseDef: ToolUseDef;
     result: ToolUseResult;
 }
@@ -90,6 +90,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         this.loadSessionData();
         this.llm = new (this.getLLMConstructor())(
             this.loopKind(),
+            this.role,
             this.agentConfig.llm,
         ) as LLM;
     }
@@ -365,7 +366,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         return results;
     }
 
-    private async runOneTool(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolRun> {
+    private async runOneTool(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolRunResult> {
         const breakReason = context.runtime.agentBreakReason;
         if (isAgentStopReason(breakReason) || isExternalInterruptReason(breakReason)) {
             const stopType = isAgentStopReason(breakReason) ? 'agentStop' : 'externalInterrupt';

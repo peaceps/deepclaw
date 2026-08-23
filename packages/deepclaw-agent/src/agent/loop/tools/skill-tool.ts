@@ -171,39 +171,24 @@ type CreateSkillInput = {
 export const createSkillTool: ToolDesc<CreateSkillInput> = {
     tool: {
         name: 'create_skill',
-        description: `Create a new reusable skill from the user's request.
-
-A skill is a folder of files that teaches an agent how to perform a task. Generate
-whatever files best fulfill the user's need (instructions, templates, scripts, data,
-examples, etc.), but the folder MUST contain a "SKILL.md" entry file.
-
-"SKILL.md" MUST start with a YAML frontmatter block declaring "name" and "description",
-followed by the skill body in markdown. Example:
----
-name: <skill-name>
-description: "One sentence on what it does. Use when: <trigger keywords/phrases>."
----
-
-# <Title>
-<detailed instructions the agent should follow when the skill is loaded>
-
-Rules:
-- The frontmatter "name" MUST equal the "name" argument (a short kebab-case identifier).
-- The "description" should clearly state when to use the skill so it can be matched later.
-- Additional files are referenced by relative paths (e.g. "templates/report.md").
-- Keep the body actionable; it becomes the agent's guidance when the skill is loaded.`,
+        description: `Create a new reusable skill: a folder of files -- instructions, templates,
+scripts, whatever the job takes -- teaching an agent how to do something, kept for the sessions
+after this one. It must hold a "SKILL.md" opening with a YAML frontmatter block that defines "name",
+the same handle as the name argument, and "description", the one sentence the skill is later matched
+on, saying what it does and when to use it. Markdown below the frontmatter is what the agent follows
+once the skill is loaded, and it reaches any other file of the folder by a relative path.`,
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
                 name: {
                     type: 'string',
-                    description: 'Short kebab-case identifier for the skill, used as the folder name. Must match the "name" in SKILL.md frontmatter.'
+                    description: 'Short kebab-case identifier for the skill, used as the folder name.'
                 },
                 files: {
                     type: 'array',
                     minItems: 1,
-                    description: 'All files that make up the skill. Must include one file with path "SKILL.md".',
+                    description: 'All files that make up the skill, one of them "SKILL.md".',
                     items: {
                         type: 'object',
                         additionalProperties: false,

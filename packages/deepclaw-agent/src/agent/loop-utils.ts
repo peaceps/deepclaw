@@ -19,6 +19,14 @@ const FILED_AWAY = '<Content saved to file>';
 export const MAX_GENERATED_FILES = 10;
 
 /**
+ * The ext of an output, worded once for the three tools that take one. Every tool of a run is read
+ * on every turn of it, so a sentence standing in three of them is a sentence bought three times.
+ */
+export const EXT_DESCRIPTION =
+    'The extension of the file a large content is filed into: "md" for markdown, "txt" for text, '
+    + 'or what the content really is, e.g. "csv".';
+
+/**
  * A report too long to carry around is kept as a file of its own and read back when someone opens
  * it, so what stays on the task is the reference rather than the whole of it. Filing away happens
  * once: the placeholder left in place of the report is far too short to be filed again.

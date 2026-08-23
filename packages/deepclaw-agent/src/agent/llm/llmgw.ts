@@ -1,21 +1,25 @@
 import {AgentMode, LLMConfig} from '@deepclaw/config';
 import {type Logger, type CommonKeys} from '@deepclaw/node-utils';
 import { LLMTool } from '../definitions/tool-definitions';
-import { LLMGWConfig, LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
+import {
+    FlushAgentRole, LLMGWConfig, LLMTransitionReason, TokenUsage, type ImageContent
+} from '@deepclaw/core';
 import { ToolsManager } from '../loop/services/tools-manager';
 import { LoopKind, SystemPrompt } from '../definitions/definitions';
 
 const llmRetry = 3;
 
 export type LLMConstructor<I, O extends {transitionReason: LLMTransitionReason}, T, LLM> =
-    new (loopKind: LoopKind, llmConfig: LLMConfig) => LLMModel<I, O, T, LLM>;
+    new (loopKind: LoopKind, role: FlushAgentRole, llmConfig: LLMConfig) => LLMModel<I, O, T, LLM>;
 
 export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReason}, T, LLM> {
     protected client: LLM;
     private loopKind: LoopKind;
+    /** Fixed for as long as this model lives, the same as the kind of loop it belongs to. */
+    private role: FlushAgentRole;
     protected gw: LLMGWConfig;
 
-    constructor(loopKind: LoopKind, llmConfig: LLMConfig) {
+    constructor(loopKind: LoopKind, role: FlushAgentRole, llmConfig: LLMConfig) {
         this.gw = {
             model: llmConfig.model,
             timeoutMs: 300 * 1000,
@@ -23,6 +27,7 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
             maxTokens: 8000
         }
         this.loopKind = loopKind;
+        this.role = role;
         this.client = this.createLLMClient(llmConfig.baseURL, llmConfig.apiKey, this.gw.timeoutMs);
     }
 
@@ -47,7 +52,9 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
         streamer: (text: string) => void, logger: Logger
     ): Promise<O> {
         let response: O | null = null;
-        const tools = this.convertTools(ToolsManager.getToolsArray(this.loopKind, mode));
+        const tools = this.convertTools(
+            ToolsManager.getToolsArray({loopKind: this.loopKind, role: this.role, mode})
+        );
         const outgoing = this.resolveImages(messages);
         for (let i = 0; i < llmRetry; i++) {
             try {

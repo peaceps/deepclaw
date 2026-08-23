@@ -808,9 +808,15 @@ describe('prompts', () => {
         expect(manager.promptManagementTools()).toContain('## Project Management tools');
     });
 
-    test('keeps the status of a task away from a subagent', () => {
-        expect(manager.promptManagementTools())
-            .toContain('A subagent cannot update a task, it only moves the step index');
+    /**
+     * The section reaches the runs holding these tools now, so it has nobody left to excuse itself
+     * to. What a subagent may do to a task is told to the subagent, in its identity and in the task
+     * it was handed, and to the loop handing it over in the delegation section.
+     */
+    test('names no run that would be reading it without the tools', () => {
+        const prompt = manager.promptManagementTools();
+        expect(prompt).not.toContain('subloop');
+        expect(prompt).not.toContain('A subagent cannot');
     });
 
     test('describes the current project with its tasks and buckets', () => {
@@ -830,6 +836,7 @@ describe('prompts', () => {
         expect(prompt).toContain('call the task_loop tool with the id of the task');
         expect(prompt).toContain('Use sub_loop instead where there is nothing on the board');
         expect(prompt).toContain('Handing a task over marks it ongoing');
+        expect(prompt).toContain('subagent itself only moves the step index');
         expect(prompt).toContain('A subagent can put a question to the user');
     });
 

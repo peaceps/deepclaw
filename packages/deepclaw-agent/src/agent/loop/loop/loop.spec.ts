@@ -100,6 +100,7 @@ type TestResponse = {
 class FakeLLM {
     public static instances: FakeLLM[] = [];
     public readonly loopKind: LoopKind;
+    public readonly role: FlushAgentRole;
     public readonly llmConfig: unknown;
     public responses: TestResponse[] = [];
     public usage: TokenUsage = {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3};
@@ -116,8 +117,9 @@ class FakeLLM {
         return response;
     });
 
-    constructor(loopKind: LoopKind, llmConfig: unknown) {
+    constructor(loopKind: LoopKind, role: FlushAgentRole, llmConfig: unknown) {
         this.loopKind = loopKind;
+        this.role = role;
         this.llmConfig = llmConfig;
         FakeLLM.instances.push(this);
     }
@@ -246,6 +248,12 @@ describe('construction', () => {
         const {llm} = newLoop({config});
         expect(llm.loopKind).toBe('main');
         expect(llm.llmConfig).toEqual({baseURL: 'https://api.openai.com', apiKey: 'k', model: 'm'});
+    });
+
+    // 工具集要按运行身份筛，llm 得知道自己跑在哪种身份下
+    test('takes the role it runs under over to its llm', () => {
+        expect(newLoop({role: 'cron'}).llm.role).toBe('cron');
+        expect(newLoop({role: 'agent'}).llm.role).toBe('agent');
     });
 
     test('takes the kind it was spawned as over to its llm', () => {

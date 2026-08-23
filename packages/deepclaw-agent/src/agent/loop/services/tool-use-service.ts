@@ -1,5 +1,5 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { ToolUseResult, ToolUseDef, ToolDesc } from "../../definitions/tool-definitions";
+import { ToolUseResult, ToolUseDef, ToolDesc, toolRunOf } from "../../definitions/tool-definitions";
 import { OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
 import { TRUNCATE_THRESHOLD } from '../../loop-utils';
@@ -60,8 +60,9 @@ export class ToolUseService {
         const groups: ToolUseDef[][] = [];
         let parallel: ToolUseDef[] | undefined;
         let maxParallel = MAX_PARALLEL_TOOL_CALLS;
+        const run = toolRunOf(context);
         for (const toolUseDef of toolUseDefs) {
-            const tool = ToolsManager.getToolDesc(context.loopKind, context.loopConfig.mode, toolUseDef.name);
+            const tool = ToolsManager.getToolDesc(run, toolUseDef.name);
             if (!tool?.parallelSafe) {
                 parallel = undefined;
                 groups.push([toolUseDef]);
@@ -81,7 +82,7 @@ export class ToolUseService {
     }
 
     public static async executeToolCall(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolUseServiceResult> {
-        const tool = ToolsManager.getToolDesc(context.loopKind, context.loopConfig.mode, toolUseDef.name);
+        const tool = ToolsManager.getToolDesc(toolRunOf(context), toolUseDef.name);
         if (!tool) {
             return this.toolResult(toolUseDef.id, `Unknown tool: ${toolUseDef.name}`, false);
         }

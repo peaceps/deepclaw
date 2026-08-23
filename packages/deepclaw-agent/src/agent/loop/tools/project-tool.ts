@@ -8,7 +8,7 @@ import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
 import { AgentIdentityManager } from "../services/agent-identity-manager";
-import { keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, requireReadableOutput, skippedFilesNote } from "../../loop-utils";
+import { EXT_DESCRIPTION, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, requireReadableOutput, skippedFilesNote } from "../../loop-utils";
 import { projectFilesDir } from "../../paths";
 
 /** Where the report of a task stood in an answer that is not the one to ask for it. */
@@ -115,13 +115,34 @@ works as its assignee, with the memory and the skills of that agent.`,
 };
 
 /**
- * The same task on its way back through update_project, where the id has to be free of the shape
- * asked of a new one. A project made before ids were handed out wears the old task title as its
- * id, and a handle demanded here would leave the model no way to bring such a task back as it is.
+ * The same task on its way back through update_project. A task coming through here was copied out
+ * of the project detail rather than thought up, so where create_project spells a field out for
+ * somebody inventing one, this schema keeps the single line it takes to recognise it and leaves the
+ * spelling out there: a schema is read on every turn, and these three fields were read twice.
+ *
+ * The id is free of the shape asked of a new one as well. A project made before ids were handed out
+ * wears the old task title as its id, and a handle demanded here would leave the model no way to
+ * bring such a task back as it is.
  */
 const keptTaskItemSchema = {
     ...taskItemSchema,
-    properties: {...taskItemSchema.properties, id: taskIdSchema},
+    properties: {
+        ...taskItemSchema.properties,
+        id: {
+            ...taskIdSchema,
+            description: `The id this task already has, copied over from the project detail, or a
+short lowercase handle of what it is about for a task being added.`,
+        },
+        steps: {
+            ...taskItemSchema.properties.steps,
+            description: `The detailed steps to complete the task. Max step count is ${PROJECT_CONFIG.maxTaskStepsCount}.`,
+        },
+        assignee: {
+            ...taskItemSchema.properties.assignee,
+            description: `The id of the agent that has to work on this task, left out to keep it
+yourself.`,
+        },
+    },
 };
 
 /**
@@ -330,8 +351,8 @@ The report of the finished project goes here as well, in output.`,
 how the work went without opening a single task. Write it once the project is finished: what was
 asked for, what came of it, what is worth knowing before using it, and anything left undone. It is
 no list of the task reports, those the user can already read one by one; it is what none of them
-can say. Large content is filed away for you, so there is no size to work around. A file the project
-produced is handed over from the task that produced it, in generatedFiles of update_task.`,
+can say. A file the project produced is handed over from the task that produced it, in
+generatedFiles of update_task.`,
                     properties: {
                         type: {
                             type: 'string', enum: ['markdown', 'text'],
@@ -339,13 +360,10 @@ produced is handed over from the task that produced it, in generatedFiles of upd
                         },
                         content: {
                             type: 'string',
-                            description: 'Content of the project report, what the user reads of it.'
+                            description: `Content of the project report, what the user reads of it.
+Large content is filed away for you, so there is no size to work around.`
                         },
-                        ext: {
-                            type: 'string',
-                            description: `The extension of the file a large content is filed into,
-"md" for markdown and "txt" for text unless the content is really something else, e.g. "csv".`
-                        },
+                        ext: {type: 'string', description: EXT_DESCRIPTION},
                     },
                     required: ['type', 'content'],
                 },
@@ -442,15 +460,11 @@ taken up stays with whoever took it.`,
                 output: {
                     type: 'object',
                     additionalProperties: false,
-                    description: `The output of the task. Whatever the user can just read -- a report, a
-summary, a plan, a table -- belongs in the content itself: write it out here instead of saving it to a
-file and handing over the path, a file the user has to go and open is worse than the thing itself.
-Large content is filed away for you, so there is no size to work around.
-Files the task really produced -- a spreadsheet, a picture, a document -- are named in
-generatedFiles, and they come back to the user as links to download.
-Name a path only for what neither a readable document nor a file can carry: for coding task you can
-give the source dir of the task, also you can start the dev server and provide the access address
-if possible.`,
+                    description: `The output of the task. Whatever the user can just read -- a report,
+a summary, a plan, a table -- belongs in the content itself, never saved to a file and handed over
+as the path to it: a path is nothing they can open. A file the task really produced goes in
+generatedFiles instead, and reaches them as a link. Name a path only for what neither can carry:
+the source dir of a coding task, or the address of a dev server you started.`,
                     properties: {
                         type: {
                             type: 'string', enum: ['markdown', 'text'],
@@ -459,23 +473,17 @@ if possible.`,
                         content: {
                             type: 'string',
                             description: `Content of the task output, what the user reads of it.
-A file the task produced never goes in here as its bytes: hand it over in generatedFiles instead.`
+Large content is filed away for you, so there is no size to work around.`
                         },
-                        ext: {
-                            type: 'string',
-                            description: `The extension of the file a large content is filed into,
-"md" for markdown and "txt" for text unless the content is really something else, e.g. "csv".`
-                        },
+                        ext: {type: 'string', description: EXT_DESCRIPTION},
                         generatedFiles: {
                             type: 'array',
                             items: {type: 'string'},
                             maxItems: MAX_GENERATED_FILES,
-                            description: `The files this task produced, by their path in the workspace.
-Each one is linked at the end of the content, so hand a file over here rather than writing its path
-into the content: a path in a report is nothing the user can open. One written into the files folder
-of the project is handed over as it lies, one from anywhere else is copied in there first.
-A picture handed over this way is shown in the output rather than linked under it.
-Only files inside the workspace can be handed over, and only files, not folders.`
+                            description: `The files this task produced, by their path in the
+workspace, each linked at the end of the content. One in the files folder of the project is handed
+over as it lies, one from anywhere else is copied in there first. A picture is shown in the output
+rather than linked under it. Only files, not folders, and only inside the workspace.`
                         }
                     },
                     required: ['type', 'content'],

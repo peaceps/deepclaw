@@ -1,5 +1,6 @@
-import { ALL_LOOP_KINDS, LLMTool, ToolDesc } from '../../definitions/tool-definitions';
-import { LoopKind } from '../../definitions/definitions';
+import {
+    ALL_AGENT_MODES, ALL_AGENT_ROLES, ALL_LOOP_KINDS, LLMTool, ToolDesc, ToolRun
+} from '../../definitions/tool-definitions';
 import {syncCommandTool} from '../tools/sync-command-tool';
 import {subLoopTool, taskLoopTool} from '../tools/spawned-loop-tool';
 import {loadSkillDetailsTool, refreshSkillsTool, createSkillTool, searchOnlineSkillsTool, downloadSkillTool, removeSkillTool} from '../tools/skill-tool';
@@ -14,7 +15,6 @@ import {saveMemoryTool, readMemoryDetailTool} from '../tools/save-memory-tool';
 import {createCronTaskTool, getCronHistoriesTool, updateCronOutputTool, updateCronTaskTool} from '../tools/cron-tool';
 import {createProjectTool, createSimpleTaskTool, updateProjectTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
-import { AgentMode } from '@deepclaw/config';
 import { base64Tool } from '../tools/encode-decode-tool';
 import { generateImageTool } from '../tools/image-tool';
 import { updateAgentRuntimeTool } from '../tools/agent-runtime-tool';
@@ -57,61 +57,61 @@ const tools: ToolDesc<any>[] = [
     askUserTool,
 ];
 
-type ToolsStrorage<T extends (Record<string, ToolDesc<any>> | LLMTool[])> = Record<LoopKind, Record<AgentMode, T>>;
-
 export class ToolsManager {
 
-    private static map: ToolsStrorage<Record<string, ToolDesc<any>>> = {
-        main: {agent: {}, chat: {}},
-        task: {agent: {}, chat: {}},
-        sub: {agent: {}, chat: {}},
-    }
+    private static map = new Map<string, Record<string, ToolDesc<any>>>();
 
-    private static array: ToolsStrorage<LLMTool[]> = {
-        main: {agent: [], chat: []},
-        task: {agent: [], chat: []},
-        sub: {agent: [], chat: []},
-    }
+    private static array = new Map<string, LLMTool[]>();
 
     static {
         this.initTools();
     }
-    
+
     private static initTools(): void {
-        const modes = Object.keys(this.map.main) as AgentMode[];
-        for (const tool of tools) {
-            for (const mode of modes) {
-                for (const kind of ALL_LOOP_KINDS) {
-                    if (this.isAvailable(tool, kind, mode)) {
-                        this.map[kind][mode][tool.tool.name] = tool;
-                        this.array[kind][mode].push(tool.tool);
+        for (const loopKind of ALL_LOOP_KINDS) {
+            for (const role of ALL_AGENT_ROLES) {
+                for (const mode of ALL_AGENT_MODES) {
+                    const run = {loopKind, role, mode};
+                    const named: Record<string, ToolDesc<any>> = {};
+                    const listed: LLMTool[] = [];
+                    for (const tool of tools.filter(one => this.isAvailable(one, run))) {
+                        named[tool.tool.name] = tool;
+                        listed.push(tool.tool);
                     }
+                    this.map.set(this.keyOf(run), named);
+                    this.array.set(this.keyOf(run), listed);
                 }
             }
         }
     }
 
-    public static getToolDesc(loopKind: LoopKind, mode: AgentMode, name: string): ToolDesc<any> | undefined {
+    public static getToolDesc(run: ToolRun, name: string): ToolDesc<any> | undefined {
         if (name.startsWith(MCP_PREFIX)) {
             const tool = MCPService.getTools()[name];
-            return tool && this.isAvailable(tool, loopKind, mode) ? tool : undefined;
+            return tool && this.isAvailable(tool, run) ? tool : undefined;
         }
-        return this.map[loopKind][mode][name];
+        return this.map.get(this.keyOf(run))?.[name];
     }
 
-    public static getToolsArray(loopKind: LoopKind, mode: AgentMode): LLMTool[] {
-        const builtIn = this.array[loopKind][mode];
+    public static getToolsArray(run: ToolRun): LLMTool[] {
+        const builtIn = this.array.get(this.keyOf(run)) ?? [];
         // The tools are read before anything else of a prompt, so their order is the start of what
         // a cache is found by. Servers answer whenever they answer, which is no order to hand over:
         // by name they land the same way in every call, however they arrived in this one.
         const mcp = Object.values(MCPService.getTools())
-            .filter(tool => this.isAvailable(tool, loopKind, mode))
+            .filter(tool => this.isAvailable(tool, run))
             .map(tool => tool.tool)
             .sort((left, right) => left.name.localeCompare(right.name));
         return [...builtIn, ...mcp];
     }
 
-    private static isAvailable(tool: ToolDesc<any>, loopKind: LoopKind, mode: AgentMode): boolean {
-        return tool.agentMode.includes(mode) && (tool.loopKinds ?? ALL_LOOP_KINDS).includes(loopKind);
+    private static keyOf(run: ToolRun): string {
+        return `${run.loopKind}.${run.role}.${run.mode}`;
+    }
+
+    private static isAvailable(tool: ToolDesc<any>, run: ToolRun): boolean {
+        return tool.agentMode.includes(run.mode)
+            && (tool.loopKinds ?? ALL_LOOP_KINDS).includes(run.loopKind)
+            && (tool.roles ?? ALL_AGENT_ROLES).includes(run.role);
     }
 }

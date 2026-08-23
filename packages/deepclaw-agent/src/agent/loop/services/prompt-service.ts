@@ -38,30 +38,25 @@ export class PromptService {
         const assignee = this.taskAssignee(assignedTask);
         const persona = isCron || (spawned && !assignee) ? undefined : assignee ?? agentIdentity;
         const personaId = assignee?.id ?? agentConfig.id;
-        const cacheable = `
-# Platform
-${this.platformPrompt}
-
-# Language
-${this.language()}
-
-# Main Identity
-${this.mainIdentityPrompt[identityKey]}
-
-# Personality
-${persona ? this.personality(persona) : ""}
-
-# Emotions
-${persona && !spawned && persona.emotion ? this.emotionsPrompt : ""}
-
-# Agent Mode
-${this.agentMode(agentConfig.mode)}
-
-# Handing Work Over
-${this.handOver(agentConfig.mode, loopKind, isCron, this.filesDir(isCron, projectId, assignedTask))}
-
-# Project Management
-${this.projectManagement(agentConfig.mode, !isCron && !spawned && !!projectId, personaId)}`;
+        // The delegation section names task_loop, so it is read off the same two facts that hand
+        // the tool over: the main loop of a run whose role is the project one. Asking instead
+        // whether this is a run with a project id and not a cron run is a second way of arriving
+        // at the same answer, and two of those drift the day a role or an entry point is added.
+        const runsAProject = role === 'project' && !spawned && !!projectId;
+        const cacheable = this.sections([
+            ['Platform', this.platformPrompt],
+            ['Language', this.language()],
+            ['Main Identity', this.mainIdentityPrompt[identityKey]],
+            ['Personality', persona ? this.personality(persona) : ''],
+            ['Emotions', persona && !spawned && persona.emotion ? this.emotionsPrompt : ''],
+            ['Agent Mode', this.agentMode(agentConfig.mode)],
+            ['Handing Work Over', this.handOver(
+                agentConfig.mode, loopKind, isCron, this.filesDir(isCron, projectId, assignedTask)
+            )],
+            ['Project Management', this.projectManagement(
+                agentConfig.mode, spawned, runsAProject, personaId
+            )],
+        ]);
 
         // What the agent picked up rather than what it is: saving a memory or installing a skill
         // rewrites this in the middle of a session, which is why it stands apart from the block
@@ -76,7 +71,7 @@ ${this.availableSkills(personaId)}`;
         const current = isCron
             ? `
 # Current Cron Task
-${this.cronCurrentTask(projectId)}`
+${this.cronCurrentTask(projectId, spawned)}`
             : `
 # Current Project
 ${this.projectCurrentProject(assignedTask?.projectId || projectId)}${
@@ -88,6 +83,20 @@ ${this.projectCurrentProject(assignedTask?.projectId || projectId)}${
             cacheable, learned,
             dynamic: `${persona ? this.personalityChanged(persona) : ''}${current}`,
         };
+    }
+
+    /**
+     * The prompt as the sections that turned out to have something in them. A heading with nothing
+     * under it is still a heading: it names something the run is meant to have and then shows none
+     * of it, which is the same thing a section saying "you are not a subloop agent" used to do, one
+     * line shorter. Which sections a run gets is decided above, in the same place and by the same
+     * facts as which tools it gets.
+     */
+    private static sections(sections: [string, string][]): string {
+        return sections
+            .filter(([, body]) => body.trim())
+            .map(([heading, body]) => `\n# ${heading}\n${body.trim()}`)
+            .join('\n');
     }
 
     private static assignedTask(assignedTask?: AssignedTask): string {
@@ -230,8 +239,8 @@ Keep an emotion to 30 characters at most, it is shown in a small bubble on your 
         switch (agentMode) {
             case 'agent':
                 prompt = `
-You are running at agent mode. You can use all tools to complete the task.
-You have the access to operate this computer if you are not a subloop agent.`;
+You are running at agent mode. You can use every tool you were handed to complete the task, and
+that includes operating this computer: reading and writing its files and running commands on it.`;
                 break;
             default:
                 prompt = `
@@ -295,21 +304,44 @@ what you say, and name where the file lies for the next run rather than for them
         return current ? current : 'No project is currently being worked on this chat session.';
     }
 
-    private static cronCurrentTask(cronId: string): string {
+    private static cronCurrentTask(cronId: string, spawned: boolean): string {
         try {
             const detail = CronService.getCronTaskDetail(cronId);
             return `You are executing the cron task "${detail.title}" (id: ${detail.id}).
-Schedule: ${detail.cron}.
-Use the update_cron_output tool with id "${detail.id}" to record your final result before ending the task.`;
+Schedule: ${detail.cron}.${this.recordCronOutput(detail.id, spawned)}`;
         } catch {
-            return `You are executing a cron task (id: ${cronId}).
-Use the update_cron_output tool with id "${cronId}" to record your final result before ending the task.`;
+            return `You are executing a cron task (id: ${cronId}).${
+                this.recordCronOutput(cronId, spawned)}`;
         }
     }
 
-    /** Only the loop that owns a project delegates: a sub loop is the one being delegated to. */
-    private static projectManagement(agentMode: AgentMode, runsAProject: boolean, agentId: string): string {
-        if (agentMode === 'chat') {
+    /**
+     * Where the result of the run goes, said to the run that has the tool for saying it. A loop
+     * spawned inside a scheduled run has no update_cron_output: the tool belongs to the main loop,
+     * which is the run being recorded. What a spawned loop produces goes back to the loop that
+     * spawned it, in the summary the handing over section already asked it for, and that loop is
+     * the one to record it. Told to call a tool it was never handed, it would spend a turn finding
+     * out the tool is not there and report the failure instead of the work.
+     */
+    private static recordCronOutput(cronId: string, spawned: boolean): string {
+        if (spawned) {
+            return '';
+        }
+        return `
+Use the update_cron_output tool with id "${cronId}" to record your final result before ending the task.`;
+    }
+
+    /**
+     * The board and the people on it, for the runs that work them. A spawned loop works neither:
+     * every tool named below is handed to a main loop alone, and the roster under it is read to
+     * pick an assignee, which is a choice made by whoever hands the task out. What a spawned loop
+     * is to do with its task came with the task. Only the loop that owns a project delegates on
+     * top of that: a sub loop is the one being delegated to.
+     */
+    private static projectManagement(
+        agentMode: AgentMode, spawned: boolean, runsAProject: boolean, agentId: string
+    ): string {
+        if (agentMode === 'chat' || spawned) {
             return '';
         }
         const sections = [ProjectManager.promptManagementTools(), this.colleagues(agentId)];

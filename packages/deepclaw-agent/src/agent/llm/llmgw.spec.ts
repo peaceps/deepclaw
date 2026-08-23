@@ -1,5 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import type {LLMGWConfig, LLMTransitionReason, TokenUsage, ImageContent} from '@deepclaw/core';
+import type {
+    FlushAgentRole, LLMGWConfig, LLMTransitionReason, TokenUsage, ImageContent
+} from '@deepclaw/core';
 import type {LLMConfig} from '@deepclaw/config';
 import type {LoopKind, SystemPrompt} from '../definitions/definitions';
 import type {LLMTool} from '../definitions/tool-definitions';
@@ -99,8 +101,10 @@ class FakeLLM extends LLMModel<FakeMessage, FakeResponse, FakeTool, FakeClient> 
     }
 }
 
-function newLLM(loopKind: LoopKind = 'main', llmConfig: Partial<LLMConfig> = {}): FakeLLM {
-    return new FakeLLM(loopKind, {
+function newLLM(
+    loopKind: LoopKind = 'main', llmConfig: Partial<LLMConfig> = {}, role: FlushAgentRole = 'agent'
+): FakeLLM {
+    return new FakeLLM(loopKind, role, {
         baseURL: 'https://api.example.com', apiKey: 'key', model: 'sonnet', ...llmConfig
     });
 }
@@ -174,10 +178,12 @@ describe('LLMModel updateGWConfig', () => {
 
 describe('LLMModel invoke tools', () => {
 
-    test('asks the tools manager for the tools of this loop kind and mode', async () => {
-        const llm = newLLM('task');
+    test('asks the tools manager for the tools of this run', async () => {
+        const llm = newLLM('task', {}, 'cron');
         await llm.invoke('chat', newSystem(), [], () => undefined, newTestLogger());
-        expect(getToolsArray).toHaveBeenCalledExactlyOnceWith('task', 'chat');
+        expect(getToolsArray).toHaveBeenCalledExactlyOnceWith(
+            {loopKind: 'task', role: 'cron', mode: 'chat'}
+        );
     });
 
     test('converts the tools once and hands them to the vendor call', async () => {

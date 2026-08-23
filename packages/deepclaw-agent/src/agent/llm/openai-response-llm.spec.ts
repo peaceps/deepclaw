@@ -59,7 +59,7 @@ class TestableOpenAIResponseLLM extends OpenAIResponseLLM {
 }
 
 function newLLM(): TestableOpenAIResponseLLM {
-    return new TestableOpenAIResponseLLM('main', {
+    return new TestableOpenAIResponseLLM('main', 'agent', {
         baseURL: 'https://api.openai.example.com', apiKey: 'key', model: 'gpt-test'
     });
 }

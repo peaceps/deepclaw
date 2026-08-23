@@ -89,10 +89,10 @@ function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     if (!input.taskId) {
         throw new Error('Name the task of this project the subagent has to work on.');
     }
-    // A cron loop keeps the id of its cron task where a project loop keeps its project.
-    if (context.role === 'cron') {
-        throw new Error('A cron run has no project to take a task from, work on the task yourself.');
-    }
+    // Not an ordinary chat reaching for this: those are not handed the tool at all. What is left is
+    // a run that calls itself a project run and names no project, which every entry point of ours
+    // refuses to build but a loop id from outside can still ask for, "project.a1" being a loop id
+    // like any other.
     const projectId = context.projectId;
     if (!projectId) {
         throw new Error('This session runs no project, only a project session can hand a task over.');
@@ -158,6 +158,12 @@ everything you already know it needs goes in here rather than into a question.`,
     // The board of a project belongs to the loop that runs it: a subagent works a task it was
     // handed, it does not hand the tasks of the project out.
     loopKinds: ['main'],
+    // A board to take a task from is what a project run has and no other run does: a scheduled run
+    // keeps the id of its cron task in the same place, and an ordinary chat is started with no
+    // project at all. Kept from them here rather than refused on the way in: a run never told of
+    // the tool never spends a turn on it. This names the roles that get it rather than the one that
+    // does not, so a role added later starts outside and has to be let in here on purpose.
+    roles: ['project'],
     invoke: async function(input: TaskLoopInput, context: OneLoopContext): Promise<string> {
         const run = planRun(input, context);
         const taskLoop = context.actions.newTaskLoop({

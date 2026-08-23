@@ -60,8 +60,9 @@ function newSpawnedLoop(text = 'spawned loop answer', usage: TokenUsage = newTes
 
 type SpawnedLoopMock = ReturnType<typeof newSpawnedLoop>;
 
+/** The tool goes to a project run and to no other, so that is the run these are called under. */
 function contextWithTaskLoop(taskLoop: SpawnedLoopMock, projectId = 'p1'): OneLoopContext {
-    const context = newTestContext({projectId});
+    const context = newTestContext({projectId, role: 'project'});
     vi.mocked(context.actions.newTaskLoop).mockReturnValue(taskLoop as unknown as FlushAgent);
     return context;
 }
@@ -150,17 +151,8 @@ describe('taskLoopTool invoke', () => {
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
 
-    /** The project id of a cron loop names its cron task, no project task can be found under it. */
-    test('refuses to hand a task over from a cron run', async () => {
-        const context = contextWithTaskLoop(newSpawnedLoop(), 'c1');
-        context.role = 'cron';
-        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
-            .rejects.toThrow('A cron run has no project to take a task from');
-        expect(mocks.getTask).not.toHaveBeenCalled();
-    });
-
-    /** A task of another project would be worked on with the memory and skills of this one. */
-    test('refuses to hand a task over from a session without a project', async () => {
+    /** Only a project run is handed the tool, so this is one that named no project to run. */
+    test('refuses to hand a task over from a project run that names no project', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop(), '');
         await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
             .rejects.toThrow('This session runs no project');
