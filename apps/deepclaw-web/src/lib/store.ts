@@ -52,6 +52,22 @@ function isAtWork(agentId: string, {runningTasks, busyLoops}: AgentActivity): bo
     || busyLoops.some(loopId => splitLoopId(loopId).agentId === agentId);
 }
 
+/**
+ * Which of the two copies of one message to keep, the one held and the one just pulled. What was
+ * pulled is the later word as a rule: an answer this tab watched being written may have been
+ * finished long after it stopped watching, and only the pull knows the whole of it.
+ *
+ * An empty one is not a later word about anything. The server is told what an answer says once it
+ * is said, so a message still being streamed comes back from it blank, and blank is nothing to
+ * learn about an answer this tab has been watching arrive chunk by chunk.
+ */
+function keptCopy(held: ChatMessage, pulled?: ChatMessage): ChatMessage {
+  if (!pulled) {
+    return held;
+  }
+  return !pulled.content && held.content ? held : pulled;
+}
+
 const browserIdKey = 'browser.id';
 
 /**
@@ -205,7 +221,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   addPulledMessages: (loopId: string, messages: ChatMessage[], head: boolean = false) => set((state) => {
     const oldMessages = state.messages[loopId] || [];
     const pulled = new Map(messages.map(message => [message.id, message]));
-    const held = oldMessages.map(message => pulled.get(message.id) ?? message);
+    const held = oldMessages.map(message => keptCopy(message, pulled.get(message.id)));
     const heldIds = new Set(oldMessages.map(message => message.id));
     const added = messages.filter(message => !heldIds.has(message.id));
     return {

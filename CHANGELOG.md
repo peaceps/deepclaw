@@ -57,6 +57,16 @@ it: a run can end with a report of thirty thousand characters, and every one of 
 to draw the two lines that are read. let go of a conversation that was read back once the page of it
 is out, in the server and in the tab alike: one conversation being talked in per loop is a bounded
 thing to hold, one more for every conversation anybody ever opens is not.
+keep an answer whole across a page the user walked off to in the middle of it. the chunks of a
+stream live nowhere but the tab that asked for it, and a tab whose chat left the screen used to be
+dropped from that stream until it came back: the middle of the answer was sent nowhere and could
+not be asked for afterwards, so what came back read as the head of it followed by whatever chunk
+happened to arrive next. the stream of an answer a browser asked for now follows it wherever in the
+app it goes, which is also how it comes to hear the end of one it was away for, where the listener
+it left behind used to wait for that end forever. what a chat asks the server for on opening no
+longer wipes what it holds either: the server is told what an answer says once it is said, so a
+message still being written comes back from it blank, and blank is nothing to learn about an answer
+the tab has been watching arrive.
 
 v0.0.13
 hand a run only the tools it could have a use for, and tell it of no tool it was not handed: the one

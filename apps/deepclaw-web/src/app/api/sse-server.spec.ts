@@ -409,9 +409,19 @@ describe('loop events', () => {
         expect(other.frames).toEqual([]);
     });
 
-    test('sends a stream event of a loop the browser does not watch nowhere', () => {
+    /**
+     * The chat left the screen in the middle of the answer, and the chunks sent meanwhile are the
+     * ones that could never be asked for again: the tab holds them until the user comes back.
+     */
+    test('keeps streaming the answer of a browser that stopped watching the loop', () => {
+        const client = addClient(server, 'b1');
+        fire(streamEvent('b1', 'agent.a1'));
+        expect(eventTypes(client)).toEqual(['stream']);
+    });
+
+    test('sends the stream of another browser nowhere, watched or not', () => {
         const client = addWatcher(server, 'b1', 'agent.a1');
-        fire(streamEvent('b1', 'agent.a2'));
+        fire(streamEvent('b2', 'agent.a1'));
         expect(client.frames).toEqual([]);
     });
 

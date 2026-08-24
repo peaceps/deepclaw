@@ -42,8 +42,9 @@ class SSEServerImpl {
     }
 
     /**
-     * Which loops a browser shows, told by the view that opened or left. The events of a loop
-     * nobody looks at are a stream of tokens sent for nothing.
+     * Which loops a browser shows, told by the view that opened or left. What happens in a loop
+     * nobody looks at is news sent for nothing. The answer this browser is waiting for is the one
+     * exception, and it keeps arriving: see shouldSend.
      */
     public static watchLoop(browserId: string, loopId: string, watching: boolean): void {
         const client = this.clients.get(browserId);
@@ -128,7 +129,17 @@ class SSEServerImpl {
         if (isInfoEvent(event)) {
             return true;
         }
-        if (!('loopId' in event) || !client.loops.has(event.loopId)) {
+        if (!('loopId' in event)) {
+            return false;
+        }
+        // The answer a browser asked for is streamed to it wherever in the app it goes, on screen
+        // or not. The chunks live nowhere but the tab, so the ones sent while it was looking at
+        // another page are the ones it could never get back: dropped here, the answer it comes back
+        // to would be missing its middle, and the end that closes the stream would never arrive.
+        if (isLoopStreamEvent(event)) {
+            return 'browserId' in event && client.browserId === event.browserId;
+        }
+        if (!client.loops.has(event.loopId)) {
             return false;
         }
         // What became of the loop itself goes to everyone watching it, whoever asked for it: a tab
@@ -137,8 +148,7 @@ class SSEServerImpl {
             return true;
         } else if (isLoopChatEvent(event)) {
             return 'browserId' in event && client.browserId !== event.browserId;
-        } else if (isLoopStreamEvent(event) || isLoopInteractionEvent(event)
-            || isLoopCancelInteractionEvent(event)) {
+        } else if (isLoopInteractionEvent(event) || isLoopCancelInteractionEvent(event)) {
             return 'browserId' in event && client.browserId === event.browserId;
         }
         return false;

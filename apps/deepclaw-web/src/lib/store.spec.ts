@@ -558,6 +558,23 @@ describe('app store', () => {
             expect(store().messages.loop1[0].content).toBe('half of an answer');
         });
 
+        /**
+         * The answer is streamed to the tab and told to the server only once it is said, so a chat
+         * opened again in the middle of one asks after it and is handed a message with nothing in
+         * it. Taken as the later word, it would wipe what this tab watched arrive and the answer
+         * would go on from whatever chunk came next.
+         */
+        test('keeps the answer it is watching arrive when the pull holds none of it yet', () => {
+            store().addMessage('loop1', newChatMessage({content: 'half of an answer'}));
+            store().addPulledMessages('loop1', [newChatMessage({content: ''})]);
+            expect(store().messages.loop1[0].content).toBe('half of an answer');
+        });
+
+        test('takes a message that was pulled empty when nothing was held of it', () => {
+            store().addPulledMessages('loop1', [newChatMessage({content: ''})]);
+            expect(store().messages.loop1.map(message => message.id)).toEqual(['m1']);
+        });
+
         test('replaces a message it already holds when the history comes in front', () => {
             store().addMessage('loop1', newChatMessage({id: 'm3', content: ''}));
             store().addPulledMessages('loop1', [
