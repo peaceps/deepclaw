@@ -33,6 +33,11 @@ function totalTokens(session: SessionSummary): number {
     return cachedInputTokens + noCachedInputTokens + outputTokens;
 }
 
+/** When the conversation was had, which is when it began unless nothing there says so. */
+function startedAt(session: SessionSummary): string {
+    return session.startedAt ?? session.updatedAt;
+}
+
 /**
  * The conversations of this agent that were closed, hung on the button that opened them, under it or
  * above it by whichever side of the button the page has room on. In a portal because the chat it
@@ -124,8 +129,10 @@ export function SessionHistoryMenu({
                         hover:bg-gray-50"
                 >
                     <div className="flex items-center gap-2">
+                        {/* What it was called, and lacking that when it was: one that ran before
+                            conversations had names is still told apart by the time it was had. */}
                         <span className="flex-1 truncate text-xs font-medium text-gray-700">
-                            {formatDate(i18n.language, session.startedAt ?? session.updatedAt)}
+                            {session.name || formatDate(i18n.language, startedAt(session))}
                         </span>
                         {session.sessionId === viewingSessionId &&
                             <Check size={14} className="shrink-0 text-cyan-600" />}
@@ -135,6 +142,7 @@ export function SessionHistoryMenu({
                     </p>
                     <p className="mt-1 text-[11px] text-gray-400">
                         {t('web.pages.chat.session.meta', {
+                            date: formatDate(i18n.language, startedAt(session)),
                             turns: session.turnCount, tokens: formatCount(totalTokens(session)),
                         })}
                     </p>

@@ -521,6 +521,135 @@ describe('updateSessionRuntime', () => {
     });
 });
 
+describe('nameSession', () => {
+
+    test('names the conversation after the first thing asked of it', () => {
+        const context = startSession();
+        SessionService.nameSession(context, 'find out why the build is slow');
+        expect(persistedMeta(context.sessionDir).runtime.name)
+            .toBe('find out why the build is slow');
+    });
+
+    /**
+     * A name that followed the latest question would rename the conversation out from under whoever
+     * was looking for it, and by the end of a long one it would say nothing about how it began.
+     */
+    test('keeps the name it was given when asked again', () => {
+        const context = startSession();
+        SessionService.nameSession(context, 'the first thing');
+        SessionService.nameSession(context, 'the second thing');
+        expect(persistedMeta(context.sessionDir).runtime.name).toBe('the first thing');
+    });
+
+    /** Everything after the first line of a question is the paste that came with it. */
+    test('takes the first line of a question and nothing of what was pasted under it', () => {
+        const context = startSession();
+        SessionService.nameSession(context, 'what is wrong here?\n\nError: nope\n  at x\n  at y');
+        expect(persistedMeta(context.sessionDir).runtime.name).toBe('what is wrong here?');
+    });
+
+    test('reads past the empty lines a message begins with', () => {
+        const context = startSession();
+        SessionService.nameSession(context, '\n  \nthe question itself');
+        expect(persistedMeta(context.sessionDir).runtime.name).toBe('the question itself');
+    });
+
+    /** A question is asked in sentences, and the first of them is what it is about. */
+    test('names the conversation after the first sentence of a long question', () => {
+        const context = startSession();
+        SessionService.nameSession(
+            context, '为什么打包这么慢？我试过 --verbose，看起来卡在 sourcemap 那一步，但是不确定。'
+        );
+        expect(persistedMeta(context.sessionDir).runtime.name).toBe('为什么打包这么慢？');
+    });
+
+    test('takes the sentence of a latin question along with the mark that ends it', () => {
+        const context = startSession();
+        SessionService.nameSession(
+            context, 'why is the build so slow? I tried --verbose and it seems to hang.'
+        );
+        expect(persistedMeta(context.sessionDir).runtime.name)
+            .toBe('why is the build so slow?');
+    });
+
+    /** A conversation called `hi.` is one nobody finds again. */
+    test('reads past a sentence too short to be a name', () => {
+        const context = startSession();
+        SessionService.nameSession(context, '你好。帮我看下打包为什么这么慢。剩下的以后再说。');
+        expect(persistedMeta(context.sessionDir).runtime.name)
+            .toBe('你好。帮我看下打包为什么这么慢。');
+    });
+
+    /**
+     * The sentences of a line are only the ones that end, and the last thing asked in a line as
+     * often as not ends with nothing at all. Read for its sentences alone, all this line has is the
+     * hello in front of it.
+     */
+    test('keeps the whole of a line whose sentences do not add up to a name', () => {
+        const context = startSession();
+        SessionService.nameSession(context, '你好。帮我看下打包为什么这么慢');
+        expect(persistedMeta(context.sessionDir).runtime.name)
+            .toBe('你好。帮我看下打包为什么这么慢');
+    });
+
+    test('keeps the whole of a latin line that ends without a mark', () => {
+        const context = startSession();
+        SessionService.nameSession(context, 'hi. can you look at why the build is slow');
+        expect(persistedMeta(context.sessionDir).runtime.name)
+            .toBe('hi. can you look at why the build is slow');
+    });
+
+    /** Cut there, `session-service.ts` would end a sentence in the middle of a name. */
+    test('does not end a sentence at a full stop a word carries on past', () => {
+        const context = startSession();
+        SessionService.nameSession(context, 'look at session-service.ts and tell me what is wrong.');
+        expect(persistedMeta(context.sessionDir).runtime.name)
+            .toBe('look at session-service.ts and tell me what is wrong.');
+    });
+
+    /** A comma carries the question on rather than ending it. */
+    test('reads through the commas of a question', () => {
+        const context = startSession();
+        SessionService.nameSession(context, '帮我看下打包为什么这么慢，我怀疑是 sourcemap。');
+        expect(persistedMeta(context.sessionDir).runtime.name)
+            .toBe('帮我看下打包为什么这么慢，我怀疑是 sourcemap。');
+    });
+
+    /** It is read at a glance off a list one line wide, so a paragraph is not a name. */
+    test('cuts a question that never ends a sentence', () => {
+        const context = startSession();
+        SessionService.nameSession(context, 'x'.repeat(500));
+        expect(persistedMeta(context.sessionDir).runtime.name).toHaveLength(60);
+    });
+
+    test('cuts a question with no end to it between two of its words', () => {
+        const context = startSession();
+        SessionService.nameSession(context, `${'word '.repeat(30)}end`);
+        const name = persistedMeta(context.sessionDir).runtime.name!;
+        expect(name.length).toBeLessThanOrEqual(60);
+        expect(name.endsWith('word')).toBe(true);
+    });
+
+    /** A sentence long enough to be a paragraph is still cut back to a line. */
+    test('cuts a first sentence longer than a name is allowed to be', () => {
+        const context = startSession();
+        SessionService.nameSession(context, `${'x'.repeat(500)}。and then some more`);
+        expect(persistedMeta(context.sessionDir).runtime.name).toHaveLength(60);
+    });
+
+    test('leaves a conversation begun without a word unnamed', () => {
+        const context = startSession();
+        SessionService.nameSession(context, '   \n  ');
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    test('does nothing for a session it never loaded', () => {
+        const context = newTestContext({sessionDir: nextSessionDir()});
+        SessionService.nameSession(context, 'nobody is listening');
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+});
+
 describe('getTokenUsage', () => {
 
     test('answers with nothing for a loop that has no session', () => {
@@ -714,6 +843,24 @@ describe('listSessions', () => {
         const sessions = SessionService.listSessions('agent.listTwo');
         expect(sessions.map(session => session.sessionId)).toEqual([NEWER, OLDER]);
         expect(sessions[0]).toMatchObject({turnCount: 9, finalText: 'the newer one'});
+    });
+
+    test('carries what each conversation was called', () => {
+        archived('listNamed', OLDER, {name: 'why the build is slow'});
+        expect(SessionService.listSessions('agent.listNamed')[0]?.name)
+            .toBe('why the build is slow');
+    });
+
+    /** One closed before conversations had names is read back by the time it was had. */
+    test('leaves a conversation that was never named without one', () => {
+        archived('listUnnamed', OLDER, {});
+        expect(SessionService.listSessions('agent.listUnnamed')[0]?.name).toBeUndefined();
+    });
+
+    /** A name written by a build that allowed a longer one is still shown on one line. */
+    test('cuts a name longer than a name is allowed to be', () => {
+        archived('listLongName', OLDER, {name: 'x'.repeat(500)});
+        expect(SessionService.listSessions('agent.listLongName')[0]?.name).toHaveLength(60);
     });
 
     test('carries the token usage of each conversation', () => {

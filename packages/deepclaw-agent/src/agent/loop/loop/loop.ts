@@ -176,6 +176,9 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             messages: this.history,
             oneLoopContext: this.initContext(options)
         };
+        // Named here rather than where the conversation is closed, since by then the first thing
+        // asked of it is buried in a history whose shape is the protocol's rather than ours.
+        SessionService.nameSession(state.oneLoopContext, input);
         await HookManager.emitVisitor('preLoopStart', state.oneLoopContext);
         return this._invokeLoopAndReturn(state);
     }

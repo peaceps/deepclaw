@@ -138,6 +138,12 @@ export type SessionMetaData = {
         transitionReason?: LLMTransitionReason;
         turnCount: number;
         finalText?: string;
+        /**
+         * What the conversation is called, taken from the first thing asked of it and never taken
+         * again: a name that followed the latest question would rename what is already filed away
+         * under it. Absent in one begun without a word, and in one that ran before names.
+         */
+        name?: string;
         /** Absent in a session that was already on disk before conversations could be closed. */
         startedAt?: string;
         updatedAt: string;
@@ -152,6 +158,8 @@ export type SessionMetaData = {
  */
 export type SessionSummary = {
     sessionId: string;
+    /** Absent in a conversation closed before they had names, which is read back by its time. */
+    name?: string;
     startedAt?: string;
     updatedAt: string;
     turnCount: number;

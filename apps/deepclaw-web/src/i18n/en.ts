@@ -213,7 +213,7 @@ export const en = {
                     empty: 'No conversation was closed yet.',
                     emptyRead: 'Nothing was said in this conversation.',
                     noSummary: 'Ended without a word.',
-                    meta: '{{turns}} turns · {{tokens}} tokens',
+                    meta: '{{date}} · {{turns}} turns · {{tokens}} tokens',
                     readonly: 'Reading a conversation that was closed.',
                     backToCurrent: 'Back',
                     refused: {

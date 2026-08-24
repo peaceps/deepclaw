@@ -212,7 +212,7 @@ export const zh = {
                     empty: '还没有结束过的对话。',
                     emptyRead: '这段对话里什么都没说。',
                     noSummary: '结束时没有留下话。',
-                    meta: '{{turns}} 轮 · {{tokens}} tokens',
+                    meta: '{{date}} · {{turns}} 轮 · {{tokens}} tokens',
                     readonly: '正在回看一段已结束的对话。',
                     backToCurrent: '返回',
                     refused: {

@@ -23,6 +23,24 @@ const SESSION_ID = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{3})$/;
  * whole of every one of them to draw two lines is a page that grows heavier with every conversation.
  */
 const SUMMARY_TEXT_LIMIT = 200;
+/**
+ * How long a conversation's name is allowed to be. It is read at a glance off a list one line
+ * wide, so what would not fit on that line is not a name but the question over again.
+ */
+const SESSION_NAME_LIMIT = 60;
+/**
+ * How short a name is allowed to be before more of the question is taken. The first sentence of a
+ * question is often only the hello in front of it, and a conversation called `hi.` is one nobody
+ * finds again.
+ */
+const SESSION_NAME_FLOOR = 8;
+/**
+ * As much of a line as ends where a sentence of it does. A latin full stop counts only where no
+ * word carries on past it, or `session-service.ts` would end a sentence in the middle of a name.
+ * Read with `matchAll`, which works on a clone of it: `test` or `exec` would carry the place it
+ * stopped from one call into the next.
+ */
+const SENTENCE = /[\s\S]*?(?:[。！？；]|[.!?;](?=\s|$))/g;
 
 export type MetaDataConfig = {
     sessionDir: string,
@@ -203,6 +221,9 @@ export class SessionService {
             const {runtime} = JSON.parse(file) as SessionMetaData;
             return {
                 sessionId,
+                // Cut again on the way out: a name written by an older build answers to no limit
+                // this one sets, and the list it is going to shows one line of it.
+                name: runtime.name?.slice(0, SESSION_NAME_LIMIT),
                 startedAt: runtime.startedAt ?? closedAt,
                 updatedAt: runtime.updatedAt ?? closedAt,
                 turnCount: runtime.turnCount ?? 0,
@@ -323,6 +344,57 @@ export class SessionService {
         } catch (error) {
             context.logger.error(error, 'Persist loop state failed');
         }
+    }
+
+    /**
+     * Names the conversation after the first thing that was asked of it, which is what somebody
+     * reading a list of them recognises one by. Named once and never again: a name that followed
+     * the latest question would rename the conversation out from under whoever was looking for it,
+     * and by the end of a long one it would say nothing about how it began.
+     */
+    public static nameSession(context: OneLoopContext, input: string): void {
+        const meta = this.getMeta(context.sessionDir);
+        if (!meta || meta.runtime.name) {
+            return;
+        }
+        // Everything after the first line of a question is the paste that came with it, and a whole
+        // message would be the conversation over again rather than something to call it by.
+        const line = input.split('\n').map(line => line.trim()).find(line => !!line);
+        if (!line) {
+            return;
+        }
+        this.updateSessionRuntime(context, {name: this.readName(line)});
+    }
+
+    /**
+     * The name a line of a question gives: whole sentences of it, enough of them to say something
+     * and no more than a line of a list can show. A question is asked in sentences, and one broken
+     * off between two of its words reads as a slip rather than as the name of anything.
+     *
+     * The sentences of a line are only the ones that end, and the last thing asked in a line as
+     * often as not ends with nothing at all. Where they do not add up to a name, the whole line is
+     * one: `hi. can you look at why the build is slow` has a single sentence in it and being called
+     * by it would leave the conversation named `hi.`.
+     */
+    private static readName(line: string): string {
+        let name = '';
+        for (const sentence of line.matchAll(SENTENCE)) {
+            name += sentence[0];
+            if (name.length >= SESSION_NAME_FLOOR) {
+                break;
+            }
+        }
+        return this.cutLong(name.length >= SESSION_NAME_FLOOR ? name : line);
+    }
+
+    /** Nothing ends the question short enough, so it is cut back between words where there are any. */
+    private static cutLong(name: string): string {
+        if (name.length <= SESSION_NAME_LIMIT) {
+            return name;
+        }
+        const head = name.slice(0, SESSION_NAME_LIMIT);
+        const lastWordEnd = head.lastIndexOf(' ');
+        return (lastWordEnd >= SESSION_NAME_FLOOR ? head.slice(0, lastWordEnd) : head).trim();
     }
 
     public static updateSessionRuntime(

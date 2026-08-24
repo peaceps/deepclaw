@@ -25,6 +25,38 @@ opposite reason: it holds what somebody typed, and it is listed under the name i
 though no run ever wrote a word about it. reading one back is reading only, the input row giving way
 to the way back, and the tokens a closed conversation spent are not shown as the count of the empty
 one that took its place.
+call a conversation that was closed by what was first asked of it, taken while the question is still
+a question: by the time one is closed, the first thing said in it is buried in a history whose shape
+belongs to the protocol rather than to us. named once and never again, since a name following the
+latest question would rename the conversation out from under whoever was looking for it, and by the
+end of a long one would say nothing of how it began. whole sentences of the question and no more of
+it than one line shows, a full stop ending a sentence only where no word carries on past it, or a
+file named in the asking would end one in the middle of a name. a line whose sentences do not add up
+to a name is kept whole instead, or a question opened with a hello would be called by the hello; one
+begun without a word is called by nothing and read back by its time, as every conversation closed
+before they had names still is. the list shows the name where it showed the time, and the time moved
+down beside the turns and the tokens.
+hold the name of a conversation asked for by a browser to being a timestamp, that being what it is
+about to become a path out of: two dots in it would walk out of the agent's own folder and read the
+live chat of another one. a folder in the archive named anything else is not offered in the list
+either, being a name that would be refused the moment it was clicked, and asking for a conversation
+back without naming it at all is refused as well, an empty name reading everywhere below as the one
+being talked in.
+leave a conversation that could not be filed away open, and say so. a failure used to read as there
+having been nothing to file: the chat was emptied, the tokens were zeroed and the loop was built
+again out of the very history that never moved, so the user was told they were starting over while
+the agent went on remembering all of it. what a conversation ended as is stamped in the folder it was
+moved to rather than where it stood, a move failing after that leaving nothing behind marked as over.
+a loop that cannot be built again once the folder has moved is dropped rather than kept, for the next
+turn to build a clean one and to fail there if the agent is still broken: the conversation is closed
+by then and there is nothing left to refuse, while the loop still holding it would answer the next
+question out of it. a session holding a history and no transcript is kept rather than passed over as
+empty, a turn that never finished having still left the loop something it had been told.
+carry as much of what a conversation ended with as the list of them shows rather than the whole of
+it: a run can end with a report of thirty thousand characters, and every one of them used to travel
+to draw the two lines that are read. let go of a conversation that was read back once the page of it
+is out, in the server and in the tab alike: one conversation being talked in per loop is a bounded
+thing to hold, one more for every conversation anybody ever opens is not.
 
 v0.0.13
 hand a run only the tools it could have a use for, and tell it of no tool it was not handed: the one

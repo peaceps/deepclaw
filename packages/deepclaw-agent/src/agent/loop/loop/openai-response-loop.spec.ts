@@ -35,6 +35,7 @@ vi.mock('../services/session-service', () => ({
         loadSession: mocks.loadSession,
         updateSessionRuntime: vi.fn(),
         saveHistory: vi.fn(),
+        nameSession: vi.fn(),
     },
 }));
 

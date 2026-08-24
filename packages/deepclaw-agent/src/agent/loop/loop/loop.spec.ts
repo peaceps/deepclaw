@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
     loadSession: vi.fn<(...args: unknown[]) => unknown>(() => ({history: [], outdated: false})),
     updateSessionRuntime: vi.fn(),
     saveHistory: vi.fn(),
+    nameSession: vi.fn<(context: unknown, input: string) => void>(),
     provideSystemPrompt: vi.fn<(...args: unknown[]) => unknown>(
         () => ({cacheable: 'cacheable', dynamic: 'dynamic'})
     ),
@@ -55,6 +56,7 @@ vi.mock('../services/session-service', () => ({
         loadSession: mocks.loadSession,
         updateSessionRuntime: mocks.updateSessionRuntime,
         saveHistory: mocks.saveHistory,
+        nameSession: mocks.nameSession,
     },
 }));
 
@@ -403,6 +405,26 @@ describe('one turn', () => {
             {finalText: 'done', usage: {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3}},
             true
         );
+    });
+
+    /**
+     * Named where the question still is one. By the time a conversation is closed, what was first
+     * asked of it is buried in a history whose shape belongs to the protocol rather than to us.
+     */
+    test('offers the question as the name of the conversation it starts', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('why is the build slow?', {browserId: 'b1'});
+        expect(mocks.nameSession)
+            .toHaveBeenCalledExactlyOnceWith(expect.anything(), 'why is the build slow?');
+    });
+
+    test('offers the name before the first hook of the turn can read the session', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.nameSession.mock.invocationCallOrder[0]!)
+            .toBeLessThan(mocks.emitVisitor.mock.invocationCallOrder[0]!);
     });
 
     test('compacts the old tool results before every llm call', async () => {
