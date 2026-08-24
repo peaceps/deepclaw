@@ -67,6 +67,71 @@ it left behind used to wait for that end forever. what a chat asks the server fo
 longer wipes what it holds either: the server is told what an answer says once it is said, so a
 message still being written comes back from it blank, and blank is nothing to learn about an answer
 the tab has been watching arrive.
+hand back the whole of what a command printed rather than the first twenty thousand characters of
+it. an output longer than that is filed away and comes back as a path to read the rest by, and the
+preview a command was answered with had been cut to that very length, so it landed just under the
+line every time: nothing was filed, nothing said a cut had happened, and the tail of a long output
+was gone with nothing left to ask for it by. the limit that files an answer away and the limit that
+cut the preview were the same number written in two places, which is the whole of why it never
+showed.
+let a skill shipped with a release reach an install that has been here longer than it. the folder
+skills are laid down in is one every install has had for ages, and it was passed over whole the
+moment it existed, so a skill added to a later build was one the people already running deepclaw
+would never be offered. the folder is filled an entry at a time now, and only where nothing of that
+name is there to begin with: what the user has made of a skill is theirs.
+count what has been laid down beside that folder, laying skills down being something that happens on
+every start while removing one is meant to last. a skill the user removed is missing from the folder
+and named in the count, which is how it comes to be left where they left it rather than put back by
+the next start, and a skill of a newer release is named in neither and arrives. the first start after
+there is a count to keep has none to read, so a skill removed before that start comes back for it:
+nothing on disk tells that from an install the skill had never reached.
+offer a skill only in the modes it is any use in. one made of shell commands is dead weight in chat
+mode, where no tool runs a command at all, and a run there used to be handed the browser skill and
+left to find out. a skill names the modes it wants in its own front matter, and nearly none of them
+name any, being written for everyone rather than for us: saying nothing goes on meaning offered
+everywhere. reading a skill is held to the same modes as listing one, a name being all it takes to
+ask for a body and a name outliving by far the list it was first read off. every list of skills an
+agent is answered with narrows the same way, the one in the prompt and the ones the skill tools hand
+back after refreshing or installing or removing, so that what a run is told it has never depends on
+which of them it happened to read.
+say what looking a skill up on disk costs instead of banning the shell for skills outright. the
+instruction read as never running a command for a skill under any circumstances, while a skill of
+the kind that is a command line opens by telling you to run one, and an agent reading both had no
+way to tell which it was expected to break. what it is really about is finding a skill, which
+load_skill_details does without costing the user a permission prompt, and following one is not the
+same act.
+leave installing the browser cli to the user rather than opening the skill with a line that cannot
+run. a global install that fetches a browser along with it takes minutes where a command here is
+allowed two, so the line would have been killed halfway; it also asked the user's leave before
+starting, for the ands holding it together, and sat one space away from being refused outright for
+the way it silenced its own output. what is left asks the cli for its version, a question both
+shells here know how to ask, where looking the program up on the path is something only one of them
+can do. the fuller of the two references it points at is not pointed at any more: seventy thousand
+characters are filed away rather than read, and the file they are filed in is over the same limit
+when read back, so there is no way round to the whole of it and the shorter one is the only one
+that was ever going to arrive.
+read a command line the way the shell that runs it would before asking the user about it. the guard
+matched characters, so a semicolon, an and, a pipe or a dollar cost a permission prompt wherever it
+stood, quotes and all: the browser cli is given css selectors and javascript to work with, where a
+dollar is a dollar and the user was asked about it every time. a posix shell hands over everything
+inside single quotes whole, keeps the separators inside double quotes but still reads a dollar or a
+backtick there, and passes on whatever follows a backslash; cmd knows the double quote alone, and a
+dollar is nothing to it in any quotes at all. only what the shell keeps for itself is worth asking
+about, and a line holding none of it is the one command it appears to be. cmd's own way of naming a
+value, a percent on either side of it, went unguarded before this and goes unguarded still.
+let a line of nothing but programs we trust through, which for now is the browser cli and nothing
+else. being trusted buys a program nothing on its own, a line holding one command never having been
+asked about anyway; it buys a line holding several, since a pipe or an and is what makes a line worth
+asking about at all, what follows one no longer being the command that was read. a cli that drives a
+browser a command at a time, whose own documentation pipes one command into the next, cost a prompt a
+step. trust goes by the name a program is called on the path and not by a path ending in that name,
+which would be somebody's own program wearing ours. the deny list is read first as it always was, so
+a trusted program standing in front of a dangerous line buys it nothing, and a dollar or a backtick
+in the line stands for a command nobody here has read, trusted programs or not.
+put a background command through the same guard as one run in the foreground. it is the same shell on
+the same machine, and left ungated it was the way around every rule of the other: the deny list, the
+question, all of it, and asking to run something in the background is one word away from asking to
+run it. the guard both ask now lives on its own rather than inside the tool that used to own it.
 
 v0.0.13
 hand a run only the tools it could have a use for, and tell it of no tool it was not handed: the one

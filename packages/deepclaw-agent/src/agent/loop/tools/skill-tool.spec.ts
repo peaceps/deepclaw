@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {newTestContext} from '../../../test-support/one-loop-context';
+import {newTestAgentConfig, newTestContext} from '../../../test-support/one-loop-context';
 import {SkillsManager} from '../services/skills-manager';
 import {
     createSkillTool,
@@ -11,7 +11,7 @@ import {
 } from './skill-tool';
 
 const mocks = vi.hoisted(() => ({
-    runCommand: vi.fn<(command: string) => Promise<{output: string, preview: string}>>(),
+    runCommand: vi.fn<(command: string) => Promise<{output: string}>>(),
     loadLang: vi.fn<() => string>(() => 'en'),
 }));
 
@@ -29,10 +29,13 @@ const getAvailableSkillsPrompt = vi.spyOn(SkillsManager, 'getAvailableSkillsProm
 const createSkill = vi.spyOn(SkillsManager, 'createSkill');
 const removeSkill = vi.spyOn(SkillsManager, 'removeSkill');
 
+/** A run of the mode that has no tool to run a command, which some of these tools are offered in. */
+const chatContext = () => newTestContext({loopConfig: newTestAgentConfig({mode: 'chat'})});
+
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.loadLang.mockReturnValue('en');
-    mocks.runCommand.mockResolvedValue({output: 'command output', preview: 'command output'});
+    mocks.runCommand.mockResolvedValue({output: 'command output'});
     reloadSkills.mockReturnValue(undefined);
     getAvailableSkillsPrompt.mockReturnValue('- demo: a demo skill\n');
 });
@@ -42,8 +45,15 @@ describe('loadSkillDetailsTool invoke', () => {
     test('returns the body the manager holds for the skill', async () => {
         getSkillContent.mockReturnValue('<skill name="demo">body</skill>');
         const result = await loadSkillDetailsTool.invoke({name: 'demo'}, newTestContext());
-        expect(getSkillContent).toHaveBeenCalledExactlyOnceWith('demo');
+        expect(getSkillContent).toHaveBeenCalledExactlyOnceWith('demo', 'agent');
         expect(result).toBe('<skill name="demo">body</skill>');
+    });
+
+    /** Reading a skill is held to the modes it is offered in, so the manager is told which asks. */
+    test('asks for the body under the mode of the run', async () => {
+        getSkillContent.mockReturnValue('<skill name="demo">body</skill>');
+        await loadSkillDetailsTool.invoke({name: 'demo'}, chatContext());
+        expect(getSkillContent).toHaveBeenCalledExactlyOnceWith('demo', 'chat');
     });
 });
 
@@ -52,14 +62,20 @@ describe('refreshSkillsTool invoke', () => {
     test('reloads from disk and lists what the agent can use', async () => {
         const result = await refreshSkillsTool.invoke(undefined, newTestContext());
         expect(reloadSkills).toHaveBeenCalledOnce();
-        expect(getAvailableSkillsPrompt).toHaveBeenCalledExactlyOnceWith('a1');
+        expect(getAvailableSkillsPrompt).toHaveBeenCalledExactlyOnceWith('a1', 'agent');
         expect(result).toBe('Skills refreshed.\nAvailable skills:\n- demo: a demo skill\n');
     });
 
     /** The prompt of the run listed the skills of the borrowed agent, this list has to match it. */
     test('lists the skills of the agent the run stands for', async () => {
         await refreshSkillsTool.invoke(undefined, newTestContext({loopKind: 'task', personaId: 'a2'}));
-        expect(getAvailableSkillsPrompt).toHaveBeenCalledExactlyOnceWith('a2');
+        expect(getAvailableSkillsPrompt).toHaveBeenCalledExactlyOnceWith('a2', 'agent');
+    });
+
+    /** This tool is offered in chat mode too, and the prompt of a chat run lists fewer skills. */
+    test('lists what the mode of the run can use, not what agent mode could', async () => {
+        await refreshSkillsTool.invoke(undefined, chatContext());
+        expect(getAvailableSkillsPrompt).toHaveBeenCalledExactlyOnceWith('a1', 'chat');
     });
 });
 
@@ -109,7 +125,7 @@ describe('downloadSkillTool invoke', () => {
 
     test('retries with the mirror package when the first install fails', async () => {
         mocks.runCommand.mockRejectedValueOnce(new Error('registry down'))
-            .mockResolvedValueOnce({output: 'installed from mirror', preview: ''});
+            .mockResolvedValueOnce({output: 'installed from mirror'});
         const result = await downloadSkillTool.invoke({target: 'org/repo@skill'}, newTestContext());
         expect(mocks.runCommand.mock.calls[1]![0]).toBe('npx -y skills-cn add org/repo@skill -a universal -y');
         expect(result).toBe('installed from mirror');

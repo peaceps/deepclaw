@@ -4,5 +4,6 @@ export * from './image-store';
 export * from './logger';
 export * from './graceful-shutdown';
 export * from './child-process-utils';
+export * from './shell-command';
 export type { Logger } from 'pino';
 export * from '@deepclaw/utils';

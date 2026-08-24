@@ -58,12 +58,15 @@ You can ask me continue to modify the output or mark the task as verified when y
                 write: 'Wrote {{length}} bytes to {{path}}.',
                 edit: 'Edit {{path}} successfully.',
             },
-            syncCommand: {
+            // Asked by both command tools, the foreground one and the background one.
+            command: {
                 guard: {
                     danger: 'Dangerous command({{command}}) blocked.',
                     warn: 'Need permission to run command({{command}}).',
                     mode: 'Deepclaw is not running on agent mode, permission needed to run command({{command}}).',
                 },
+            },
+            syncCommand: {
                 empty: '(no output)',
                 error: 'Error: {{message}}.',
                 timeout: 'Error: Timeout ({{timeout}}s).',

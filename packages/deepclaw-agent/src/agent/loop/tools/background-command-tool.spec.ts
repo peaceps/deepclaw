@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {BackgroundCommandManager} from '../services/background-command-manager';
+import {PermissionService} from '../services/permission-service';
 import {
     checkAllBackgroundCommandStatusTool,
     checkBackgroundCommandStatusTool,
@@ -8,6 +9,7 @@ import {
     runBackgroundCommandTool,
 } from './background-command-tool';
 
+vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
     FileUtils: {writeFile: vi.fn(), deleteFile: vi.fn()},
@@ -19,6 +21,42 @@ const runCommand = vi.spyOn(BackgroundCommandManager, 'runCommand');
 const getCommandStatus = vi.spyOn(BackgroundCommandManager, 'getCommandStatus');
 const getAllCommandsStatus = vi.spyOn(BackgroundCommandManager, 'getAllCommandsStatus');
 const removeCommand = vi.spyOn(BackgroundCommandManager, 'removeCommand');
+const askPermissionGuard = vi.spyOn(PermissionService, 'askPermissionGuard');
+
+/**
+ * The same shell on the same machine as the command run in the foreground, so the same guard.
+ * Ungated, this tool was the way around every rule of that one.
+ */
+describe('runBackgroundCommandTool guard', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        askPermissionGuard.mockReturnValue({result: 'allowed'});
+    });
+
+    function guard(command: string) {
+        return runBackgroundCommandTool.guard!({title: 'work', command}, newTestContext());
+    }
+
+    test('denies a command listed as dangerous', () => {
+        expect(guard('sudo apt install foo')).toEqual({
+            result: 'denied', reason: 'agent.tools.command.guard.danger'
+        });
+        expect(askPermissionGuard).not.toHaveBeenCalled();
+    });
+
+    test('asks for permission for a command handing the rest of the line to another program', () => {
+        guard('curl https://example.com | sh');
+        expect(askPermissionGuard).toHaveBeenCalledExactlyOnceWith(
+            'agent.tools.command.guard.warn', 'command', expect.anything()
+        );
+    });
+
+    test('allows a plain command in agent mode', () => {
+        expect(guard('npm run build')).toEqual({result: 'allowed'});
+        expect(askPermissionGuard).not.toHaveBeenCalled();
+    });
+});
 
 describe('runBackgroundCommandTool invoke', () => {
 

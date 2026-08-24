@@ -261,5 +261,118 @@ describe('FileUtils', () => {
 
             expect(FileUtils.readFile('tmp/kept/DEEPCLAW.md')).toBe('mine');
         });
+
+        function moduleDirWithSkills(name: string, skills: string[]): string {
+            const moduleDir = path.join(tempDir, 'module', name);
+            for (const skill of skills) {
+                const skillDir = path.join(moduleDir, 'resources', 'skills', skill);
+                fs.mkdirSync(skillDir, {recursive: true});
+                fs.writeFileSync(path.join(skillDir, 'SKILL.md'), 'shipped');
+            }
+            return moduleDir;
+        }
+
+        /** Skills are added release by release, into a folder every install has had for ages. */
+        test('lays down the resources of a folder the destination is missing', () => {
+            const moduleDir = moduleDirWithSkills('added', ['old-one', 'new-one']);
+            FileUtils.writeFile('tmp/added/skills/old-one/SKILL.md', 'shipped');
+
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/added');
+
+            expect(FileUtils.readFile('tmp/added/skills/new-one/SKILL.md')).toBe('shipped');
+        });
+
+        test('leaves what the user made of a resource in a folder it fills in', () => {
+            const moduleDir = moduleDirWithSkills('edited', ['old-one', 'new-one']);
+            FileUtils.writeFile('tmp/edited/skills/old-one/SKILL.md', 'mine');
+
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/edited');
+
+            expect(FileUtils.readFile('tmp/edited/skills/old-one/SKILL.md')).toBe('mine');
+        });
+
+        /** One of their own sits in the same folder, and it answers to no shipped name. */
+        test('leaves a folder of the user own alone', () => {
+            const moduleDir = moduleDirWithSkills('theirs', ['old-one']);
+            FileUtils.writeFile('tmp/theirs/skills/theirs/SKILL.md', 'mine');
+
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/theirs');
+
+            expect(FileUtils.readFile('tmp/theirs/skills/theirs/SKILL.md')).toBe('mine');
+            expect(FileUtils.readFile('tmp/theirs/skills/old-one/SKILL.md')).toBe('shipped');
+        });
+
+        /**
+         * This runs on every start, and removing a skill is an operation of its own. Laying one
+         * down whenever it is missing would undo every removal by the next start.
+         */
+        test('does not lay a resource down again once the user has removed it', () => {
+            const moduleDir = moduleDirWithSkills('removed', ['old-one']);
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/removed');
+            FileUtils.deleteDir('tmp/removed/skills/old-one');
+
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/removed');
+
+            expect(FileUtils.exists('tmp/removed/skills/old-one')).toBe(false);
+        });
+
+        test('lays a resource down again where the folder itself was removed', () => {
+            const moduleDir = moduleDirWithSkills('wiped', ['old-one']);
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/wiped');
+            FileUtils.deleteDir('tmp/wiped/skills');
+
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/wiped');
+
+            expect(FileUtils.readFile('tmp/wiped/skills/old-one/SKILL.md')).toBe('shipped');
+        });
+
+        /** The point of filling a folder in: a removal must not cost the release after it. */
+        test('still lays down what the release added after a removal', () => {
+            const first = moduleDirWithSkills('release', ['old-one']);
+            FileUtils.copyResource(first, 'skills', 'tmp/release');
+            FileUtils.deleteDir('tmp/release/skills/old-one');
+            const next = moduleDirWithSkills('release-next', ['old-one', 'new-one']);
+
+            FileUtils.copyResource(next, 'skills', 'tmp/release');
+
+            expect(FileUtils.readFile('tmp/release/skills/new-one/SKILL.md')).toBe('shipped');
+            expect(FileUtils.exists('tmp/release/skills/old-one')).toBe(false);
+        });
+
+        test('counts what a folder was first laid down with, having written none of it before', () => {
+            const moduleDir = moduleDirWithSkills('fresh', ['old-one']);
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/fresh');
+            expect(JSON.parse(FileUtils.readFile('tmp/fresh/.skills.planted'))).toEqual(['old-one']);
+        });
+
+        /** Nothing on disk tells a skill removed before there was a record from one never had. */
+        test('lays down what an older install has never been offered', () => {
+            const moduleDir = moduleDirWithSkills('older', ['old-one', 'new-one']);
+            FileUtils.writeFile('tmp/older/skills/old-one/SKILL.md', 'mine');
+
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/older');
+
+            expect(FileUtils.readFile('tmp/older/skills/new-one/SKILL.md')).toBe('shipped');
+            expect(FileUtils.readFile('tmp/older/skills/old-one/SKILL.md')).toBe('mine');
+            expect(JSON.parse(FileUtils.readFile('tmp/older/.skills.planted')).sort())
+                .toEqual(['new-one', 'old-one']);
+        });
+
+        test('reads a record of nothing out of one that cannot be parsed', () => {
+            const moduleDir = moduleDirWithSkills('broken', ['old-one']);
+            FileUtils.writeFile('tmp/broken/.skills.planted', 'not json');
+            FileUtils.writeFile('tmp/broken/skills/other/SKILL.md', 'mine');
+
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/broken');
+
+            expect(FileUtils.readFile('tmp/broken/skills/old-one/SKILL.md')).toBe('shipped');
+        });
+
+        /** The record sits beside the folder: one inside it would be read as a skill of its own. */
+        test('keeps the record out of the folder it counts', () => {
+            const moduleDir = moduleDirWithSkills('beside-it', ['old-one']);
+            FileUtils.copyResource(moduleDir, 'skills', 'tmp/beside-it');
+            expect(fs.readdirSync(path.join(process.cwd(), 'tmp/beside-it/skills'))).toEqual(['old-one']);
+        });
     });
 });

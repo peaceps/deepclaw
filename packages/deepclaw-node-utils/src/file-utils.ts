@@ -214,14 +214,85 @@ export class FileUtils {
         return target === base || target.startsWith(basePrefix);
     }
 
+    /**
+     * Lays a shipped resource down where the data root expects it, without ever writing over what
+     * is already there: whatever the user has made of a resource is theirs.
+     *
+     * A folder of them is filled in one entry at a time rather than skipped whole. Shipped as one
+     * folder, the skills are added to release by release, and an install that has the folder from
+     * an older build would otherwise never see a single one of them again.
+     *
+     * Which entries have been laid down is written beside that folder, and one written there is
+     * never laid down again. This runs on every start, so with nothing keeping that count a skill
+     * the user removed would be back by the next one, and removing a skill is something this app
+     * does properly, down to the lock entries the installer cli leaves behind. The record is only
+     * ever added to: an entry of it that is missing from disk is missing because somebody took it,
+     * which is the whole of what the record is for.
+     *
+     * The first start after this record appears has none to read, so everything shipped is new to
+     * it once, and a skill removed before that start comes back for it. Nothing on disk tells that
+     * case from an install that never had the skill at all.
+     */
     public static copyResource(fromDir: string, targetName: string, toDir: string = ''): void {
         const targetPath = toDir ? `${toDir}/${targetName}` : targetName;
         const destination = path.resolve(this.getWorkingDir(), targetPath);
+        const source = this.resourceOf(fromDir, targetName);
+        if (!source) {
+            return;
+        }
         if (!fs.existsSync(destination)) {
-            const source = this.resourceOf(fromDir, targetName);
-            if (source) {
-                fs.cpSync(source, destination, { recursive: true });
+            fs.cpSync(source, destination, { recursive: true });
+            if (fs.statSync(source).isDirectory()) {
+                this.recordPlanted(destination, fs.readdirSync(source));
             }
+            return;
+        }
+        if (!fs.statSync(source).isDirectory() || !fs.statSync(destination).isDirectory()) {
+            return;
+        }
+        const planted = this.readPlanted(destination);
+        const laying = fs.readdirSync(source).filter(entry => !planted.includes(entry));
+        if (laying.length === 0) {
+            return;
+        }
+        for (const entry of laying) {
+            const entryDestination = path.join(destination, entry);
+            if (!fs.existsSync(entryDestination)) {
+                fs.cpSync(path.join(source, entry), entryDestination, { recursive: true });
+            }
+        }
+        this.recordPlanted(destination, [...planted, ...laying]);
+    }
+
+    /**
+     * Where the entries laid down in a folder are counted, beside the folder rather than inside
+     * it: a file among the skills is a folder short of being read as a skill of its own.
+     */
+    private static plantedRecord(destination: string): string {
+        return path.join(path.dirname(destination), `.${path.basename(destination)}.planted`);
+    }
+
+    private static readPlanted(destination: string): string[] {
+        try {
+            const record = this.plantedRecord(destination);
+            if (!fs.existsSync(record)) {
+                return [];
+            }
+            const planted: unknown = JSON.parse(fs.readFileSync(record, 'utf-8'));
+            return Array.isArray(planted) ? planted.filter(entry => typeof entry === 'string') : [];
+        } catch {
+            // A record that cannot be read is a record of nothing. It costs the entries of a folder
+            // being laid down once more, which is the cost of the very first start either way.
+            return [];
+        }
+    }
+
+    private static recordPlanted(destination: string, entries: string[]): void {
+        try {
+            fs.writeFileSync(this.plantedRecord(destination), JSON.stringify(entries, null, 2));
+        } catch {
+            // Nothing here is worth failing a start over: a count that was not written is a folder
+            // laid down again next time, which is what happened before there was one to write.
         }
     }
 

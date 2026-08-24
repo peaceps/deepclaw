@@ -6,7 +6,7 @@ import {PermissionService} from '../services/permission-service';
 import {syncCommandTool} from './sync-command-tool';
 
 const mocks = vi.hoisted(() => ({
-    runCommand: vi.fn<(command: string) => Promise<{output: string, preview: string}>>(),
+    runCommand: vi.fn<(command: string) => Promise<{output: string}>>(),
 }));
 
 vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
@@ -27,6 +27,7 @@ function guard(command: string, mode: 'agent' | 'chat' = 'agent') {
     return syncCommandTool.guard!({command}, guardedContext);
 }
 
+/** What the guard makes of a command stands in command-guard.spec; here it is only asked for. */
 describe('syncCommandTool guard', () => {
 
     beforeEach(() => {
@@ -36,26 +37,15 @@ describe('syncCommandTool guard', () => {
 
     test('denies a command listed as dangerous', () => {
         expect(guard('sudo apt install foo')).toEqual({
-            result: 'denied', reason: 'agent.tools.syncCommand.guard.danger'
+            result: 'denied', reason: 'agent.tools.command.guard.danger'
         });
         expect(askPermissionGuard).not.toHaveBeenCalled();
     });
 
-    test('denies a command that wipes the root directory', () => {
-        expect(guard('rm -rf /').result).toBe('denied');
-    });
-
-    test('asks for permission for a command with shell metacharacters', () => {
+    test('asks for permission for a command handing the rest of the line to another program', () => {
         guard('ls | wc -l');
         expect(askPermissionGuard).toHaveBeenCalledExactlyOnceWith(
-            'agent.tools.syncCommand.guard.warn', 'command', guardedContext.permissionWhiteList
-        );
-    });
-
-    test('asks for permission when the loop is not running in agent mode', () => {
-        guard('ls -l', 'chat');
-        expect(askPermissionGuard).toHaveBeenCalledExactlyOnceWith(
-            'agent.tools.syncCommand.guard.mode', 'command', guardedContext.permissionWhiteList
+            'agent.tools.command.guard.warn', 'command', guardedContext.permissionWhiteList
         );
     });
 
@@ -71,15 +61,18 @@ describe('syncCommandTool invoke', () => {
         vi.clearAllMocks();
     });
 
-    test('returns the preview of the command output', async () => {
-        vi.mocked(runCommand).mockResolvedValue({output: 'full output', preview: 'short output'});
+    // The caller files an answer over its limit away and hands back a path to it, and the preview
+    // runCommand used to offer was cut to that very limit, so answering with it landed just under
+    // the line: nothing would be filed and the tail would be gone with nothing saying it existed.
+    test('returns the whole output, leaving the caller to file away what is too long', async () => {
+        vi.mocked(runCommand).mockResolvedValue({output: 'full output'});
         const result = await syncCommandTool.invoke({command: 'echo hi'}, newTestContext());
         expect(runCommand).toHaveBeenCalledExactlyOnceWith('echo hi');
-        expect(result).toBe('short output');
+        expect(result).toBe('full output');
     });
 
     test('reports a dedicated message when the command printed nothing', async () => {
-        vi.mocked(runCommand).mockResolvedValue({output: '', preview: ''});
+        vi.mocked(runCommand).mockResolvedValue({output: ''});
         const result = await syncCommandTool.invoke({command: 'true'}, newTestContext());
         expect(result).toBe('agent.tools.syncCommand.empty');
     });

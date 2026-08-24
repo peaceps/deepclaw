@@ -10,8 +10,16 @@ const shell = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
 export const childProcessTimeout = 120;
 const trunkcateThreshold = 20000;
 
-export async function runCommand(command: string): Promise<{output: string, preview: string}> {
-    return await runCommandAsync(command);
+/**
+ * A command run and waited on, answered with the whole of what it printed. The preview is not
+ * offered here on purpose: it is cut to the very length above which a caller files an answer away
+ * and hands back a path, so it arrives just under that line and is passed on whole and cut, with
+ * nothing filed and nothing saying anything was lost. A caller that wants a preview wants a path
+ * beside it, which is what runCommandAsync gives the background commands.
+ */
+export async function runCommand(command: string): Promise<{output: string}> {
+    const {output} = await runCommandAsync(command);
+    return {output};
 }
 
 export function runCommandAsync(command: string): Promise<{output: string, preview: string}> {

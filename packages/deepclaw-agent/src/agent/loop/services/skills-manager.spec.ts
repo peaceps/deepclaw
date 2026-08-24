@@ -44,6 +44,11 @@ function manifest(name: string, description: string, body: string = 'do the thin
     return `---\nname: ${name}\ndescription: ${description}\n---\n${body}`;
 }
 
+/** A manifest of a skill that narrows itself to some modes, written as yaml has it. */
+function modal(name: string, description: string, modes: string): string {
+    return `---\nname: ${name}\ndescription: ${description}\nmodes: ${modes}\n---\ndo the thing`;
+}
+
 /** The skill index lives in module scope, so every test reloads the module with its own disk. */
 async function loadManager(folders: Record<string, SkillFolder> = {}) {
     vi.resetModules();
@@ -148,7 +153,8 @@ describe('getSkillContent', () => {
 
     test('loads the skills the first time a skill is asked for', async () => {
         const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
-        expect(manager.getSkillContent('pptx')).toBe('<skill name="pptx">\ndo the thing\n</skill>');
+        expect(manager.getSkillContent('pptx', 'agent'))
+            .toBe('<skill name="pptx">\ndo the thing\n</skill>');
         expect(mocks.readDir).toHaveBeenCalledOnce();
     });
 
@@ -157,14 +163,33 @@ describe('getSkillContent', () => {
             pptx: {manifest: manifest('pptx', 'build slide decks')},
             video: {manifest: manifest('video', 'generate videos')},
         });
-        expect(manager.getSkillContent('ghost'))
+        expect(manager.getSkillContent('ghost', 'agent'))
             .toBe('Error: Unknown skill: ghost. Available skills: pptx, video.');
     });
 
     test('reports an empty skill list when nothing is installed', async () => {
         const manager = await loadManager();
-        expect(manager.getSkillContent('ghost'))
+        expect(manager.getSkillContent('ghost', 'agent'))
             .toBe('Error: Unknown skill: ghost. Available skills: .');
+    });
+
+    // A name outlives the list it was read off, so the list is not the whole of the gate.
+    test('refuses the body of a skill the mode is not offered', async () => {
+        const manager = await loadManager({
+            browser: {manifest: modal('browser', 'drives a browser', '[agent]')},
+        });
+        expect(manager.getSkillContent('browser', 'chat'))
+            .toBe('Error: Skill browser is not offered in chat mode, only in agent mode.');
+        expect(manager.getSkillContent('browser', 'agent')).toContain('<skill name="browser">');
+    });
+
+    test('leaves a skill the mode is not offered out of the list of what there is', async () => {
+        const manager = await loadManager({
+            browser: {manifest: modal('browser', 'drives a browser', '[agent]')},
+            pptx: {manifest: manifest('pptx', 'build slide decks')},
+        });
+        expect(manager.getSkillContent('ghost', 'chat'))
+            .toBe('Error: Unknown skill: ghost. Available skills: pptx.');
     });
 });
 
@@ -172,14 +197,14 @@ describe('getAvailableSkillsPrompt', () => {
 
     test('lists a skill that is not restricted to any agent', async () => {
         const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
-        expect(manager.getAvailableSkillsPrompt('a1')).toBe('- pptx: build slide decks\n');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent')).toBe('- pptx: build slide decks\n');
     });
 
     test('lists a skill the agent is allowed to use', async () => {
         const manager = await loadManager({
             pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '["a1"]'},
         });
-        expect(manager.getAvailableSkillsPrompt('a1')).toBe('- pptx: build slide decks\n');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent')).toBe('- pptx: build slide decks\n');
     });
 
     test('hides a skill reserved for other agents', async () => {
@@ -187,19 +212,57 @@ describe('getAvailableSkillsPrompt', () => {
             pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '["a2"]'},
             video: {manifest: manifest('video', 'generate videos')},
         });
-        expect(manager.getAvailableSkillsPrompt('a1')).toBe('- video: generate videos\n');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent')).toBe('- video: generate videos\n');
     });
 
     test('answers with a placeholder when the agent may use nothing', async () => {
         const manager = await loadManager({
             pptx: {manifest: manifest('pptx', 'build slide decks'), agents: '[]'},
         });
-        expect(manager.getAvailableSkillsPrompt('a1')).toBe('(no skills available)');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent')).toBe('(no skills available)');
     });
 
     test('answers with a placeholder when no skill is installed', async () => {
         const manager = await loadManager();
-        expect(manager.getAvailableSkillsPrompt('a1')).toBe('(no skills available)');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent')).toBe('(no skills available)');
+    });
+
+    test('hides a skill reserved for agent mode from a chat run', async () => {
+        const manager = await loadManager({
+            browser: {manifest: modal('browser', 'drives a browser', '[agent]')},
+            pptx: {manifest: manifest('pptx', 'build slide decks')},
+        });
+        expect(manager.getAvailableSkillsPrompt('a1', 'chat')).toBe('- pptx: build slide decks\n');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent'))
+            .toBe('- browser: drives a browser\n- pptx: build slide decks\n');
+    });
+
+    test('offers a skill naming both modes in either of them', async () => {
+        const manager = await loadManager({
+            notes: {manifest: modal('notes', 'writes notes', '[agent, chat]')},
+        });
+        expect(manager.getAvailableSkillsPrompt('a1', 'chat')).toBe('- notes: writes notes\n');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent')).toBe('- notes: writes notes\n');
+    });
+
+    test('offers a skill that names no mode everywhere, as skills of others do', async () => {
+        const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
+        expect(manager.getAvailableSkillsPrompt('a1', 'chat')).toBe('- pptx: build slide decks\n');
+    });
+
+    test('reads a mode list of nothing we know as no list at all', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: modal('pptx', 'build slide decks', '[headless, batch]')},
+        });
+        expect(manager.getAvailableSkillsPrompt('a1', 'chat')).toBe('- pptx: build slide decks\n');
+    });
+
+    test('keeps the modes it knows out of a list that also names junk', async () => {
+        const manager = await loadManager({
+            pptx: {manifest: modal('pptx', 'build slide decks', '[agent, headless]')},
+        });
+        expect(manager.getAvailableSkillsPrompt('a1', 'chat')).toBe('(no skills available)');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent')).toBe('- pptx: build slide decks\n');
     });
 });
 
@@ -207,14 +270,14 @@ describe('generateSkillPrompt', () => {
 
     test('embeds the skills the agent may use into the instructions', async () => {
         const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
-        const prompt = manager.generateSkillPrompt('a1');
+        const prompt = manager.generateSkillPrompt('a1', 'agent');
         expect(prompt).toContain('You have below skills installed:\n- pptx: build slide decks');
         expect(prompt).toContain('load_skill_details');
     });
 
     test('still explains the skill tools when nothing is installed', async () => {
         const manager = await loadManager();
-        expect(manager.generateSkillPrompt('a1')).toContain('(no skills available)');
+        expect(manager.generateSkillPrompt('a1', 'agent')).toContain('(no skills available)');
     });
 });
 
@@ -242,7 +305,7 @@ describe('updateSkillAgents', () => {
         const manager = await loadManager({pptx: {manifest: manifest('pptx', 'build slide decks')}});
         manager.updateSkillAgents('pptx', []);
         expect(mocks.writeFile).toHaveBeenCalledOnce();
-        expect(manager.getAvailableSkillsPrompt('a1')).toBe('(no skills available)');
+        expect(manager.getAvailableSkillsPrompt('a1', 'agent')).toBe('(no skills available)');
     });
 
     test('does nothing for an unknown skill', async () => {
@@ -286,7 +349,7 @@ describe('createSkill', () => {
         expect(mocks.writeFile.mock.calls.map(call => call[0])).toEqual([
             '.agents/skills/pptx/SKILL.md', '.agents/skills/pptx/assets/template.txt',
         ]);
-        expect(manager.getSkillContent('pptx')).toContain('<skill name="pptx">');
+        expect(manager.getSkillContent('pptx', 'agent')).toContain('<skill name="pptx">');
     });
 
     test('rolls back the folder when a file cannot be written', async () => {

@@ -3,6 +3,7 @@ import { ToolDesc } from "../../definitions/tool-definitions";
 import { BackgroundCommand, BackgroundCommandManager } from '../services/background-command-manager';
 import { SessionService } from '../services/session-service';
 import { OneLoopContext } from '../../definitions/definitions';
+import { commandGuard } from './command-guard';
 
 type RunBackgroundCommandInput = {
     title: string;
@@ -34,6 +35,11 @@ and the agent can check the result of the background command later.`,
     },
     agentMode: ['agent'],
     parallelSafe: true,
+    // The same guard the command run in the foreground goes through. Left ungated, this tool is the
+    // way around every rule of that one: the same shell, the same machine, only nobody asked.
+    guard: (input: RunBackgroundCommandInput, context: OneLoopContext) => commandGuard(
+        input.command, context
+    ),
     invoke: async function(input: RunBackgroundCommandInput, context: OneLoopContext): Promise<string> {
         const { title, command } = input;
         const id = crypto.randomUUID();

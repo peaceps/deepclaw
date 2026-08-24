@@ -60,8 +60,19 @@ describe('runCommandAsync', () => {
 
 describe('runCommand', () => {
 
-    test('behaves like runCommandAsync', async () => {
-        expect(await runCommand('echo deepclaw')).toEqual(await runCommandAsync('echo deepclaw'));
+    test('runs the command as runCommandAsync does', async () => {
+        const {output} = await runCommandAsync('echo deepclaw');
+        expect(await runCommand('echo deepclaw')).toEqual({output});
+    });
+
+    /**
+     * A preview is cut to the very length above which a caller files an output away and answers
+     * with a path to it, so one handed on unchanged reads as an output that fit, and the tail of a
+     * long one goes missing with nothing left to say it was ever there. Whoever wants a preview
+     * wants a path beside it, which is runCommandAsync and the background commands it serves.
+     */
+    test('offers no preview, having no path to offer beside one', async () => {
+        expect(await runCommand('echo deepclaw')).not.toHaveProperty('preview');
     });
 });
 

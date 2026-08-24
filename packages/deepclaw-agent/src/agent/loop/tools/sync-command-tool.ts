@@ -1,8 +1,8 @@
 import { i18nInstance } from '@deepclaw/i18n';
 import { runCommand, childProcessTimeout} from '@deepclaw/node-utils';
-import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
+import { ToolDesc } from '../../definitions/tool-definitions';
 import { OneLoopContext } from '../../definitions/definitions';
-import { PermissionService } from '../services/permission-service';
+import { commandGuard } from './command-guard';
 
 type SyncCommandInput = {
     command: string;
@@ -23,62 +23,18 @@ Will return the output of the command. This is local function tool, not MCP comp
     agentMode: ['agent'],
     parallelSafe: false,
     invoke: execute,
-    guard: syncCommandGuard,
-}
-
-const rules: {deny: (string | RegExp)[], warning: (string | RegExp)[]} = {
-    deny: [
-        'rm -rf /',
-        'sudo',
-        'shutdown',
-        'reboot',
-        '> /dev/',
-        /\bIFS\s*=/,
-        'del /f /s /q'
-    ],
-    warning: [
-        /[;&|$]/,
-        /\bsudo\b/,
-        /\brm\s+(-[a-zA-Z]*)?r/,
-        /\$\(/
-    ]
-};
-
-function syncCommandGuard(input: SyncCommandInput, context: OneLoopContext): ToolGuardResult {
-    const { command } = input;
-    const denied = checkRules(rules.deny, command);
-    if (denied) {
-        return {result: 'denied', reason: i18nInstance.t('agent.tools.syncCommand.guard.danger', {command})};
-    }
-    const warned = checkRules(rules.warning, command);
-    if (warned) {
-        return PermissionService.askPermissionGuard(
-            i18nInstance.t('agent.tools.syncCommand.guard.warn', {command}),
-            'command', context.permissionWhiteList
-        );
-    }
-    if (context.loopConfig.mode !== 'agent') {
-        return PermissionService.askPermissionGuard(
-            i18nInstance.t('agent.tools.syncCommand.guard.mode', {command}),
-            'command', context.permissionWhiteList
-        );
-    }
-    return {result: 'allowed'};
-}
-
-function checkRules(rules: (string | RegExp)[], command: string): string {
-    const danger = rules.find(rule => typeof rule === 'string' ? command.includes(rule) : rule.test(command));
-    if (danger) {
-        return typeof danger === 'string' ? danger : danger.source;
-    }
-    return '';
+    guard: (input: SyncCommandInput, context: OneLoopContext) => commandGuard(input.command, context),
 }
 
 async function execute(input: SyncCommandInput): Promise<string> {
     const { command } = input;
     try {
-        const { preview } = await runCommand(command);
-        return !preview ? i18nInstance.t('agent.tools.syncCommand.empty'): preview;
+        // The whole of the output rather than the preview of it. An answer over the limit is filed
+        // away and comes back as a path, and a preview is cut to that very limit, so handing one
+        // over lands just under the line every time: nothing is filed, nothing says a cut happened,
+        // and the tail of a long output is gone with no way left to ask for it.
+        const { output } = await runCommand(command);
+        return !output ? i18nInstance.t('agent.tools.syncCommand.empty'): output;
     } catch (error: any) {
         return error?.killed && error?.signal === 'SIGTERM' ? i18nInstance.t('agent.tools.syncCommand.timeout', {childProcessTimeout})
             : i18nInstance.t('agent.tools.syncCommand.error', {message: error?.message || ''});

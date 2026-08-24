@@ -66,7 +66,7 @@ export class PromptService {
 ${this.memory(role, personaId, projectId)}
 
 # Skills
-${this.availableSkills(personaId)}`;
+${this.availableSkills(personaId, agentConfig.mode)}`;
 
         const current = isCron
             ? `
@@ -375,7 +375,7 @@ task stands for that agent. A task you leave without an assignee stays yours.`;
         return MemoryManager.getMemoryPrompt(role, agentId, projectId);
     }
 
-    private static availableSkills(agentId: string): string {
-        return SkillsManager.generateSkillPrompt(agentId);
+    private static availableSkills(agentId: string, mode: AgentMode): string {
+        return SkillsManager.generateSkillPrompt(agentId, mode);
     }
 }

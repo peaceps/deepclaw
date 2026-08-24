@@ -21,9 +21,9 @@ export const loadSkillDetailsTool: ToolDesc<LoadSkillInput> = {
     },
     agentMode: ['agent', 'chat'],
     parallelSafe: true,
-    invoke: async function(input: LoadSkillInput): Promise<string> {
+    invoke: async function(input: LoadSkillInput, context: OneLoopContext): Promise<string> {
         const { name } = input;
-        return SkillsManager.getSkillContent(name);
+        return SkillsManager.getSkillContent(name, context.loopConfig.mode);
     },
 }
 
@@ -44,7 +44,7 @@ export const refreshSkillsTool: ToolDesc<void> = {
         SkillsManager.reloadSkills();
         return `Skills refreshed.
 Available skills:
-${SkillsManager.getAvailableSkillsPrompt(personaOf(context))}`;
+${SkillsManager.getAvailableSkillsPrompt(personaOf(context), context.loopConfig.mode)}`;
     },
 };
 
@@ -152,11 +152,11 @@ The skill is gone from the available skills after this, for every agent that rea
         if (!SkillsManager.removeSkill(name)) {
             return `No skill named "${name}" is installed, nothing removed.
 Available skills:
-${SkillsManager.getAvailableSkillsPrompt(personaOf(context))}`;
+${SkillsManager.getAvailableSkillsPrompt(personaOf(context), context.loopConfig.mode)}`;
         }
         return `Skill ${name} removed.
 Available skills:
-${SkillsManager.getAvailableSkillsPrompt(personaOf(context))}`;
+${SkillsManager.getAvailableSkillsPrompt(personaOf(context), context.loopConfig.mode)}`;
     },
     // Nothing is spawned to remove a skill, so a shell has nothing to be smuggled into. What a name
     // may not be is a path: the manager takes it for a name and looks for a skill of that name.
@@ -175,8 +175,10 @@ export const createSkillTool: ToolDesc<CreateSkillInput> = {
 scripts, whatever the job takes -- teaching an agent how to do something, kept for the sessions
 after this one. It must hold a "SKILL.md" opening with a YAML frontmatter block that defines "name",
 the same handle as the name argument, and "description", the one sentence the skill is later matched
-on, saying what it does and when to use it. Markdown below the frontmatter is what the agent follows
-once the skill is loaded, and it reaches any other file of the folder by a relative path.`,
+on, saying what it does and when to use it. An optional "modes" list holds the skill to the modes it
+is any use in, "agent" or "chat" or both: one made of shell commands belongs to "agent" alone, chat
+mode having no tool that runs one. Markdown below the frontmatter is what the agent follows once the
+skill is loaded, and it reaches any other file of the folder by a relative path.`,
         schema: {
             type: 'object',
             additionalProperties: false,
@@ -220,7 +222,7 @@ once the skill is loaded, and it reaches any other file of the folder by a relat
         }
         return `Skill ${name} created.
 Available skills:
-${SkillsManager.getAvailableSkillsPrompt(personaOf(context))}`;
+${SkillsManager.getAvailableSkillsPrompt(personaOf(context), context.loopConfig.mode)}`;
     },
 }
 

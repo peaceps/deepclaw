@@ -1,5 +1,7 @@
 import matter from 'gray-matter';
+import { AgentMode } from '@deepclaw/config';
 import { FileUtils, getLogger } from '@deepclaw/node-utils';
+import { ALL_AGENT_MODES } from '../../definitions/tool-definitions';
 import {
     SKILL_AGENT_JSON,
     SKILL_MD,
@@ -20,6 +22,8 @@ type SkillDocument = {
     manifest: SkillManifest;
     body: string;
     agents?: string[];
+    /** The modes the skill is offered in, unset meaning every one of them. */
+    modes?: AgentMode[];
 }
 
 export type SkillInfo = {
@@ -31,15 +35,36 @@ export type SkillInfo = {
 export class SkillsManager {
     private static skills: Map<string, SkillDocument>;
 
-    public static getSkillContent(skillName: string): string {
+    /**
+     * Reading a skill is held to the modes it is offered in, the same as listing it. A name is all
+     * it takes to ask for one, and a name outlives the list it was read off: the run that asks is
+     * as likely to have it from the user or from something it was told earlier. Handing the body
+     * over anyway would walk a chat run through steps it has no tool to take.
+     */
+    public static getSkillContent(skillName: string, mode: AgentMode): string {
         if (!this.skills) {
             this.reloadSkills();
         }
         const skillDocument = this.skills.get(skillName);
         if (!skillDocument) {
-            return `Error: Unknown skill: ${skillName}. Available skills: ${Array.from(this.skills.keys()).join(', ')}.`;
+            return `Error: Unknown skill: ${skillName}. Available skills: ${this.namesFor(mode).join(', ')}.`;
+        }
+        if (!this.offeredIn(skillDocument, mode)) {
+            return `Error: Skill ${skillName} is not offered in ${mode} mode, only in `
+                + `${skillDocument.modes!.join(' and ')} mode.`;
         }
         return `<skill name="${skillName}">\n${skillDocument.body}\n</skill>`;
+    }
+
+    /** Whether a skill is offered in a mode, a skill naming none of them being offered in all. */
+    private static offeredIn(skill: SkillDocument, mode: AgentMode): boolean {
+        return !skill.modes || skill.modes.includes(mode);
+    }
+
+    private static namesFor(mode: AgentMode): string[] {
+        return Array.from(this.skills.values())
+            .filter(skill => this.offeredIn(skill, mode))
+            .map(skill => skill.manifest.name);
     }
 
     public static reloadSkills(): void {
@@ -198,6 +223,7 @@ export class SkillsManager {
                 dir,
             },
             body: content,
+            modes: this.readModes(data['modes']),
         };
 
         try {
@@ -214,25 +240,44 @@ export class SkillsManager {
         return skill.manifest.name;
     }
 
-    public static generateSkillPrompt(agentId: string): string {
+    /**
+     * The modes a skill declares it is any use in. A skill made of shell commands is dead weight in
+     * chat mode, where no tool runs one, and offering it there buys nothing but a run that promises
+     * work it cannot do.
+     *
+     * Nearly every skill is somebody else's and says nothing about deepclaw's modes, so saying
+     * nothing has to keep meaning what it meant before: offered everywhere. Only a list naming a
+     * mode we know narrows anything, and junk in that field is read as no list at all.
+     */
+    private static readModes(declared: unknown): AgentMode[] | undefined {
+        if (!Array.isArray(declared)) {
+            return undefined;
+        }
+        const modes = declared.filter(
+            (mode): mode is AgentMode => ALL_AGENT_MODES.includes(mode as AgentMode)
+        );
+        return modes.length > 0 ? modes : undefined;
+    }
+
+    public static generateSkillPrompt(agentId: string, mode: AgentMode): string {
         return `You have below skills installed:
-${this.getAvailableSkillsPrompt(agentId)}
+${this.getAvailableSkillsPrompt(agentId, mode)}
 
 When user ask for some skill, first check from above available skills.
 If not found, use search_online_skills to search from public networks.
-Do not use shell commands to search skill files on local disk, user will be annoyed by permission asking prompt.
-AGAIN! NEVER use file tool or shell tool to search files on disk for skills!!!
-
-load_skill_details tool is a local function to get the detailed information of skills.
+load_skill_details is a local function that hands you the whole text of a skill. Read a skill with
+it, and never go looking for skill files on disk: that costs the user a permission prompt and finds
+nothing this tool would not have given you. This governs finding a skill, not following one, so run
+whatever commands a skill you have loaded tells you to run.
 `;
     }
 
-    public static getAvailableSkillsPrompt(agentId: string): string {
+    public static getAvailableSkillsPrompt(agentId: string, mode: AgentMode): string {
         if (!this.skills) {
             this.reloadSkills();
         }
         const skills = Array.from(this.skills.values()).filter(skill =>
-            !skill.agents || skill.agents.includes(agentId)
+            (!skill.agents || skill.agents.includes(agentId)) && this.offeredIn(skill, mode)
         ).map(skill => skill.manifest).reduce((acc, skill) => acc + `- ${skill.name}: ${skill.description}\n`, '');
 
         return skills.length === 0 ? '(no skills available)' : skills;

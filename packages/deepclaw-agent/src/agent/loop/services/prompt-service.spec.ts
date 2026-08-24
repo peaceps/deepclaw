@@ -376,7 +376,7 @@ describe('a task loop working on a task', () => {
         const {PromptService, memoryPrompt, skillPrompt} = await loadServiceWithAssignee();
         PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', 'task', TASK);
         expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a2', 'p1');
-        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a2');
+        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a2', 'agent');
     });
 
     test('keeps its own memory and skills when the task has no assignee', async () => {
@@ -384,7 +384,7 @@ describe('a task loop working on a task', () => {
         getTask.mockReturnValue({title: 'ship it'} as Task);
         PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', 'task', TASK);
         expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a1', 'p1');
-        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a1');
+        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a1', 'agent');
     });
 
     test('keeps the emotions of the assignee out of its report', async () => {
@@ -727,7 +727,15 @@ describe('memory and skills', () => {
     test('asks the skills manager for the skills of this agent', async () => {
         const {PromptService, skillPrompt} = await loadService();
         PromptService.provideSystemPrompt(newTestAgentConfig({id: 'a7'}), undefined, 'agent', '', 'main');
-        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a7');
+        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a7', 'agent');
+    });
+
+    test('tells the skills manager which mode is asking, so a chat run is offered less', async () => {
+        const {PromptService, skillPrompt} = await loadService();
+        PromptService.provideSystemPrompt(
+            newTestAgentConfig({id: 'a7', mode: 'chat'}), undefined, 'agent', '', 'main'
+        );
+        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a7', 'chat');
     });
 });
 
