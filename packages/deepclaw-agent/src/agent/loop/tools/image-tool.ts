@@ -1,13 +1,16 @@
 import type { ImageModel } from '@deepclaw/config';
-import { imageKeyExtension, imageKeyMediaType, imageRefKey, newImageRef, parseDataUrl } from '@deepclaw/core';
+import {
+    imageExtensionOf, imageKeyExtension, imageKeyMediaType, imageRefKey, newImageRef, parseDataUrl
+} from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
-import { ImageStore } from '@deepclaw/node-utils';
+import { FileUtils, ImageStore } from '@deepclaw/node-utils';
 import { GPT_IMAGE_MODELS, GptImageGenerator } from '../../image/gpt-image-generator';
 import { ImageGenerator } from '../../image/image-generator';
 import { QWEN_MODELS, QwenImageGenerator } from '../../image/qwen-image-generator';
 import { SEEDREAM_MODELS, SeedreamImageGenerator } from '../../image/seedream-image-generator';
 import { IMAGE_FOOT_PRINT, OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
+import { fileGuard } from './file-tool';
 
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 
@@ -86,6 +89,65 @@ them out to draw from the prompt alone.`,
         context.actions.addFootPrint({type: IMAGE_FOOT_PRINT, content: ref});
         return i18nInstance.t('agent.tools.image.saved', {url: ref});
     },
+};
+
+// Kept in step with what an image model will take from us, a picture being worth keeping mostly
+// where it can also be handed on.
+const MAX_KEPT_MB = MAX_SOURCE_MB;
+
+type KeepImageInput = {
+    filePath: string;
+};
+
+/**
+ * A picture already written to disk, laid down where every other picture of this app lives so that
+ * a chat, a browser and an im client all reach it through the one reference. A path reaches none of
+ * them: the chat is read somewhere else than where the file was written, which is the usual case
+ * and the whole of why a screenshot named in an answer shows the user nothing.
+ */
+export const keepImageTool: ToolDesc<KeepImageInput> = {
+    tool: {
+        name: 'keep_image',
+        description: `Keep a picture that is already on disk, such as a screenshot a command took or
+a chart a script drew, and answer with the reference it comes back as. Naming the file path instead
+shows the user nothing, the chat being read where that file is not. This only puts the picture in
+front of the user; nothing of it is sent to the model.`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                filePath: {
+                    type: 'string',
+                    description: 'Where the picture is, as the command that wrote it named the file.',
+                },
+            },
+            required: ['filePath'],
+        },
+    },
+    agentMode: ['agent'],
+    parallelSafe: true,
+    invoke: async function(input: KeepImageInput, context: OneLoopContext): Promise<string> {
+        const filePath = input.filePath?.trim();
+        const extension = filePath ? imageExtensionOf(filePath) : null;
+        if (!extension) {
+            throw new Error(i18nInstance.t('agent.tools.image.notAPicture', {path: filePath}));
+        }
+        // Asked of the file rather than of its bytes: a picture too big to keep is too big to read
+        // into memory first. What is no file at all answers nothing and is left to the read below,
+        // which names a missing one plainly and hands along whatever the disk says of a folder that
+        // happens to be called a picture.
+        const megabytes = (FileUtils.sizeOf(filePath) ?? 0) / 1024 / 1024;
+        if (megabytes > MAX_KEPT_MB) {
+            throw new Error(i18nInstance.t('agent.tools.image.tooLargeToKeep', {
+                path: filePath, size: megabytes.toFixed(1), limit: MAX_KEPT_MB,
+            }));
+        }
+        const bytes = FileUtils.readBuffer(filePath);
+        const ref = newImageRef(ImageStore.save(bytes, extension, context.loopId));
+        context.actions.addFootPrint({type: IMAGE_FOOT_PRINT, content: ref});
+        return i18nInstance.t('agent.tools.image.kept', {url: ref});
+    },
+    guard: fileGuard,
 };
 
 /**

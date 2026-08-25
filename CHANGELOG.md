@@ -110,6 +110,20 @@ can do. the fuller of the two references it points at is not pointed at any more
 characters are filed away rather than read, and the file they are filed in is over the same limit
 when read back, so there is no way round to the whole of it and the shorter one is the only one
 that was ever going to arrive.
+show the user a picture that was written to disk rather than the path it was written to. a screenshot
+taken by a command lands beside whatever it was working on, and the chat is read somewhere else than
+where that file is: the answer naming it showed nobody anything, not in a browser and least of all in
+an im client. keep_image takes a path and lays the bytes down where every other picture of the app
+lives, hashed under the loop that kept it, and answers with the dcimg reference that a chat, a
+browser and an im client all reach the same picture through. it is the same road a drawn picture
+already travelled, only opened at the other end: until now nothing on disk could get onto it, the
+store taking bytes from a model or from a client and from nowhere else. a name that is no picture is
+refused before the file is read and so is one over the size an image model would take, a picture too
+big to keep being too big to hold in memory on the way to being refused, and a path outside the
+working folder asks the user first, as reading a file there always has. the loop
+notes the picture as its own the way a drawn one is noted, so a subagent's screenshot can still be
+named by the loop above it. nothing of the picture goes to the model: it is the user who was going to
+look at it.
 read a command line the way the shell that runs it would before asking the user about it. the guard
 matched characters, so a semicolon, an and, a pipe or a dollar cost a permission prompt wherever it
 stood, quotes and all: the browser cli is given css selectors and javascript to work with, where a
@@ -119,15 +133,28 @@ backtick there, and passes on whatever follows a backslash; cmd knows the double
 dollar is nothing to it in any quotes at all. only what the shell keeps for itself is worth asking
 about, and a line holding none of it is the one command it appears to be. cmd's own way of naming a
 value, a percent on either side of it, went unguarded before this and goes unguarded still.
-let a line of nothing but programs we trust through, which for now is the browser cli and nothing
-else. being trusted buys a program nothing on its own, a line holding one command never having been
-asked about anyway; it buys a line holding several, since a pipe or an and is what makes a line worth
-asking about at all, what follows one no longer being the command that was read. a cli that drives a
-browser a command at a time, whose own documentation pipes one command into the next, cost a prompt a
-step. trust goes by the name a program is called on the path and not by a path ending in that name,
-which would be somebody's own program wearing ours. the deny list is read first as it always was, so
-a trusted program standing in front of a dangerous line buys it nothing, and a dollar or a backtick
-in the line stands for a command nobody here has read, trusted programs or not.
+let a line of several commands through where every one of them is a name nobody needs to be told
+about: the browser cli, cd, the handful that read and report and write nothing, and the ones a run
+reaches for to ask the machine and the network what they are doing. a name is on that list because
+meeting it in a line of several is not news, which is not the same as the program being harmless. a
+route or an ipconfig can change what happens to a packet and a tcpdump can write a file, and they
+are on it regardless, since what the list decides is what the user is told about rather than what a
+run can do: a lone command of any name runs unasked, so whatever such a line does, two calls would
+have done in silence. that is also why the list buys a name nothing on its own, a line holding one
+command never having been asked about anyway; it buys a line holding several, a pipe or an and being
+what makes a line worth asking about at all, what follows one no longer being the command that was
+read. the cli that drives a browser a command at a time, whose own documentation pipes one command
+into the next, cost a prompt a step; moving the shell to a folder before running something there is
+the commonest reason a line has an and in it at all, and looking around is most of the rest. a line
+of nothing but the readers can say what it saw and hands what it saw to nothing that could act on
+it, which is what asking about a pipe was ever for. nothing that carries a value into the command
+after it belongs on the list, an export or a set being able to name the very path the next program
+is looked up on. a name is known as it is called on the path and not by a path ending in it, which
+would be somebody's own program wearing ours. the deny list is read first as it always was, so a
+name off the list standing in front of a dangerous line buys it nothing, and a dollar or a backtick
+in the line stands for a command nobody here has read, list or no list. where a line writes is no
+part of any of this: a redirect belongs to the line rather than to a program standing on it, and no
+rule here has ever read one.
 put a background command through the same guard as one run in the foreground. it is the same shell on
 the same machine, and left ungated it was the way around every rule of the other: the deny list, the
 question, all of it, and asking to run something in the background is one word away from asking to

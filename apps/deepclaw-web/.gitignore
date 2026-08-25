@@ -25,6 +25,8 @@ public/projects
 public/cron
 public/images
 
+agent-browser.json
+
 # misc
 .DS_Store
 *.pem

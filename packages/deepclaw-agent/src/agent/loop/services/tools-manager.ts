@@ -16,7 +16,7 @@ import {createCronTaskTool, getCronHistoriesTool, updateCronOutputTool, updateCr
 import {createProjectTool, createSimpleTaskTool, updateProjectTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
 import { base64Tool } from '../tools/encode-decode-tool';
-import { generateImageTool } from '../tools/image-tool';
+import { generateImageTool, keepImageTool } from '../tools/image-tool';
 import { updateAgentRuntimeTool } from '../tools/agent-runtime-tool';
 import { askUserTool } from '../tools/ask-user-tool';
 import { MCP_PREFIX, MCPService } from './mcp-service';
@@ -32,6 +32,7 @@ const tools: ToolDesc<any>[] = [
     createSkillTool,
     base64Tool,
     generateImageTool,
+    keepImageTool,
     readFileTool,
     writeFileTool,
     editFileTool,

@@ -21,6 +21,8 @@ Nothing in this skill works without the CLI, and installing it is the user's to 
 
 Take `skills get core` as it comes and leave `--full` alone, whatever the CLI says about it. The full reference runs to some seventy thousand characters, which is filed away to disk and handed back as a path rather than read, and reading that file back is over the same limit again: there is no way round to the whole of it. What `skills get core` answers with fits.
 
+A screenshot is written to a file, and a file path shows the user nothing: they are reading the chat somewhere else than where you wrote it. Hand the path to `keep_image` and put the reference it answers with in your own reply, as `![](dcimg://...)`. Do it for a screenshot the user asked for or one that shows what they asked about, not for the ones you take to find your own way around.
+
 Run each command on its own and pipe it into nothing, whatever the CLI's own examples do with `head` or `jq`. A line that hands the rest of itself to another program is a line the user is asked about, while a line of `agent-browser` alone is not; and an answer too long to read is filed away and handed back as a path regardless, which is all a `head` was there for.
 
 The CLI serves skill content that always matches the installed version, so instructions never go stale. The content in this stub cannot change between releases, which is why it just points at `skills get core`.

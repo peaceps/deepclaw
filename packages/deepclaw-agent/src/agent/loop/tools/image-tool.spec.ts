@@ -1,13 +1,16 @@
 import type {ImageModel} from '@deepclaw/config';
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {newTestAgentConfig, newTestContext} from '../../../test-support/one-loop-context';
-import {generateImageTool} from './image-tool';
+import {generateImageTool, keepImageTool} from './image-tool';
 
 const mocks = vi.hoisted(() => ({
     save: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
         (_bytes, extension, loopId) => `${loopId}/abcd1234.${extension}`
     ),
     read: vi.fn<(key: string) => Buffer | null>(() => Buffer.from('source-bytes')),
+    readBuffer: vi.fn<(filePath: string) => Buffer>(() => Buffer.from('file-bytes')),
+    sizeOf: vi.fn<(filePath: string) => number | null>(() => 'file-bytes'.length),
+    isPathInWorkspace: vi.fn<(filePath: string) => boolean>(() => true),
 }));
 
 vi.mock('@deepclaw/i18n', () => ({
@@ -19,6 +22,10 @@ vi.mock('@deepclaw/i18n', () => ({
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
     ImageStore: {save: mocks.save, read: mocks.read},
+    FileUtils: {
+        readBuffer: mocks.readBuffer, sizeOf: mocks.sizeOf,
+        isPathInWorkspace: mocks.isPathInWorkspace,
+    },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
 }));
 
@@ -583,6 +590,82 @@ describe('generateImageTool drawing from a picture', () => {
             {prompt: 'make it night', sourceImages: ['dcimg://agent.a1/huge.png']}, contextWithKey()
         )).rejects.toThrow('agent.tools.image.imageTooLarge {"ref":"dcimg://agent.a1/huge.png","size":"11.0","limit":10}');
         expect(fetchMock).not.toHaveBeenCalled();
+    });
+});
+
+describe('keepImageTool invoke', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.readBuffer.mockReturnValue(Buffer.from('file-bytes'));
+        mocks.sizeOf.mockReturnValue('file-bytes'.length);
+        mocks.isPathInWorkspace.mockReturnValue(true);
+    });
+
+    /** A path is read against the same root a command runs in, so the two name the same file. */
+    test('files the bytes under the loop and answers with the reference', async () => {
+        const result = await keepImageTool.invoke(
+            {filePath: 'agent-browser-demo/home.png'}, newTestContext()
+        );
+
+        expect(mocks.readBuffer).toHaveBeenCalledExactlyOnceWith('agent-browser-demo/home.png');
+        expect(mocks.save).toHaveBeenCalledExactlyOnceWith(
+            Buffer.from('file-bytes'), 'png', 'agent.a1'
+        );
+        expect(result).toBe(
+            'agent.tools.image.kept {"url":"dcimg://agent.a1/abcd1234.png"}'
+        );
+    });
+
+    /** What a sub loop kept reaches nobody unless the loop above it can name the reference. */
+    test('leaves a footprint the loop can name the picture by', async () => {
+        const context = newTestContext();
+        await keepImageTool.invoke({filePath: 'shot.png'}, context);
+        expect(context.actions.addFootPrint).toHaveBeenCalledExactlyOnceWith({
+            type: 'image', content: 'dcimg://agent.a1/abcd1234.png'
+        });
+    });
+
+    test('keeps a jpeg under the one extension a jpg is kept under', async () => {
+        await keepImageTool.invoke({filePath: 'shot.JPEG'}, newTestContext());
+        expect(mocks.save).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'jpg', 'agent.a1');
+    });
+
+    test('refuses a file that is no picture by its name, reading nothing', async () => {
+        await expect(keepImageTool.invoke({filePath: 'notes.txt'}, newTestContext()))
+            .rejects.toThrow('agent.tools.image.notAPicture {"path":"notes.txt"}');
+        expect(mocks.readBuffer).not.toHaveBeenCalled();
+        expect(mocks.save).not.toHaveBeenCalled();
+    });
+
+    /** Too big to keep is too big to hold in memory on the way to being refused. */
+    test('refuses a picture too heavy to keep without reading it', async () => {
+        mocks.sizeOf.mockReturnValueOnce(11 * 1024 * 1024);
+        await expect(keepImageTool.invoke({filePath: 'whole-page.png'}, newTestContext()))
+            .rejects.toThrow('agent.tools.image.tooLargeToKeep {"path":"whole-page.png","size":"11.0","limit":10}');
+        expect(mocks.readBuffer).not.toHaveBeenCalled();
+        expect(mocks.save).not.toHaveBeenCalled();
+    });
+
+    /** The read is what knows a missing file by name, and it is left to say so. */
+    test('lets a file that is not there be reported by the read', async () => {
+        mocks.sizeOf.mockReturnValueOnce(null);
+        mocks.readBuffer.mockImplementationOnce(() => {
+            throw new Error('File gone.png not found.');
+        });
+        await expect(keepImageTool.invoke({filePath: 'gone.png'}, newTestContext()))
+            .rejects.toThrow('File gone.png not found.');
+    });
+
+    test('lets a file the command wrote in the work dir be kept without asking', () => {
+        expect(keepImageTool.guard!({filePath: 'agent-browser-demo/home.png'}, newTestContext()))
+            .toEqual({result: 'allowed'});
+    });
+
+    test('asks before keeping a picture from outside the work dir', () => {
+        mocks.isPathInWorkspace.mockReturnValueOnce(false);
+        expect(keepImageTool.guard!({filePath: '/etc/secret.png'}, newTestContext()).result)
+            .toBe('ask');
     });
 });
 

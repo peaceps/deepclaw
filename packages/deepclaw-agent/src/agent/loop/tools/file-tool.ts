@@ -99,7 +99,8 @@ export const editFileTool: ToolDesc<EditFileInput> = {
     guard: fileGuard
 }
 
-function fileGuard(input: FileOperationInput, context: OneLoopContext): ToolGuardResult {
+/** Asked by every tool that reaches for a path, wherever the tool itself lives. */
+export function fileGuard(input: FileOperationInput, context: OneLoopContext): ToolGuardResult {
     if (!FileUtils.isPathInWorkspace(input.filePath)) {
         return PermissionService.askPermissionGuard(
             i18nInstance.t('agent.tools.file.guard'), 'file', context.permissionWhiteList

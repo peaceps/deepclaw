@@ -58,7 +58,7 @@ export const zh = {
             command: {
                 guard: {
                     danger: '禁止执行危险命令({{command}})。',
-                    warn: '检测到危险命令({{command}})。',
+                    warn: '检测到需要权限的命令({{command}})。',
                     mode: 'Deepclaw未运行在agent模式，但模型想要运行命令({{command}})。',
                 },
             },
@@ -72,6 +72,9 @@ export const zh = {
                 noModel: '还没有选生图模型。请在该 agent 的生图设置里选一个。',
                 unsupportedModel: '暂时还不支持用 {{model}} 生图。请在该 agent 的生图设置里选一个 qwen-image、seedream 或 gpt-image 模型。',
                 saved: '图片已生成。把 ![image]({{url}}) 放进回复里，图片才会出现在会话中。',
+                kept: '图片已保存。把 ![image]({{url}}) 放进回复里，图片才会出现在会话中；只报文件路径的话，用户那边什么都看不到。',
+                notAPicture: '按文件名看，{{path}} 不是图片。只保存 png、jpg、gif 和 webp。',
+                tooLargeToKeep: '{{path}} 有 {{size}}MB，超过了单张图 {{limit}}MB 的上限。截小一点，比如只截页面的一部分而不是整页。',
                 unknownImage: '找不到 {{ref}} 这张图。只能用本会话里的 dcimg:// 引用或者一个图片链接作为参考图。',
                 imageTooLarge: '{{ref}} 有 {{size}}MB，超过了生图模型能接受的 {{limit}}MB。请换一张小一点的图。',
             },
