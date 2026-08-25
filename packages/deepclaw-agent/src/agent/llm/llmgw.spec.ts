@@ -42,13 +42,17 @@ class FakeLLM extends LLMModel<FakeMessage, FakeResponse, FakeTool, FakeClient> 
         return client;
     }
 
+    public readonly signals: (AbortSignal | undefined)[] = [];
+
     protected override async _invoke(
         system: SystemPrompt,
         messages: FakeMessage[],
         tools: FakeTool[],
-        streamer: (text: string) => void
+        streamer: (text: string) => void,
+        signal?: AbortSignal
     ): Promise<FakeResponse> {
         this.invokeCalls.push({system, messages: [...messages], tools});
+        this.signals.push(signal);
         streamer('chunk');
         this.attempts += 1;
         return this.onInvoke(this.attempts);
@@ -360,6 +364,63 @@ describe('LLMModel invoke input too long', () => {
             () => llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger())
         );
         expect(llm.attempts).toBe(1);
+    });
+});
+
+describe('LLMModel under a stop', () => {
+
+    test('hands the signal to the vendor call', async () => {
+        const llm = newLLM();
+        const signal = new AbortController().signal;
+        await llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger(), signal);
+        expect(llm.signals).toEqual([signal]);
+    });
+
+    /**
+     * An aborted call carries no status, so the check for what cannot be recovered from lets it
+     * through and it reads as an ordinary failure. Retried, it fails the same way twice more, and
+     * a second passes between the user pressing stop and anything happening.
+     */
+    test('gives up at once instead of retrying a call the stop cut short', async () => {
+        const llm = newLLM();
+        const controller = new AbortController();
+        llm.onInvoke = async () => {
+            controller.abort();
+            throw Object.assign(new Error('Request was aborted.'), {status: undefined});
+        };
+        // Awaited without driving any timer on purpose: the retry path sleeps between attempts,
+        // so a call that comes back at all is a call that never went down it.
+        await expect(llm.invoke(
+            'agent', newSystem(), [], () => undefined, newTestLogger(), controller.signal
+        )).rejects.toThrow('Request was aborted.');
+        expect(llm.attempts).toBe(1);
+    });
+
+    /**
+     * It leaves as it came rather than as a response. A response would be an answer of the model
+     * as far as the loop can tell, and a turn ending on one has ended by itself: the stop would be
+     * dropped as the crossing-in-flight case it looks exactly like.
+     */
+    test('throws rather than answering, so that the loop can tell a stop from an answer', async () => {
+        const llm = newLLM();
+        const controller = new AbortController();
+        const messages: FakeMessage[] = [];
+        llm.onInvoke = async () => {
+            controller.abort();
+            throw new Error('Request was aborted.');
+        };
+        await expect(llm.invoke(
+            'agent', newSystem(), messages, () => undefined, newTestLogger(), controller.signal
+        )).rejects.toThrow();
+        expect(messages).toEqual([]);
+    });
+
+    /** Compaction is a call like any other, and the one most worth being able to stop. */
+    test('compacts under the signal it was given', async () => {
+        const llm = newLLM();
+        const signal = new AbortController().signal;
+        await llm.compact('agent', newSystem(), 'the history', newTestLogger(), signal);
+        expect(llm.signals).toEqual([signal]);
     });
 });
 

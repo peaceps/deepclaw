@@ -1,3 +1,40 @@
+v0.0.16
+press stop and have a run end where it stands, rather than at the end of a turn that may have a
+hundred of them left. the button takes the place of send for as long as the chat is locked, and goes
+on saying it is stopping until the run really ends: what a stop does at once is end whatever the run
+was waiting on, and a command that pays no attention to being told to stop runs to its end first, so
+pressing again in that gap does nothing the first press has not already done. it reaches the model in
+the middle of a sentence, a command in the middle of running, a call out to an mcp server, a picture
+being drawn under a three minute limit of its own, and every loop the run started below itself. any
+view of the loop may end it, the one that started the run and one that only watches alike, and a run
+that came from an im client no less: the lock a run holds is held against every view of that loop, so
+leaving the release with the tab that pressed send would hold the rest to a tab that may already be
+closed, a browser's name here living no longer than the tab it belongs to while the run behind a
+dropped stream is meant to keep going. what comes of it reads as a run that was stopped and not as
+one that failed: the conversation is left idle rather than broken, and what the model had already said
+is kept both on the screen and in the history, so the next turn can see where it got to. a question
+the run was waiting on is taken back and the dialog holding it closes, wherever it is open, and is
+taken back as a stop rather than as the user having been away, which would have held every later
+question of that run against a silence that was never theirs. every tool call of the turn is answered:
+the ones that finished with what they found, and the one that was running and the ones that never
+started each saying they were stopped, since a model told a tool failed will retry it or explain a
+fault that never happened, while a call left with no answer at all is a history the next message would
+be refused over. a chat told there was no run to stop takes the server at its word and frees itself,
+a page locked over a run the server does not have having nothing else coming to free it. stopping is
+not pausing: the run is over, and what the user says next is a new turn. a command left running in
+the background is not killed, being a thing meant to outlive the run that started it, a run on a
+schedule cannot be stopped from here at all, and on windows the shell a command runs in is what the
+stop reaches, whatever that shell has started under it living on.
+let a hook that throws take down nothing but itself. a run used to end in an error the moment any hook
+of an extension raised one, which is not the shape the hooks that can turn a tool call away have ever
+had: each of those is held on its own, and a failure of it is written down and passed over. the rest
+are held that way now too, what watches a run start or a turn end, a tool before and after it runs, a
+history being compacted, a run being interrupted. where those calls sit is most of why: the two around
+a tool run inside the same wait as every other tool of that turn, where one throw used to lose the
+results of all of them, and the one at the end of a turn runs while the turn is already on its way
+out. the cost is that a hook can no longer end a run by throwing, which is what the hooks written to
+refuse things are there for.
+
 v0.0.14
 read a chat thirty messages to a page rather than ten, and go on pulling until the panel it is drawn
 in holds more than it can show. a page that stopped short of the bottom left nothing to scroll, and

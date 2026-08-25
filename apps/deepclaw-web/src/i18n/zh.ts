@@ -191,6 +191,12 @@ export const zh = {
                     error: '大模型发生了意外错误.'
                 },
                 send: '给 {{name}} 发消息...',
+                stop: {
+                    title: '停止',
+                    stopping: '停止中...',
+                    error: '停止失败。',
+                    ended: '这次运行已经结束了。',
+                },
                 loading: '思考中...',
                 emptyLLMOutput: '大模型沉默了...',
                 image: {

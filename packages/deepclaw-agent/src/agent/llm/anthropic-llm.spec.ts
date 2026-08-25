@@ -234,6 +234,74 @@ describe('AnthropicLLM request', () => {
     });
 });
 
+/**
+ * The signal is the only handle there is on a call already going: the stream is torn down by it or
+ * not at all, and one left open goes on being paid for after the run it belonged to has ended.
+ */
+describe('AnthropicLLM under a stop', () => {
+
+    function newAbortedStream(texts: string[] = []): FakeStream {
+        const stream: FakeStream = {
+            on: (event, listener) => {
+                if (event === 'text') {
+                    texts.forEach(text => listener(text));
+                }
+                return stream;
+            },
+            finalMessage: () => Promise.reject(
+                Object.assign(new Error('Request was aborted.'), {name: 'APIUserAbortError'})
+            ),
+        };
+        return stream;
+    }
+
+    function invokeWith(signal: AbortSignal, streamer: (text: string) => void = () => undefined) {
+        return newLLM().invoke(
+            'agent', {cacheable: 'c', learned: 'l', dynamic: 'd'}, [], streamer, newTestLogger(),
+            signal
+        );
+    }
+
+    /**
+     * The stream rejects an abort into the void when nothing is listening for it, and an awaited
+     * promise of the stream counts as listening. Under a listener of our own the guard never runs
+     * at all, which is what keeps the answer from depending on where the await sits.
+     */
+    test('listens for the abort itself, so no ordering of the call below can leak it', async () => {
+        const on = vi.fn<(event: string, listener: (text: string) => void) => FakeStream>();
+        const stream = {on, finalMessage: async () => newResponse()};
+        on.mockReturnValue(stream);
+        mocks.stream.mockReturnValue(stream);
+        await invokeWith(new AbortController().signal);
+        expect(on.mock.calls.map(([event]) => event)).toContain('abort');
+    });
+
+    test('hands the signal to the sdk beside the request it belongs to', async () => {
+        const controller = new AbortController();
+        await invokeWith(controller.signal);
+        expect(mocks.stream.mock.calls[0]![1]).toEqual({signal: controller.signal});
+    });
+
+    /**
+     * The abort error carries no status, so the guard that ends the retries early does not know it
+     * by shape. Asked again it would open a second stream under a signal already aborted, and the
+     * two sleeps between would hold the turn open for a second and a half past the stop.
+     */
+    test('lets the abort out as a throw rather than asking again', async () => {
+        mocks.stream.mockReturnValue(newAbortedStream());
+        await expect(invokeWith(AbortSignal.abort())).rejects.toThrow('Request was aborted.');
+        expect(mocks.stream).toHaveBeenCalledOnce();
+    });
+
+    /** What the model got out before the stop is what the turn ends up showing and remembering. */
+    test('has already given away the text that arrived before the abort', async () => {
+        mocks.stream.mockReturnValue(newAbortedStream(['half a ']));
+        const streamer = vi.fn<(text: string) => void>(() => undefined);
+        await expect(invokeWith(AbortSignal.abort(), streamer)).rejects.toThrow();
+        expect(streamer.mock.calls).toEqual([['half a ']]);
+    });
+});
+
 describe('AnthropicLLM image references', () => {
 
     function withImage(url: string): ThinkingMessage[] {

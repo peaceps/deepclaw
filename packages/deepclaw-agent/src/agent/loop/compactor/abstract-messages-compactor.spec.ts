@@ -50,8 +50,9 @@ function newToolResults(count: number, length: number = 5000): FakeMessage[] {
     return [...Array(count).keys()].map(index => ({role: 'tool', content: `${index}`.padEnd(length, 'x')}));
 }
 
-type CompactCall = (mode: string, system: unknown, content: string, logger: unknown)
-    => Promise<{summary: string; tokenUsage: TokenUsage}>;
+type CompactCall = (
+    mode: string, system: unknown, content: string, logger: unknown, signal?: AbortSignal
+) => Promise<{summary: string; tokenUsage: TokenUsage}>;
 
 function newFakeLLM(summary: string = 'the summary', tokenUsage: TokenUsage = {
     cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3
@@ -216,8 +217,16 @@ describe('AbstractMessagesCompactor compactFullHistory', () => {
         const context = newContext();
         await new TestCompactor().compactFullHistory(true, context, [], llm, [{role: 'assistant', content: 'hello'}]);
         expect(compact).toHaveBeenCalledExactlyOnceWith(
-            'agent', context.system, '{"role":"assistant","content":"hello"}', context.logger
+            'agent', context.system, '{"role":"assistant","content":"hello"}', context.logger, undefined
         );
+    });
+
+    test('summarizes under the signal of the run, which is the slowest call there is to stop', async () => {
+        const {llm, compact} = newFakeLLM();
+        const abortSignal = new AbortController().signal;
+        const context = newContext({abortSignal});
+        await new TestCompactor().compactFullHistory(true, context, [], llm, [{role: 'assistant', content: 'hello'}]);
+        expect(compact.mock.calls[0]![4]).toBe(abortSignal);
     });
 
     test('adds the tokens spent on the summary to the runtime usage', async () => {

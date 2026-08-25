@@ -69,11 +69,23 @@ export class HookManager {
         hooks.get(hook)!.push(callback);
     }
 
+    /**
+     * Each hook is isolated the same way an interceptor is: a hook is an extension, and a broken
+     * one must not take the run down with it. Letting one escape here is worse than it looks,
+     * since several of these fire from places that cannot absorb a throw. postTurnEnd runs in a
+     * finally, and the two tool hooks sit inside the Promise.all of a tool group, where a throw
+     * discards the results of every group already finished and leaves the turn with tool_use
+     * blocks that have no tool_result to match - a history the next call is refused for.
+     */
     public static async emitVisitor<H extends VisitorHook>(
         hook: H, oneLoopContext: OneLoopContext, content?: HookContentMap[H]
     ): Promise<void> {
         for (const hookFunction of this.visitorHooks.get(hook) ?? []) {
-            await (hookFunction as VisitorHookFunction<H>)(oneLoopContext, content as HookContentMap[H]);
+            try {
+                await (hookFunction as VisitorHookFunction<H>)(oneLoopContext, content as HookContentMap[H]);
+            } catch (error) {
+                oneLoopContext.logger.error(error, `Error in hook ${hook}, ${error instanceof Error ? error.message : 'Unknown error.'}`);
+            }
         }
     }
 

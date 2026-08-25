@@ -1,7 +1,7 @@
 'use client';
 
 import { AgentEmployee, getLoopId, TokenUsage, type ImageContent } from "@deepclaw/core";
-import { Send, ImagePlus, X, ArrowLeft } from 'lucide-react';
+import { Send, ImagePlus, X, ArrowLeft, Square } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
@@ -12,7 +12,7 @@ import { formatDate, imageSrc } from '../component-utils';
 import { Markdown } from "@/laf/markdown";
 import {
   useInitChat, useSSEConnection, useSend, useLoopWatch, useArchivedChat, useNewSession,
-  archivedChatKey
+  useStopLoop, archivedChatKey
 } from "./use-chat-hooks";
 import { useScroll } from "./use-scroll-hooks";
 
@@ -70,6 +70,7 @@ export function ChatPanel({
   useLoopWatch(listening, loopId);
   const archived = useArchivedChat(loopId, viewingSessionId);
   const { startNew, starting } = useNewSession(loopId);
+  const { stop, stopping } = useStopLoop(loopId, locked);
 
   const agentMessages = !viewingSessionId ? liveMessages : archived.messages;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -247,15 +248,28 @@ export function ChatPanel({
             className="flex-1 px-4 py-2 border border-gray-200 rounded-lg disabled:bg-gray-50
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
-          <button
-            onClick={handleSend}
-            disabled={!chatInited || locked}
-            className={`px-4 py-2 bg-blue-500 text-white rounded-lg
-              ${locked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}
-              transition-colors flex items-center gap-2`}
-          >
-            <Send size={18} />
-          </button>
+          {/* While a run is on, the one thing this button is good for is ending it. */}
+          {locked ? (
+            <button
+              onClick={stop}
+              disabled={stopping}
+              title={t(stopping ? 'web.pages.chat.stop.stopping' : 'web.pages.chat.stop.title')}
+              className={`px-4 py-2 bg-gray-700 text-white rounded-lg
+                ${stopping ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800 cursor-pointer'}
+                transition-colors flex items-center gap-2`}
+            >
+              <Square size={18} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!chatInited}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600
+                transition-colors flex items-center gap-2"
+            >
+              <Send size={18} />
+            </button>
+          )}
         </div>
       </div>}
     </div>

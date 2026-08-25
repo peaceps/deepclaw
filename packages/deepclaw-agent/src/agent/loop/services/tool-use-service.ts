@@ -1,13 +1,14 @@
 import { FileUtils } from '@deepclaw/node-utils';
 import { ToolUseResult, ToolUseDef, ToolDesc, toolRunOf } from "../../definitions/tool-definitions";
-import { OneLoopContext } from '../../definitions/definitions';
+import { isRunStopped, OneLoopContext } from '../../definitions/definitions';
 import { TOOL_RESULT_DIR } from '../../paths';
 import { TRUNCATE_THRESHOLD } from '../../loop-utils';
 import { ToolsManager } from './tools-manager';
 import { HookManager } from './hook-manager';
 import {
     type AgentInteractionEventPayload, type InternalInterruptReason,
-    isInternalInterruptReason, isInvalidInteractionReason
+    type StoppedInteractionReason,
+    isInternalInterruptReason, isInvalidInteractionReason, isStoppedInteractionReason
 } from '@deepclaw/core';
 
 export type ToolUseServiceResult = {
@@ -103,8 +104,19 @@ export class ToolUseService {
             const truncated = this.truncateLargeOutput(toolUseDef.id, output, context.sessionDir);
             return this.toolResult(toolUseDef.id, truncated, true);
         } catch (error) {
+            // A tool cut short by a stop has not failed, and saying that it did is worse than
+            // saying nothing: the model reads a broken tool, tries it again on the next turn, or
+            // sets about explaining a fault to the user that never happened.
+            if (isRunStopped(context)) {
+                return this.toolResult(toolUseDef.id, this.stoppedResult(tool.tool.name), false);
+            }
             return this.toolResult(toolUseDef.id, `Error: ${error}`, false);
         }
+    }
+
+    /** Worded the once, since a stop reaches a tool call while it runs and while it asks alike. */
+    private static stoppedResult(toolName: string): string {
+        return `The user stopped this run while ${toolName} was running, so it did not finish.`;
     }
 
     private static async checkGuard(
@@ -137,6 +149,12 @@ export class ToolUseService {
             }
             return undefined;
         } catch (error: any) {
+            // The stop that took the question away is not a silence and not a missing browser:
+            // the user was there and said stop. Read as either of the two below, it would leave
+            // the model explaining that nobody answered a question the user never got to see.
+            if (isStoppedInteractionReason(error) || isRunStopped(context)) {
+                return this.toolResult(toolUseDef.id, this.stoppedResult(tool.tool.name), false);
+            }
             // A question nobody answered in time is the end of that tool call, not of the run: what
             // asked for the permission is told it never came and decides what that means. Stopping
             // the run instead would be the same thing everywhere except in a spawned loop, which
@@ -193,6 +211,13 @@ export class ToolUseService {
     private static async putQuestion(
         question: AgentInteractionEventPayload, context: OneLoopContext
     ): Promise<string> {
+        // A stopped run asks nothing more. The one waiting question is taken back by whoever
+        // stopped the run, but the questions of a turn are put one at a time: without this, every
+        // tool call queued behind it would open a dialog of its own, and the user who pressed stop
+        // would watch them appear and go one after another for as long as the queue is.
+        if (isRunStopped(context)) {
+            throw 'userStopped' satisfies StoppedInteractionReason;
+        }
         if (this.awayUsers.has(context.loopId)) {
             throw 'interactionAfk' satisfies InternalInterruptReason;
         }

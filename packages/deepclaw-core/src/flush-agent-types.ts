@@ -28,7 +28,7 @@ export type LLMTransitionReason = StopTransitionReason | ContinueTransitionReaso
 
 export type AgentBreakReason = AgentStopReason | ExternalInterruptReason | InternalInterruptReason;
 
-const EXTERNAL_INTERRUPT_REASONS = ['clientLost'] as const;
+const EXTERNAL_INTERRUPT_REASONS = ['clientLost', 'userStopped'] as const;
 export type ExternalInterruptReason = typeof EXTERNAL_INTERRUPT_REASONS[number];
 export function isExternalInterruptReason(reason?: AgentBreakReason): reason is ExternalInterruptReason {
     return (EXTERNAL_INTERRUPT_REASONS as readonly string[]).includes(reason ?? '');
@@ -43,6 +43,17 @@ const INVALID_INTERACTION_REASONS = ['timeout', 'disconnected', 'error'] as cons
 export type InvalidInteractionReason = typeof INVALID_INTERACTION_REASONS[number];
 export function isInvalidInteractionReason(reason?: string): reason is InvalidInteractionReason {
     return (INVALID_INTERACTION_REASONS as readonly string[]).includes(reason ?? '');
+}
+/**
+ * A question taken back because the run it belongs to was stopped, which is neither of the two
+ * above and must not be read as either: an internal interrupt marks the user away and holds every
+ * later question of the run against a silence that was never theirs, and an invalid interaction
+ * says there was nobody to ask. Here the user was there and said stop.
+ */
+const STOPPED_INTERACTION_REASONS = ['userStopped'] as const;
+export type StoppedInteractionReason = typeof STOPPED_INTERACTION_REASONS[number];
+export function isStoppedInteractionReason(reason?: string): reason is StoppedInteractionReason {
+    return (STOPPED_INTERACTION_REASONS as readonly string[]).includes(reason ?? '');
 }
 
 const AGENT_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
@@ -67,6 +78,13 @@ export type AgentInvokeOptions = {
     browserId: string;
     images?: ImageContent[];
     agentHandler?: Partial<Omit<SealedAgentHandler, 'onInfoEvent'>>;
+    /**
+     * Cuts short whatever the run is waiting on, so that a stop does not have to wait out an LLM
+     * stream, a command or the ten minutes a question is allowed. It belongs to the run rather
+     * than to the loop: every run gets one of its own, and a loop spawned by this one is handed
+     * the very same signal so that a stop reaches all the way down.
+     */
+    abortSignal?: AbortSignal;
 }
 
 export type AgentInvokeResponse = {

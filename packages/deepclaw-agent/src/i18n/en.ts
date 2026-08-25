@@ -25,6 +25,10 @@ You can ask me continue to modify the output or mark the task as verified when y
                 clientLost: {
                     llm: 'Client lost connection. Ending session.',
                     user: 'Client lost connection. Ending session.',
+                },
+                userStopped: {
+                    llm: 'The user stopped this run.',
+                    user: 'Stopped.',
                 }
             },
         },
@@ -70,6 +74,7 @@ You can ask me continue to modify the output or mark the task as verified when y
                 empty: '(no output)',
                 error: 'Error: {{message}}.',
                 timeout: 'Error: Timeout ({{timeout}}s).',
+                stopped: 'The command was stopped by the user before it finished.',
             },
             image: {
                 noKey: `No API key for image generation. Set it in the image settings of this agent,

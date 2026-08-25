@@ -191,6 +191,12 @@ export const en = {
                     error: 'LLM has an unexpected error.'
                 },
                 send: 'Send message to {{name}}...',
+                stop: {
+                    title: 'Stop',
+                    stopping: 'Stopping...',
+                    error: 'Could not stop the run.',
+                    ended: 'This run had already ended.',
+                },
                 loading: 'Thinking...',
                 emptyLLMOutput: 'LLM kept silent...',
                 image: {

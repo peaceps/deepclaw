@@ -62,7 +62,9 @@ export abstract class AbstractMessagesCompactor<
     private async summarizeHistory(
         context: OneLoopContext, footPrints: FootPrint[], llm: LLM, jsonl: string
     ): Promise<I> {
-        const {summary, tokenUsage} = await llm.compact(context.loopConfig.mode, context.system, jsonl, context.logger);
+        const {summary, tokenUsage} = await llm.compact(
+            context.loopConfig.mode, context.system, jsonl, context.logger, context.abortSignal
+        );
         addTokenUsage(context.runtime.usage, tokenUsage);
         return llm.newInputMessage(`
 This session continues from a previous conversation that was compacted.

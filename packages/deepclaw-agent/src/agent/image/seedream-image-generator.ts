@@ -20,7 +20,7 @@ export class SeedreamImageGenerator extends ImageGenerator {
     public static readonly envKey = 'ARK_API_KEY';
 
     /** Ark takes no negative prompt, so what the answer wanted kept out cannot be passed on. */
-    public override async draw(request: ImageRequest): Promise<string> {
+    public override async draw(request: ImageRequest, signal?: AbortSignal): Promise<string> {
         const images = request.images || [];
         const answer = await this.ask<SeedreamAnswer>(GENERATION_URL, {
             model: this.model,
@@ -30,7 +30,7 @@ export class SeedreamImageGenerator extends ImageGenerator {
             ...(request.size ? {size: pixelsOf(request.size)} : {}),
             response_format: 'url',
             watermark: false,
-        });
+        }, signal);
         const image = answer.data?.find(item => item.url)?.url;
         if (!image) {
             throw new Error('Image generation returned no image.');

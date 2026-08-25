@@ -21,8 +21,8 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
-    AssignedTask, FootPrint, IMAGE_FOOT_PRINT, LLMProtocol, LoopKind, LoopState, OneLoopContext,
-    PermissionWhiteList, SpawnedLoop,
+    AssignedTask, FootPrint, IMAGE_FOOT_PRINT, isRunStopped, LLMProtocol, LoopKind, LoopState,
+    OneLoopContext, PermissionWhiteList, SpawnedLoop,
 } from '../../definitions/definitions';
 import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
@@ -234,6 +234,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 addStringMessage: this.addStringMessage.bind(this),
             },
             permissionWhiteList: this.permissionWhiteList,
+            abortSignal: options.abortSignal,
             runtime: {
                 ...this.emptyRuntime(),
                 historyPersistIndex: this.historyPersistIndex,
@@ -277,7 +278,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     }
 
     private wrapAgentBreakMessage(text: string, type: string, flag: AgentBreakReason) {
-        return `${text || ''}\n\n${i18nInstance.t(`agent.agentBreak.${type}.${flag}.user`)}`;
+        const notice = i18nInstance.t(`agent.agentBreak.${type}.${flag}.user`);
+        return text ? `${text}\n\n${notice}` : notice;
     }
 
     private async compactIfNeeded(context: OneLoopContext): Promise<void> {
@@ -294,64 +296,124 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
-        const runtime = state.oneLoopContext.runtime;
-        await HookManager.emitVisitor('preTurnStart', state.oneLoopContext);
+        const context = state.oneLoopContext;
+        const runtime = context.runtime;
+        // What the model said this turn, and whether the history already holds it. A turn cut
+        // short pushes no message of its own, so without this the words that reached the user
+        // would be gone from both the chat and the history the next turn is built from.
+        let said = '';
+        let saved = false;
+        try {
+            await HookManager.emitVisitor('preTurnStart', context);
 
-        await this.compactIfNeeded(state.oneLoopContext);
-        const response = await this.llm.invoke(
-            state.oneLoopContext.loopConfig.mode,
-            state.oneLoopContext.system,
-            state.messages,
-            (text: string) => this.agentHandler.onStreamText({
-                browserId: state.oneLoopContext.browserId,
-                text
-            }),
-            state.oneLoopContext.logger
-        );
+            // Inside the try on purpose: compaction is itself an LLM call, the slowest one a long
+            // conversation makes, and a stop landing in it must end the run the same way a stop
+            // landing in the turn does rather than throwing its way out as a failure.
+            await this.compactIfNeeded(context);
+            const response = await this.llm.invoke(
+                context.loopConfig.mode,
+                context.system,
+                state.messages,
+                (text: string) => {
+                    said += text;
+                    this.agentHandler.onStreamText({browserId: context.browserId, text});
+                },
+                context.logger,
+                context.abortSignal
+            );
+            saved = true;
 
-        this.addUsage(state.oneLoopContext, response);
+            this.addUsage(context, response);
 
-        runtime.turnCount++;
-        runtime.transitionReason = response.transitionReason;
+            runtime.turnCount++;
+            runtime.transitionReason = response.transitionReason;
 
-        switch (runtime.transitionReason) {
-            case 'toolUse': {
-                const results = await this.runTools(
-                    this.extractToolUseFromResponse(response), state.oneLoopContext
-                );
-                this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
-                break;
-            }
-            case 'inputMaxTokens':
-                await this.compactIfNeeded(state.oneLoopContext);
-                break;
-            case 'maxTokens':
-                runtime.recoveryState.maxTokenRetries++;
-                if (runtime.recoveryState.maxTokenRetries >= this.maxTokenRetries) {
-                    runtime.transitionReason = 'error';
+            switch (runtime.transitionReason) {
+                case 'toolUse': {
+                    const results = await this.runTools(
+                        this.extractToolUseFromResponse(response), context
+                    );
+                    this.convertToolResultMessages(results).forEach(msg => state.messages.push(msg));
                     break;
                 }
-                // TODO: Handle max tokens/输入测token管理
-                this.addStringMessage(`Output limit hit. Continue directly from where you stopped -- 
-                    no recap, no repetition. Pick up mid-sentence if needed.`);
-                break;
-            case 'refused':
-                // TODO: Handle refused 输入侧意图识别分类/模式匹配 -> 询问用户
-                break;
+                case 'inputMaxTokens':
+                    await this.compactIfNeeded(context);
+                    break;
+                case 'maxTokens':
+                    runtime.recoveryState.maxTokenRetries++;
+                    if (runtime.recoveryState.maxTokenRetries >= this.maxTokenRetries) {
+                        runtime.transitionReason = 'error';
+                        break;
+                    }
+                    // TODO: Handle max tokens/输入测token管理
+                    this.addStringMessage(`Output limit hit. Continue directly from where you stopped -- 
+                        no recap, no repetition. Pick up mid-sentence if needed.`);
+                    break;
+                case 'refused':
+                    // TODO: Handle refused 输入侧意图识别分类/模式匹配 -> 询问用户
+                    break;
+            }
+        } catch (error) {
+            // A stop is the only thing absorbed here. Anything else is a real failure and goes on
+            // to the error path it always took: read as a stop it would tell the user they pressed
+            // a button nobody pressed, and bury whatever actually went wrong.
+            if (!isRunStopped(context)) {
+                throw error;
+            }
         }
         try {
-            if (isStopTransitionReason(runtime.transitionReason) || isAgentStopReason(runtime.agentBreakReason)) {
-                this.externalInterruptReason = undefined;
+            const stopping = this.stoppingReason(context);
+            if (stopping) {
+                this.endStoppedTurn(context, stopping, said, saved);
             }
-            if (this.externalInterruptReason) {
-                runtime.agentBreakReason = this.externalInterruptReason;
-                this.externalInterruptReason = undefined;
-            }
+            this.externalInterruptReason = undefined;
         } finally {
-            await HookManager.emitVisitor('postTurnEnd', state.oneLoopContext);
-            SessionService.saveHistory(this.history, state.oneLoopContext);
+            await HookManager.emitVisitor('postTurnEnd', context);
+            SessionService.saveHistory(this.history, context);
         }
         return !isStopTransitionReason(runtime.transitionReason) && !runtime.agentBreakReason;
+    }
+
+    /**
+     * Why this turn ends short, where anything asks it to.
+     *
+     * Two things can say so and both are read. The flag is set on the loop the stop was addressed
+     * to, which is only ever the topmost one: a loop it spawned is never told and has the signal
+     * alone to go by, so leaving the signal out here would leave a sub loop no way to end the way
+     * this one does and it would throw its way out as a failure instead.
+     *
+     * A run that answered of its own accord has answered: the stop and the last word of the model
+     * crossed in flight, and the word that arrived is the one that counts.
+     */
+    private stoppingReason(context: OneLoopContext): ExternalInterruptReason | undefined {
+        const runtime = context.runtime;
+        if (isStopTransitionReason(runtime.transitionReason) || isAgentStopReason(runtime.agentBreakReason)) {
+            return undefined;
+        }
+        return this.externalInterruptReason ?? (isRunStopped(context) ? 'userStopped' : undefined);
+    }
+
+    /**
+     * Closes a turn that was stopped rather than finished.
+     *
+     * The model is left an assistant message either way. A history ending on the user, or one
+     * carrying a tool_use with no result to match, is one the next call is refused for, and a turn
+     * cut short leaves both. Where the words of the model never made it into the history they are
+     * that message; where they did, or where there were none, a line saying the run was stopped
+     * stands in, since a message with nothing in it is refused just as surely.
+     *
+     * What the user reads is settled here too, and it is deliberately not that message: the line
+     * above is written for the model, and reading it back would put two sentences saying the very
+     * same thing one after the other. They read the half of an answer that reached them, followed
+     * by the one notice, or the notice alone where nothing did.
+     */
+    private endStoppedTurn(
+        context: OneLoopContext, reason: ExternalInterruptReason, said: string, saved: boolean
+    ): void {
+        context.runtime.agentBreakReason = reason;
+        context.runtime.agentBreakDetail = this.wrapAgentBreakMessage(said, 'externalInterrupt', reason);
+        const notice = i18nInstance.t(`agent.agentBreak.externalInterrupt.${reason}.llm`);
+        this.history.push(this.llm.newInputMessage(saved ? notice : (said || notice), false));
     }
 
     private addUsage(context: OneLoopContext, response: O): void {
@@ -370,10 +432,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     }
 
     private async runOneTool(toolUseDef: ToolUseDef, context: OneLoopContext): Promise<ToolRunResult> {
-        const breakReason = context.runtime.agentBreakReason;
-        if (isAgentStopReason(breakReason) || isExternalInterruptReason(breakReason)) {
-            const stopType = isAgentStopReason(breakReason) ? 'agentStop' : 'externalInterrupt';
-            const stopText = i18nInstance.t(`agent.agentBreak.${stopType}.${breakReason}.llm`);
+        const stopText = this.skipReason(context);
+        if (stopText) {
             return {
                 toolUseDef,
                 result: {
@@ -393,6 +453,22 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         const toolResult = await ToolUseService.executeToolCall(toolUseDef, context);
         await HookManager.emitVisitor('postEachToolUse', context, {toolUseDef, result: toolResult});
         return {toolUseDef, result: toolResult.result};
+    }
+
+    /**
+     * What the model is told in place of a tool that was never run, or nothing where the run is
+     * still going. A break reason is only written at the end of a turn, so a stop landing while
+     * the tools of this turn are running is nowhere to be read but the signal, and it has to name
+     * itself: the reason it would have been looked up under is not there yet.
+     */
+    private skipReason(context: OneLoopContext): string {
+        const breakReason = context.runtime.agentBreakReason;
+        if (isAgentStopReason(breakReason) || isExternalInterruptReason(breakReason)) {
+            const stopType = isAgentStopReason(breakReason) ? 'agentStop' : 'externalInterrupt';
+            return i18nInstance.t(`agent.agentBreak.${stopType}.${breakReason}.llm`);
+        }
+        return isRunStopped(context)
+            ? i18nInstance.t('agent.agentBreak.externalInterrupt.userStopped.llm') : '';
     }
 
     protected addStringMessage(message: string, user: boolean = true): void {

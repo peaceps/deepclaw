@@ -490,6 +490,92 @@ describe('askQuestion', () => {
     });
 });
 
+/**
+ * What a tool call becomes when the run behind it is stopped. All three of these are legal results
+ * whatever they say, so nothing here is about the protocol: it is about what the model is told
+ * happened, since it acts on that next turn.
+ */
+describe('executeToolCall under a stop', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        forgetAwayUsers();
+    });
+
+    function stoppedContext() {
+        const controller = new AbortController();
+        controller.abort();
+        return newTestContext({abortSignal: controller.signal});
+    }
+
+    /**
+     * The abort surfaces as an ordinary throw out of the tool, and reported as one it reads as a
+     * broken tool: the model tries it again next turn, or sets about explaining to the user a
+     * fault that never happened.
+     */
+    test('tells the model a running tool was stopped rather than that it failed', async () => {
+        mocks.getToolDesc.mockReturnValue(newTool({
+            invoke: vi.fn(async () => {
+                throw new Error('The operation was aborted');
+            }),
+        }));
+        const {result} = await ToolUseService.executeToolCall(newToolUse(), stoppedContext());
+        expect(result.content).toBe(
+            'The user stopped this run while demo was running, so it did not finish.'
+        );
+        expect(result.content).not.toContain('aborted');
+    });
+
+    /**
+     * The question is taken back by whoever stopped the run, and the reason it is taken back with
+     * is neither of the two the guard knew before: read as a silence it would say nobody answered,
+     * read as a missing browser it would say there was nobody to ask. The user was there.
+     */
+    test('tells the model a permission question was stopped, not unanswered', async () => {
+        mocks.getToolDesc.mockReturnValue(newTool({guard: () => ({
+            result: 'ask',
+            question: {type: 'input', content: 'may I?'},
+            checkAnswer: () => true,
+        })}));
+        const context = newTestContext();
+        vi.mocked(context.actions.agentHandler.onInteractionEvent).mockRejectedValue('userStopped');
+        const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
+        expect(success).toBe(false);
+        expect(result.content).toBe(
+            'The user stopped this run while demo was running, so it did not finish.'
+        );
+        expect(result.content).not.toContain('wait for user response failed');
+    });
+
+    /** A stop is not a silence, and the questions of the next run must not pay for it. */
+    test('does not hold the user away over a question the stop took back', async () => {
+        mocks.getToolDesc.mockReturnValue(newTool({guard: () => ({
+            result: 'ask',
+            question: {type: 'input', content: 'may I?'},
+            checkAnswer: () => true,
+        })}));
+        const context = newTestContext();
+        const ask = vi.mocked(context.actions.agentHandler.onInteractionEvent);
+        ask.mockRejectedValueOnce('userStopped').mockResolvedValueOnce('yes');
+        await ToolUseService.executeToolCall(newToolUse(), context);
+        const {success} = await ToolUseService.executeToolCall(newToolUse({id: 'tu2'}), context);
+        expect(success).toBe(true);
+        expect(ask).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * Only the one question the run waits on is taken back by the gateway. The rest of the turn is
+     * queued behind it, and each of those would open a dialog of its own for the user who just
+     * pressed stop to watch appear and go.
+     */
+    test('puts no further question once the run was stopped', async () => {
+        const context = stoppedContext();
+        await expect(ToolUseService.askQuestion({type: 'input', content: 'which one?'}, context))
+            .rejects.toBe('userStopped');
+        expect(context.actions.agentHandler.onInteractionEvent).not.toHaveBeenCalled();
+    });
+});
+
 describe('planExecutionGroups', () => {
 
     beforeEach(() => {

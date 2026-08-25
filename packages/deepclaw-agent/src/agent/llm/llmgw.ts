@@ -49,7 +49,8 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
         mode: AgentMode,
         system: SystemPrompt,
         messages: I[],
-        streamer: (text: string) => void, logger: Logger
+        streamer: (text: string) => void, logger: Logger,
+        signal?: AbortSignal
     ): Promise<O> {
         let response: O | null = null;
         const tools = this.convertTools(
@@ -58,9 +59,17 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
         const outgoing = this.resolveImages(messages);
         for (let i = 0; i < llmRetry; i++) {
             try {
-                response = await this._invoke(system, outgoing, tools, streamer);
+                response = await this._invoke(system, outgoing, tools, streamer, signal);
                 break;
             } catch (error) {
+                // A stopped run has not failed at anything, and every retry of it is refused by
+                // the same signal: three of them with a sleep in between would only put a second
+                // between the user pressing stop and the run noticing. It leaves as it came, so
+                // that the loop can tell a stop apart from a call that really went wrong: a
+                // response handed back here reads as an answer the model gave.
+                if (signal?.aborted) {
+                    throw error;
+                }
                 logger.error(error, 'LLM invoke failed');
                 if (this.isInputExceedLimit(error)) {
                     response = this.newResponse('Input token exceeds the limit.', 'inputMaxTokens');
@@ -88,7 +97,8 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
         system: SystemPrompt,
         messages: I[],
         tools: T[],
-        streamer: (text: string) => void
+        streamer: (text: string) => void,
+        signal?: AbortSignal
     ): Promise<O>;
 
     /**
@@ -115,7 +125,8 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
         mode: AgentMode,
         system: SystemPrompt,
         content: string,
-        logger: Logger
+        logger: Logger,
+        signal?: AbortSignal
     ): Promise<{summary: string, tokenUsage: TokenUsage}> {
         const prompt =
 `Summarize this agent conversation so work can continue.
@@ -135,7 +146,8 @@ ${content}`;
             system,
             [this.newInputMessage(prompt)],
             () => {},
-            logger
+            logger,
+            signal
         );
         return {
             summary: this.getTextFromResponse(response),

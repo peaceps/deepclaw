@@ -84,7 +84,7 @@ them out to draw from the prompt alone.`,
             negativePrompt: input.negativePrompt,
             size: input.size,
             images: sourcesOf(input.sourceImages),
-        });
+        }, context.abortSignal);
         const ref = newImageRef(await store(drawn, context.loopId));
         context.actions.addFootPrint({type: IMAGE_FOOT_PRINT, content: ref});
         return i18nInstance.t('agent.tools.image.saved', {url: ref});

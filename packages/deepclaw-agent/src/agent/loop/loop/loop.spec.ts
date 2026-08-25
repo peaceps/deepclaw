@@ -92,7 +92,17 @@ vi.mock('../compactor/messages-compactor', () => ({
     },
 }));
 
-type TestMessage = {role: 'user' | 'assistant' | 'tool', text: string};
+/**
+ * The fake protocol models which calls a message asks for and which one a result answers, though
+ * nothing in the loop reads either. They are what expectValidHistory needs to see: the pairing is
+ * an invariant of every history we hand over, and one a stop is very well placed to break.
+ */
+type TestMessage = {
+    role: 'user' | 'assistant' | 'tool',
+    text: string,
+    toolUseIds?: string[],
+    toolResultId?: string,
+};
 type TestResponse = {
     transitionReason: LLMTransitionReason;
     text?: string;
@@ -110,12 +120,16 @@ class FakeLLM {
 
     public invoke = vi.fn<(
         mode: AgentMode, system: SystemPrompt, messages: TestMessage[],
-        onText: (text: string) => void, logger: Logger
+        onText: (text: string) => void, logger: Logger, signal?: AbortSignal
     ) => Promise<TestResponse>>(async (...args) => {
         const [, , messages, onText] = args;
         const response = this.responses.shift() ?? {transitionReason: 'endLoop' as LLMTransitionReason};
         onText(response.text ?? '');
-        messages.push({role: 'assistant', text: response.text ?? ''});
+        messages.push({
+            role: 'assistant',
+            text: response.text ?? '',
+            ...(response.toolUses?.length ? {toolUseIds: response.toolUses.map(def => def.id)} : {}),
+        });
         return response;
     });
 
@@ -161,7 +175,9 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
     }
 
     protected override convertToolResultMessages(toolResults: ToolUseResult[]): TestMessage[] {
-        return toolResults.map(result => ({role: 'tool', text: result.content}));
+        return toolResults.map(result => ({
+            role: 'tool', text: result.content, toolResultId: result.id
+        }));
     }
 
     protected override newLoop(
@@ -224,6 +240,34 @@ function savedHistory(): TestMessage[] {
 
 function toolUse(id: string, name = 'demo'): ToolUseDef {
     return {id, name, input: {}};
+}
+
+/**
+ * What a history has to be for the next call on it to be accepted, asserted in one place because
+ * the several ways a run can be stopped all end in the same three questions.
+ *
+ * Worth saying why it is decided here rather than by sending the history somewhere. An endpoint
+ * speaking a protocol loosely takes a history breaking every line below, so a run that went
+ * through says only that this endpoint is not fussy, and the same history is a 400 against a
+ * strict one. These hold or they do not, whatever anybody is willing to accept.
+ */
+function expectValidHistory(messages: TestMessage[]): void {
+    // Nothing may follow the user but the agent: a stop that pushes no answer of its own leaves
+    // the last word with the user, and the next thing they say lands right behind it.
+    expect(messages.at(-1)?.role).toBe('assistant');
+    expect(messages.filter(
+        (message, index) => message.role === 'user' && messages[index - 1]?.role === 'user'
+    )).toEqual([]);
+    // A message saying nothing at all is refused, and a stop is where one is easiest to write.
+    expect(messages.filter(
+        message => message.role === 'assistant' && !message.text && !message.toolUseIds?.length
+    )).toEqual([]);
+    // Every call asked for is answered, and nothing answers a call that was never asked for.
+    const asked = messages.flatMap(message => message.toolUseIds ?? []).sort();
+    const answered = messages.flatMap(
+        message => message.toolResultId ? [message.toolResultId] : []
+    ).sort();
+    expect(answered).toEqual(asked);
 }
 
 beforeEach(() => {
@@ -692,6 +736,201 @@ describe('interrupts', () => {
         });
         const {text} = await loop.runInvoke('hi', {browserId: 'b1'});
         expect(text).toContain('agent.agentBreak.agentStop.taskPause.user');
+    });
+});
+
+/**
+ * The stop button, from the loop down. The signal is what cuts short whatever the run is waiting
+ * on; turning that into an ending the loop words rather than a failure it reports is this layer.
+ */
+describe('stopping a run', () => {
+
+    /** A run stopped while it waits on the model, which is where most of a turn is spent. */
+    function stopDuring(
+        llm: FakeLLM, controller: AbortController, said: string = ''
+    ): void {
+        llm.invoke.mockImplementationOnce(async (...args) => {
+            args[3](said);
+            controller.abort();
+            throw new Error('This operation was aborted');
+        });
+    }
+
+    test('hands the signal of the run to the llm', async () => {
+        const {loop, llm} = newLoop();
+        const abortSignal = new AbortController().signal;
+        await loop.runInvoke('hi', {browserId: 'b1', abortSignal});
+        expect(llm.invoke.mock.calls[0]![5]).toBe(abortSignal);
+    });
+
+    test('ends as a stop rather than as an error when the signal fires in the llm call', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        stopDuring(llm, controller);
+        const {text, runtime} = await loop.runInvoke(
+            'hi', {browserId: 'b1', abortSignal: controller.signal}
+        );
+        expect(runtime.agentBreakReason).toBe('userStopped');
+        expect(runtime.transitionReason).not.toBe('error');
+        expect(text).toBe('agent.agentBreak.externalInterrupt.userStopped.user');
+        expectValidHistory(savedHistory());
+    });
+
+    /**
+     * Compaction is itself a call to the model, and the slowest one a long conversation makes, so
+     * it is exactly where a stop is worth something. A catch drawn around the llm call alone would
+     * let this one out as a failure: an error bubble, and the conversation left saying it broke.
+     */
+    test('ends as a stop when the signal fires inside the compaction of the history', async () => {
+        const {loop} = newLoop();
+        const controller = new AbortController();
+        mocks.compactFullHistory.mockImplementationOnce(async () => {
+            controller.abort();
+            throw new Error('This operation was aborted');
+        });
+        const {text, runtime} = await loop.runInvoke(
+            'hi', {browserId: 'b1', abortSignal: controller.signal}
+        );
+        expect(runtime.agentBreakReason).toBe('userStopped');
+        expect(runtime.transitionReason).not.toBe('error');
+        expect(text).toBe('agent.agentBreak.externalInterrupt.userStopped.user');
+        expectValidHistory(savedHistory());
+    });
+
+    test('leaves a real failure on the error path, the signal never having fired', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        llm.invoke.mockRejectedValueOnce(new Error('llm exploded'));
+        const {text, runtime} = await loop.runInvoke(
+            'hi', {browserId: 'b1', abortSignal: controller.signal}
+        );
+        expect(text).toBe('Error in loop, llm exploded');
+        expect(runtime.transitionReason).toBe('error');
+        expect(runtime.agentBreakReason).toBeUndefined();
+    });
+
+    test('lets an answer that arrived stand, though the signal fired while it was arriving', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        llm.invoke.mockImplementationOnce(async (...args) => {
+            controller.abort();
+            args[2].push({role: 'assistant', text: 'all done'});
+            return {transitionReason: 'endLoop'};
+        });
+        const {text, runtime} = await loop.runInvoke(
+            'hi', {browserId: 'b1', abortSignal: controller.signal}
+        );
+        expect(runtime.agentBreakReason).toBeUndefined();
+        expect(text).toBe('all done');
+    });
+
+    /**
+     * A stop is set as a flag on the loop it was addressed to, which is only ever the topmost one.
+     * A loop spawned by it is never told, so the signal is the whole of what it has: without it
+     * read here, a subagent could only throw its way out and be reported as broken.
+     */
+    test('ends a spawned loop on the signal alone, which is all one is ever given', async () => {
+        const {loop} = newLoop();
+        const subLoop = loop.newTestSubLoop();
+        const controller = new AbortController();
+        stopDuring(subLoop.fakeLLM(), controller);
+        const {runtime} = await subLoop.runInvoke(
+            'work', {browserId: 'b1', abortSignal: controller.signal}
+        );
+        expect(runtime.agentBreakReason).toBe('userStopped');
+        expect(runtime.transitionReason).not.toBe('error');
+    });
+
+    test('keeps the half of an answer that was streamed, in the chat and in the history alike', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        stopDuring(llm, controller, 'I was about to say');
+        const {text} = await loop.runInvoke('hi', {browserId: 'b1', abortSignal: controller.signal});
+        expect(text).toBe('I was about to say\n\nagent.agentBreak.externalInterrupt.userStopped.user');
+        expect(savedHistory().at(-1))
+            .toEqual({role: 'assistant', text: 'I was about to say'});
+        expectValidHistory(savedHistory());
+    });
+
+    /**
+     * A turn cut short pushes no message, and the model will not take one that says nothing, so a
+     * line stands in for it. That line is written for the model and must not be read back to the
+     * user: the notice they get says the very same thing, and both of them is it said twice.
+     */
+    test('says the run was stopped once, though the model was left a line saying so too', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        stopDuring(llm, controller);
+        const {text} = await loop.runInvoke('hi', {browserId: 'b1', abortSignal: controller.signal});
+        expect(text).toBe('agent.agentBreak.externalInterrupt.userStopped.user');
+        expect(text).not.toContain('agent.agentBreak.externalInterrupt.userStopped.llm');
+        expect(savedHistory().at(-1)).toEqual({
+            role: 'assistant', text: 'agent.agentBreak.externalInterrupt.userStopped.llm'
+        });
+    });
+
+    /**
+     * Every call the model asked for is owed an answer, and a stop landing in the middle of them
+     * is where the debt is easiest to leave. Dropping the calls that had not started would leave a
+     * history the next message is refused for, whatever the user goes on to say.
+     */
+    test('answers every tool call of the turn, though the stop landed in the middle of them', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        llm.responses = [{
+            transitionReason: 'toolUse',
+            text: 'running them',
+            toolUses: [toolUse('tu1'), toolUse('tu2'), toolUse('tu3')],
+        }];
+        mocks.executeToolCall.mockImplementationOnce(async (def) => {
+            controller.abort();
+            return {result: {id: def.id, content: 'the first one finished'}, success: true};
+        });
+        const {runtime} = await loop.runInvoke(
+            'hi', {browserId: 'b1', abortSignal: controller.signal}
+        );
+        expect(runtime.agentBreakReason).toBe('userStopped');
+        const results = savedHistory().filter(message => message.role === 'tool');
+        expect(results.map(message => message.toolResultId)).toEqual(['tu1', 'tu2', 'tu3']);
+        expect(results[0]!.text).toBe('the first one finished');
+        expect(results[2]!.text)
+            .toContain('agent.agentBreak.externalInterrupt.userStopped.llm');
+        expectValidHistory(savedHistory());
+    });
+
+    /**
+     * The one place a skipped call can read its wording from is the break reason, and that is not
+     * written until the turn is over. A stop landing while the tools run has to name itself.
+     */
+    test('names the stop in the skipped calls, the break reason not being written yet', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        llm.responses = [{
+            transitionReason: 'toolUse', text: 'running them',
+            toolUses: [toolUse('tu1'), toolUse('tu2')],
+        }];
+        mocks.executeToolCall.mockImplementationOnce(async (def) => {
+            controller.abort();
+            return {result: {id: def.id, content: 'done'}, success: true};
+        });
+        await loop.runInvoke('hi', {browserId: 'b1', abortSignal: controller.signal});
+        const skipped = savedHistory().find(message => message.toolResultId === 'tu2');
+        expect(skipped!.text).not.toContain('undefined');
+        expect(skipped!.text).toBe(
+            'Tool call execution skipped because loop terminated due to: '
+            + 'agent.agentBreak.externalInterrupt.userStopped.llm'
+        );
+    });
+
+    test('reports the conversation as stopped rather than as broken', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        stopDuring(llm, controller);
+        await loop.runInvoke('hi', {browserId: 'b1', abortSignal: controller.signal});
+        const saved = mocks.saveHistory.mock.calls.at(-1)!;
+        const context = saved[1] as OneLoopContext;
+        expect(context.runtime.agentBreakReason).toBe('userStopped');
+        expect(context.runtime.transitionReason).not.toBe('error');
     });
 });
 

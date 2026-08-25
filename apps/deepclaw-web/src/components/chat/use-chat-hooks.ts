@@ -7,7 +7,7 @@ import { useToastStore } from '@/lib/toast-store';
 import {
     invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
     resolveInteraction, updateChatMessage, activeLoop, inactiveLoop,
-    getTokenUsage, pullSessionMessages, startNewSession
+    getTokenUsage, pullSessionMessages, startNewSession, stopLoop
 } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
 import { keepReply } from '@/lib/kept-reply';
@@ -246,6 +246,60 @@ export function useNewSession(loopId: string): {
     }, [loopId, showToast, t]);
 
     return {startNew, starting};
+}
+
+/**
+ * Ends the run of this loop. Any view may end it, the one that started it and one that only
+ * watches alike: while a run is on, every view of the loop is locked out of typing, so a stop that
+ * only its own tab could press would hold the others to a tab that may already be closed.
+ *
+ * The button stays in the stopping state until the run really ends rather than until the request
+ * comes back. The two are not the same moment: the signal ends what the run is waiting on, and a
+ * command that ignores it runs to its end first. Pressing again in that gap does nothing the first
+ * press has not already done, so the state is there to say so.
+ *
+ * Being told there was no run to stop is the one answer that has to be acted on rather than
+ * waited out. It means this page is locked over a run the server does not have, which a stream
+ * that dropped across a restart is enough to leave behind, and nothing further is coming to say
+ * otherwise: the button would turn forever above an input the same lie keeps disabled. The page
+ * takes the server at its word and unlocks, and says so, since a chat that frees itself without
+ * a word looks like the stop worked on something.
+ */
+export function useStopLoop(loopId: string, locked: boolean): {
+    stop: () => Promise<void>, stopping: boolean
+} {
+    const [stopping, setStopping] = useState(false);
+    const [wasLocked, setWasLocked] = useState(locked);
+    const setChatBusy = useAppStore(s => s.setChatBusy);
+    const showToast = useToastStore(s => s.show);
+    const {t} = useTranslation();
+
+    // Adjusted while rendering rather than from an effect: the run ending is the one thing that
+    // clears this, and an effect would leave the button saying it is still stopping for a frame
+    // after the chat had already unlocked itself.
+    if (wasLocked !== locked) {
+        setWasLocked(locked);
+        if (!locked) {
+            setStopping(false);
+        }
+    }
+
+    const stop = useCallback(async () => {
+        setStopping(true);
+        try {
+            if (!await stopLoop(loopId)) {
+                setStopping(false);
+                setChatBusy(loopId, false);
+                showToast({type: 'info', message: t('web.pages.chat.stop.ended')});
+            }
+        } catch (err) {
+            logger.error(`Failed to stop the run of ${loopId}: ${err}`);
+            showToast({type: 'error', message: t('web.pages.chat.stop.error')});
+            setStopping(false);
+        }
+    }, [loopId, setChatBusy, showToast, t]);
+
+    return {stop, stopping};
 }
 
 /**

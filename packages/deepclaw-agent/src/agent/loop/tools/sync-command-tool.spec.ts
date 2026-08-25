@@ -6,7 +6,7 @@ import {PermissionService} from '../services/permission-service';
 import {syncCommandTool} from './sync-command-tool';
 
 const mocks = vi.hoisted(() => ({
-    runCommand: vi.fn<(command: string) => Promise<{output: string}>>(),
+    runCommand: vi.fn<(command: string, signal?: AbortSignal) => Promise<{output: string}>>(),
 }));
 
 vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
@@ -67,8 +67,31 @@ describe('syncCommandTool invoke', () => {
     test('returns the whole output, leaving the caller to file away what is too long', async () => {
         vi.mocked(runCommand).mockResolvedValue({output: 'full output'});
         const result = await syncCommandTool.invoke({command: 'echo hi'}, newTestContext());
-        expect(runCommand).toHaveBeenCalledExactlyOnceWith('echo hi');
+        expect(runCommand).toHaveBeenCalledExactlyOnceWith('echo hi', undefined);
         expect(result).toBe('full output');
+    });
+
+    test('runs the command under the signal of the run, so a stop kills the shell', async () => {
+        const abortSignal = new AbortController().signal;
+        vi.mocked(runCommand).mockResolvedValue({output: 'full output'});
+        await syncCommandTool.invoke({command: 'sleep 999'}, newTestContext({abortSignal}));
+        expect(runCommand).toHaveBeenCalledExactlyOnceWith('sleep 999', abortSignal);
+    });
+
+    /**
+     * A killed child looks the same either way: the stop kills it with the very SIGTERM the
+     * timeout kills it with. Told it timed out, the model reports two minutes that never passed.
+     */
+    test('reports a stop rather than a timeout when the kill came from the user', async () => {
+        const controller = new AbortController();
+        controller.abort();
+        vi.mocked(runCommand).mockRejectedValue(Object.assign(new Error('killed'), {
+            killed: true, signal: 'SIGTERM'
+        }));
+        const result = await syncCommandTool.invoke(
+            {command: 'sleep 999'}, newTestContext({abortSignal: controller.signal})
+        );
+        expect(result).toBe('agent.tools.syncCommand.stopped');
     });
 
     test('reports a dedicated message when the command printed nothing', async () => {

@@ -17,12 +17,21 @@ const trunkcateThreshold = 20000;
  * nothing filed and nothing saying anything was lost. A caller that wants a preview wants a path
  * beside it, which is what runCommandAsync gives the background commands.
  */
-export async function runCommand(command: string): Promise<{output: string}> {
-    const {output} = await runCommandAsync(command);
+export async function runCommand(command: string, signal?: AbortSignal): Promise<{output: string}> {
+    const {output} = await runCommandAsync(command, signal);
     return {output};
 }
 
-export function runCommandAsync(command: string): Promise<{output: string, preview: string}> {
+/**
+ * The signal reaches the shell this runs the command in, and no further. On linux and mac that is
+ * enough for the ordinary case, where the shell passes the death of itself on to what it started.
+ * Windows has no process group to kill, so a grandchild there usually outlives the shell and keeps
+ * running with nobody waiting on it: a stop is answered at once either way, but on Windows what it
+ * stopped is the waiting rather than always the work.
+ */
+export function runCommandAsync(
+    command: string, signal?: AbortSignal
+): Promise<{output: string, preview: string}> {
     const options = {
         timeout: childProcessTimeout * 1000,
         maxBuffer: 50 * 1024 * 1024,
@@ -33,6 +42,7 @@ export function runCommandAsync(command: string): Promise<{output: string, previ
         shell,
         windowsHide: true,
         encoding: 'buffer',
+        signal,
     };
     return execAsync(command, options).then(({ stdout, stderr }) => {
         const output = handleOutput(stdout);

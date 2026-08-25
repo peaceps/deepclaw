@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {
-    type AgentHandler, type AgentInvokeResponse, type AgentRuntime, type CronTask
+    type AgentHandler, type AgentInvokeOptions, type AgentInvokeResponse, type AgentRuntime,
+    type CronTask
 } from '@deepclaw/core';
 import {type AgentConfig, type DeepclawConfig} from '@deepclaw/config';
 import {LoopGateway} from './loop-gateway';
@@ -126,7 +127,9 @@ function newRuntime(overrides: Partial<AgentRuntime> = {}): AgentRuntime {
 function newFakeLoop() {
     return {
         isOutdated: vi.fn(() => false),
-        invoke: vi.fn(async (): Promise<AgentInvokeResponse> => ({text: 'reply', runtime: newRuntime()})),
+        invoke: vi.fn<(input: string, options?: AgentInvokeOptions) => Promise<AgentInvokeResponse>>(
+            async () => ({text: 'reply', runtime: newRuntime()})
+        ),
         updateAgentConfig: vi.fn(),
         setExternalInterruptReason: vi.fn(),
     };
@@ -382,6 +385,35 @@ describe('invoke', () => {
         expect(LoopGateway.isLoopBusy(loopId)).toBe(false);
     });
 
+    /**
+     * The answer is handed out first and written down after, so a write that fails arrives with
+     * the caller already told. Left to throw it would reach the branch that reports a failure,
+     * and an im user would read the answer and then, under it, be told the turn failed.
+     */
+    test('does not report a failure over an answer it already gave', async () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockResolvedValue({text: 'final answer', runtime: newRuntime()});
+        mocks.replaceMessage.mockImplementation(() => {
+            throw new Error('the chat file is gone');
+        });
+        const onDone = vi.fn();
+        LoopGateway.invoke(loopInfo, {source: 'im'}, 'hi', undefined, onDone);
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        expect(onDone).toHaveBeenCalledExactlyOnceWith('final answer');
+    });
+
+    test('frees the loop even when writing the answer down fails', async () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockResolvedValue({text: 'final answer', runtime: newRuntime()});
+        mocks.replaceMessage.mockImplementation(() => {
+            throw new Error('the chat file is gone');
+        });
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(busyEvents(events).at(-1))
+            .toEqual({eventType: 'busy', loopId, busy: false}));
+        expect(LoopGateway.stop(loopId)).toBe(false);
+    });
+
     test('keeps the bytes of an image and hands the loop a reference', () => {
         const {loopInfo, loopId, loop} = nextLoop();
         loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
@@ -404,6 +436,127 @@ describe('invoke', () => {
         loop.isOutdated.mockReturnValue(true);
         LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'second');
         expect(mocks.getLoop).toHaveBeenCalledTimes(2);
+    });
+});
+
+/**
+ * Ending a run that is going. Three things have to happen for a stop to be a stop rather than a
+ * failure, and each is checked on its own here: none of them stands for the others.
+ */
+describe('stop', () => {
+
+    function runningLoop(source: InvokeSource = 'web', browserId = 'b1') {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
+        LoopGateway.invoke(loopInfo, {source, browserId}, 'hi');
+        return {loopInfo, loopId, loop};
+    }
+
+    function askOf(loopId: string, browserId: string): Promise<string> {
+        return capturedHandler().onInteractionEvent({
+            eventType: 'interaction', loopId, browserId, type: 'input', content: 'your name?'
+        });
+    }
+
+    test('answers that there was nothing to stop while the loop sits idle', () => {
+        const {loopId} = nextLoop();
+        LoopGateway.initLoop(loopId);
+        expect(LoopGateway.stop(loopId)).toBe(false);
+    });
+
+    test('answers that there was nothing to stop for a loop nobody ever built', () => {
+        expect(LoopGateway.stop('agent.nobody')).toBe(false);
+    });
+
+    test('aborts the signal the run was handed', () => {
+        const {loopId, loop} = runningLoop();
+        const {abortSignal} = loop.invoke.mock.calls[0]![1]!;
+        expect(abortSignal?.aborted).toBe(false);
+        expect(LoopGateway.stop(loopId)).toBe(true);
+        expect(abortSignal?.aborted).toBe(true);
+    });
+
+    /** The signal ends the waiting; this is what makes the ending read as a stop and not a fault. */
+    test('leaves the loop the reason it words the ending with', () => {
+        const {loopId, loop} = runningLoop();
+        LoopGateway.stop(loopId);
+        expect(loop.setExternalInterruptReason).toHaveBeenCalledExactlyOnceWith('userStopped');
+    });
+
+    /**
+     * Really rejected rather than raced against the signal somewhere below. The waiting promise is
+     * what clears the ten minute timer and forgets the resolver, so one left unsettled leaks both.
+     */
+    test('takes back the question the run waits on and forgets it', async () => {
+        const {loopId} = runningLoop();
+        const answer = askOf(loopId, 'b1');
+        LoopGateway.stop(loopId);
+        await expect(answer).rejects.toBe('userStopped');
+        expect(LoopGateway.waitingQuestions().filter(question => question.loopId === loopId))
+            .toEqual([]);
+    });
+
+    /**
+     * Not one of the two reasons a question could be taken back with before. Absent marks the user
+     * away and holds every later question of the run against a silence that was never theirs;
+     * disconnected says there was nobody to ask. Here they were there and they said stop.
+     */
+    test('takes the question back as stopped rather than as unanswered or unreachable', async () => {
+        const {loopId} = runningLoop();
+        const answer = askOf(loopId, 'b1');
+        LoopGateway.stop(loopId);
+        await expect(answer).rejects.not.toBe('interactionAfk');
+        await expect(answer).rejects.not.toBe('disconnected');
+    });
+
+    test('closes the dialog that is open on the question', async () => {
+        const {loopId} = runningLoop();
+        const answer = askOf(loopId, 'b1');
+        LoopGateway.stop(loopId);
+        expect(events).toContainEqual({eventType: 'cancelInteraction', loopId, browserId: 'b1'});
+        await expect(answer).rejects.toBeDefined();
+    });
+
+    /**
+     * A question outlives the tab it was put to and is handed on to whichever one asked for it
+     * since, and the stop itself may come from a third tab entirely. Sent under the wrong id the
+     * event matches no dialog: the open one would never close, over a run long finished.
+     */
+    test('closes the dialog of the browser holding the question, not of whoever stopped', async () => {
+        const {loopId} = runningLoop();
+        const answer = askOf(loopId, 'b1');
+        LoopGateway.askAgainOf('b3', loopId);
+        LoopGateway.stop(loopId);
+        expect(events).toContainEqual({eventType: 'cancelInteraction', loopId, browserId: 'b3'});
+        expect(events).not.toContainEqual({eventType: 'cancelInteraction', loopId, browserId: 'b1'});
+        await expect(answer).rejects.toBeDefined();
+    });
+
+    /**
+     * A run from IM is under a browser id no browser ever held, and it locks every web view of the
+     * loop all the same. Checked against whoever asks, a stop would never reach this one.
+     */
+    test('stops a run that no browser ever started', () => {
+        const {loopId, loop} = runningLoop('im', '');
+        expect(LoopGateway.stop(loopId)).toBe(true);
+        expect(loop.invoke.mock.calls[0]![1]!.abortSignal?.aborted).toBe(true);
+    });
+
+    test('does nothing the second time, the first press having done all of it', async () => {
+        const {loopId} = runningLoop();
+        const answer = askOf(loopId, 'b1');
+        LoopGateway.stop(loopId);
+        await expect(answer).rejects.toBeDefined();
+        expect(() => LoopGateway.stop(loopId)).not.toThrow();
+        expect(events.filter(event => event.eventType === 'cancelInteraction')).toHaveLength(1);
+    });
+
+    test('has nothing left to abort once the run is over', async () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockResolvedValue({text: 'done', runtime: newRuntime()});
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        expect(LoopGateway.stop(loopId)).toBe(false);
     });
 });
 

@@ -23,26 +23,37 @@ export abstract class ImageGenerator {
     }
 
     /** The drawn picture, as a link or as a data url. */
-    public abstract draw(request: ImageRequest): Promise<string>;
+    public abstract draw(request: ImageRequest, signal?: AbortSignal): Promise<string>;
 
-    protected async ask<T>(url: string, body: object): Promise<T> {
+    protected async ask<T>(url: string, body: object, signal?: AbortSignal): Promise<T> {
         return this.answerOf(await fetch(url, {
             method: 'POST',
             headers: {'Content-Type': 'application/json', ...this.authorization()},
             body: JSON.stringify(body),
-            signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
+            signal: this.deadline(signal),
         }));
     }
 
     /** For a vendor that reads the pictures to draw from off the request instead of a json field. */
-    protected async askForm<T>(url: string, form: FormData): Promise<T> {
+    protected async askForm<T>(url: string, form: FormData, signal?: AbortSignal): Promise<T> {
         return this.answerOf(await fetch(url, {
             method: 'POST',
             // no content type of ours: only fetch knows the boundary it writes the parts with
             headers: this.authorization(),
             body: form,
-            signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
+            signal: this.deadline(signal),
         }));
+    }
+
+    /**
+     * The three minutes a drawing is given and the stop of the run, as the one signal either can
+     * fire. Both are needed: three minutes is a long time to sit in front of a button that did
+     * nothing, and giving up the timeout to gain the stop would leave a run waiting forever on a
+     * vendor that never answers.
+     */
+    protected deadline(signal?: AbortSignal): AbortSignal {
+        const timeout = AbortSignal.timeout(GENERATION_TIMEOUT_MS);
+        return signal ? AbortSignal.any([timeout, signal]) : timeout;
     }
 
     private authorization(): Record<string, string> {

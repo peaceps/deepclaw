@@ -22,15 +22,17 @@ export class GptImageGenerator extends ImageGenerator {
     public static readonly envKey = 'OPENAI_API_KEY';
 
     /** Openai takes no negative prompt, so what the answer wanted kept out cannot be passed on. */
-    public override async draw(request: ImageRequest): Promise<string> {
+    public override async draw(request: ImageRequest, signal?: AbortSignal): Promise<string> {
         const images = request.images || [];
         const answer = images.length
-            ? await this.askForm<GptImageAnswer>(EDIT_URL, await editForm(this.model, request, images))
+            ? await this.askForm<GptImageAnswer>(
+                EDIT_URL, await editForm(this.model, request, images, signal), signal
+            )
             : await this.ask<GptImageAnswer>(GENERATION_URL, {
                 model: this.model,
                 prompt: request.prompt,
                 ...(request.size ? {size: pixelsOf(request.size)} : {}),
-            });
+            }, signal);
         const image = answer.data?.find(item => item.b64_json)?.b64_json;
         if (!image) {
             throw new Error('Image generation returned no image.');
@@ -40,7 +42,9 @@ export class GptImageGenerator extends ImageGenerator {
     }
 }
 
-async function editForm(model: string, request: ImageRequest, images: string[]): Promise<FormData> {
+async function editForm(
+    model: string, request: ImageRequest, images: string[], signal?: AbortSignal
+): Promise<FormData> {
     const form = new FormData();
     form.append('model', model);
     form.append('prompt', request.prompt);
@@ -48,7 +52,7 @@ async function editForm(model: string, request: ImageRequest, images: string[]):
         form.append('size', pixelsOf(request.size));
     }
     for (const [index, image] of images.entries()) {
-        const {bytes, mediaType} = await bytesOf(image);
+        const {bytes, mediaType} = await bytesOf(image, signal);
         form.append('image[]',
             new Blob([new Uint8Array(bytes)], {type: mediaType}),
             `source-${index}.${extensionOf(mediaType)}`);
@@ -57,12 +61,17 @@ async function editForm(model: string, request: ImageRequest, images: string[]):
 }
 
 /** The edit endpoint reads the bytes off the request, so a link is fetched before it is sent on. */
-async function bytesOf(image: string): Promise<{bytes: Buffer, mediaType: string}> {
+async function bytesOf(
+    image: string, signal?: AbortSignal
+): Promise<{bytes: Buffer, mediaType: string}> {
     const inline = parseDataUrl(image);
     if (inline) {
         return {bytes: Buffer.from(inline.base64, 'base64'), mediaType: inline.mediaType};
     }
-    const response = await fetch(image, {signal: AbortSignal.timeout(SOURCE_TIMEOUT_MS)});
+    const timeout = AbortSignal.timeout(SOURCE_TIMEOUT_MS);
+    const response = await fetch(image, {
+        signal: signal ? AbortSignal.any([timeout, signal]) : timeout
+    });
     if (!response.ok) {
         throw new Error(`The picture to draw from could not be read (${response.status}): ${image}`);
     }

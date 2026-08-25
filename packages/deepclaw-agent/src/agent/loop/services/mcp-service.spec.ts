@@ -25,7 +25,11 @@ const mocks = vi.hoisted(() => ({
     listTools: vi.fn<(params?: {cursor: string}) => Promise<{tools: McpTool[]; nextCursor?: string}>>(
         async () => ({tools: []})
     ),
-    callTool: vi.fn<(params: {name: string; arguments: unknown}) => Promise<CallToolResult>>(
+    callTool: vi.fn<(
+        params: {name: string; arguments: unknown},
+        resultSchema?: unknown,
+        options?: {signal?: AbortSignal},
+    ) => Promise<CallToolResult>>(
         async () => ({content: []})
     ),
     /** Every client that was built, so that a test can drop the connection of one of them. */
@@ -91,12 +95,14 @@ function flush(): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, 0));
 }
 
-async function invokeTool(name: string, input: unknown): Promise<string> {
+async function invokeTool(
+    name: string, input: unknown, abortSignal?: AbortSignal
+): Promise<string> {
     const tool = MCPService.getTools()[name];
     if (!tool) {
         throw new Error(`Tool ${name} was not exposed. Available: ${toolNames().join(', ')}`);
     }
-    return tool.invoke(input, newTestContext());
+    return tool.invoke(input, newTestContext({abortSignal}));
 }
 
 /** The service is a globalized singleton, so the client of the previous test is released first. */
@@ -393,7 +399,18 @@ describe('callTool', () => {
 
     test('sends the original tool name and the given input', async () => {
         await invokeTool('MCP_srv_ping', {q: 'hello'});
-        expect(mocks.callTool).toHaveBeenCalledExactlyOnceWith({name: 'ping', arguments: {q: 'hello'}});
+        expect(mocks.callTool)
+            .toHaveBeenCalledExactlyOnceWith({name: 'ping', arguments: {q: 'hello'}}, undefined, {signal: undefined});
+    });
+
+    /**
+     * The registration closure used to drop the context it was handed, which left every call of
+     * every MCP tool waiting out a server that had stopped answering.
+     */
+    test('calls under the signal of the run that asked for the tool', async () => {
+        const abortSignal = new AbortController().signal;
+        await invokeTool('MCP_srv_ping', {q: 'hello'}, abortSignal);
+        expect(mocks.callTool.mock.calls[0]![2]).toEqual({signal: abortSignal});
     });
 
     test('joins every text part with a line break', async () => {

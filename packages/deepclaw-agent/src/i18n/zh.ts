@@ -25,6 +25,10 @@ export const zh = {
                     llm: '客户端断开连接，运行中止！',
                     user: '客户端断开连接，运行中止！',
                 },
+                userStopped: {
+                    llm: '用户停止了本次运行。',
+                    user: '已停止。',
+                },
             },
         },
         llm: {
@@ -66,6 +70,7 @@ export const zh = {
                 empty: '（无输出内容）',
                 error: '出错了。{{message}}。',
                 timeout: '命令运行{{timeout}}秒超时。',
+                stopped: '命令还没跑完就被用户停止了。',
             },
             image: {
                 noKey: '没有配置生图的 API key。请在该 agent 的生图设置里填写，或设置 {{env}} 环境变量。',

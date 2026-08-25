@@ -45,7 +45,12 @@ async function runSpawnedLoop(
     loop: LoopAgent<any, any, any>, prompt: string, context: OneLoopContext
 ): Promise<string> {
     try {
-        const result = await loop.invoke(prompt, { browserId: context.browserId });
+        // The signal travels down rather than the reason: a stop is set as a flag on the loop it
+        // was addressed to, and the loops below it are reached this way and no other. It recurses
+        // of its own accord, since a sub loop hands the very same signal to whatever it spawns.
+        const result = await loop.invoke(prompt, {
+            browserId: context.browserId, abortSignal: context.abortSignal
+        });
         addTokenUsage(context.runtime.usage, result.runtime.usage);
         return withDrawnImages(result.text, loop.getDrawnImages());
     } finally {

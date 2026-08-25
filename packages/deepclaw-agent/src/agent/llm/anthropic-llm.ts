@@ -56,11 +56,21 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
         });
     }
 
+    /**
+     * An aborted stream comes back out of `finalMessage()` as an `APIUserAbortError`: the stream
+     * tells an abort apart from a failure and raises the 'abort' event rather than 'error'. An
+     * abort nobody listens for is rejected into the void, which Node answers by ending the
+     * process, and the stream counts an awaited promise of its own as listening — so awaiting
+     * `finalMessage()` in the same breath as `stream()` would already be enough. The empty
+     * listener is there so that it does not have to be: the guard reads the listeners too, and
+     * with one present no ordering of the lines below can bring the process down.
+     */
     protected override async _invoke(
         system: SystemPrompt,
         messages: ThinkingMessage[],
         tools: ToolUnion[],
-        streamer: (text: string) => void
+        streamer: (text: string) => void,
+        signal?: AbortSignal
     ): Promise<ThinkingResponse> {
         const stream = this.client.messages.stream({
             model: this.gw.model,
@@ -69,7 +79,7 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
             tools,
             max_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature,
-        }).on('text', (text) => {
+        }, {signal}).on('abort', () => undefined).on('text', (text) => {
             streamer(text);
         });
 

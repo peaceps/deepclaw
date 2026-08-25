@@ -112,6 +112,8 @@ export type OneLoopContext = {
         addStringMessage: (message: string) => void;
     },
     permissionWhiteList: PermissionWhiteList;
+    /** What every await of this run watches, so a stop reaches the one it is sitting in. */
+    abortSignal?: AbortSignal;
     runtime: AgentRuntime
 }
 
@@ -122,6 +124,15 @@ export type OneLoopContext = {
  */
 export function personaOf(context: OneLoopContext): string {
     return context.personaId ?? context.agentId;
+}
+
+/**
+ * Whether this run was stopped. The signal is what says so, rather than the exception that came
+ * out of whichever await was cut short: every layer below throws a shape of its own for an abort,
+ * an SDK is free to change which, and a run reads the same answer from the signal everywhere.
+ */
+export function isRunStopped(context: OneLoopContext): boolean {
+    return context.abortSignal?.aborted === true;
 }
 
 export type LoopSessionStatus = 'running' | 'paused' | 'idle' | 'error';

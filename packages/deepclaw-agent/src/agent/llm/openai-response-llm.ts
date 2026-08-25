@@ -49,7 +49,8 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         system: SystemPrompt,
         messages: ThinkingMessage[],
         tools: Tool[],
-        streamer: (text: string) => void
+        streamer: (text: string) => void,
+        signal?: AbortSignal
     ): Promise<ThinkingResponse> {
 
         const stream = await this.client.responses.create({
@@ -60,7 +61,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             tools,
             max_output_tokens: this.gw.maxTokens,
             temperature: this.gw.temperature,
-        });
+        }, {signal});
 
         for await (const event of stream) {
             switch (event.type) {

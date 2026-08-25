@@ -19,7 +19,7 @@ export class QwenImageGenerator extends ImageGenerator {
     public static readonly envKey = 'DASHSCOPE_API_KEY';
 
     /** A picture to draw from travels in the same message as the prompt, ahead of it. */
-    public override async draw(request: ImageRequest): Promise<string> {
+    public override async draw(request: ImageRequest, signal?: AbortSignal): Promise<string> {
         const content = [...(request.images || []).map(image => ({image})), {text: request.prompt}];
         const answer = await this.ask<QwenAnswer>(GENERATION_URL, {
             model: this.model,
@@ -30,7 +30,7 @@ export class QwenImageGenerator extends ImageGenerator {
                 prompt_extend: true,
                 watermark: false,
             },
-        });
+        }, signal);
         const image = answer.output?.choices?.[0]?.message?.content?.find(part => part.image)?.image;
         if (!image) {
             throw new Error(`Image generation returned no image, request id ${answer.request_id || 'unknown'}.`);

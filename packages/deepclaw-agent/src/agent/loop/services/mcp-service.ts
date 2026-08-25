@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ToolDesc } from '../../definitions/tool-definitions';
+import { OneLoopContext } from '../../definitions/definitions';
 import { getLogger, globalize } from '@deepclaw/node-utils';
 import { loadConfig } from '@deepclaw/config';
 
@@ -89,8 +90,11 @@ class MCPClient {
                     },
                     parallelSafe: true,
                     agentMode: ['agent'],
-                    invoke: async (input: any) => {
-                        return await this.callTool(tool.name, input);
+                    // The context is taken rather than dropped: the signal of the run travels in
+                    // it, and a call that never sees one waits out a server that has stopped
+                    // answering while the user is looking at a button that did nothing.
+                    invoke: async (input: any, context: OneLoopContext) => {
+                        return await this.callTool(tool.name, input, context.abortSignal);
                     },
                 };
             }
@@ -98,13 +102,13 @@ class MCPClient {
         } while (cursor);
     }
 
-    public async callTool(name: string, input: any): Promise<string> {
+    public async callTool(name: string, input: any, signal?: AbortSignal): Promise<string> {
         if (this.retired) {
             throw new Error(`MCP server changed while ${name} was pending, call the tool again`);
         }
         this.inFlight++;
         try {
-            const result = await this.client.callTool({name, arguments: input});
+            const result = await this.client.callTool({name, arguments: input}, undefined, {signal});
             const parts = Array.isArray(result.content) ? result.content : [];
             const text = parts.map((p: any) =>
                 p?.type === 'text' ? p.text : `[${p?.type ?? 'unknown'} content omitted]`

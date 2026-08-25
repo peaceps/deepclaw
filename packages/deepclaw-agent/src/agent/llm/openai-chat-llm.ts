@@ -57,7 +57,8 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         system: SystemPrompt,
         messages: ThinkingMessage[],
         tools: ChatCompletionTool[],
-        streamer: (text: string) => void
+        streamer: (text: string) => void,
+        signal?: AbortSignal
     ): Promise<ThinkingResponse> {
         const systemContent = `${system.cacheable}\n${system.learned}`;
         const systemIdx = messages.findIndex(m => m.role === 'system');
@@ -75,7 +76,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             tool_choice: 'auto',
             stream: true,
             stream_options: {include_usage: true}
-        });
+        }, {signal});
 
         const toolCallResults = new Map<number, ChatCompletionChunk.Choice.Delta.ToolCall>();
         let content = '';

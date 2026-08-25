@@ -5,6 +5,7 @@ import type {
     ChatMessage,
     InvalidInteractionReason,
     InternalInterruptReason,
+    StoppedInteractionReason,
     AgentInvokeResponse,
     TokenUsage,
     FlushAgentRole,
@@ -43,6 +44,8 @@ type LoopState = {
     agentHandler: Partial<AgentHandler>;
     loop: LoopAgent<unknown, any, any>;
     running: boolean;
+    /** One per run, handed to the loop so that a stop reaches whatever the run is waiting on. */
+    controller?: AbortController;
 };
 type LoopStore = Record<string, LoopState>;
 export type DeepclawDataInfo = {
@@ -302,13 +305,66 @@ class LoopGatewayImpl {
             agentHandler,
             msgId: agentMessages.id
         };
+        const controller = new AbortController();
+        loopState.controller = controller;
         this.fireBusyEvent(loopId);
         this.invokeAndReturn(
             loopId, source, loopState,
-            () => loopState.loop.invoke(input, {browserId, images, agentHandler}),
+            () => loopState.loop.invoke(input, {
+                browserId, images, agentHandler, abortSignal: controller.signal
+            }),
             onDone
         );
         return {busy: false, msgId: agentMessages.id};
+    }
+
+    /**
+     * Ends the run of this loop at the first place it can be ended, and answers whether there was
+     * one to end. Three things have to happen and none of them stands for the others: the signal
+     * cuts short whatever the run is waiting on, the reason is what turns that into an ending the
+     * loop words rather than an error it reports, and a question already on somebody's screen has
+     * to be taken back or the run would sit in it for the ten minutes it is allowed.
+     *
+     * Whoever asks may be any browser, including one that started nothing. The lock this releases
+     * is held against every browser watching the loop, so leaving it to the one that started the
+     * run would hold the rest hostage to a tab that may well be closed by now: a browser id lives
+     * in a tab and dies with it, and a run started from IM is under an id no browser ever held.
+     */
+    public static stop(loopId: string): boolean {
+        const loopState = this.loops[loopId];
+        if (!loopState?.running) {
+            return false;
+        }
+        loopState.controller?.abort();
+        loopState.loop.setExternalInterruptReason('userStopped');
+        this.dropWaitingInteraction(loopId);
+        return true;
+    }
+
+    /**
+     * Takes back the question this loop is waiting on, if it waits on one.
+     *
+     * The promise is really rejected rather than raced against the signal: the waiting one is what
+     * clears the ten minute timer and forgets the resolver in its finally, and a promise left
+     * unsettled leaks both. The event that closes the dialog goes to the browser holding the
+     * question rather than the one that pressed stop, and is read fresh: a question outlives the
+     * tab it was put to and is handed to whichever browser asked for it since. Sent under the
+     * wrong id it matches no dialog, and the one that is open never closes while the run behind
+     * it is already over.
+     *
+     * A user answering in the very same moment is no problem: their resolve came first, the reject
+     * below does nothing, and the tool call runs on to be stopped at the next place that looks.
+     */
+    private static dropWaitingInteraction(loopId: string): void {
+        const resolver = this.waitingInteractions.get(loopId);
+        if (!resolver) {
+            return;
+        }
+        const question = resolver.question;
+        this.fireSSEEvent({
+            eventType: 'cancelInteraction', loopId: question.loopId, browserId: question.browserId
+        });
+        resolver.reject('userStopped' satisfies StoppedInteractionReason);
     }
 
     private static invokeAndReturn(
@@ -317,25 +373,49 @@ class LoopGatewayImpl {
         onDone?: (text: string) => void
     ): void {
         invoke().then(({text}) => {
+            this.reportAnswer(loopId, source, loopState, text, onDone);
+        // Unreachable, and kept as the last line of defence rather than as a path with behaviour
+        // of its own. A loop wraps its whole run and answers with the error instead of throwing
+        // it, FlushAgent.invoke wraps that again, and what it answers with is a promise that only
+        // ever resolves; the success side above is sealed so that it cannot land here either.
+        // Nothing of the run belongs in this branch: a chat message written from it would be one
+        // no reachable code can produce.
+        }).catch((error) => {
+            logger.warn(`invokeAndReturn failed: ${error}`);
+            onDone?.(error?.message || error);
+        }).finally(() => {
+            this.clearLoopState(loopState);
+            this.fireBusyEvent(loopId);
+        });
+    }
+
+    /**
+     * Handing the answer out and writing it down, in a shape where none of it can fail the run.
+     * A chat file may refuse the write and the usage figures may not be there, and neither is
+     * worth telling the caller about: the answer itself already went out. Left to throw, any of
+     * these would land in the catch above, which calls onDone again with the error — an IM user
+     * would read the answer and then, underneath it, be told the turn failed.
+     */
+    private static reportAnswer(
+        loopId: string, source: InvokeSource, loopState: LoopState, text: string,
+        onDone?: (text: string) => void
+    ): void {
+        try {
             onDone?.(text);
             this.updateMessage('', loopId, loopState.invoke!.msgId!, source === 'im' ? `📱 ${text}` : text);
             const usage = SessionService.getTokenUsage(loopId);
             if (usage) {
                 this.fireSSEEvent({eventType: 'tokenUsage', loopId, usage});
             }
-            this.clearLoopState(loopState);
-        }).catch((e) => {
-            logger.warn(`invokeAndReturn failed: ${e}`);
-            onDone?.(e?.message || e);
-            this.clearLoopState(loopState);
-        }).finally(() => {
-            this.fireBusyEvent(loopId);
-        });
+        } catch (error) {
+            logger.warn(`Failed to hand out the answer of ${loopId}: ${error}`);
+        }
     }
 
     private static clearLoopState(loopState: LoopState): void {
         loopState.running = false;
         loopState.invoke = undefined;
+        loopState.controller = undefined;
     }
 
     public static addMessage(

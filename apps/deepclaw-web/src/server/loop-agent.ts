@@ -11,6 +11,15 @@ export async function invoke(
     return LoopGateway.invoke({role, agentId, projectId}, {source: 'web', browserId, images}, input);
 }
 
+/**
+ * Ends the run of this loop, answering whether there was one to end. No browser id is asked for
+ * and none is checked: the lock a run holds is held against every view of that loop, so the right
+ * to release it cannot belong to the one tab that happened to start it.
+ */
+export async function stopLoop(loopId: string): Promise<boolean> {
+    return LoopGateway.stop(loopId);
+}
+
 export async function activeLoop(browserId: string, loopId: string): Promise<void> {
     SSEServer.watchLoop(browserId, loopId, true);
 }

@@ -57,6 +57,37 @@ describe('emitVisitor', () => {
         expect(other).not.toHaveBeenCalled();
     });
 
+    /**
+     * A hook is an extension, and one written badly must not take the run down with it. Two of
+     * these fire from inside a tool group, where a throw discards the results of every group that
+     * already finished and leaves the turn owing an answer to calls the model asked for.
+     */
+    test('logs a failing listener and keeps going, as the interceptors already did', async () => {
+        const HookManager = await newHookManager();
+        const context = newTestContext();
+        const later = vi.fn();
+        HookManager.onVisitor('postEachToolUse', () => {
+            throw new Error('hook exploded');
+        });
+        HookManager.onVisitor('postEachToolUse', later);
+        await expect(HookManager.emitVisitor('postEachToolUse', context, {
+            toolUseDef: {id: 'tu1', name: 'demo', input: {}},
+            result: {result: {id: 'tu1', content: 'done'}, success: true},
+        })).resolves.toBeUndefined();
+        expect(context.logger.error).toHaveBeenCalled();
+        expect(later).toHaveBeenCalled();
+    });
+
+    test('survives a listener whose promise rejects, not only one that throws outright', async () => {
+        const HookManager = await newHookManager();
+        const context = newTestContext();
+        HookManager.onVisitor('preTurnStart', async () => {
+            throw new Error('hook exploded later');
+        });
+        await expect(HookManager.emitVisitor('preTurnStart', context)).resolves.toBeUndefined();
+        expect(context.logger.error).toHaveBeenCalled();
+    });
+
     test('does not reach the interceptors registered under the same name', async () => {
         const HookManager = await newHookManager();
         const interceptor = vi.fn(() => '');
