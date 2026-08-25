@@ -11,7 +11,12 @@
 	},
 	"scripts": {
     	"preinstall": "only-allow pnpm",
-		"deepclaw": "pnpm --filter @deepclaw/launcher dev",
+		"web:dev": "pnpm --filter @deepclaw/web dev",
+        "build": "pnpm --filter @sacephor/deepclaw build:release",
+        "build:staged": "pnpm --filter @sacephor/deepclaw build:release --staged",
+        "release": "npm publish --access public apps/sacephor-deepclaw/release",
+        "release:build": "pnpm build && pnpm release",
+        "release:staged": "pnpm build:staged && pnpm release",
 		"typecheck": "tsc -b && pnpm --filter @deepclaw/web typecheck",
 		"lint": "eslint **/*.{ts,tsx}",
 		"test": "vitest run"

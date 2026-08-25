@@ -248,4 +248,4 @@ const dependencies = writeManifest();
 console.log(`\n${manifest.name} ${manifest.version} is staged in ${release}`);
 console.log(`  ${(sizeOf(release) / 1024 / 1024).toFixed(1)} MB`);
 console.log(`  depends on ${Object.keys(dependencies).join(', ')}`);
-console.log(`\nTo publish it: npm publish ${path.relative(repo, release)}`);
+console.log(`\nTo publish it: pnpm release`);
