@@ -80,6 +80,10 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             }
         }
 
+        // An abort leaves the stream ended and says nothing about itself, so without this a stopped
+        // run reads as a model that sent no output at all — and this error is streamed to the user
+        // as it is answered, so they would watch it arrive under the stop they just pressed.
+        signal?.throwIfAborted();
         return this.flushAndRespondError(streamer,
             i18nInstance.t('agent.llm.openai.response.output.empty'));
     }

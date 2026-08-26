@@ -63,12 +63,20 @@ deepclaw start --tui      # 终端界面
 
 可以跟某个 agent 聊，也可以跟某个项目聊。回复是一边生成一边流式吐出来的，消息里可以带图片。
 
+看够了的这一轮可以就地打住：agent 在干活的时候，**停止**会顶掉发送的位置，一按就能截在模型说话的
+半句上、截在正在跑的命令上，连它派出去的每个子 agent 一起。已经说出来的话留在对话里，你接着说的
+就从那儿往下走 —— 停止是结束这一轮，不是暂停。开着这个对话的任何一个标签页都能停，不限于发起的
+那个。
+
 碰上只有你能拍板的事，agent 会停下来问 —— 比如要执行一条得先确认的命令，或者要碰工作目录之外的
 文件。问题直接弹到你面前：允许这一次、这类操作本次会话内都允许，或者拒绝。要是你人不在，会有通知
-告诉你有人在等。
+告诉你有人在等。问题跟着对话走，不跟着你发起的那个标签页：把那个页关掉，另一个开着同一段对话的
+页面会接着被问。
 
-Agent 也可以自己提问，给你几个选项挑，或者留一行让你写，问完就停在原地等你回话。子 agent 的问题
-会走派它出去的那条对话，所以底下某处正在做的活，一样能问到你面前。
+一段对话可以关掉，从头开始。**新对话**把当前这段归档，给 agent 留一个空的上下文 —— 当你要问的事
+已经换了方向、后面那串历史只剩成本的时候，用它。关掉的对话收在**历史对话**里，各自以第一句问话
+命名，带着日期、轮数和花掉的 token；点开就能读回来。Agent 还在干活、或者手上还有后台命令没跑完
+的时候，这段对话会一直留着，等它做完。
 
 每段对话都会显示花了多少 token，其中有多少输入是从缓存里拿的。
 
@@ -243,8 +251,8 @@ DEEPCLAW_HOME=~/work/deepclaw deepclaw start
 
 ```bash
 pnpm install
-pnpm --filter=@sacephor/deepclaw web      # 网页界面
-pnpm --filter=@sacephor/deepclaw tui      # 终端界面
+pnpm web      # 网页界面
+pnpm tui      # 终端界面
 ```
 
 这两条命令直接从源码启动，不经过安装后的启动器，因此它们不会去找 `~/.deepclaw`：数据会落在你执行
@@ -254,6 +262,6 @@ pnpm --filter=@sacephor/deepclaw tui      # 终端界面
 再从 registry 拉 deepclaw 的任何其它东西。
 
 ```bash
-pnpm --filter=@sacephor/deepclaw build:release
-npm publish apps/sacephor-deepclaw/release
+pnpm build
+pnpm release
 ```

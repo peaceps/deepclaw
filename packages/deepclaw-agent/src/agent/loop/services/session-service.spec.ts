@@ -246,10 +246,46 @@ describe('loadSession', () => {
         SessionService.updateSessionRuntime(context, {});
         const meta = persistedMeta(sessionDir);
         expect(outdated).toBe(true);
-        expect(meta.llmProtocol).toBe('Anthropic');
         expect(meta.runtime.usage).toEqual({cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3});
         expect(meta.runtime.turnCount).toBe(0);
         expect(meta.runtime.finalText).toBe('');
+    });
+
+    test('goes on saying the history is in the old protocol until it has been migrated', () => {
+        const sessionDir = nextSessionDir();
+        disk[metaPath(sessionDir)] = JSON.stringify(newMeta({llmProtocol: 'OpenAIChat'}));
+        const context = newTestContext({sessionDir});
+        SessionService.loadSession({
+            sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
+        });
+        SessionService.updateSessionRuntime(context, {});
+        expect(persistedMeta(sessionDir).llmProtocol).toBe('OpenAIChat');
+    });
+
+    test('says the new protocol once the history has been migrated into it', () => {
+        const sessionDir = nextSessionDir();
+        disk[metaPath(sessionDir)] = JSON.stringify(newMeta({llmProtocol: 'OpenAIChat'}));
+        const context = newTestContext({sessionDir});
+        SessionService.loadSession({
+            sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic',
+        });
+        SessionService.markHistoryProtocol(context, 'Anthropic');
+        expect(persistedMeta(sessionDir).llmProtocol).toBe('Anthropic');
+    });
+
+    test('asks for the migration again when the one before it never finished', () => {
+        const sessionDir = nextSessionDir();
+        disk[metaPath(sessionDir)] = JSON.stringify(newMeta({llmProtocol: 'OpenAIChat'}));
+        const config = {
+            sessionDir, agentId: 'a1', projectId: '', loopId: 'agent.a1',
+            loopKind: 'main' as const, llmProtocol: 'Anthropic' as const,
+        };
+        // A stop landing in the summarizing call: the session was loaded, nothing was migrated,
+        // and the loop the gateway builds in its place reads the session over again.
+        SessionService.loadSession(config);
+        expect(SessionService.loadSession(config).outdated).toBe(true);
     });
 
     test('hands out the old history when the protocol changed so the loop can summarize it', () => {
@@ -374,6 +410,23 @@ describe('saveHistory persistence', () => {
         context.runtime.turnCount = 1;
         context.runtime.historyPersistIndex = 10;
         SessionService.saveHistory(history(19), context);
+        expect(mocks.appendFile).not.toHaveBeenCalled();
+    });
+
+    test('writes the file over again when a compaction left fewer messages than it holds', () => {
+        const context = startSession();
+        context.runtime.turnCount = 1;
+        context.runtime.historyPersistIndex = 20;
+        SessionService.saveHistory([{i: 1}], context);
+        expect(mocks.writeFile).toHaveBeenCalledWith(historyPath(context), '{"i":1}\n');
+        expect(context.runtime.historyPersistIndex).toBe(1);
+    });
+
+    test('leaves the file alone when it already holds every message', () => {
+        const context = startSession();
+        context.runtime.turnCount = 1;
+        context.runtime.historyPersistIndex = 2;
+        SessionService.saveHistory([{i: 1}, {i: 2}], context, {}, true);
         expect(mocks.appendFile).not.toHaveBeenCalled();
     });
 

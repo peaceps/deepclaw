@@ -267,6 +267,13 @@ export class SessionService {
         if (meta) {
             if (meta.llmProtocol !== config.llmProtocol) {
                 metaData = this.newSessionMetaData(config);
+                // The protocol the history is written in, which is still the old one: it takes an
+                // llm call to summarize a history into the shape of another model, and until that
+                // call has been made the session holds messages this one refuses. Written here as
+                // though it had been made, a migration that never finished would be forgotten --
+                // a stop landing in that one call is enough -- and every message after it sent
+                // under a shape that is answered with nothing but an error.
+                metaData.llmProtocol = meta.llmProtocol;
                 metaData.runtime.usage = meta.runtime.usage;
                 outdated = true;
             } else {
@@ -323,12 +330,18 @@ export class SessionService {
             if (!isSpawnedLoop(context.loopKind) && (force || context.runtime.turnCount > 0)) {
                 const historyPath = `${context.sessionDir}/${SESSION_HISTORY_FILE}`;
                 try {
-                    if (context.runtime.historyPersistIndex === 0) {
+                    // Written whole again wherever the history has fewer messages than the file
+                    // does, which is what a compaction leaves behind. Appending from an index past
+                    // the end of it writes nothing, and the file goes on holding the messages the
+                    // run itself has already given up -- the ones that would be read back the next
+                    // time the session is loaded, a summary having been written for nothing.
+                    if (context.runtime.historyPersistIndex === 0
+                        || history.length < context.runtime.historyPersistIndex) {
                         FileUtils.writeFile(historyPath, this.createJsonl(history));
                         context.runtime.historyPersistIndex = history.length;
                     } else {
                         const gap = history.length - context.runtime.historyPersistIndex;
-                        if (force || history.length < SAVE_THRESHOLD || gap >= SAVE_THRESHOLD) {
+                        if (gap > 0 && (force || history.length < SAVE_THRESHOLD || gap >= SAVE_THRESHOLD)) {
                             FileUtils.appendFile(historyPath,
                                  this.createJsonl(history.slice(context.runtime.historyPersistIndex, history.length)));
                             context.runtime.historyPersistIndex = history.length;
@@ -397,6 +410,23 @@ export class SessionService {
         return (lastWordEnd >= SESSION_NAME_FLOOR ? head.slice(0, lastWordEnd) : head).trim();
     }
 
+    /**
+     * Says that the history is written in this protocol now, which is only true of it once it has
+     * really been summarized into that shape. Whoever loads the session next takes it at its word
+     * and compacts nothing, so it is said here rather than where the session is loaded: by then
+     * the call it takes has not been made, and a run that ends before making it -- a stop, a
+     * failure, the server going down -- would leave the old messages behind under a promise that
+     * they had been replaced.
+     */
+    public static markHistoryProtocol(context: OneLoopContext, llmProtocol: LLMProtocol): void {
+        const meta = this.getMeta(context.sessionDir);
+        if (!meta || meta.llmProtocol === llmProtocol) {
+            return;
+        }
+        meta.llmProtocol = llmProtocol;
+        this.writeMeta(context, meta);
+    }
+
     public static updateSessionRuntime(
         context: OneLoopContext, runtime: Partial<SessionMetaData['runtime']>
     ) {
@@ -415,12 +445,18 @@ export class SessionService {
         if (usage) {
             addTokenUsage(meta.runtime.usage, usage);
         }
-        if (!isSpawnedLoop(context.loopKind)) {
-            FileUtils.writeFile(
-                `${context.sessionDir}/${SESSION_METADATA_FILE}`,
-                JSON.stringify(meta, null, 2)
-            );
+        this.writeMeta(context, meta);
+    }
+
+    /** A spawned loop has no session of its own to stamp: what it did is answered to its parent. */
+    private static writeMeta(context: OneLoopContext, meta: SessionMetaData): void {
+        if (isSpawnedLoop(context.loopKind)) {
+            return;
         }
+        FileUtils.writeFile(
+            `${context.sessionDir}/${SESSION_METADATA_FILE}`,
+            JSON.stringify(meta, null, 2)
+        );
     }
 
     private static createJsonl<I>(history: I[]): string {

@@ -32,6 +32,12 @@ export type SystemPrompt = {
 export type LoopState<I> = {
     messages: I[];
     oneLoopContext: OneLoopContext;
+    /**
+     * Everything the model has said out loud over this run, which is what the user has been
+     * reading: the words of one turn are answered by the words of the next, but the screen keeps
+     * them all, and a run that ends with nothing of its own to say has these to show for itself.
+     */
+    said: string;
 }
 
 /** What a permission is asked for as a whole, rather than one command or one path at a time. */

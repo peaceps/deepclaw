@@ -7,11 +7,12 @@
 	"license": "MIT",
 	"type": "module",
 	"engines": {
-		"node": ">=21"
+		"node": ">=22"
 	},
 	"scripts": {
     	"preinstall": "only-allow pnpm",
-		"web:dev": "pnpm --filter @deepclaw/web dev",
+		"tui": "pnpm --filter @deepclaw/tui dev",
+		"web": "pnpm --filter @deepclaw/web dev",
         "build": "pnpm --filter @sacephor/deepclaw build:release",
         "build:staged": "pnpm --filter @sacephor/deepclaw build:release --staged",
         "release": "npm publish --access public apps/sacephor-deepclaw/release",

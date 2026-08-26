@@ -21,10 +21,36 @@ started each saying they were stopped, since a model told a tool failed will ret
 fault that never happened, while a call left with no answer at all is a history the next message would
 be refused over. a chat told there was no run to stop takes the server at its word and frees itself,
 a page locked over a run the server does not have having nothing else coming to free it. stopping is
-not pausing: the run is over, and what the user says next is a new turn. a command left running in
-the background is not killed, being a thing meant to outlive the run that started it, a run on a
-schedule cannot be stopped from here at all, and on windows the shell a command runs in is what the
-stop reaches, whatever that shell has started under it living on.
+not pausing: the run is over, and what the user says next is a new turn. a command running in the
+background goes with the run that started it, a background command outliving the turn it was started
+in but not the stop of the run it belongs to, and what the model finds when it comes back for it a
+message later says it was stopped rather than that it broke; the background commands of the runs
+before it keep going, being nobody's to stop here. a run on a schedule cannot be stopped from here at
+all, and on windows the shell a command runs in is what the stop reaches, whatever that shell has
+started under it living on.
+a conversation moved to another kind of model is moved once and for good. an agent pointed at a model
+that speaks a different protocol holds a history in the shape of the one before it, and moving it
+across takes a summary, an llm call of its own and the slowest one a long conversation makes. a stop
+landing in that call used to end the conversation for good: the session had already been written down
+as the new model's while its messages were still in the old shape, so the next message summarized
+nothing, sent what was there, and was refused, as was every message after it. what a session says it
+holds is now what it holds until the summary is on disk, written there before the session is told
+rather than at the end of the turn it was made in, a turn being a whole llm call and every tool of it
+long and a process going down inside it leaving the same conversation behind. a migration cut short,
+by a stop or by a machine, is asked for again by the next message. a compacted history is written out whole as well, a file that
+only ever grew having kept every message the compaction took out for the next run to read back.
+put a question left behind by a tab that closed to a tab that has the conversation open, the moment it
+is asked. the handing over was there already, but only where a view opens a loop, which a page that
+already has it open is never going to do again: of two tabs on one conversation, the one that started
+the run closed, the other sat in front of the question for the ten minutes the run waits it out, with
+nothing on screen to say there was one, and was asked only if it happened to leave the page and come
+back. with nobody looking at that conversation it is announced to everyone here instead, the way it
+already was to a browser that connects while it waits: a question orphaned after they got here used
+to reach none of them, and silence is the one thing that leaves a run waiting on a user who would have
+answered. a question is still left to the browser it was asked of while that browser is here and only
+looking elsewhere, and a toast is no more than the way back to a conversation: one that turns out to
+belong to a browser that has since come back takes nothing from it, whether it is still going begging
+being read where it is opened rather than where it was announced.
 let a hook that throws take down nothing but itself. a run used to end in an error the moment any hook
 of an extension raised one, which is not the shape the hooks that can turn a tool call away have ever
 had: each of those is held on its own, and a failure of it is written down and passed over. the rest

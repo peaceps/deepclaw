@@ -21,18 +21,32 @@ export type BackgroundCommand = BackGroundCommandInfo & {
     reported?: boolean;
 };
 
+/** Worded for the model that started the command and comes back for it a run later. */
+const STOPPED_OUTPUT = 'The user stopped the run that started this command, so it did not finish.';
+
 export class BackgroundCommandManager {
     private static commands: Map<string, BackgroundCommand> = new Map();
 
-    public static runCommand(command: BackgroundCommand, sessionDir: string): void {
+    /**
+     * A command started here outlives the turn that started it, which is the whole of what it is
+     * for, but not a stop of the run that started it: what a stop leaves running is work nobody is
+     * coming back for. The signal is that run's and nothing else fires it, so the commands of the
+     * runs before this one keep going, theirs belonging to a run that is already over.
+     */
+    public static runCommand(
+        command: BackgroundCommand, sessionDir: string, signal?: AbortSignal
+    ): void {
         const id = command.id;
         command.outputPath = `${sessionDir}/${BACKGROUND_COMMANDS_DIR}/${id}.bgout`;
         this.commands.set(id, command);
-        runCommandAsync(command.command).then(({ output, preview }) => {
+        runCommandAsync(command.command, signal).then(({ output, preview }) => {
             command.output = output;
             command.preview = preview;
         }).catch((e) => {
-            command.output = `Error: ${e?.message || 'Unknown error'}`;
+            // Read back as a stop rather than as a failure: a model told a command of its own broke
+            // will start it again, or set about explaining a fault that never happened.
+            command.output = signal?.aborted ? STOPPED_OUTPUT
+                : `Error: ${e?.message || 'Unknown error'}`;
             command.preview = command.output;
         }).finally(() => {
             command.completedAt = new Date().toISOString();

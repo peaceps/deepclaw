@@ -174,7 +174,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         }
         const state: LoopState<I> = {
             messages: this.history,
-            oneLoopContext: this.initContext(options)
+            oneLoopContext: this.initContext(options),
+            said: ''
         };
         // Named here rather than where the conversation is closed, since by then the first thing
         // asked of it is buried in a history whose shape is the protocol's rather than ours.
@@ -291,7 +292,22 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             this.outdated, context, this.footPrints, this.llm, this.history
         );
         if (this.outdated) {
+            // Only here, the call above having come back: the history is in the shape of this model
+            // at last. Anything that cut that call short -- a stop above all -- has thrown past
+            // this instead, leaving both the loop and the session on the old protocol, so that the
+            // next run is the migration over again rather than the old messages sent to a model
+            // that answers them with an error.
+            //
+            // Written out before the session is told, and in that order: the summary lives in
+            // memory alone until the turn ends, a whole llm call and every tool of it away, and a
+            // process that goes down inside that gap -- a restart, a kill, a machine -- would leave
+            // a session claiming a migration whose messages on disk are still the old ones, which
+            // is the same conversation refused for good by the model it was migrated to. Forced,
+            // since the turn that migrates is often the first of the session and a save waits for
+            // a turn to have been counted.
             this.outdated = false;
+            SessionService.saveHistory(this.history, context, {}, true);
+            SessionService.markHistoryProtocol(context, this.getLLMProtocol());
         }
     }
 
@@ -300,7 +316,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         const runtime = context.runtime;
         // What the model said this turn, and whether the history already holds it. A turn cut
         // short pushes no message of its own, so without this the words that reached the user
-        // would be gone from both the chat and the history the next turn is built from.
+        // would be gone from both the chat and the history the next turn is built from. Kept
+        // beside the words of the whole run rather than in place of them: only this turn's belong
+        // in the history, where the earlier ones are already written, and only the run's are what
+        // the user is looking at, a turn the model has said nothing in yet having nothing to show.
         let said = '';
         let saved = false;
         try {
@@ -316,6 +335,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 state.messages,
                 (text: string) => {
                     said += text;
+                    state.said += text;
                     this.agentHandler.onStreamText({browserId: context.browserId, text});
                 },
                 context.logger,
@@ -364,7 +384,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         try {
             const stopping = this.stoppingReason(context);
             if (stopping) {
-                this.endStoppedTurn(context, stopping, said, saved);
+                this.endStoppedTurn(state, stopping, said, saved);
             }
             this.externalInterruptReason = undefined;
         } finally {
@@ -404,14 +424,18 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
      *
      * What the user reads is settled here too, and it is deliberately not that message: the line
      * above is written for the model, and reading it back would put two sentences saying the very
-     * same thing one after the other. They read the half of an answer that reached them, followed
-     * by the one notice, or the notice alone where nothing did.
+     * same thing one after the other. They read back everything the run said to them, followed by
+     * the one notice, or the notice alone where it never said anything. Everything, and not the
+     * words of this turn alone: a stop lands as easily in a turn opened after a tool call, which
+     * the model may enter without a word to say, and answering the run with a bare notice there
+     * would take back off the screen every line it had put on it.
      */
     private endStoppedTurn(
-        context: OneLoopContext, reason: ExternalInterruptReason, said: string, saved: boolean
+        state: LoopState<I>, reason: ExternalInterruptReason, said: string, saved: boolean
     ): void {
-        context.runtime.agentBreakReason = reason;
-        context.runtime.agentBreakDetail = this.wrapAgentBreakMessage(said, 'externalInterrupt', reason);
+        const runtime = state.oneLoopContext.runtime;
+        runtime.agentBreakReason = reason;
+        runtime.agentBreakDetail = this.wrapAgentBreakMessage(state.said, 'externalInterrupt', reason);
         const notice = i18nInstance.t(`agent.agentBreak.externalInterrupt.${reason}.llm`);
         this.history.push(this.llm.newInputMessage(saved ? notice : (said || notice), false));
     }

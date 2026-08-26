@@ -113,15 +113,47 @@ class SSEServerImpl {
     }
 
     /**
-     * Nobody has this loop on screen, so the question is only announced: it stays waiting in the
-     * gateway and is handed over as soon as a view of that loop opens. A browser between two
-     * connections has nowhere to be announced to, and the question waits for it in silence rather
-     * than being dropped, since a reload comes back as the same browser. Waiting ends where the
-     * gateway ends it, ten minutes on.
+     * Nobody has this loop on screen, so the question is announced rather than shown: it keeps
+     * waiting in the gateway and is handed over when a view of it opens. Whose question it is
+     * decides who hears of it, and waiting ends where the gateway ends it, ten minutes on.
      */
     private static handleUnwatchedInteraction(event: AgentInteractionEvent) {
+        // Still that browser's question, looking elsewhere being no reason to take it away, and the
+        // toast is what sends it back to the loop to answer.
         if (this.clients.has(event.browserId)) {
             this.sendToast({key: 'interactionPause', data: event.loopId}, event.browserId);
+            return;
+        }
+        this.offerOrphanQuestion(event);
+    }
+
+    /**
+     * The browser the question was asked of has no stream at all: its tab is gone, or reloading,
+     * and it took its name with it either way. Somebody with that very loop on screen is asked in
+     * its place there and then, rather than the next time they open the loop, which a page that
+     * already has it open is never going to do again -- left to that, a user sitting in front of
+     * the conversation would watch the run wait out its ten minutes with nothing to say there was
+     * a question, and be asked only if they happened to leave the page and come back.
+     *
+     * With nobody watching it is announced to everyone here instead, the way it is to a browser
+     * that connects while it waits: silence is the one thing that leaves a run waiting on a user
+     * who would have answered. A toast is only the way back to the conversation, so one that turns
+     * out by then to belong to a browser that has come back takes nothing from it: whether the
+     * question is still going begging is read where it is opened, not where it was announced.
+     */
+    private static offerOrphanQuestion(event: AgentInteractionEvent): void {
+        // Whichever of them has been connected longest, which is the order the streams are held in
+        // rather than a choice made between them: any browser with that conversation open is
+        // somebody who can answer, and the pick has only to land on one, a question being put to a
+        // single browser and answered by that one alone.
+        const watcher = [...this.clients.values()].find(client => client.loops.has(event.loopId));
+        if (!watcher) {
+            this.sendToast({key: 'interactionPause', data: event.loopId});
+            return;
+        }
+        const question = LoopGateway.askAgainOf(watcher.browserId, event.loopId);
+        if (question) {
+            this.sendEvent(watcher, question);
         }
     }
 

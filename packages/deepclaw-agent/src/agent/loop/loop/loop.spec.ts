@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     updateSessionRuntime: vi.fn(),
     saveHistory: vi.fn(),
     nameSession: vi.fn<(context: unknown, input: string) => void>(),
+    markHistoryProtocol: vi.fn(),
     provideSystemPrompt: vi.fn<(...args: unknown[]) => unknown>(
         () => ({cacheable: 'cacheable', dynamic: 'dynamic'})
     ),
@@ -57,6 +58,7 @@ vi.mock('../services/session-service', () => ({
         updateSessionRuntime: mocks.updateSessionRuntime,
         saveHistory: mocks.saveHistory,
         nameSession: mocks.nameSession,
+        markHistoryProtocol: mocks.markHistoryProtocol,
     },
 }));
 
@@ -486,6 +488,53 @@ describe('one turn', () => {
         expect(mocks.compactOldResults).not.toHaveBeenCalled();
         expect(loop.isOutdated()).toBe(false);
     });
+
+    test('tells the session which protocol its history holds once it has been migrated', async () => {
+        const {loop, llm} = newLoop({outdated: true});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.markHistoryProtocol).toHaveBeenCalledWith(expect.anything(), 'OpenAIChat');
+    });
+
+    /**
+     * The summary lives in memory until the turn ends, a whole llm call and every tool of it away.
+     * A session saying it migrated while the messages on disk are still the old ones is the same
+     * conversation refused for good, whether what came in between was a stop or a machine going down.
+     */
+    test('writes the migrated history out before the session is told of the protocol', async () => {
+        const {loop, llm} = newLoop({outdated: true});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        const forced = mocks.saveHistory.mock.calls.findIndex(call => call[3] === true);
+        const savedAt = mocks.saveHistory.mock.invocationCallOrder[forced];
+        expect(savedAt).toBeDefined();
+        expect(savedAt!).toBeLessThan(mocks.markHistoryProtocol.mock.invocationCallOrder[0]!);
+    });
+
+    test('says nothing of the protocol of a session it never migrated', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.markHistoryProtocol).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The whole of the durability of a migration: it takes an llm call, a stop can land in that
+     * call, and a session told the migration was done while its messages are still in the shape of
+     * the model before it holds a conversation nothing can be added to -- the run after it compacts
+     * nothing, sends what is there, and is answered with an error, for good.
+     */
+    test('leaves the session on the old protocol when the migration was stopped', async () => {
+        const {loop} = newLoop({outdated: true});
+        const controller = new AbortController();
+        mocks.compactFullHistory.mockImplementationOnce(async () => {
+            controller.abort();
+            throw new Error('This operation was aborted');
+        });
+        await loop.runInvoke('hi', {browserId: 'b1', abortSignal: controller.signal});
+        expect(mocks.markHistoryProtocol).not.toHaveBeenCalled();
+        expect(loop.isOutdated()).toBe(true);
+    });
 });
 
 describe('tool use', () => {
@@ -849,6 +898,33 @@ describe('stopping a run', () => {
         expect(text).toBe('I was about to say\n\nagent.agentBreak.externalInterrupt.userStopped.user');
         expect(savedHistory().at(-1))
             .toEqual({role: 'assistant', text: 'I was about to say'});
+        expectValidHistory(savedHistory());
+    });
+
+    /**
+     * A run is answered with every word it said, not with the words of its last turn. A turn
+     * opened after a tool call is one the model may enter with nothing to say yet, and a stop
+     * landing there answers with a notice that replaces the message on the screen: read from that
+     * turn alone, it would take back everything the run had already put there, though the tools it
+     * ran all finished and the words are in the history to this day.
+     */
+    test('reads back what the whole run said, not what the turn the stop landed in did', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        llm.responses = [{
+            transitionReason: 'toolUse',
+            text: 'let me read those five files',
+            toolUses: [toolUse('tu1')],
+        }];
+        // The first turn runs on the default fake, tools and all, so that the stop lands in the
+        // turn after it, before the model has said a word in that one.
+        llm.invoke.mockImplementationOnce(llm.invoke.getMockImplementation()!);
+        stopDuring(llm, controller);
+
+        const {text} = await loop.runInvoke('hi', {browserId: 'b1', abortSignal: controller.signal});
+        expect(text).toBe(
+            'let me read those five files\n\nagent.agentBreak.externalInterrupt.userStopped.user'
+        );
         expectValidHistory(savedHistory());
     });
 

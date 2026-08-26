@@ -73,14 +73,29 @@ busy or idle, and they carry a mood: happy, focused, tired, confused, or keeping
 Talk to an agent, or talk to a project. Replies stream back as they are written, and you can attach
 images to a message.
 
+A run you have seen enough of ends where it stands: **Stop** takes the place of Send for as long as
+an agent is working, and reaches the model mid-sentence, the command it is running, and every
+subagent it sent out. What it had already said stays in the conversation, and what you say next
+carries on from there — stopping ends the run rather than pausing it. Any tab showing that
+conversation can stop it, not only the one that started it.
+
 When an agent needs something only you can decide, it stops and asks — before running a command it
 should check on first, or before touching a file outside the folder it works in. The question opens
 in front of you: allow it once, allow that kind of thing for the rest of the session, or refuse. If
-you have wandered off, a notification tells you someone is waiting.
+you have wandered off, a notification tells you someone is waiting. The question follows the
+conversation rather than the tab you asked from: close that tab, and another one showing the same
+conversation is asked in its place.
 
 An agent can also put a question of its own to you, with answers to pick between or a line to write
 in, and it stands still where it asked until you answer. A subagent asks through the conversation of
 the run that sent it out, so work going on somewhere down the tree still comes to you here.
+
+A conversation can be closed and begun again from nothing. **New conversation** files the current one
+away and leaves the agent an empty context, which is what to reach for once what you are asking about
+has moved on and the history behind it is only cost. The ones you have closed are kept under **Past
+conversations**, each named after the first thing asked in it and carrying the day it ran, the turns
+it took, and what it spent; open one to read it back. An agent still working, or still holding a
+background command, keeps the conversation it is in until that is done.
 
 Each conversation shows what it cost in tokens, including how much of the input was served from
 cache.
@@ -276,8 +291,8 @@ Working on deepclaw itself rather than running it:
 
 ```bash
 pnpm install
-pnpm --filter=@sacephor/deepclaw web      # the web UI
-pnpm --filter=@sacephor/deepclaw tui      # the terminal UI
+pnpm web      # the web UI
+pnpm tui      # the terminal UI
 ```
 
 These start the app straight from the sources rather than through the installed launcher, so they
@@ -288,6 +303,6 @@ never reach for `~/.deepclaw`: the data lands in whatever folder the command ran
 bundled or built into it, so an install needs nothing else of deepclaw from the registry.
 
 ```bash
-pnpm --filter=@sacephor/deepclaw build:release
-npm publish apps/sacephor-deepclaw/release
+pnpm build
+pnpm release
 ```

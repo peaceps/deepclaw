@@ -7,6 +7,13 @@ jobs:
   check:
     runs-on: ubuntu-latest
 
+    # Both ends of what package.json says it runs on: the lower one is what an install out there is
+    # likeliest to be, and a version nothing is ever run on is a version nobody has promised anything.
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.x, 24.x]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,7 +26,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.x
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - name: Install dependencies

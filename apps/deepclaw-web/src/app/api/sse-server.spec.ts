@@ -474,6 +474,45 @@ describe('interactions nobody listens to', () => {
         addClient(server, 'b2');
         fire(interactionEvent('b1', 'agent.a1'));
         expect(mocks.cancelInteraction).not.toHaveBeenCalled();
+        expect(mocks.askAgainOf).not.toHaveBeenCalled();
+    });
+
+    /** Whoever is here can go and answer it, and a toast is the way there. */
+    test('announces a question whose browser is gone to everybody here', () => {
+        const first = addClient(server, 'b2');
+        const second = addWatcher(server, 'b3', 'agent.a2');
+        fire(interactionEvent('gone', 'agent.a1'));
+        const toast = {eventType: 'toast', content: {key: 'interactionPause', data: 'agent.a1'}};
+        expect(received(first)).toEqual([toast]);
+        expect(received(second)).toEqual([toast]);
+    });
+
+    /**
+     * The tab that started the run is closed and another one is sitting on the same conversation:
+     * it is asked there and then, having no reason of its own to ever open that loop again.
+     */
+    test('puts the question to a browser watching that loop when the one asked is gone', () => {
+        const client = addWatcher(server, 'b2', 'agent.a1');
+        mocks.askAgainOf.mockReturnValue(interactionEvent('b2', 'agent.a1'));
+        fire(interactionEvent('gone', 'agent.a1'));
+        expect(mocks.askAgainOf).toHaveBeenCalledExactlyOnceWith('b2', 'agent.a1');
+        expect(received(client)).toEqual([interactionEvent('b2', 'agent.a1')]);
+    });
+
+    test('leaves the question waiting when the browsers here watch other loops', () => {
+        addWatcher(server, 'b2', 'agent.a2');
+        fire(interactionEvent('gone', 'agent.a1'));
+        expect(mocks.askAgainOf).not.toHaveBeenCalled();
+    });
+
+    /** It is that browser's question, and a toast is what sends it back to the loop to answer. */
+    test('keeps the question with a browser that is only looking elsewhere', () => {
+        const asked = addWatcher(server, 'b1', 'agent.a1');
+        server.watchLoop('b1', 'agent.a1', false);
+        addWatcher(server, 'b2', 'agent.a1');
+        fire(interactionEvent('b1', 'agent.a1'));
+        expect(mocks.askAgainOf).not.toHaveBeenCalled();
+        expect(eventTypes(asked)).toEqual(['toast']);
     });
 
     test('leaves other loop events alone when nobody listens', () => {

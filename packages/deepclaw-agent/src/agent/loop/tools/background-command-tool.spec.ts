@@ -84,6 +84,15 @@ describe('runBackgroundCommandTool invoke', () => {
         expect(command.creator).toBe('agent.a1');
     });
 
+    test('leaves the command under the signal of the run that started it', async () => {
+        const controller = new AbortController();
+        await runBackgroundCommandTool.invoke(
+            {title: 'build', command: 'npm run build'},
+            newTestContext({abortSignal: controller.signal})
+        );
+        expect(runCommand.mock.calls[0]![2]).toBe(controller.signal);
+    });
+
     test('reports the generated id back to the agent', async () => {
         const result = await runBackgroundCommandTool.invoke(
             {title: 'build', command: 'npm run build'}, newTestContext()

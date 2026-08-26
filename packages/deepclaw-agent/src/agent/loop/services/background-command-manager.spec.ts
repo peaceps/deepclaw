@@ -2,7 +2,9 @@ import {describe, expect, test, vi} from 'vitest';
 import {type BackgroundCommand} from './background-command-manager';
 
 const mocks = vi.hoisted(() => ({
-    runCommandAsync: vi.fn<(command: string) => Promise<{output: string, preview: string}>>(),
+    runCommandAsync: vi.fn<
+        (command: string, signal?: AbortSignal) => Promise<{output: string, preview: string}>
+    >(),
     writeFile: vi.fn<(filePath: string, content: string) => string>(),
     deleteFile: vi.fn<(filePath: string) => void>(),
 }));
@@ -60,8 +62,35 @@ describe('runCommand', () => {
     test('starts the shell command without waiting for it', async () => {
         const manager = await loadManager();
         manager.runCommand(newCommand({command: 'sleep 1'}), '.agents/a1/session');
-        expect(mocks.runCommandAsync).toHaveBeenCalledExactlyOnceWith('sleep 1');
+        expect(mocks.runCommandAsync).toHaveBeenCalledExactlyOnceWith('sleep 1', undefined);
         expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    test('hands the signal of the run down to the command', async () => {
+        const manager = await loadManager();
+        const controller = new AbortController();
+        manager.runCommand(newCommand(), '.agents/a1/session', controller.signal);
+        expect(mocks.runCommandAsync).toHaveBeenCalledWith('npm run build', controller.signal);
+    });
+
+    test('reads back as stopped rather than as broken when the run was stopped', async () => {
+        const manager = await loadManager();
+        const controller = new AbortController();
+        mocks.runCommandAsync.mockRejectedValue(new Error('The operation was aborted'));
+        controller.abort();
+        manager.runCommand(newCommand(), '.agents/a1/session', controller.signal);
+        await vi.waitFor(() => expect(manager.getCommandStatus('bg1', OWNER).status).toBe('completed'));
+        expect(manager.getCommandStatus('bg1', OWNER).preview)
+            .toBe('The user stopped the run that started this command, so it did not finish.');
+    });
+
+    test('still reads back as an error when the run was never stopped', async () => {
+        const manager = await loadManager();
+        const controller = new AbortController();
+        mocks.runCommandAsync.mockRejectedValue(new Error('command exploded'));
+        manager.runCommand(newCommand(), '.agents/a1/session', controller.signal);
+        await vi.waitFor(() => expect(manager.getCommandStatus('bg1', OWNER).status).toBe('completed'));
+        expect(manager.getCommandStatus('bg1', OWNER).preview).toBe('Error: command exploded');
     });
 
     test('stores the output and the preview once the command succeeds', async () => {

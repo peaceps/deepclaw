@@ -254,8 +254,8 @@ export function ChatPanel({
               onClick={stop}
               disabled={stopping}
               title={t(stopping ? 'web.pages.chat.stop.stopping' : 'web.pages.chat.stop.title')}
-              className={`px-4 py-2 bg-gray-700 text-white rounded-lg
-                ${stopping ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800 cursor-pointer'}
+              className={`px-4 py-2 bg-white text-red-500 border border-red-200 rounded-lg
+                ${stopping ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-50 cursor-pointer'}
                 transition-colors flex items-center gap-2`}
             >
               <Square size={18} fill="currentColor" />

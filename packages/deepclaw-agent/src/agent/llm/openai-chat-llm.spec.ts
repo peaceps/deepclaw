@@ -90,12 +90,19 @@ function toolCallsOf(messages: ThinkingMessage[]): unknown {
 function invoke(
     llm: OpenAIChatLLM,
     messages: ThinkingMessage[] = [],
-    streamer: (text: string) => void = () => undefined
+    streamer: (text: string) => void = () => undefined,
+    signal?: AbortSignal
 ): Promise<ThinkingResponse> {
     return llm.invoke(
         'agent', {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: 'dynamic prompt'},
-        messages, streamer, newTestLogger()
+        messages, streamer, newTestLogger(), signal
     );
+}
+
+function aborted(): AbortSignal {
+    const controller = new AbortController();
+    controller.abort();
+    return controller.signal;
 }
 
 beforeEach(() => {
@@ -331,6 +338,38 @@ describe('OpenAIChatLLM streaming', () => {
         mocks.create.mockReturnValue(newStream([newChunk({content: 'hello'}), newChunk(null, 'tool_calls')]));
         const response = await invoke(newLLM());
         expect(newLLM().textOf(response)).toBe('hello');
+    });
+});
+
+describe('OpenAIChatLLM under a stop', () => {
+
+    test('hands the signal to the sdk, which is what ends the stream', async () => {
+        const signal = new AbortController().signal;
+        await invoke(newLLM(), [], () => undefined, signal);
+        expect(mocks.create.mock.calls[0]![1]).toEqual({signal});
+    });
+
+    test('throws over a stream that ended with nothing, rather than answering an error', async () => {
+        mocks.create.mockReturnValue(newStream([newChunk({content: 'half of an ans'})]));
+        await expect(invoke(newLLM(), [], () => undefined, aborted())).rejects.toThrow();
+    });
+
+    test('writes no answer into the history, the half of one being for the loop to place', async () => {
+        mocks.create.mockReturnValue(newStream([newChunk({content: 'half of an ans'})]));
+        const messages: ThinkingMessage[] = [{role: 'user', content: 'hi'}];
+        await expect(invoke(newLLM(), messages, () => undefined, aborted())).rejects.toThrow();
+        expect(messages.filter(message => message.role === 'assistant')).toEqual([]);
+    });
+
+    test('answers the model that finished, the stop and the last chunk having crossed', async () => {
+        const response = await invoke(newLLM(), [], () => undefined, aborted());
+        expect(newLLM().textOf(response)).toBe('hello');
+    });
+
+    test('still reports a stream that ended with nothing while no stop is on', async () => {
+        mocks.create.mockReturnValue(newStream([]));
+        const response = await invoke(newLLM(), [], () => undefined, new AbortController().signal);
+        expect(newLLM().textOf(response)).toBe('Error: No response from LLM.');
     });
 });
 

@@ -55,7 +55,7 @@ and the agent can check the result of the background command later.`,
         // returns, while the command keeps running and still has to write its output somewhere.
         BackgroundCommandManager.runCommand(backgroundCommand, SessionService.getSessionDir(
             context.role, context.agentId, context.projectId
-        ));
+        ), context.abortSignal);
         return `Background command "${title}" created with ID: ${id} starts to run. You can check the status of this command later with check_background_command_status tool.`;
     }
 }

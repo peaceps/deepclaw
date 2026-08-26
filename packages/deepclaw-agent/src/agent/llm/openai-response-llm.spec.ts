@@ -126,12 +126,19 @@ async function runWithoutWaiting<T>(start: () => Promise<T>): Promise<T> {
 function invoke(
     llm: OpenAIResponseLLM,
     messages: ThinkingMessage[] = [],
-    streamer: (text: string) => void = () => undefined
+    streamer: (text: string) => void = () => undefined,
+    signal?: AbortSignal
 ): Promise<ThinkingResponse> {
     return llm.invoke(
         'agent', {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: 'dynamic prompt'},
-        messages, streamer, newTestLogger()
+        messages, streamer, newTestLogger(), signal
     );
+}
+
+function aborted(): AbortSignal {
+    const controller = new AbortController();
+    controller.abort();
+    return controller.signal;
 }
 
 beforeEach(() => {
@@ -297,6 +304,38 @@ describe('OpenAIResponseLLM streaming', () => {
         mocks.create.mockReturnValue(newStream([]));
         const response = await invoke(newLLM());
         expect(response.transitionReason).toBe('error');
+        expect(newLLM().textOf(response)).toBe('agent.llm.openai.response.output.empty');
+    });
+});
+
+describe('OpenAIResponseLLM under a stop', () => {
+
+    test('hands the signal to the sdk, which is what ends the stream', async () => {
+        const signal = new AbortController().signal;
+        await invoke(newLLM(), [], () => undefined, signal);
+        expect(mocks.create.mock.calls[0]![1]).toEqual({signal});
+    });
+
+    test('throws over a stream that never completed, rather than answering an error', async () => {
+        mocks.create.mockReturnValue(newStream([{type: 'response.output_text.delta', delta: 'half'}]));
+        await expect(invoke(newLLM(), [], () => undefined, aborted())).rejects.toThrow();
+    });
+
+    test('streams no error under the words the user stopped', async () => {
+        mocks.create.mockReturnValue(newStream([{type: 'response.output_text.delta', delta: 'half'}]));
+        const streamer = vi.fn<(text: string) => void>(() => undefined);
+        await expect(invoke(newLLM(), [], streamer, aborted())).rejects.toThrow();
+        expect(streamer.mock.calls).toEqual([['half']]);
+    });
+
+    test('answers the model that finished, the stop and the last event having crossed', async () => {
+        const response = await invoke(newLLM(), [], () => undefined, aborted());
+        expect(newLLM().textOf(response)).toBe('hello');
+    });
+
+    test('still reports an empty stream as an error while no stop is on', async () => {
+        mocks.create.mockReturnValue(newStream([]));
+        const response = await invoke(newLLM(), [], () => undefined, new AbortController().signal);
         expect(newLLM().textOf(response)).toBe('agent.llm.openai.response.output.empty');
     });
 });

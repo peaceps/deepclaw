@@ -145,6 +145,11 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             }
             return this.setTransitionReason(finalResponse);
         }
+        // The SDK swallows an abort and closes the iterator without a word of it, leaving a stopped
+        // stream to look exactly like a model that said nothing: read that way, the user who pressed
+        // stop is shown an error instead, and the error is written into the history as the answer of
+        // the turn. Thrown rather than answered, since a throw is what the loop reads as a stop.
+        signal?.throwIfAborted();
         return this.newResponse('Error: No response from LLM.', 'error');
     }
 
