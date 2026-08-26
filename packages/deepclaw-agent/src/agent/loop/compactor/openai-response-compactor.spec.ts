@@ -3,6 +3,7 @@ import type {ResponseInputItem} from 'openai/resources/responses/responses';
 import type {ThinkingMessage} from '../../llm/openai-response-llm';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {OpenAIResponseMessagesCompactor} from './openai-response-compactor';
+import {MAX_RECENT_TOOL_RESULT_COUNT} from './abstract-messages-compactor';
 
 vi.mock('@deepclaw/i18n', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/i18n')>()),
@@ -111,7 +112,7 @@ describe('OpenAIResponseMessagesCompactor compactToolResult', () => {
 describe('OpenAIResponseMessagesCompactor compactOldResults', () => {
 
     test('compacts only the oldest big results of a real history', () => {
-        const messages: ThinkingMessage[] = [...Array(21).keys()]
+        const messages: ThinkingMessage[] = [...Array(MAX_RECENT_TOOL_RESULT_COUNT + 1).keys()]
             .map(index => newToolResult(`call_${index}`, 'x'.repeat(2000)));
         compactor.compactOldResults(messages, newTestContext());
         expect((messages[0] as FunctionCallOutput).output).toBe(COMPACTED);
@@ -119,7 +120,7 @@ describe('OpenAIResponseMessagesCompactor compactOldResults', () => {
     });
 
     test('leaves a short old result alone', () => {
-        const messages: ThinkingMessage[] = [...Array(21).keys()]
+        const messages: ThinkingMessage[] = [...Array(MAX_RECENT_TOOL_RESULT_COUNT + 1).keys()]
             .map(index => newToolResult(`call_${index}`, 'x'.repeat(1200)));
         compactor.compactOldResults(messages, newTestContext());
         expect((messages[0] as FunctionCallOutput).output).toBe('x'.repeat(1200));

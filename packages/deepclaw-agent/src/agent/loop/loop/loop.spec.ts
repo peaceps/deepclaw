@@ -33,7 +33,9 @@ const mocks = vi.hoisted(() => ({
     planExecutionGroups: vi.fn<(toolUseDefs: ToolUseDef[], context: unknown) => ToolUseDef[][]>(),
     clearAwayUser: vi.fn<(loopId: string) => void>(),
     compactOldResults: vi.fn(),
-    compactFullHistory: vi.fn(async () => undefined),
+    compactFullHistory: vi.fn<(force: boolean, ...rest: unknown[]) => Promise<void>>(
+        async () => undefined
+    ),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -715,6 +717,28 @@ describe('recovery', () => {
         ];
         await loop.runInvoke('hi', {browserId: 'b1'});
         expect(mocks.compactFullHistory).toHaveBeenCalledTimes(3);
+    });
+
+    test('forces the compaction the refused call asked for, whatever the history measures', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'inputMaxTokens'},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.compactFullHistory.mock.calls.map(call => call[0]))
+            .toEqual([false, true, false]);
+    });
+
+    test('gives up after three input limit retries rather than summarizing to the turn limit', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = Array.from(
+            {length: 3}, () => ({transitionReason: 'inputMaxTokens' as LLMTransitionReason})
+        );
+        const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(runtime.recoveryState.inputMaxTokenRetries).toBe(3);
+        expect(runtime.transitionReason).toBe('error');
+        expect(runtime.turnCount).toBe(3);
     });
 
     test('turns a failure inside the loop into an error transition', async () => {

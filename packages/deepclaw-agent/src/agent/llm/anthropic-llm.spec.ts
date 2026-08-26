@@ -508,13 +508,40 @@ describe('AnthropicLLM isInputExceedLimit', () => {
         expect(newLLM().textOf(response)).toBe('ERROR: Unrecoverable error: bad tool schema.');
     });
 
-    test('only reads the type off the top level of the error', async () => {
+    test('only reads the complaint off the top level of the error', async () => {
         mocks.stream.mockImplementation(() => {
             throw {status: 400, error: {type: 'invalid_request_error', message: 'prompt is too large'}};
         });
         const response = await invoke(newLLM());
         expect(response.transitionReason).toBe('error');
         expect(newLLM().textOf(response)).toBe('ERROR: Unrecoverable error: 400.');
+    });
+
+    test('recognises the overflow of a gateway whose body carries no type at all', async () => {
+        // Measured against DashScope, whose anthropic shaped body is flat and typeless. The sdk
+        // reads the missing type as null, which the check this replaced turned away at the door.
+        mocks.stream.mockImplementation(() => {
+            throw {
+                status: 400, type: null, code: 'InvalidParameter',
+                message: '400 <400> InternalError.Algo.InvalidParameter: '
+                    + 'Range of input length should be [1, 983616]',
+            };
+        });
+        const response = await runWithoutWaiting(() => invoke(newLLM()));
+        expect(response.transitionReason).toBe('inputMaxTokens');
+    });
+
+    test('treats a body too big to send as the overflow it is', async () => {
+        // The same history, refused a step earlier for its bytes rather than its tokens. Compacting
+        // is the answer to both, so both have to reach the branch that compacts.
+        mocks.stream.mockImplementation(() => {
+            throw {
+                status: 400, type: null,
+                message: '400 Exceeded limit on max bytes to request body : 6291456',
+            };
+        });
+        const response = await runWithoutWaiting(() => invoke(newLLM()));
+        expect(response.transitionReason).toBe('inputMaxTokens');
     });
 
     test('recognises the wording anthropic uses for an oversized prompt', async () => {

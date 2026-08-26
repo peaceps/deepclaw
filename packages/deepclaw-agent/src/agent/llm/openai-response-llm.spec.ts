@@ -538,3 +538,42 @@ describe('OpenAIResponseLLM getTokenUsage', () => {
             .toEqual({cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0});
     });
 });
+
+describe('OpenAIResponseLLM isInputExceedLimit', () => {
+
+    test('recognises the code openai names the overflow with', async () => {
+        mocks.create.mockImplementation(() => {
+            throw {
+                status: 400,
+                error: {type: 'invalid_request_error', code: 'context_length_exceeded',
+                    message: "This model's maximum context length is 128000 tokens"},
+            };
+        });
+        expect((await invoke(newLLM())).transitionReason).toBe('inputMaxTokens');
+    });
+
+    test('recognises a gateway that reports the overflow under a generic code', async () => {
+        mocks.create.mockImplementation(() => {
+            throw {
+                status: 400,
+                message: '400 <400> InternalError.Algo.InvalidParameter: '
+                    + 'Range of input length should be [1, 983616]',
+                error: {type: 'invalid_request_error', code: 'invalid_parameter_error',
+                    message: 'Range of input length should be [1, 983616]'},
+            };
+        });
+        expect((await invoke(newLLM())).transitionReason).toBe('inputMaxTokens');
+    });
+
+    test('leaves an ordinary bad request on the error path', async () => {
+        mocks.create.mockImplementation(() => {
+            throw {
+                status: 400,
+                message: '400 bad tool schema',
+                error: {type: 'invalid_request_error', code: 'invalid_parameter_error',
+                    message: 'bad tool schema'},
+            };
+        });
+        expect((await invoke(newLLM())).transitionReason).toBe('error');
+    });
+});

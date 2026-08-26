@@ -64,6 +64,7 @@ export abstract class FlushAgent {
             historyPersistIndex: 0,
             recoveryState: {
                 maxTokenRetries: 0,
+                inputMaxTokenRetries: 0,
                 refusalState: '' // TODO: 添加拒绝状态
             },
             usage: {

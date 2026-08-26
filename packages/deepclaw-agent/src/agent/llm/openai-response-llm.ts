@@ -1,7 +1,7 @@
 import { OpenAI } from "openai";
 import { randomUUID } from "node:crypto";
 import { i18nInstance } from '@deepclaw/i18n';
-import { LLMModel } from './llmgw';
+import { isContextOverflowMessage, LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import {
@@ -159,7 +159,11 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
     }
 
     protected override isInputExceedLimit(error: any): boolean {
-        return error.status === 400 && error.error.type === 'invalid_request_error' && error.error.code === 'context_length_exceeded';
+        // Same reading as the chat side, and for the same gateways.
+        return error?.status === 400 && (
+            error?.error?.code === 'context_length_exceeded'
+            || isContextOverflowMessage(error?.message ?? error?.error?.message)
+        );
     }
 
     protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {

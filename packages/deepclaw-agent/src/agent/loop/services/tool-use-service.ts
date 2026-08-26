@@ -19,6 +19,12 @@ export type ToolUseServiceResult = {
 /** What a guard that had to ask ends up with, once the user answered or the guard changed its mind. */
 type GuardVerdict = {answer: 'allowed' | 'rejected'} | {answer: 'denied', reason: string};
 
+/**
+ * How much of a filed away output stands in the answer, split evenly between where it starts and
+ * where it ends. Both ends, because the head alone is the boilerplate of a build log and the tail
+ * is the error it ended on, and an output is filed away for its length whatever end the answer to
+ * the call is at.
+ */
 const PREVIEW_CHAR_LENGTH = 1000;
 const MAX_PARALLEL_TOOL_CALLS = 5;
 
@@ -262,11 +268,18 @@ export class ToolUseService {
         const fileName = FileUtils.wrapTimestamp(`${toolUseId}.txt`);
         const fullPath = `${sessionDir}/${TOOL_RESULT_DIR}/${fileName}`;
         FileUtils.writeFile(fullPath, output);
-        output = output.slice(0, PREVIEW_CHAR_LENGTH);
         return `<persisted-output>
 Full output saved to: ${fullPath}
 Preview:
-${output}
+${this.previewOfOutput(output)}
 </persisted-output>`;
+    }
+
+    private static previewOfOutput(output: string): string {
+        const half = Math.floor(PREVIEW_CHAR_LENGTH / 2);
+        const omitted = output.length - half * 2;
+        return `${output.slice(0, half)}
+<${omitted} characters omitted, read the file above for them>
+${output.slice(-half)}`;
     }
 }

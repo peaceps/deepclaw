@@ -7,7 +7,7 @@ import type {LoopKind, SystemPrompt} from '../definitions/definitions';
 import type {LLMTool} from '../definitions/tool-definitions';
 import {newTestLogger} from '../../test-support/one-loop-context';
 import {ToolsManager} from '../loop/services/tools-manager';
-import {LLMModel} from './llmgw';
+import {isContextOverflowMessage, LLMModel} from './llmgw';
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
@@ -468,5 +468,35 @@ describe('LLMModel compact', () => {
         };
         const {summary} = await llm.compact('agent', newSystem(), 'history', newTestLogger());
         expect(summary).toBe('ERROR: Unrecoverable error: nope.');
+    });
+});
+
+describe('isContextOverflowMessage', () => {
+
+    test.for([
+        'prompt is too long: 200000 tokens > 199999 maximum',
+        'Request is TOO LARGE',
+        "This model's maximum context length is 128000 tokens",
+        'exceed context limit',
+        'context_length_exceeded',
+        // Measured against DashScope: the window as a range, and the body as bytes.
+        '<400> InternalError.Algo.InvalidParameter: Range of input length should be [1, 983616]',
+        'Exceeded limit on max bytes to request body : 6291456',
+    ])('reads %s as an overflow', (message) => {
+        expect(isContextOverflowMessage(message)).toBe(true);
+    });
+
+    test.for([
+        'bad tool schema',
+        'invalid api key',
+        'rate limit exceeded',
+        '',
+    ])('leaves %s alone', (message) => {
+        expect(isContextOverflowMessage(message)).toBe(false);
+    });
+
+    test('treats a missing message as no complaint at all', () => {
+        expect(isContextOverflowMessage(undefined)).toBe(false);
+        expect(isContextOverflowMessage(null)).toBe(false);
     });
 });

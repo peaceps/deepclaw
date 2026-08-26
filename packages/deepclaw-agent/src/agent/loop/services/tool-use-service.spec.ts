@@ -674,16 +674,18 @@ describe('executeToolCall output', () => {
         expect(mocks.writeFile).not.toHaveBeenCalled();
     });
 
-    test('persists a huge output and answers with a preview', async () => {
-        mocks.getToolDesc.mockReturnValue(newTool({invoke: vi.fn(async () => 'x'.repeat(20001))}));
+    test('persists a huge output and answers with a preview of both of its ends', async () => {
+        const output = `${'H'.repeat(500)}${'x'.repeat(20000)}${'T'.repeat(500)}`;
+        mocks.getToolDesc.mockReturnValue(newTool({invoke: vi.fn(async () => output)}));
         const context = newTestContext({sessionDir: '.agents/a1/session/s9'});
         const {result, success} = await ToolUseService.executeToolCall(newToolUse(), context);
         expect(mocks.wrapTimestamp).toHaveBeenCalledWith('tu1.txt');
         expect(mocks.writeFile).toHaveBeenCalledWith(
-            '.agents/a1/session/s9/tool_results/stamped-tu1.txt', 'x'.repeat(20001)
+            '.agents/a1/session/s9/tool_results/stamped-tu1.txt', output
         );
         expect(success).toBe(true);
         expect(result.content).toContain('Full output saved to: .agents/a1/session/s9/tool_results/stamped-tu1.txt');
-        expect(result.content).toContain(`Preview:\n${'x'.repeat(1000)}\n</persisted-output>`);
+        expect(result.content).toContain(`Preview:\n${'H'.repeat(500)}\n<20000 characters omitted`);
+        expect(result.content).toContain(`\n${'T'.repeat(500)}\n</persisted-output>`);
     });
 });

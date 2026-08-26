@@ -100,6 +100,7 @@ export type AgentRuntime = {
     historyPersistIndex: number;
     recoveryState: {
         maxTokenRetries: number;
+        inputMaxTokenRetries: number;
         refusalState: '' // TODO: 添加拒绝状态
     },
     usage: TokenUsage;

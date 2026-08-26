@@ -45,6 +45,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     protected llm: LLM;
     private turnLimit: number = 100;
     private maxTokenRetries: number = 3;
+    private maxInputTokenRetries: number = 3;
     private historyPersistIndex: number = 0;
     private sessionDir: string;
     private history: I[] = [];
@@ -283,13 +284,13 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         return text ? `${text}\n\n${notice}` : notice;
     }
 
-    private async compactIfNeeded(context: OneLoopContext): Promise<void> {
+    private async compactIfNeeded(context: OneLoopContext, force: boolean = false): Promise<void> {
         const compactor = MessageCompactor.getCompactor(this.getLLMProtocol());
         if (!this.outdated) {
             compactor.compactOldResults(this.history, context);
         }
         await compactor.compactFullHistory(
-            this.outdated, context, this.footPrints, this.llm, this.history
+            this.outdated || force, context, this.footPrints, this.llm, this.history
         );
         if (this.outdated) {
             // Only here, the call above having come back: the history is in the shape of this model
@@ -357,7 +358,19 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                     break;
                 }
                 case 'inputMaxTokens':
-                    await this.compactIfNeeded(context);
+                    // Forced, and counted. Forced because the model refusing the call is the only
+                    // true measure of what it holds, and a history under the threshold would
+                    // otherwise come back from here untouched and be refused again every turn to
+                    // the limit. Counted because a compaction that does not bring the history under
+                    // the limit -- a system prompt and a tool set too big between them, a summary
+                    // still too long -- would otherwise summarize a summary for just as long, at an
+                    // llm call apiece rather than a refusal apiece.
+                    runtime.recoveryState.inputMaxTokenRetries++;
+                    if (runtime.recoveryState.inputMaxTokenRetries >= this.maxInputTokenRetries) {
+                        runtime.transitionReason = 'error';
+                        break;
+                    }
+                    await this.compactIfNeeded(context, true);
                     break;
                 case 'maxTokens':
                     runtime.recoveryState.maxTokenRetries++;

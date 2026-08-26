@@ -388,6 +388,68 @@ describe('OpenAIChatLLM transition reason', () => {
     });
 });
 
+describe('OpenAIChatLLM isInputExceedLimit', () => {
+
+    test('recognises the code openai names the overflow with', async () => {
+        mocks.create.mockImplementation(() => {
+            throw {
+                status: 400,
+                error: {type: 'invalid_request_error', code: 'context_length_exceeded',
+                    message: "This model's maximum context length is 128000 tokens"},
+            };
+        });
+        expect((await invoke(newLLM())).transitionReason).toBe('inputMaxTokens');
+    });
+
+    test('recognises a gateway that reports the overflow under a generic code', async () => {
+        // Measured against DashScope, which answers an overflow with the same
+        // `invalid_parameter_error` it answers a malformed request with. Only the words tell them
+        // apart, and the check this replaced read the code alone.
+        mocks.create.mockImplementation(() => {
+            throw {
+                status: 400,
+                message: '400 <400> InternalError.Algo.InvalidParameter: '
+                    + 'Range of input length should be [1, 983616]',
+                error: {type: 'invalid_request_error', code: 'invalid_parameter_error',
+                    message: '<400> InternalError.Algo.InvalidParameter: '
+                        + 'Range of input length should be [1, 983616]'},
+            };
+        });
+        expect((await invoke(newLLM())).transitionReason).toBe('inputMaxTokens');
+    });
+
+    test('treats a body too big to send as the overflow it is', async () => {
+        mocks.create.mockImplementation(() => {
+            throw {
+                status: 400,
+                message: '400 Exceeded limit on max bytes to request body : 6291456',
+                error: {type: 'invalid_request_error', code: null,
+                    message: 'Exceeded limit on max bytes to request body : 6291456'},
+            };
+        });
+        expect((await invoke(newLLM())).transitionReason).toBe('inputMaxTokens');
+    });
+
+    test('leaves an ordinary bad request on the error path', async () => {
+        mocks.create.mockImplementation(() => {
+            throw {
+                status: 400,
+                message: '400 bad tool schema',
+                error: {type: 'invalid_request_error', code: 'invalid_parameter_error',
+                    message: 'bad tool schema'},
+            };
+        });
+        expect((await invoke(newLLM())).transitionReason).toBe('error');
+    });
+
+    test('survives an error carrying no nested body at all', async () => {
+        mocks.create.mockImplementation(() => {
+            throw {status: 400, message: '400 something went wrong'};
+        });
+        expect((await invoke(newLLM())).transitionReason).toBe('error');
+    });
+});
+
 describe('OpenAIChatLLM convertResponseToMessages', () => {
 
     test('turns the response into one assistant message with its tool calls', () => {

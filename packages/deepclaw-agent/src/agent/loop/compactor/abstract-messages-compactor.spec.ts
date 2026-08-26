@@ -4,10 +4,12 @@ import type {LLMModel} from '../../llm/llmgw';
 import type {FootPrint, OneLoopContext} from '../../definitions/definitions';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {HookManager} from '../services/hook-manager';
-import {AbstractMessagesCompactor} from './abstract-messages-compactor';
+import {
+    AbstractMessagesCompactor, HISTORY_THRESHOLD, MAX_RECENT_TOOL_RESULT_COUNT
+} from './abstract-messages-compactor';
+import {TRUNCATE_THRESHOLD} from '../../loop-utils';
 
 const COMPACTED = '<tool result compacted> Earlier tool result compacted. Re-run the tool if you need full detail.</tool result compacted>';
-const HISTORY_THRESHOLD = 200000;
 
 const mocks = vi.hoisted(() => ({
     wrapTimestamp: vi.fn((file: string) => `stamped-${file}`),
@@ -84,14 +86,14 @@ describe('AbstractMessagesCompactor compactOldResults', () => {
         expect(emitVisitor).not.toHaveBeenCalled();
     });
 
-    test('keeps every result while there are no more than twenty of them', () => {
-        const messages = newToolResults(20);
+    test('keeps every result while there are no more of them than the recent window holds', () => {
+        const messages = newToolResults(MAX_RECENT_TOOL_RESULT_COUNT);
         new TestCompactor().compactOldResults(messages, newContext());
         expect(messages.some(message => message.content === COMPACTED)).toBe(false);
     });
 
-    test('compacts the results that fall out of the twenty most recent ones', () => {
-        const messages = newToolResults(22);
+    test('compacts the results that fall out of the recent window', () => {
+        const messages = newToolResults(MAX_RECENT_TOOL_RESULT_COUNT + 2);
         new TestCompactor().compactOldResults(messages, newContext());
         expect(messages[0]!.content).toBe(COMPACTED);
         expect(messages[1]!.content).toBe(COMPACTED);
@@ -100,7 +102,7 @@ describe('AbstractMessagesCompactor compactOldResults', () => {
     });
 
     test('keeps an old result that is exactly at the size threshold', () => {
-        const messages = newToolResults(21);
+        const messages = newToolResults(MAX_RECENT_TOOL_RESULT_COUNT + 1);
         messages[0] = {role: 'tool', content: 'x'.repeat(1200)};
         new TestCompactor().compactOldResults(messages, newContext());
         expect(messages[0]!.content).toHaveLength(1200);
@@ -108,14 +110,14 @@ describe('AbstractMessagesCompactor compactOldResults', () => {
     });
 
     test('compacts an old result that is one character over the threshold', () => {
-        const messages = newToolResults(21);
+        const messages = newToolResults(MAX_RECENT_TOOL_RESULT_COUNT + 1);
         messages[0] = {role: 'tool', content: 'x'.repeat(1201)};
         new TestCompactor().compactOldResults(messages, newContext());
         expect(messages[0]!.content).toBe(COMPACTED);
     });
 
     test('reports the original length of every compacted result to the hooks', () => {
-        const messages = newToolResults(21, 3000);
+        const messages = newToolResults(MAX_RECENT_TOOL_RESULT_COUNT + 1, 3000);
         const context = newContext();
         new TestCompactor().compactOldResults(messages, context);
         expect(emitVisitor).toHaveBeenCalledExactlyOnceWith('toolResultCompacted', context, 3000);
@@ -124,11 +126,15 @@ describe('AbstractMessagesCompactor compactOldResults', () => {
     test('only counts the tool results when deciding what is recent', () => {
         const messages: FakeMessage[] = [
             {role: 'user', content: 'x'.repeat(5000)},
-            ...newToolResults(20),
+            ...newToolResults(MAX_RECENT_TOOL_RESULT_COUNT),
             {role: 'assistant', content: 'x'.repeat(5000)},
         ];
         new TestCompactor().compactOldResults(messages, newContext());
         expect(messages.some(message => message.content === COMPACTED)).toBe(false);
+    });
+
+    test('leaves a window that cannot by itself outgrow what triggers the full compaction', () => {
+        expect(MAX_RECENT_TOOL_RESULT_COUNT * TRUNCATE_THRESHOLD).toBeLessThan(HISTORY_THRESHOLD);
     });
 });
 

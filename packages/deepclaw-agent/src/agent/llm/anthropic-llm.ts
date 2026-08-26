@@ -11,7 +11,7 @@ import {
     ImageBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
-import { LLMModel } from './llmgw';
+import { isContextOverflowMessage, LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import { isImageRef, LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
@@ -135,12 +135,11 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
     }
 
     protected override isInputExceedLimit(error: any): boolean {
-        if (error?.status !== 400 || error?.type !== 'invalid_request_error') {
-            return false;
-        }
-        // Anthropic words it as "prompt is too long" or "exceed context limit" depending on the endpoint.
-        const message = String(error.message ?? '').toLowerCase();
-        return message.includes('large') || message.includes('too long') || message.includes('context limit');
+        // The type is no longer part of the question. Anthropic sends "invalid_request_error" with
+        // it, but a gateway answering in this shape may send a body with no type at all -- the sdk
+        // then reads it as null -- and the overflow it is describing is the same one. What the
+        // refusal says is the whole of the test, and the message on top is where the sdk puts it.
+        return error?.status === 400 && isContextOverflowMessage(error?.message);
     }
 
     protected override newResponse(content: string, transitionReason: LLMTransitionReason = 'endLoop'): ThinkingResponse {

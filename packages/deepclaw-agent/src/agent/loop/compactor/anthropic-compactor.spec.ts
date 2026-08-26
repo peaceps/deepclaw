@@ -3,6 +3,7 @@ import type {ToolResultBlockParam} from '@anthropic-ai/sdk/resources/messages/me
 import type {ThinkingMessage} from '../../llm/anthropic-llm';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {AnthropicMessagesCompactor} from './anthropic-compactor';
+import {MAX_RECENT_TOOL_RESULT_COUNT} from './abstract-messages-compactor';
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
@@ -109,7 +110,8 @@ describe('AnthropicMessagesCompactor compactToolResult', () => {
 describe('AnthropicMessagesCompactor compactOldResults', () => {
 
     test('compacts only the oldest big results of a real history', () => {
-        const results = [...Array(21).keys()].map(index => newToolResult(`tu${index}`, 'x'.repeat(2000)));
+        const results = [...Array(MAX_RECENT_TOOL_RESULT_COUNT + 1).keys()]
+            .map(index => newToolResult(`tu${index}`, 'x'.repeat(2000)));
         const messages: ThinkingMessage[] = results.map(result => ({role: 'user', content: [result]}));
         compactor.compactOldResults(messages, newTestContext());
         expect(results[0]!.content).toBe(COMPACTED);

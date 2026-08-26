@@ -9,6 +9,39 @@ import { LoopKind, SystemPrompt } from '../definitions/definitions';
 
 const llmRetry = 3;
 
+/**
+ * What a refusal says when what it refused was the size of the conversation.
+ *
+ * Read off the words rather than the code beside them, because the code is the part that does not
+ * travel. A gateway standing in for one of these apis answers in its own vocabulary -- DashScope
+ * calls the window a range and hands back `invalid_parameter_error`, the same code it gives a
+ * malformed tool -- so a check keyed to the code passes the overflow through as an ordinary bad
+ * request, and the run dies where it could have compacted and gone on.
+ *
+ * The bytes of the body belong in the same list as the tokens of the window. A history too big to
+ * send is one to compact whichever of the two the far end happened to count, and the answer to
+ * both is the same summary.
+ *
+ * Words are matched, so the list is only as good as the wordings it has met. Anything not in it
+ * falls through to the error path this always had, which is the safe direction to be wrong in:
+ * a missed overflow costs the run, a false one costs three turns of compacting before the same
+ * error arrives anyway.
+ */
+const CONTEXT_OVERFLOW_PHRASES = [
+    'too long',
+    'too large',
+    'context limit',
+    'context length',
+    'context_length_exceeded',
+    'range of input length',
+    'max bytes to request body',
+];
+
+export function isContextOverflowMessage(message: unknown): boolean {
+    const text = String(message ?? '').toLowerCase();
+    return CONTEXT_OVERFLOW_PHRASES.some(phrase => text.includes(phrase));
+}
+
 export type LLMConstructor<I, O extends {transitionReason: LLMTransitionReason}, T, LLM> =
     new (loopKind: LoopKind, role: FlushAgentRole, llmConfig: LLMConfig) => LLMModel<I, O, T, LLM>;
 

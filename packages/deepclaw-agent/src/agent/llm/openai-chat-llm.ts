@@ -12,7 +12,7 @@ import {
 import {
     CompletionUsage,
  } from 'openai/resources/completions.js';
-import { LLMModel } from './llmgw';
+import { isContextOverflowMessage, LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import { isImageRef, LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
@@ -207,7 +207,14 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
     }
 
     protected override isInputExceedLimit(error: any): boolean {
-        return error.status === 400 && error.error.type === 'invalid_request_error' && error.error.code === 'context_length_exceeded';
+        // The code first, since openai names this one exactly, and the words after it for the
+        // gateways that answer in this shape without borrowing the name: DashScope calls an
+        // overflow `invalid_parameter_error`, which is also what it calls a malformed request, so
+        // there is nothing to key on there but what the message says.
+        return error?.status === 400 && (
+            error?.error?.code === 'context_length_exceeded'
+            || isContextOverflowMessage(error?.message ?? error?.error?.message)
+        );
     }
 
     protected override convertResponseToMessages(response: ThinkingResponse): ThinkingMessage[] {
