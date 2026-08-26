@@ -1,7 +1,7 @@
 import { OpenAI } from "openai";
 import { randomUUID } from "node:crypto";
 import { i18nInstance } from '@deepclaw/i18n';
-import { isContextOverflowMessage, LLMModel } from './llmgw';
+import { isContextOverflowMessage, wordsOfError, LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import {
@@ -162,7 +162,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
         // Same reading as the chat side, and for the same gateways.
         return error?.status === 400 && (
             error?.error?.code === 'context_length_exceeded'
-            || isContextOverflowMessage(error?.message ?? error?.error?.message)
+            || isContextOverflowMessage(wordsOfError(error))
         );
     }
 

@@ -12,6 +12,39 @@ const OUTPUT_LENGTH_LIMIT = 1500;
  */
 export const TRUNCATE_THRESHOLD = 20000;
 
+/**
+ * How many bytes of utf-8 go to a token, taken low enough that no script comes out under.
+ *
+ * Utf-8 is a rough tokenizer wearing another hat. What makes a script expensive in tokens is much
+ * what makes it expensive in bytes: latin text runs a byte to a character and about four characters
+ * to a token, cyrillic and greek and hebrew and arabic run two bytes and about two characters, cjk
+ * and thai and devanagari run three bytes and about one character. Three bytes to a token is
+ * therefore a third to a half over the truth almost everywhere, and over is the side to be on.
+ */
+const BYTES_PER_TOKEN = 3;
+
+/**
+ * Roughly how many tokens a piece of text will come to, erring high.
+ *
+ * A guess, and deliberately a crude one -- no tokenizer is shipped here and the vendors do not
+ * agree on theirs anyway. What it has to get right is the thing a count of characters gets badly
+ * wrong: that the rate is not one rate. One number of characters over both chinese and english is
+ * wrong by a factor of four on one of them, and which one depends on the conversation rather than
+ * on anything anybody configured.
+ *
+ * Counted off the bytes rather than off a table of script ranges, which is the cheap way to have no
+ * gaps. A table gets latin text exactly right and then quietly reads cyrillic or thai at a quarter
+ * of what they cost, because those ranges are not in it -- and the one place an underestimate is
+ * expensive is trimming a call down to fit a window, where reading a history as smaller than it is
+ * means the call goes out too long anyway and the run has spent a refusal to learn nothing. Erring
+ * a third high everywhere beats erring fourfold low on whichever script nobody thought of.
+ *
+ * Used only where nothing exact is available. What the model itself reports is exact and takes over.
+ */
+export function estimateTokens(text: string): number {
+    return Math.ceil(Buffer.byteLength(text, 'utf8') / BYTES_PER_TOKEN);
+}
+
 /** What is left where the content of an output was, once the content lies in a file of its own. */
 const FILED_AWAY = '<Content saved to file>';
 

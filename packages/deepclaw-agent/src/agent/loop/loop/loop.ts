@@ -18,6 +18,8 @@ import {
     isImageRef,
     type ImageContent,
     type SealedAgentHandler,
+    type TokenUsage,
+    type AgentRuntime,
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
@@ -34,11 +36,16 @@ import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
 import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
 import { SessionService } from '../services/session-service';
+import { LLMWindowService, type WindowBudget } from '../services/llm-window-service';
+import { estimateTokens } from '../../loop-utils';
 
 type ToolRunResult = {
     toolUseDef: ToolUseDef;
     result: ToolUseResult;
 }
+
+/** A turn that got somewhere: the model asked for a tool, or answered. */
+const PROGRESS_TRANSITION_REASONS: LLMTransitionReason[] = ['toolUse', 'endLoop'];
 
 export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionReason },
     LLM extends LLMModel<I, O, unknown, unknown>> extends FlushAgent {
@@ -50,6 +57,24 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private sessionDir: string;
     private history: I[] = [];
     private outdated: boolean = false;
+    /**
+     * How many tokens the last request came to, as the model itself counted them, and undefined
+     * where nothing measured still describes what the next request will be.
+     *
+     * The only exact measure of the history there is. Everything else here counts bytes, which
+     * stand for tokens at a rate that is four to one in code and one to one in Chinese, so a
+     * threshold in bytes is a threshold that means something different per conversation. It lags a
+     * turn behind by nature -- it describes the request that was already answered -- and the
+     * margin is what covers the difference; a compaction in between is what invalidates it
+     * outright.
+     *
+     * Absent rather than zero for the unmeasured case. A request of no tokens is not a thing that
+     * happens, so zero would read as unknown well enough, but it would read that way by a fact
+     * about the domain rather than anything the type says -- and the budget it is weighed against
+     * spells its own unknown `undefined`, so one expression would have been saying the same word
+     * two ways.
+     */
+    private lastInputTokens: number | undefined;
     private footPrints: FootPrint[] = [];
     private agentConfig: AgentConfig;
     private externalInterruptReason: ExternalInterruptReason | undefined;
@@ -284,13 +309,33 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         return text ? `${text}\n\n${notice}` : notice;
     }
 
+    /**
+     * Whether the history has grown past what the far end will take, in tokens.
+     *
+     * What is weighed is the request that was already answered, not the one about to be sent. That
+     * lag looks like a flaw and is the one thing here that lets a window be found: the count is
+     * exact, but it is a turn old, so a request routinely goes out larger than the budget by
+     * whatever the last turn added -- and it is those requests, larger than anything allowed on
+     * purpose, that prove the window wider than the budget and let the budget follow. Weighed
+     * against the history as it stands, the gate would bind every turn and nothing would ever
+     * outgrow it, which is a conversation held at the starting guess for good.
+     *
+     * The other half of the question is asked in bytes, inside the compaction, where the history is
+     * serialized anyway. Neither unit converts into the other at any rate worth trusting.
+     */
+    private overTokenBudget(budget: WindowBudget): boolean {
+        return this.lastInputTokens !== undefined && this.lastInputTokens > budget.tokens;
+    }
+
     private async compactIfNeeded(context: OneLoopContext, force: boolean = false): Promise<void> {
         const compactor = MessageCompactor.getCompactor(this.getLLMProtocol());
         if (!this.outdated) {
             compactor.compactOldResults(this.history, context);
         }
+        const budget = LLMWindowService.budgetOf(this.agentId, this.llm.modelName());
         await compactor.compactFullHistory(
-            this.outdated || force, context, this.footPrints, this.llm, this.history
+            this.outdated || force || this.overTokenBudget(budget),
+            context, this.footPrints, this.llm, this.history, budget
         );
         if (this.outdated) {
             // Only here, the call above having come back: the history is in the shape of this model
@@ -310,6 +355,33 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             SessionService.saveHistory(this.history, context, {}, true);
             SessionService.markHistoryProtocol(context, this.getLLMProtocol());
         }
+    }
+
+    /**
+     * Clears both counts of a recovery, once the run has actually got somewhere.
+     *
+     * The counters are there to stop a recovery that is not recovering -- a compaction that does
+     * not bring the history under the window, a continuation that runs out of output again -- and
+     * that is a thing that happens in a row. Left to accumulate over a whole run they would count
+     * something else: a long conversation hits the input limit, is summarized, runs on for thirty
+     * turns, and grows back into it, which is not a failure but the ordinary rhythm of a
+     * conversation whose real window is narrower than the byte guess. Three of those in a hundred
+     * turns is nothing remarkable, and killing the run on the third would be killing it for
+     * lasting.
+     *
+     * What clears them is progress and not merely the absence of the one limit each counts. Were
+     * each cleared whenever the other fired, a run alternating between the two would reset both
+     * forever and neither would ever reach three: two limits taking turns is not a recovery, and
+     * the only thing left to end such a run would be the turn limit, a hundred llm calls away.
+     * A turn that ends in a tool call or an answer is the run getting somewhere; anything else is
+     * the run trying again.
+     */
+    private forgetRecoveredRetries(runtime: AgentRuntime): void {
+        if (!PROGRESS_TRANSITION_REASONS.includes(runtime.transitionReason!)) {
+            return;
+        }
+        runtime.recoveryState.inputMaxTokenRetries = 0;
+        runtime.recoveryState.maxTokenRetries = 0;
     }
 
     private async runOneTurn(state: LoopState<I>): Promise<boolean> {
@@ -348,6 +420,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
             runtime.turnCount++;
             runtime.transitionReason = response.transitionReason;
+            this.forgetRecoveredRetries(runtime);
 
             switch (runtime.transitionReason) {
                 case 'toolUse': {
@@ -368,6 +441,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                     runtime.recoveryState.inputMaxTokenRetries++;
                     if (runtime.recoveryState.inputMaxTokenRetries >= this.maxInputTokenRetries) {
                         runtime.transitionReason = 'error';
+                        // Said out loud, because a refusal is the one error whose response never
+                        // reaches the history: the llm keeps it out so that the compaction has an
+                        // untouched conversation to work on. Every other error path leaves its own
+                        // words there and the final text is read off the last of them, so giving
+                        // up silently here would hand back whatever the compaction left behind --
+                        // the user's own question, or the whole of the summary -- as if it were an
+                        // answer to it.
+                        this.addStringMessage(i18nInstance.t('agent.contextTooLong'), false);
                         break;
                     }
                     await this.compactIfNeeded(context, true);
@@ -456,6 +537,48 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private addUsage(context: OneLoopContext, response: O): void {
         const tokenUsage = this.llm.getTokenUsage(response);
         addTokenUsage(context.runtime.usage, tokenUsage);
+        this.recordWindow(tokenUsage);
+    }
+
+    /**
+     * What this turn found out about the limits of the far end.
+     *
+     * Both readings come off the same turn and are recorded together. The cached tokens count
+     * toward the size of the request as much as the rest: the cache makes them cheaper, not
+     * absent, and leaving them out would have the history read smaller than it is by exactly the
+     * part that a long conversation is mostly made of.
+     */
+    private recordWindow(tokenUsage: TokenUsage): void {
+        const model = this.llm.modelName();
+        const inputTokens = tokenUsage.cachedInputTokens + tokenUsage.noCachedInputTokens;
+        const refused = this.llm.takeObservedLimit();
+        if (refused) {
+            // The estimate matters only where the refusal named no figure, and there it is all
+            // there is: see `narrowOnSilence`. Measured off the same serialization the compaction
+            // weighs, which leaves out the system prompt and the tool schemas that rode along --
+            // so it reads the refused request as smaller than it was, and a ceiling read from it
+            // lands under the wall rather than over. The safe side of the two.
+            LLMWindowService.observeRefused(
+                this.agentId, model, refused, estimateTokens(this.serializedHistory())
+            );
+            // A refused call answers with a synthetic response whose usage is zeros, so there is
+            // no width to prove here and reading it as one would put the lower bound on the floor.
+            //
+            // What is dropped instead is the size of the request before this one. A refusal is
+            // followed at once by a compaction, and the turn after that would otherwise weigh a
+            // history of two messages against a measurement of the history that was refused --
+            // which is a measurement above the margin by definition, that being why it was
+            // refused -- and summarize the summary. Nothing is known about the size of what comes
+            // next until a call carries it, which is the next turn's to record.
+            this.lastInputTokens = undefined;
+            return;
+        }
+        this.lastInputTokens = inputTokens;
+        LLMWindowService.observeAccepted(this.agentId, model, inputTokens);
+    }
+
+    private serializedHistory(): string {
+        return this.history.map(message => JSON.stringify(message)).join('\n');
     }
 
     private async runTools(toolUseDefs: ToolUseDef[], context: OneLoopContext): Promise<ToolUseResult[]> {

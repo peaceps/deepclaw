@@ -493,7 +493,7 @@ describe('AnthropicLLM isInputExceedLimit', () => {
 
     test('matches the size complaint regardless of case', async () => {
         mocks.stream.mockImplementation(() => {
-            throw {status: 400, type: 'invalid_request_error', message: 'Request is TOO LARGE'};
+            throw {status: 400, type: 'invalid_request_error', message: 'The PROMPT is TOO LARGE'};
         });
         const response = await runWithoutWaiting(() => invoke(newLLM()));
         expect(response.transitionReason).toBe('inputMaxTokens');
@@ -508,13 +508,15 @@ describe('AnthropicLLM isInputExceedLimit', () => {
         expect(newLLM().textOf(response)).toBe('ERROR: Unrecoverable error: bad tool schema.');
     });
 
-    test('only reads the complaint off the top level of the error', async () => {
+    test('reads the complaint out of a nested body as well as off the top', async () => {
+        // The sdk usually puts the whole body on the top-level message, so the nested one is a
+        // repeat -- until it is not, and a refusal read off the wrong half of an error is a run
+        // that dies where it could have compacted.
         mocks.stream.mockImplementation(() => {
             throw {status: 400, error: {type: 'invalid_request_error', message: 'prompt is too large'}};
         });
         const response = await invoke(newLLM());
-        expect(response.transitionReason).toBe('error');
-        expect(newLLM().textOf(response)).toBe('ERROR: Unrecoverable error: 400.');
+        expect(response.transitionReason).toBe('inputMaxTokens');
     });
 
     test('recognises the overflow of a gateway whose body carries no type at all', async () => {

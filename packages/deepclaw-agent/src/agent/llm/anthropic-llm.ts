@@ -11,7 +11,7 @@ import {
     ImageBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.mjs';
 import { ToolUnion } from '@anthropic-ai/sdk/resources.js';
-import { isContextOverflowMessage, LLMModel } from './llmgw';
+import { isContextOverflowMessage, wordsOfError, LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import { isImageRef, LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
@@ -138,8 +138,8 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
         // The type is no longer part of the question. Anthropic sends "invalid_request_error" with
         // it, but a gateway answering in this shape may send a body with no type at all -- the sdk
         // then reads it as null -- and the overflow it is describing is the same one. What the
-        // refusal says is the whole of the test, and the message on top is where the sdk puts it.
-        return error?.status === 400 && isContextOverflowMessage(error?.message);
+        // refusal says is the whole of the test.
+        return error?.status === 400 && isContextOverflowMessage(wordsOfError(error));
     }
 
     protected override newResponse(content: string, transitionReason: LLMTransitionReason = 'endLoop'): ThinkingResponse {

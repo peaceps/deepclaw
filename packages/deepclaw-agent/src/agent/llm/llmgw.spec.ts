@@ -7,7 +7,7 @@ import type {LoopKind, SystemPrompt} from '../definitions/definitions';
 import type {LLMTool} from '../definitions/tool-definitions';
 import {newTestLogger} from '../../test-support/one-loop-context';
 import {ToolsManager} from '../loop/services/tools-manager';
-import {isContextOverflowMessage, LLMModel} from './llmgw';
+import {isContextOverflowMessage, readOverflowLimit, wordsOfError, LLMModel} from './llmgw';
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
@@ -343,6 +343,28 @@ describe('LLMModel invoke input too long', () => {
         });
     });
 
+    test('keeps the limit the refusal named for whoever records it', async () => {
+        const llm = newLLM();
+        llm.onInvoke = async () => {
+            throw {tooLong: true, message: 'Range of input length should be [1, 983616]'};
+        };
+        await runWithoutWaiting(
+            () => llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger())
+        );
+        expect(llm.takeObservedLimit()).toEqual({tokens: 983616});
+        // Taken once. The turn that reads it is the turn it happened in, and a later turn asking
+        // again would be told of a refusal that is not its own.
+        expect(llm.takeObservedLimit()).toBeUndefined();
+    });
+
+    test('has nothing to hand over when the call went through', async () => {
+        const llm = newLLM();
+        await runWithoutWaiting(
+            () => llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger())
+        );
+        expect(llm.takeObservedLimit()).toBeUndefined();
+    });
+
     test('leaves the message history untouched so the caller can compact it', async () => {
         const llm = newLLM();
         llm.onInvoke = async () => {
@@ -458,6 +480,7 @@ describe('LLMModel compact', () => {
         expect(await llm.compact('agent', newSystem(), 'history', newTestLogger())).toEqual({
             summary: 'the summary',
             tokenUsage: {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3},
+            usable: true,
         });
     });
 
@@ -466,8 +489,75 @@ describe('LLMModel compact', () => {
         llm.onInvoke = async () => {
             throw {status: 400, message: 'nope'};
         };
-        const {summary} = await llm.compact('agent', newSystem(), 'history', newTestLogger());
+        const {summary, usable} = await llm.compact('agent', newSystem(), 'history', newTestLogger());
         expect(summary).toBe('ERROR: Unrecoverable error: nope.');
+        expect(usable).toBe(false);
+    });
+
+    test('marks a refused summary unusable rather than passing the notice off as one', async () => {
+        // The summarizer is handed the same history in one message, so a history too long for the
+        // model is too long for the call meant to shorten it, and this is the likely failure of
+        // the two. Taken for a summary it would stand in place of the whole conversation.
+        const llm = newLLM();
+        llm.onInvoke = async () => {
+            throw {tooLong: true, message: 'prompt is too long: 300000 tokens > 200000 maximum'};
+        };
+        const {summary, usable} = await runWithoutWaiting(
+            () => llm.compact('agent', newSystem(), 'history', newTestLogger())
+        );
+        expect(summary).toBe('Input token exceeds the limit.');
+        expect(usable).toBe(false);
+    });
+
+    test('refuses an empty summary from a call that reported no trouble at all', async () => {
+        // The tools are bound to this call as to any other, and a conversation made largely of
+        // tool traces invites a tool call in reply. That is `toolUse`, which nothing reads as a
+        // failure, with no text beside it -- and an empty summary shipped as a good one is the
+        // whole conversation replaced by a heading.
+        const llm = newLLM();
+        llm.onInvoke = async () => ({
+            transitionReason: 'toolUse',
+            text: '',
+            usage: {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3},
+        });
+        const {usable} = await llm.compact('agent', newSystem(), 'history', newTestLogger());
+        expect(usable).toBe(false);
+    });
+
+    test('refuses a summary of nothing but whitespace', async () => {
+        const llm = newLLM();
+        llm.onInvoke = async () => ({
+            transitionReason: 'endLoop',
+            text: ' \n\t ',
+            usage: {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3},
+        });
+        const {usable} = await llm.compact('agent', newSystem(), 'history', newTestLogger());
+        expect(usable).toBe(false);
+    });
+
+    test('keeps a summary that was merely cut short by the output limit', async () => {
+        const llm = newLLM();
+        llm.onInvoke = async () => ({
+            transitionReason: 'maxTokens',
+            text: 'half a summary',
+            usage: {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3},
+        });
+        const {usable} = await llm.compact('agent', newSystem(), 'history', newTestLogger());
+        expect(usable).toBe(true);
+    });
+
+    test('keeps the refusal of a summary out of what the main loop collects', async () => {
+        // Both calls go through the same invoke and leave the observation in the same place, but
+        // only the main loop ever collects it. Left sitting here it would be picked up by the next
+        // main call that succeeded, and a call that went through would be recorded as refused.
+        const llm = newLLM();
+        llm.onInvoke = async () => {
+            throw {tooLong: true, message: 'prompt is too long: 300000 tokens > 200000 maximum'};
+        };
+        await runWithoutWaiting(
+            () => llm.compact('agent', newSystem(), 'history', newTestLogger())
+        );
+        expect(llm.takeObservedLimit()).toBeUndefined();
     });
 });
 
@@ -475,7 +565,7 @@ describe('isContextOverflowMessage', () => {
 
     test.for([
         'prompt is too long: 200000 tokens > 199999 maximum',
-        'Request is TOO LARGE',
+        'Your MESSAGES are TOO LARGE',
         "This model's maximum context length is 128000 tokens",
         'exceed context limit',
         'context_length_exceeded',
@@ -491,12 +581,87 @@ describe('isContextOverflowMessage', () => {
         'invalid api key',
         'rate limit exceeded',
         '',
+        // Oversized, but not the conversation. Summarizing would not shorten a name or an image,
+        // and the run would go on from a summary it never needed.
+        'the file you uploaded is too large',
+        'tool name too long',
+        // The trap in reading the whole message: a 400 body says `request` however it failed, and
+        // here it sits four words from the complaint while meaning nothing of the sort.
+        'Invalid request: image too large',
+        'invalid_request_error: the input parameter is malformed and the name is too long',
     ])('leaves %s alone', (message) => {
         expect(isContextOverflowMessage(message)).toBe(false);
+    });
+
+    test('takes a bare complaint of size only once it names the conversation', () => {
+        expect(isContextOverflowMessage('it is too long')).toBe(false);
+        expect(isContextOverflowMessage('the prompt is too long')).toBe(true);
+    });
+
+    test('wants the subject beside the complaint, not merely somewhere in the message', () => {
+        expect(isContextOverflowMessage('the prompt was fine. the uploaded image is too large'))
+            .toBe(false);
+        expect(isContextOverflowMessage('conversation is too long')).toBe(true);
     });
 
     test('treats a missing message as no complaint at all', () => {
         expect(isContextOverflowMessage(undefined)).toBe(false);
         expect(isContextOverflowMessage(null)).toBe(false);
+    });
+});
+
+describe('readOverflowLimit', () => {
+
+    test.for([
+        // Measured against DashScope. The window is the far end of the range, not the near one.
+        ['<400> InternalError.Algo.InvalidParameter: Range of input length should be [1, 983616]',
+            983616],
+        // Anthropic. The window is the second number, what was sent being the first.
+        ['prompt is too long: 215432 tokens > 200000 maximum', 200000],
+        // OpenAI, where the window comes first instead.
+        ["This model's maximum context length is 128000 tokens. However, your messages resulted in 130000 tokens",
+            128000],
+    ])('reads the window out of %s', ([message, expected]) => {
+        expect(readOverflowLimit(message)).toEqual({tokens: expected});
+    });
+
+    test('reads the byte wall of a gateway as bytes and not as a window', () => {
+        // Six million taken for a window would be a window nothing could ever fill, and a history
+        // that never compacted again.
+        expect(readOverflowLimit('Exceeded limit on max bytes to request body : 6291456'))
+            .toEqual({bytes: 6291456});
+    });
+
+    test('comes back empty from an overflow that named no number', () => {
+        expect(readOverflowLimit('input is too long')).toEqual({});
+        expect(readOverflowLimit(undefined)).toEqual({});
+    });
+
+    test('ignores a limit of zero, which is no limit anyone could work under', () => {
+        expect(readOverflowLimit('Range of input length should be [1, 0]')).toEqual({});
+    });
+});
+
+describe('wordsOfError', () => {
+
+    test('reads both places a refusal keeps its words', () => {
+        // Not the first of the two that happens to be there: a top-level message that says
+        // nothing about size would otherwise hide a nested one that names the limit exactly.
+        const error = {
+            message: 'Error code: 400',
+            error: {message: 'Range of input length should be [1, 983616]'},
+        };
+        expect(readOverflowLimit(wordsOfError(error))).toEqual({tokens: 983616});
+        expect(isContextOverflowMessage(wordsOfError(error))).toBe(true);
+    });
+
+    test('keeps the two apart so no phrase is made out of the seam', () => {
+        expect(wordsOfError({message: 'context', error: {message: 'length'}}))
+            .toBe('context\nlength');
+    });
+
+    test('comes back empty from an error that said nothing', () => {
+        expect(wordsOfError({})).toBe('');
+        expect(wordsOfError(undefined)).toBe('');
     });
 });

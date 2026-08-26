@@ -12,7 +12,7 @@ import {
 import {
     CompletionUsage,
  } from 'openai/resources/completions.js';
-import { isContextOverflowMessage, LLMModel } from './llmgw';
+import { isContextOverflowMessage, wordsOfError, LLMModel } from './llmgw';
 import { SystemPrompt } from '../definitions/definitions';
 import { LLMTool } from '../definitions/tool-definitions';
 import { isImageRef, LLMTransitionReason, TokenUsage, type ImageContent } from '@deepclaw/core';
@@ -213,7 +213,7 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
         // there is nothing to key on there but what the message says.
         return error?.status === 400 && (
             error?.error?.code === 'context_length_exceeded'
-            || isContextOverflowMessage(error?.message ?? error?.error?.message)
+            || isContextOverflowMessage(wordsOfError(error))
         );
     }
 

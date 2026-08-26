@@ -1,3 +1,57 @@
+v0.0.17
+a conversation is now summarized against what the model will actually take, rather than against a
+count of characters. how many tokens a request came to is something the model says back on every
+answer, and it is the only exact measure of a history there is: characters stand for tokens at four
+to one in code and about one to one in chinese, so one number in characters was a third of a window
+on one conversation and the whole of it on another, and a chinese conversation would run into the
+limit long before anything here thought it was close. where the limit lies is not something any of
+these apis will tell you, so it is learned from being refused: the number a refusal names is kept,
+per agent, beside the model it was learned from, and read back at the start of every run. a call
+that goes through is evidence too, of the other kind: it retires a limit the far end has since
+raised, or one left behind by a config that has been pointed somewhere else, and it is what makes a
+window findable at all. only a conversation that reaches the wall is ever refused, and the budget is
+what stops one from reaching it, so a budget that never moved would hold a run at its opening guess
+for good, whether the real window were that or twenty times it. every call that goes through proves
+the window at least as wide as what it carried, and the next one is allowed a fifth more than that:
+a climb, renewed each turn, settled the moment a refusal names the figure. before the first answer
+of a run has been counted there is nothing exact to go on, and the guess is made in tokens rather
+than in characters, read off the bytes at three to a token: utf-8 is a rough tokenizer wearing
+another hat, spending on a script about what a tokenizer spends on it, so the guess means the same
+thing in every language rather than being right in one and fourfold wrong in the next. it errs a
+third high everywhere, which is the side to err on -- reading a history as smaller than it is means
+the call meant to shorten it goes out too long anyway. a gateway that puts a limit on the bytes of a
+request rather than on the tokens of a window is learned the same way and kept apart, being a
+different thing measured differently.
+a refusal that names no figure at all -- which is what an openai-compatible proxy in front of a
+model tends to give, the words being there and the numbers not -- now leaves something behind all
+the same, read off the largest call that has gone through, or off an estimate where none has. this
+is the difference between a conversation that carries on and one that cannot be continued at all:
+every way out of being refused for a history too long runs through a summary, and a summary of a
+history there is no known limit to trim it against is a call refused for the very reason the last
+one was. three of those and the run gives up, and the next thing said starts the same three over.
+the call that shortens a history too long for the model used to send that history whole in one
+message, which is a call too long for it as well. it now sends both ends of the conversation, as
+much of each as the far end is known to take -- in bytes as well as in tokens, a gateway that
+limits the one having said nothing about the other -- the full history still going to the archive
+where it can be read back. both ends because the answer can be at either: the goal of a run and the
+constraints of the user are stated once, at the start, and never again, and the step to take next is
+at the end by definition. this is what a run needs at the exact moment it finds out how wide its
+window is, that being the moment its history is at its widest.
+being refused for a history too long now leads somewhere. it used to be read off the code beside the
+refusal rather than the words of it, which works for the two apis that own those codes and for
+nobody standing in front of them: a gateway calls an overflow the same thing it calls a malformed
+request, so the one error the run could have recovered from was the one it died on. the words are
+read now, and what follows a refusal is a summary and another try rather than the end of the run.
+three refusals in a row and it gives up and says so -- that a conversation is too long for this
+model and stayed too long after being summarized, which is a thing the user can do something about,
+where before the reply to a question that got that far was the question itself handed back.
+a summary is asked for sooner, and a tool result that was cut down for one keeps both ends. the last
+seven tool results are held whole rather than the last twenty, which is what makes the cheap way of
+making room run before the expensive one instead of after it; and where a long output is shown to
+the model in brief, the brief is now the first five hundred characters and the last five hundred
+rather than the first thousand, an error being a thing that happens at the end of the output and the
+beginning being where the boilerplate is.
+
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a
 hundred of them left. the button takes the place of send for as long as the chat is locked, and goes

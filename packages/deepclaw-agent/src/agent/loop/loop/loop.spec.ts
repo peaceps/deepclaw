@@ -6,8 +6,8 @@ import {
 import {type AgentConfig, type AgentMode} from '@deepclaw/config';
 import {type Logger} from '@deepclaw/node-utils';
 import {
-    type AssignedTask, type LLMProtocol, type LoopKind, type OneLoopContext, type SpawnedLoop,
-    type SystemPrompt,
+    type AssignedTask, type LLMProtocol, type LoopKind, type OneLoopContext, type OverflowLimit,
+    type SpawnedLoop, type SystemPrompt,
 } from '../../definitions/definitions';
 import {type ToolUseDef, type ToolUseResult} from '../../definitions/tool-definitions';
 import {type LLMConstructor, type LLMModel} from '../../llm/llmgw';
@@ -36,6 +36,11 @@ const mocks = vi.hoisted(() => ({
     compactFullHistory: vi.fn<(force: boolean, ...rest: unknown[]) => Promise<void>>(
         async () => undefined
     ),
+    budgetOf: vi.fn<(...args: unknown[]) => {tokens: number; bytes: number}>(
+        () => ({tokens: 150000, bytes: 4 * 1024 * 1024})
+    ),
+    observeAccepted: vi.fn<(...args: unknown[]) => void>(),
+    observeRefused: vi.fn<(...args: unknown[]) => void>(),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -75,6 +80,14 @@ vi.mock('../services/agent-identity-manager', () => ({
     AgentIdentityManager: {getAgent: mocks.getAgent},
 }));
 
+vi.mock('../services/llm-window-service', () => ({
+    LLMWindowService: {
+        budgetOf: mocks.budgetOf,
+        observeAccepted: mocks.observeAccepted,
+        observeRefused: mocks.observeRefused,
+    },
+}));
+
 vi.mock('../services/hook-manager', () => ({
     HookManager: {emitVisitor: mocks.emitVisitor, emitInterceptor: mocks.emitInterceptor},
 }));
@@ -111,6 +124,8 @@ type TestResponse = {
     transitionReason: LLMTransitionReason;
     text?: string;
     toolUses?: ToolUseDef[];
+    /** The limit this refusal named, left where the real one leaves it for the loop to take. */
+    observedLimit?: OverflowLimit;
 };
 
 class FakeLLM {
@@ -128,6 +143,9 @@ class FakeLLM {
     ) => Promise<TestResponse>>(async (...args) => {
         const [, , messages, onText] = args;
         const response = this.responses.shift() ?? {transitionReason: 'endLoop' as LLMTransitionReason};
+        if (response.observedLimit) {
+            this.observedLimit = response.observedLimit;
+        }
         onText(response.text ?? '');
         messages.push({
             role: 'assistant',
@@ -146,6 +164,18 @@ class FakeLLM {
 
     public getTokenUsage(): TokenUsage {
         return this.usage;
+    }
+
+    public observedLimit: OverflowLimit | undefined;
+
+    public takeObservedLimit(): OverflowLimit | undefined {
+        const limit = this.observedLimit;
+        this.observedLimit = undefined;
+        return limit;
+    }
+
+    public modelName(): string {
+        return 'test-model';
     }
 
     public newInputMessage(text: string, user: boolean): TestMessage {
@@ -285,6 +315,7 @@ beforeEach(() => {
     mocks.getAgent.mockReturnValue({id: 'a1', name: 'Ada'});
     mocks.emitVisitor.mockResolvedValue(undefined);
     mocks.emitInterceptor.mockResolvedValue({result: 'continue'});
+    mocks.budgetOf.mockReturnValue({tokens: 150000, bytes: 4 * 1024 * 1024});
     mocks.executeToolCall.mockImplementation(async (def) => ({
         result: {id: def.id, content: `${def.name} done`}, success: true
     }));
@@ -697,8 +728,10 @@ describe('recovery', () => {
             {transitionReason: 'endLoop', text: 'tence done'},
         ];
         const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(runtime.recoveryState.maxTokenRetries).toBe(1);
         expect(savedHistory().some(message => message.text.includes('Output limit hit'))).toBe(true);
+        // Back to nothing once the next call came back whole: what is counted is a recovery that
+        // is not recovering, and this one recovered.
+        expect(runtime.recoveryState.maxTokenRetries).toBe(0);
     });
 
     test('gives up after three output limit retries', async () => {
@@ -730,7 +763,8 @@ describe('recovery', () => {
             .toEqual([false, true, false]);
     });
 
-    test('gives up after three input limit retries rather than summarizing to the turn limit', async () => {
+    /** Two compactions and the third refusal, the increment coming before the comparison. */
+    test('gives up on the third refusal in a row rather than summarizing to the turn limit', async () => {
         const {loop, llm} = newLoop();
         llm.responses = Array.from(
             {length: 3}, () => ({transitionReason: 'inputMaxTokens' as LLMTransitionReason})
@@ -739,6 +773,179 @@ describe('recovery', () => {
         expect(runtime.recoveryState.inputMaxTokenRetries).toBe(3);
         expect(runtime.transitionReason).toBe('error');
         expect(runtime.turnCount).toBe(3);
+    });
+
+    test('says why it gave up instead of handing back what the compaction left behind', async () => {
+        // The llm keeps a refusal out of the history so the compaction has an untouched
+        // conversation to work on, which leaves the user's own question as the last thing in it.
+        const {loop, llm} = newLoop();
+        llm.responses = Array.from(
+            {length: 3}, () => ({transitionReason: 'inputMaxTokens' as LLMTransitionReason})
+        );
+        const {text} = await loop.runInvoke('what did i ask', {browserId: 'b1'});
+        expect(text).toBe('agent.contextTooLong');
+    });
+
+    test('counts refusals in a row, not refusals in a run', async () => {
+        // A conversation that outgrows the window, is summarized, runs on and outgrows it again is
+        // a conversation working as intended, not one failing three times. The counter is there
+        // for a compaction that does not compact, which is a thing that happens back to back.
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'inputMaxTokens'},
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'inputMaxTokens'},
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu2')]},
+            {transitionReason: 'inputMaxTokens'},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        const {text, runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(text).toBe('done');
+        expect(runtime.transitionReason).toBe('endLoop');
+        expect(runtime.recoveryState.inputMaxTokenRetries).toBe(0);
+    });
+
+    test('does not let two limits taking turns clear each other forever', async () => {
+        // Alternating between the input limit and the output limit is not a recovery, and were
+        // each counter cleared by the other firing, neither would ever reach three: the only
+        // thing left to end the run would be the turn limit, a hundred llm calls away.
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'inputMaxTokens'},
+            {transitionReason: 'maxTokens'},
+            {transitionReason: 'inputMaxTokens'},
+            {transitionReason: 'maxTokens'},
+            {transitionReason: 'inputMaxTokens'},
+        ];
+        const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(runtime.transitionReason).toBe('error');
+        expect(runtime.turnCount).toBeLessThan(6);
+    });
+
+    test('counts output limits in a row too', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'maxTokens'},
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'maxTokens'},
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu2')]},
+            {transitionReason: 'maxTokens'},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(runtime.transitionReason).toBe('endLoop');
+        expect(runtime.recoveryState.maxTokenRetries).toBe(0);
+    });
+
+    test('records the size of a call that went through, cached tokens and all', async () => {
+        // The cache makes those tokens cheaper, not absent. Leaving them out would have a long
+        // conversation read smaller than it is by exactly the part it is mostly made of.
+        const {loop, llm} = newLoop();
+        llm.usage = {cachedInputTokens: 300000, noCachedInputTokens: 100048, outputTokens: 12};
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.observeAccepted).toHaveBeenCalledWith('a1', 'test-model', 400048);
+    });
+
+    test('records the limit a refusal named instead of the zeros it came back with', async () => {
+        // A refused call answers with a made-up response whose usage is empty. Nothing was
+        // carried, so there is no width to prove, and reading it as one would floor the bound.
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'inputMaxTokens', observedLimit: {tokens: 983616}},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.observeRefused)
+            .toHaveBeenCalledWith('a1', 'test-model', {tokens: 983616}, expect.any(Number));
+        expect(mocks.observeAccepted).not.toHaveBeenCalledWith('a1', 'test-model', 0);
+    });
+
+    test('hands a refusal that named nothing an estimate of what was refused', async () => {
+        // An openai-compatible proxy answers {"message":"context length exceeded"} with no figure
+        // anywhere in it. Recorded as nothing, that refusal leaves the budget above the wall it
+        // just hit, the whole history goes to the summarizer, and three of those end the
+        // conversation for good. The estimate is the only figure there is to narrow against.
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'inputMaxTokens', observedLimit: {}},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        const call = mocks.observeRefused.mock.calls[0]!;
+        expect(call[2]).toEqual({});
+        expect(call[3]).toBeGreaterThan(0);
+    });
+
+    test('does not summarize the summary the turn after a refusal', async () => {
+        // The refused turn is by definition over the margin, that being why it was refused, and
+        // its size would otherwise be weighed against the two messages the forced compaction left
+        // behind. What is known about the size of the next request after a compaction is nothing.
+        const {loop, llm} = newLoop();
+        mocks.budgetOf.mockReturnValue({tokens: 160000, bytes: 150000});
+        llm.usage = {cachedInputTokens: 175000, noCachedInputTokens: 0, outputTokens: 5};
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'inputMaxTokens', observedLimit: {tokens: 200000}},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        // Nothing known yet, then the turn that really is over budget, then the forced one the
+        // refusal asked for -- and then nothing, where the stale measurement would have compacted
+        // the two messages that compaction had just left behind.
+        expect(mocks.compactFullHistory.mock.calls.map(call => call[0]))
+            .toEqual([false, true, true, false]);
+    });
+
+    test('compacts once the last call filled more of the window than the budget allows', async () => {
+        const {loop, llm} = newLoop();
+        mocks.budgetOf.mockReturnValue({tokens: 1000, bytes: 150000});
+        llm.usage = {cachedInputTokens: 900, noCachedInputTokens: 200, outputTokens: 5};
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        mocks.executeToolCall.mockResolvedValue({result: {id: 'tu1', content: 'ok'}, success: true});
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        // Nothing is known before the first call, so the first check cannot fire; the second sees
+        // what that call came to.
+        expect(mocks.compactFullHistory.mock.calls.map(call => call[0])).toEqual([false, true]);
+    });
+
+    test('leaves the history alone while it fits inside the budget', async () => {
+        const {loop, llm} = newLoop();
+        mocks.budgetOf.mockReturnValue({tokens: 1000, bytes: 150000});
+        llm.usage = {cachedInputTokens: 400, noCachedInputTokens: 100, outputTokens: 5};
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        mocks.executeToolCall.mockResolvedValue({result: {id: 'tu1', content: 'ok'}, success: true});
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.compactFullHistory.mock.calls.map(call => call[0])).toEqual([false, false]);
+    });
+
+    test('lets a request go out larger than the budget, which is how the window gets found', async () => {
+        // The gate weighs the request that was already answered, so the first one of a run is not
+        // weighed at all and a later one is weighed a turn late. Those are the requests that prove
+        // the window wider than the budget; weighed as it stands, the history would be bound every
+        // turn and nothing would ever prove anything.
+        const {loop, llm} = newLoop();
+        mocks.budgetOf.mockReturnValue({tokens: 1000, bytes: 4 * 1024 * 1024});
+        llm.usage = {cachedInputTokens: 3000, noCachedInputTokens: 2000, outputTokens: 5};
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.compactFullHistory.mock.calls.map(call => call[0])).toEqual([false]);
+        expect(mocks.observeAccepted).toHaveBeenCalledWith('a1', 'test-model', 5000);
+    });
+
+    test('hands the budget down to the compaction, which weighs the request itself', async () => {
+        const {loop, llm} = newLoop();
+        mocks.budgetOf.mockReturnValue({tokens: 786892, bytes: 5033164});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.compactFullHistory.mock.calls[0]![5])
+            .toEqual({tokens: 786892, bytes: 5033164});
     });
 
     test('turns a failure inside the loop into an error transition', async () => {

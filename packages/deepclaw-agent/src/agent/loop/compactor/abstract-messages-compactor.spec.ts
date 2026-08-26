@@ -5,15 +5,16 @@ import type {FootPrint, OneLoopContext} from '../../definitions/definitions';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {HookManager} from '../services/hook-manager';
 import {
-    AbstractMessagesCompactor, HISTORY_THRESHOLD, MAX_RECENT_TOOL_RESULT_COUNT
+    AbstractMessagesCompactor, MAX_RECENT_TOOL_RESULT_COUNT
 } from './abstract-messages-compactor';
-import {TRUNCATE_THRESHOLD} from '../../loop-utils';
+import {MAX_REQUEST_BYTES, UNLEARNED_TOKEN_BUDGET} from '../services/llm-window-service';
+import {TRUNCATE_THRESHOLD, estimateTokens} from '../../loop-utils';
 
 const COMPACTED = '<tool result compacted> Earlier tool result compacted. Re-run the tool if you need full detail.</tool result compacted>';
 
 const mocks = vi.hoisted(() => ({
     wrapTimestamp: vi.fn((file: string) => `stamped-${file}`),
-    writeFile: vi.fn((path: string) => path),
+    writeFile: vi.fn<(path: string, content?: string | Buffer) => string>(path => path),
     enforceFileCountLimit: vi.fn<(folder: string, limit: number) => void>(() => undefined),
 }));
 
@@ -48,18 +49,28 @@ class TestCompactor extends AbstractMessagesCompactor<FakeMessage, FakeResponse,
     }
 }
 
+/** A run whose goal is at one end, whose next step is at the other, and whose middle is bulk. */
+function longHistory(): FakeMessage[] {
+    return [
+        {role: 'user', content: 'the goal, said once and never again: never use the network'},
+        {role: 'assistant', content: 'x'.repeat(4000)},
+        {role: 'assistant', content: 'x'.repeat(4000)},
+        {role: 'assistant', content: 'the step to take next'},
+    ];
+}
+
 function newToolResults(count: number, length: number = 5000): FakeMessage[] {
     return [...Array(count).keys()].map(index => ({role: 'tool', content: `${index}`.padEnd(length, 'x')}));
 }
 
 type CompactCall = (
     mode: string, system: unknown, content: string, logger: unknown, signal?: AbortSignal
-) => Promise<{summary: string; tokenUsage: TokenUsage}>;
+) => Promise<{summary: string; tokenUsage: TokenUsage; usable: boolean}>;
 
 function newFakeLLM(summary: string = 'the summary', tokenUsage: TokenUsage = {
     cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3
 }) {
-    const compact = vi.fn<CompactCall>(async () => ({summary, tokenUsage}));
+    const compact = vi.fn<CompactCall>(async () => ({summary, tokenUsage, usable: true}));
     const newInputMessage = vi.fn((content: string): FakeMessage => ({role: 'user', content}));
     return {llm: {compact, newInputMessage} as unknown as FakeLLM, compact, newInputMessage};
 }
@@ -134,7 +145,10 @@ describe('AbstractMessagesCompactor compactOldResults', () => {
     });
 
     test('leaves a window that cannot by itself outgrow what triggers the full compaction', () => {
-        expect(MAX_RECENT_TOOL_RESULT_COUNT * TRUNCATE_THRESHOLD).toBeLessThan(HISTORY_THRESHOLD);
+        // Characters against a budget of tokens, compared at the worst rate the two meet at: one
+        // character to one token, which is chinese. Anything else has room to spare.
+        expect(MAX_RECENT_TOOL_RESULT_COUNT * TRUNCATE_THRESHOLD)
+            .toBeLessThan(UNLEARNED_TOKEN_BUDGET);
     });
 });
 
@@ -165,6 +179,155 @@ describe('AbstractMessagesCompactor compactFullHistory', () => {
         expect(messages[0]!.content).toContain('the summary');
     });
 
+    test('keeps the history when what came back was not a summary', async () => {
+        // The summarizer is refused over the same history it was called to shorten, and its notice
+        // taken for a summary would be the whole conversation replaced by one sentence about why
+        // it could not be shortened. The caller is refused again and gives up saying so, which
+        // loses the run and keeps the conversation.
+        const {llm, compact} = newFakeLLM();
+        compact.mockResolvedValue({
+            summary: 'Input token exceeds the limit.',
+            tokenUsage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+            usable: false,
+        });
+        const messages: FakeMessage[] = [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}];
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, messages);
+        expect(messages).toEqual([{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}]);
+    });
+
+    test('tells the hooks of no compaction that did not happen', async () => {
+        const {llm, compact} = newFakeLLM();
+        compact.mockResolvedValue({
+            summary: 'Input token exceeds the limit.',
+            tokenUsage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+            usable: false,
+        });
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, [{role: 'assistant', content: 'hello'}]
+        );
+        expect(emitVisitor).not.toHaveBeenCalled();
+    });
+
+    test('archives nothing when the history is staying where it is', async () => {
+        // The archive is the one copy of what a summary replaced. A compaction that failed
+        // replaced nothing, and the session writes that same history out at the end of the turn,
+        // so a copy here would be idle -- and not merely idle at five archives kept, the run that
+        // gives up trying this three times and pushing out the archives of real compactions.
+        const {llm, compact} = newFakeLLM();
+        compact.mockResolvedValue({
+            summary: 'Input token exceeds the limit.',
+            tokenUsage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+            usable: false,
+        });
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, [{role: 'assistant', content: 'hello'}]
+        );
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    test('sends the whole history to the summarizer while it fits', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}];
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, messages);
+        expect(compact.mock.calls[0]![2])
+            .toBe('{"role":"user","content":"hi"}\n{"role":"assistant","content":"hello"}');
+    });
+
+    test('sends both ends of a history too long to summarize whole', async () => {
+        // The moment a window is finally learned is the moment the history is at its widest, so the
+        // compaction that follows that refusal is the one most likely to be refused in turn -- and
+        // it sends the conversation whole in a single message. Trimming here is what keeps the run
+        // alive at the one point it finds out how wide the window is.
+        const {llm, compact} = newFakeLLM();
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, longHistory(), {tokens: 400, bytes: MAX_REQUEST_BYTES}
+        );
+        const sent = compact.mock.calls[0]![2];
+        expect(sent).toContain('the goal, said once and never again');
+        expect(sent).toContain('the step to take next');
+        expect(sent).not.toContain('x'.repeat(4000));
+        expect(estimateTokens(sent)).toBeLessThan(500);
+    });
+
+    test('keeps the opening, which is where the goal and the constraints are stated', async () => {
+        // The summarizer is asked for the goal of the run and the constraints of the user. Both are
+        // said once, at the start, and an agent that loses them has nothing left to aim at -- and
+        // the summary is all that survives a compaction, so the opening is not merely out of sight.
+        const {llm, compact} = newFakeLLM();
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, longHistory(), {tokens: 400, bytes: MAX_REQUEST_BYTES}
+        );
+        expect(compact.mock.calls[0]![2]).toContain('never use the network');
+    });
+
+    test('says how much was left out, so a part is not read as the whole', async () => {
+        const {llm, compact} = newFakeLLM();
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, longHistory(), {tokens: 400, bytes: MAX_REQUEST_BYTES}
+        );
+        expect(compact.mock.calls[0]![2]).toContain('2 earlier messages omitted');
+    });
+
+    test('archives the history whole even where only its ends were summarized', async () => {
+        const {llm} = newFakeLLM();
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, longHistory(), {tokens: 400, bytes: MAX_REQUEST_BYTES}
+        );
+        expect(mocks.writeFile.mock.calls[0]![1]).toContain('x'.repeat(4000));
+    });
+
+    test('spends what a short opening left over on the end', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [
+            {role: 'user', content: 'go'},
+            {role: 'assistant', content: 'x'.repeat(4000)},
+            {role: 'assistant', content: 'z'.repeat(1000)},
+        ];
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, messages, {tokens: 400, bytes: MAX_REQUEST_BYTES}
+        );
+        // A quarter of the budget would not hold the thousand z's; what the two-token opening did
+        // not spend does.
+        expect(compact.mock.calls[0]![2]).toContain('z'.repeat(1000));
+    });
+
+    test('trims against the byte wall too, a gateway having named one', async () => {
+        // A refusal over the bytes of a request named nothing about tokens, so trimming by tokens
+        // alone would send the summarizer exactly the byte count that was just refused, and the
+        // compaction meant to rescue the run would be refused for the reason the run was.
+        const {llm, compact} = newFakeLLM();
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, longHistory(), {tokens: 150000, bytes: 2000}
+        );
+        const sent = compact.mock.calls[0]![2];
+        expect(Buffer.byteLength(sent, 'utf8')).toBeLessThan(2000);
+        expect(sent).toContain('the step to take next');
+    });
+
+    test('keeps one message whatever it measures, an empty call being a refusal for nothing', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [{role: 'assistant', content: 'y'.repeat(4000)}];
+        await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, messages, {tokens: 10, bytes: MAX_REQUEST_BYTES}
+        );
+        expect(compact.mock.calls[0]![2]).toContain('y'.repeat(4000));
+    });
+
+    test('keeps the history when the summary came back empty', async () => {
+        // The tools are bound to the summarizer call as to any other, so a conversation made of
+        // tool traces can be answered with a tool call and no text. Nothing said it failed, and
+        // the template would have gone in with nothing under it.
+        const {llm, compact} = newFakeLLM();
+        compact.mockResolvedValue({
+            summary: '   ',
+            tokenUsage: {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 0},
+            usable: false,
+        });
+        const messages: FakeMessage[] = [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}];
+        await new TestCompactor().compactFullHistory(true, newContext(), [], llm, messages);
+        expect(messages).toEqual([{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}]);
+    });
+
     test('keeps a trailing user message after the summary and out of the summarized text', async () => {
         const {llm, compact} = newFakeLLM();
         const messages: FakeMessage[] = [{role: 'assistant', content: 'hello'}, {role: 'user', content: 'now do this'}];
@@ -182,19 +345,63 @@ describe('AbstractMessagesCompactor compactFullHistory', () => {
         expect(messages).toEqual([{role: 'user', content: 'the first thing i say'}]);
     });
 
-    test('keeps a current history whose json is exactly at the threshold', async () => {
+    test('keeps a current history whose json is exactly at the byte backstop', async () => {
         const {llm, compact} = newFakeLLM();
-        const messages: FakeMessage[] = [messageOfSize(HISTORY_THRESHOLD)];
+        const messages: FakeMessage[] = [messageOfSize(MAX_REQUEST_BYTES)];
         await new TestCompactor().compactFullHistory(false, newContext(), [], llm, messages);
         expect(compact).not.toHaveBeenCalled();
     });
 
-    test('compacts a current history whose json is one character over the threshold', async () => {
+    test('compacts a current history one byte over the backstop', async () => {
         const {llm, compact} = newFakeLLM();
-        const messages: FakeMessage[] = [messageOfSize(HISTORY_THRESHOLD + 1)];
+        const messages: FakeMessage[] = [messageOfSize(MAX_REQUEST_BYTES + 1)];
         await new TestCompactor().compactFullHistory(false, newContext(), [], llm, messages);
         expect(compact).toHaveBeenCalledOnce();
         expect(messages).toHaveLength(1);
+    });
+
+    test('weighs the history against the byte budget the caller supplies', async () => {
+        // A gateway that has said where its own wall is replaces the backstop with the
+        // measurement, whichever way that goes.
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [messageOfSize(2000)];
+        await new TestCompactor().compactFullHistory(
+            false, newContext(), [], llm, messages, {tokens: 150000, bytes: 1000}
+        );
+        expect(compact).toHaveBeenCalledOnce();
+    });
+
+    test('leaves the token side of the budget to the caller', async () => {
+        // Asked here it would be asked of the history as it stands, and a gate that binds the
+        // history every turn is a gate no request ever gets past -- which is no request ever
+        // proving the window wider than the gate.
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [messageOfSize(20000)];
+        await new TestCompactor().compactFullHistory(
+            false, newContext(), [], llm, messages, {tokens: 10, bytes: MAX_REQUEST_BYTES}
+        );
+        expect(compact).not.toHaveBeenCalled();
+    });
+
+    test('weighs the history in bytes, not in characters', async () => {
+        // `JSON.stringify` leaves non-ascii text as it found it, so a character of chinese is one
+        // character of the jsonl and three bytes on the wire. Measured as characters a wall of six
+        // megabytes would be a wall of eighteen, and the gateway that named it would refuse a
+        // request this had just let through.
+        const {llm, compact} = newFakeLLM();
+        const chinese: FakeMessage = {role: 'assistant', content: '中'.repeat(500)};
+        expect(JSON.stringify(chinese).length).toBeLessThan(1000);
+        await new TestCompactor().compactFullHistory(
+            false, newContext(), [], llm, [chinese], {tokens: 150000, bytes: 1000}
+        );
+        expect(compact).toHaveBeenCalledOnce();
+    });
+
+    test('falls back to the backstop when the caller names no budget', async () => {
+        const {llm, compact} = newFakeLLM();
+        const messages: FakeMessage[] = [messageOfSize(MAX_REQUEST_BYTES + 1)];
+        await new TestCompactor().compactFullHistory(false, newContext(), [], llm, messages);
+        expect(compact).toHaveBeenCalledOnce();
     });
 
     test('joins the messages as one json line per message', async () => {

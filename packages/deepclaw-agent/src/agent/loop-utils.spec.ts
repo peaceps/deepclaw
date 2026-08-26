@@ -1,7 +1,8 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type LLMTaskOutput} from '@deepclaw/core';
 import {
-    fileAwayOutput, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, requireReadableOutput
+    estimateTokens, fileAwayOutput, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles,
+    requireReadableOutput
 } from './loop-utils';
 import {cronOutputDir, projectFilesDir, projectOutputDir} from './paths';
 
@@ -43,6 +44,49 @@ const URL_OF_FILES = '/api/file/projects/pr1/files';
 function newOutput(overrides: Partial<LLMTaskOutput> = {}): NonNullable<LLMTaskOutput> {
     return {type: 'text', content: 'short output', ...overrides};
 }
+
+describe('estimateTokens', () => {
+
+    test('spends a token on one character of chinese', () => {
+        expect(estimateTokens('中'.repeat(4000))).toBe(4000);
+    });
+
+    test('counts nothing in nothing', () => {
+        expect(estimateTokens('')).toBe(0);
+    });
+
+    test('tells the rates apart, which is the whole point of guessing at all', () => {
+        // One number of characters over both languages is wrong by a factor of four on one of them,
+        // and which one depends on the conversation rather than on anything anybody configured.
+        expect(estimateTokens('中'.repeat(999)))
+            .toBe(estimateTokens('x'.repeat(999)) * 3);
+    });
+
+    test('reads kana, hangul and wide punctuation at a token each', () => {
+        expect(estimateTokens('あいうえお')).toBe(5);
+        expect(estimateTokens('안녕하세요')).toBe(5);
+        expect(estimateTokens('，。！？；')).toBe(5);
+    });
+
+    test('errs high on latin text rather than low', () => {
+        // Four characters to a token is the truth; a third over it is the side to be on, since the
+        // one place this decides anything is trimming a call down to fit a window.
+        expect(estimateTokens('x'.repeat(4000))).toBeGreaterThan(1000);
+        expect(estimateTokens('x'.repeat(4000))).toBeLessThan(1500);
+    });
+
+    test('errs high on the scripts a table of ranges would have missed', () => {
+        // Cyrillic, greek, hebrew, arabic and thai run about two characters to a token. A table
+        // that knew only cjk would read every one of them at a quarter of what they cost.
+        for (const text of ['привет', 'γειάσου', 'שלוםלך', 'مرحبا', 'สวัสดี']) {
+            expect(estimateTokens(text)).toBeGreaterThan(text.length / 2);
+        }
+    });
+
+    test('never reads a non-empty text as no tokens at all', () => {
+        expect(estimateTokens('x')).toBe(1);
+    });
+});
 
 describe('fileAwayOutput', () => {
 

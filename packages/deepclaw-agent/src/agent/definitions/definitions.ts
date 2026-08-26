@@ -9,6 +9,19 @@ import { AgentConfig } from '@deepclaw/config';
 
 export type LLMProtocol = 'Anthropic' | 'OpenAIChat' | 'OpenAIResponse';
 
+/**
+ * A limit the far end named while refusing a request, in whichever unit it named it in.
+ *
+ * The two are kept apart because they are different things. Tokens are the window of the model.
+ * Bytes are a cap on the size of a request, belonging to whatever gateway stands in front of it,
+ * and a body limit of six million read as a window would be a window nothing could ever fill.
+ * Either may be absent: most refusals name one and no refusal has to name any.
+ */
+export type OverflowLimit = {
+    tokens?: number;
+    bytes?: number;
+};
+
 export type FootPrint = {
     type: string;
     content: string;

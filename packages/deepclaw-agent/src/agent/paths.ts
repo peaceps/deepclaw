@@ -9,6 +9,13 @@ export const ARCHIVED_DIR = 'archived';
 export const AGENTS_DIR = '.agents';
 export const AGENT_MD = 'AGENT.md';
 export const AGENT_SOUL_JSON = 'SOUL.json';
+/**
+ * What this agent has learned of the limits it talks through. Per agent rather than per model,
+ * because a window is as much the gateway's as the model's: the same model name behind two base
+ * urls can be capped differently, and one of them may put a limit on the bytes of a request that
+ * the other has no opinion about. An agent's llm config is exactly one such pair.
+ */
+export const AGENT_LLM_WINDOW_JSON = 'llm-window.json';
 
 // Project session
 export const PROJECT_DIR = '.projects';

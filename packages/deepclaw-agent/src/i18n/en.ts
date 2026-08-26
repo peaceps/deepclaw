@@ -9,6 +9,7 @@ export const en = {
             }
         },
         maxTurnReached: 'Reached maximum turn count. Ending session.\n{{finalText}}',
+        contextTooLong: 'This conversation is too long for the current model, and summarizing it did not bring it under the limit. Start a new conversation, or switch to a model with a larger context window.',
         agentBreak: {
             agentStop: {
                 projectCreated: {
