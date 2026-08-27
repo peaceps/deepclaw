@@ -4,6 +4,7 @@ import type {
   ChatMessage
 } from '@deepclaw/core';
 import { getProjectStatus, splitLoopId } from '@deepclaw/core';
+import type { DeepclawDataInfo } from '@deepclaw/loop-gateway';
 import { UpdateContent } from '@deepclaw/utils';
 import { handleUpdatedArrayContent, handleUpdateRecordContent } from '@/components/component-utils';
 
@@ -114,8 +115,25 @@ type AppState = {
    * tells a card that mounts later how old the emotion is, so it does not pop a stale one.
    */
   emotionPopup: Record<string, { text: string; seq: number; at: number }>;
+  /**
+   * How many times the whole of what this page holds has been put there at once, rather than
+   * changed a piece at a time.
+   *
+   * Watched by whoever has a request in the air. A request is answered about the state of things
+   * when it was asked, and one asked before the whole was replaced is answered about the whole
+   * that is gone -- which, this being what a stream coming back does, is a state older than the
+   * outage by everything that happened during it. An answer whose count has moved on since it was
+   * asked for is therefore let go of instead of written, and asked for again.
+   *
+   * Which is a thing to read as it stands, through the getter below, and not off anything a render
+   * left behind: an answer lands whenever it lands, and the count may have gone up since the last
+   * render without one having happened yet.
+   */
+  dataEpoch: number;
 
   // Actions
+  setDataInfo: (dataInfo: DeepclawDataInfo) => void;
+  getDataEpoch: () => number;
   getAgents: () => AgentEmployee[];
   getAgentById: (id: string) => AgentEmployee | undefined;
   setAgents: (agents: AgentEmployee[]) => void;
@@ -157,7 +175,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   openChatCall: null,
   initializedChat: {},
   emotionPopup: {},
+  dataEpoch: 0,
 
+  /**
+   * Everything a page holds, put there in one go: what it is built out of, and what it is brought
+   * back to by a browser whose stream had dropped.
+   *
+   * Through the same setters a piece at a time would go through, so that whatever each of them
+   * does besides the setting -- picking an agent to show, telling the hired from the fired -- is
+   * done here too. The projects among these carry no tasks, that being what a list of projects
+   * is, so whoever was drawing the tasks of one is left wanting them and asks again.
+   */
+  setDataInfo: (dataInfo: DeepclawDataInfo) => {
+    const {setAgents, setProjects, setRunningTasks, setBusyLoops, setCronTasks} = get();
+    setAgents(dataInfo.agents);
+    setProjects(dataInfo.projects);
+    setRunningTasks(dataInfo.runningTasks);
+    setBusyLoops(dataInfo.busyLoops);
+    setCronTasks(dataInfo.cronTasks);
+    set(state => ({dataEpoch: state.dataEpoch + 1}));
+  },
+  getDataEpoch: () => get().dataEpoch,
   getAgents: () => get().agents,
   getAgentById: (id: string) => get().agents.find(a => a.id === id),
   setAgents: (agents) => {

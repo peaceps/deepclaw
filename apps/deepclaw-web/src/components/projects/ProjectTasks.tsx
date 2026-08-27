@@ -23,7 +23,9 @@ export function ProjectTasks({project}: ProjectTasksProps) {
   const [collapsed, setCollapsed] = useState(false);
   const {t} = useTranslation();
   const agents = useAppStore(s => s.agents);
-  // This panel is mounted by the row being opened, so this is the opening asking for the tasks.
+  // This panel is mounted by the row being opened, so this is the opening asking for the tasks --
+  // where they are not in hand already from an earlier opening, which asks for nothing and draws
+  // the board at once.
   const {unread} = useProjectTasks([project.id]);
   const tasks = project.tasks;
 

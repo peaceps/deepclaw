@@ -9,6 +9,7 @@ import { useSSEClient } from './SSEProvider';
 import { sseUrl } from '@/lib/sse-client';
 import { useToastStore } from '@/lib/toast-store';
 import { ToastService } from '@/lib/toast-service';
+import { getDataInfo } from '@/server/data';
 import {
   AgentAgentInfoEvent, AgentBusyLoopsInfoEvent, AgentCronInfoEvent, AgentProjectInfoEvent,
   AgentRunningTasksInfoEvent,
@@ -30,6 +31,7 @@ export function InfoClient() {
   const setBusyLoops = useAppStore(s => s.setBusyLoops);
   const updateCronTask = useAppStore(s => s.updateCronTask);
   const openChat = useAppStore(s => s.openChat);
+  const setDataInfo = useAppStore(s => s.setDataInfo);
   const show = useToastStore(t => t.show);
 
   useEffect(() => {
@@ -109,6 +111,16 @@ export function InfoClient() {
           show({type: 'info', title, message, duration, onClick});
         },
       ),
+      // Every one of the above is a piece of news, and news that went out while the stream was
+      // away went to nobody: the server keeps none of it to hand over later. So a page whose
+      // stream comes back holds whatever it held at the moment it dropped, on every count above,
+      // and the way back from that is to read the whole of it again rather than to work out what
+      // was missed -- the same read the page was built out of.
+      sseClient.onReopen(url, () => {
+        getDataInfo().then(setDataInfo).catch(error => {
+          logger.error('Failed to read everything again after the stream came back:', error);
+        });
+      }),
     ];
 
     return () => {
@@ -116,7 +128,7 @@ export function InfoClient() {
     };
   }, [
     sseClient, updateProject, updateAgentEmployee, showEmotionPopup, setRunningTasks, setBusyLoops,
-    updateCronTask, browserId, getAgents, getProjects, show, openChat, router,
+    updateCronTask, browserId, getAgents, getProjects, show, openChat, router, setDataInfo,
   ]);
 
   return <></>;

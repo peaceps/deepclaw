@@ -1,7 +1,7 @@
 'use server';
 
 import type { Task, CronJobHistory, AgentSoulIdentity, SlimProject } from "@deepclaw/core";
-import { LoopGateway, type SkillInfo } from "@deepclaw/loop-gateway";
+import { LoopGateway, type DeepclawDataInfo, type SkillInfo } from "@deepclaw/loop-gateway";
 import { UpdateContent } from "@deepclaw/utils";
 import { revalidatePath } from "next/cache";
 
@@ -25,6 +25,22 @@ export async function updateProjectTags(projectId: string, tags: string[]): Prom
         revalidatePath('/', 'layout');
     } catch (error) {
         console.error('Error saving project tags:', error);
+        throw error;
+    }
+}
+
+/**
+ * Everything a page holds, as it stands now.
+ *
+ * Read once where the page is built, and again by a browser whose stream dropped and came back:
+ * what went out while it was away went to nobody and is kept nowhere, so there is nothing to hand
+ * it but the whole of it over again.
+ */
+export async function getDataInfo(): Promise<DeepclawDataInfo> {
+    try {
+        return LoopGateway.getDataInfo();
+    } catch (error) {
+        console.error('Error reading the data info:', error);
         throw error;
     }
 }

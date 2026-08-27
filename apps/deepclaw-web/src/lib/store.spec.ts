@@ -2,6 +2,7 @@ import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import type {
     AgentEmployee, ChatMessage, CronTask, SlimProject, RunningTask, Task
 } from '@deepclaw/core';
+import type {DeepclawDataInfo} from '@deepclaw/loop-gateway';
 import {type AgentActivity, deriveAgentSummary, sessionBrowserId, useAppStore} from './store';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -218,6 +219,7 @@ describe('app store', () => {
             openChatCall: null,
             initializedChat: {},
             emotionPopup: {},
+            dataEpoch: 0,
         });
     });
 
@@ -225,6 +227,58 @@ describe('app store', () => {
 
         test('is a uuid taken once at load', () => {
             expect(store().browserId).toMatch(uuidPattern);
+        });
+    });
+
+    describe('setDataInfo', () => {
+
+        function newDataInfo(overrides: Partial<DeepclawDataInfo> = {}): DeepclawDataInfo {
+            return {
+                agents: [newAgent()],
+                projects: [newProjectRow()],
+                runningTasks: [newRunningTask()],
+                busyLoops: ['agent.a1'],
+                cronTasks: [newCronTask()],
+                ...overrides,
+            };
+        }
+
+        test('puts every part of it in the store at once', () => {
+            store().setDataInfo(newDataInfo());
+            expect(store().getAgents().map(agent => agent.id)).toEqual(['a1']);
+            expect(store().getProjects().map(project => project.id)).toEqual(['p1']);
+            expect(store().runningTasks.map(run => run.runId)).toEqual(['r1']);
+            expect(store().busyLoops).toEqual(['agent.a1']);
+            expect(store().cronTasks.map(task => task.id)).toEqual(['c1']);
+        });
+
+        /** Through setAgents rather than around it, so the hired are told from the fired here too. */
+        test('works out the active agents and picks one to show', () => {
+            store().setDataInfo(newDataInfo({
+                agents: [newAgent({id: 'a2', fired: true}), newAgent()],
+            }));
+            expect(store().activeAgents.map(agent => agent.id)).toEqual(['a1']);
+            expect(store().selectedAgentId).toBe('a1');
+        });
+
+        /**
+         * Read by whoever has a request in the air: an answer asked for before the count moved
+         * speaks of the list that has been replaced since, and is dropped rather than written.
+         */
+        test('counts every time the whole of it is put there', () => {
+            store().setDataInfo(newDataInfo());
+            store().setDataInfo(newDataInfo());
+            expect(store().getDataEpoch()).toBe(2);
+        });
+
+        /**
+         * No tasks travel in the list, so whoever was drawing the tasks of a project is left
+         * wanting them, which is how they come to be asked for again.
+         */
+        test('leaves no tasks on a project that had them', () => {
+            store().setProjects([newProject({tasks: {'write-tests': newTask()}})]);
+            store().setDataInfo(newDataInfo());
+            expect(store().getProjects()[0].tasks).toBeUndefined();
         });
     });
 

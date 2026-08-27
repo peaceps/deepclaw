@@ -153,6 +153,35 @@ a task walk across without asking again. the same asking serves the agent page, 
 way names a task to show: those are asked for by the project being run in, which is as many as there
 are runs rather than as many as there are projects. what grew with the size of the board was the
 list, and the list is what stopped growing.
+a page whose connection drops now catches up when it comes back, rather than showing what was true
+at the moment it went. everything on the board and the agent page arrives as news over one stream --
+a task moves, an agent is hired, a run starts or ends, a schedule changes -- and news that goes out
+while nothing is listening goes nowhere, since none of it is kept to hand over later. so a tunnel, a
+laptop lid, a wifi handover of a few seconds left the page looking right and being wrong, with no
+sign of it until something else happened to move: a task stuck at a step it finished ten minutes
+ago, an agent shown busy on a run that ended. the chat did this already for its own sake and nothing
+else did. a stream that comes back is now read the whole of what there is, the same read the page
+was built out of, in place of any attempt to work out what was missed. that read carries no tasks,
+being the list, so a row standing open through the outage asks again for the tasks of its project
+and gets them as they now stand. which is visible for the moment it takes: a row that was open
+spins where its tasks were, and a run on the agent page shows the id of the task it is on in place
+of the title, until the answer arrives. the alternative was to leave the old tasks up and let the
+new ones replace them, and that means a card on screen that may not exist any more, and a click on
+it refused by the server for a task nobody has -- a wait of one request is the better of the two.
+opening a row a second time no longer asks after its tasks a second time. they were asked for on
+every opening, on the reasoning that what was in hand might have fallen behind while nobody was
+listening, and that is now what coming back from an outage is for: the whole list is read again
+there, and a project is only ever handed over whole, so tasks in hand are tasks as the server last
+said they were. a row opened again draws them at once instead of showing a spinner while the
+server says what the page already knew.
+a project put away while its tasks were still being read no longer comes back from the dead. the
+reading and the putting away are two requests with no order between them, and the reading is
+answered about a project that was still there, carrying no word of having been put away: it landed
+after the row had gone and put the row back, with nothing left to take it down a second time --
+the word that does that had already been and gone. putting it away again was then refused, there
+being no such project to put away, and the refusal restored the list that the ghost was in, so it
+sat on the board until the page was reloaded. an answer about a project that has left the list
+since it was asked for is now dropped rather than written.
 
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a
