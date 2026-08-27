@@ -143,7 +143,7 @@ describe('LLMModel constructor', () => {
 
     test('derives the gateway config from the llm config and fixed defaults', () => {
         expect(newLLM('main', {model: 'opus'}).getGWConfig())
-            .toEqual({model: 'opus', timeoutMs: 300000, temperature: 0.1, maxTokens: 8000});
+            .toEqual({model: 'opus', timeoutMs: 300000, maxTokens: 8000});
     });
 
     test('creates the client with the base url, api key and default timeout', () => {
@@ -159,7 +159,7 @@ describe('LLMModel updateGWConfig', () => {
         const llm = newLLM();
         llm.updateGWConfig(null, {model: 'haiku'});
         expect(llm.getGWConfig()).toEqual({
-            model: 'haiku', timeoutMs: 300000, temperature: 0.1, maxTokens: 8000
+            model: 'haiku', timeoutMs: 300000, maxTokens: 8000
         });
     });
 

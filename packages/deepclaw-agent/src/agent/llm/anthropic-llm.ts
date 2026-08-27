@@ -78,7 +78,6 @@ export class AnthropicLLM extends LLMModel<ThinkingMessage, ThinkingResponse, To
             messages: this.markHistoryEnd(messages),
             tools,
             max_tokens: this.gw.maxTokens,
-            temperature: this.gw.temperature,
         }, {signal}).on('abort', () => undefined).on('text', (text) => {
             streamer(text);
         });

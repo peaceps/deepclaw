@@ -7,7 +7,6 @@ export type StubRequest = {
     model: string;
     messages: {role: string, content: unknown, [key: string]: unknown}[];
     tools: {function?: {name?: string}}[];
-    temperature?: number;
     maxTokens?: number;
 };
 
@@ -90,7 +89,6 @@ function asRequest(body: Record<string, any>): StubRequest {
         model: body['model'],
         messages: body['messages'] || [],
         tools: body['tools'] || [],
-        temperature: body['temperature'],
         maxTokens: body['max_tokens'],
     };
 }

@@ -162,11 +162,17 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
      */
     private observedLimit: OverflowLimit | undefined;
 
+    /**
+     * No sampling parameters are set here, temperature among them. A gateway serves models that
+     * each accept a different set of them, and one that does not take the parameter refuses the
+     * whole request over it rather than ignoring it -- which takes down the compaction too, the
+     * one call that has to get through when a run is already in trouble. The default the gateway
+     * picks for a model is a default that model accepts.
+     */
     constructor(loopKind: LoopKind, role: FlushAgentRole, llmConfig: LLMConfig) {
         this.gw = {
             model: llmConfig.model,
             timeoutMs: 300 * 1000,
-            temperature: 0.1,
             maxTokens: 8000
         }
         this.loopKind = loopKind;

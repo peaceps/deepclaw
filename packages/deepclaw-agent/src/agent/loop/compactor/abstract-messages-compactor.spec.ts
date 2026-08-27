@@ -195,6 +195,45 @@ describe('AbstractMessagesCompactor compactFullHistory', () => {
         expect(messages).toEqual([{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}]);
     });
 
+    /**
+     * What the caller migrating a session between protocols goes on. The summary is the whole of
+     * the conversion, so a history that kept its messages kept the shape of the model before it,
+     * and a caller told otherwise marks a migration that never happened -- which is the one mark
+     * that stops anything from ever trying again.
+     */
+    test('reports the history it left in place as not converted', async () => {
+        const {llm, compact} = newFakeLLM();
+        compact.mockResolvedValue({
+            summary: 'Input token exceeds the limit.',
+            tokenUsage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+            usable: false,
+        });
+        const converted = await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}]
+        );
+        expect(converted).toBe(false);
+    });
+
+    test('reports a history it replaced with a summary as converted', async () => {
+        const {llm} = newFakeLLM();
+        const converted = await new TestCompactor().compactFullHistory(
+            true, newContext(), [], llm, [{role: 'user', content: 'hi'}, {role: 'assistant', content: 'hello'}]
+        );
+        expect(converted).toBe(true);
+    });
+
+    /**
+     * Nothing to summarize is not a failure to summarize. An empty history is in no protocol at
+     * all and no further call would put it in one, so a caller that waits for a conversion here
+     * waits for good: the session stays marked outdated and every run after it opens by trying the
+     * migration again.
+     */
+    test('reports an empty history as converted, there being nothing to convert', async () => {
+        const {llm} = newFakeLLM();
+        const converted = await new TestCompactor().compactFullHistory(true, newContext(), [], llm, []);
+        expect(converted).toBe(true);
+    });
+
     test('tells the hooks of no compaction that did not happen', async () => {
         const {llm, compact} = newFakeLLM();
         compact.mockResolvedValue({

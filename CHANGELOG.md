@@ -45,6 +45,28 @@ read now, and what follows a refusal is a summary and another try rather than th
 three refusals in a row and it gives up and says so -- that a conversation is too long for this
 model and stayed too long after being summarized, which is a thing the user can do something about,
 where before the reply to a question that got that far was the question itself handed back.
+a history in another model's shape no longer takes the run down before it can be migrated. cutting
+old tool results down to size is skipped for a conversation known to be outdated, and the anthropic
+side of it reached into every message for a content field that a message of the two other protocols
+need not have at all -- so where the shape had changed without being noticed, the turn that would
+have migrated the conversation died of a type error on the conversation it was about to migrate.
+blocks are read now off whatever carries them, and a message this compactor does not recognize is a
+message it passes over, which is what the other two always did by picking their results out by a
+field no foreign message has.
+a session is no longer marked as having changed protocol by a compaction that failed to change it.
+moving a conversation from one model's shape to another is done by summarizing it, the summary
+being the one message that belongs to no protocol in particular, and a summarizer that answers with
+anything but a summary leaves every old message where it was. the mark went on regardless, and it is
+the one thing that decides whether anything ever tries again: the run after it compacts nothing,
+sends the old messages to the new model, and is answered with an error, as is every run after that,
+for good. now nothing is marked until the messages have really been replaced, and a migration that
+did not happen is a migration the next run attempts.
+no sampling parameter is sent to the model any more. a temperature of a tenth went out with every
+call, which is a number some models will not take at all: the gateway refuses the whole request over
+it rather than ignoring it, and the one call that most needs to get through is the summary of a
+conversation that has already grown too long -- so a model that declines the parameter cannot
+shorten a history, and the run that would have been rescued by doing so dies of the length instead.
+the default a gateway picks for a model is a default that model accepts.
 a summary is asked for sooner, and a tool result that was cut down for one keeps both ends. the last
 seven tool results are held whole rather than the last twenty, which is what makes the cheap way of
 making room run before the expensive one instead of after it; and where a long output is shown to

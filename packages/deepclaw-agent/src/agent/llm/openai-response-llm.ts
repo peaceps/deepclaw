@@ -60,7 +60,6 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             stream: true,
             tools,
             max_output_tokens: this.gw.maxTokens,
-            temperature: this.gw.temperature,
         }, {signal});
 
         for await (const event of stream) {
@@ -151,7 +150,7 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             metadata: null,
             model: this.gw.model,
             tools: [],
-            temperature: this.gw.temperature,
+            temperature: null,
             parallel_tool_calls: false,
             tool_choice: 'none',
             top_p: 1,

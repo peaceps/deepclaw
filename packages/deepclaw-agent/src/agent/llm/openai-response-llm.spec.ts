@@ -189,9 +189,13 @@ describe('OpenAIResponseLLM request', () => {
             model: 'gpt-test',
             stream: true,
             max_output_tokens: 8000,
-            temperature: 0.1,
             tools: [{type: 'function', name: 'read_file', strict: true}],
         });
+    });
+
+    test('leaves the sampling parameters to the gateway', async () => {
+        await invoke(newLLM());
+        expect(mocks.create.mock.calls[0]![0]).not.toHaveProperty('temperature');
     });
 
     test('sends the history followed by the state of the moment', async () => {

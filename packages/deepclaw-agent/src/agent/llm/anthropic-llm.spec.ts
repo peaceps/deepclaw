@@ -219,9 +219,13 @@ describe('AnthropicLLM request', () => {
         expect(mocks.stream.mock.calls[0]![0]).toMatchObject({
             model: 'sonnet',
             max_tokens: 8000,
-            temperature: 0.1,
             tools: [{name: 'read_file', description: 'read_file tool', input_schema: {type: 'object', properties: {a: {type: 'string'}}}}],
         });
+    });
+
+    test('leaves the sampling parameters to the gateway', async () => {
+        await invoke(newLLM(), [{role: 'user', content: 'hi'}]);
+        expect(mocks.stream.mock.calls[0]![0]).not.toHaveProperty('temperature');
     });
 
     test('forwards every streamed text fragment to the streamer', async () => {

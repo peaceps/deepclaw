@@ -7,7 +7,6 @@ import {
 export type LLMGWConfig = {
     model: string,
     timeoutMs: number, // JSON: seconds → client: ms
-    temperature: number,
     maxTokens: number
 }
 

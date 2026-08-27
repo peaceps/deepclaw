@@ -71,7 +71,6 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             model: this.gw.model,
             messages: this.withDynamicLast(system, messages),
             max_tokens: this.gw.maxTokens,
-            temperature: this.gw.temperature,
             tools,
             tool_choice: 'auto',
             stream: true,

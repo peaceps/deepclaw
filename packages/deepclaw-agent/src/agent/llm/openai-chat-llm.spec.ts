@@ -213,12 +213,16 @@ describe('OpenAIChatLLM system prompt', () => {
         expect(mocks.create.mock.calls[0]![0]).toMatchObject({
             model: 'gpt-test',
             max_tokens: 8000,
-            temperature: 0.1,
             tool_choice: 'auto',
             stream: true,
             stream_options: {include_usage: true},
             tools: [{type: 'function', function: {name: 'read_file'}}],
         });
+    });
+
+    test('leaves the sampling parameters to the gateway', async () => {
+        await invoke(newLLM());
+        expect(mocks.create.mock.calls[0]![0]).not.toHaveProperty('temperature');
     });
 });
 

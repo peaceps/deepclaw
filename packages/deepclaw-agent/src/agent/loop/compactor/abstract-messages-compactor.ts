@@ -106,11 +106,19 @@ export abstract class AbstractMessagesCompactor<
      * asking it of the history as it stands this moment -- and a gate that binds the history every
      * turn is a gate no request ever gets past, which is to say no request ever proves the window
      * wider than the gate. The lag in the caller's count is what leaves room to learn.
+     *
+     * Answers with whether the history it was given is now a history this model can be sent, which
+     * is false in one case only: a summary was asked for and what came back was not one. The
+     * caller migrating a session between protocols reads it as the migration having happened,
+     * because the summary is the whole of the conversion -- old messages out, one message in this
+     * model's own shape in. A history left in place is a history still in the shape of the model
+     * before it, however the caller has already marked it. Nothing to compact counts as done: an
+     * empty history is in no protocol at all, and there is no further call that would make it so.
      */
     public async compactFullHistory(
         force: boolean, context: OneLoopContext, footPrints: FootPrint[], llm: LLM, messages: I[],
         budget: WindowBudget = {tokens: UNLEARNED_TOKEN_BUDGET, bytes: MAX_REQUEST_BYTES}
-    ): Promise<void> {
+    ): Promise<boolean> {
         if (!!messages.length) {
             const lastMessage = messages[messages.length - 1]!;
             const isLastUserMessage = lastMessage && typeof lastMessage === 'object'
@@ -123,7 +131,7 @@ export abstract class AbstractMessagesCompactor<
                     context, footPrints, llm, jsonl, budget
                 );
                 if (!summary) {
-                    return;
+                    return false;
                 }
                 // Written where the messages are about to be lost and not before. This is the one
                 // copy of what a summary replaces, but only where a summary replaces something: a
@@ -139,6 +147,7 @@ export abstract class AbstractMessagesCompactor<
                 await HookManager.emitVisitor('historyCompacted', context, jsonl.length);
             }
         }
+        return true;
     }
 
     /**

@@ -66,6 +66,23 @@ describe('AnthropicMessagesCompactor getToolResults', () => {
     test('returns nothing for an empty history', () => {
         expect(compactor.resultsOf([])).toEqual([]);
     });
+
+    /**
+     * A history in another model's shape, which is what a session holds between the base url
+     * changing and the migration that follows it. Passing over it is the whole of what is wanted
+     * here: the compaction of old results is skipped for a history known to be outdated, and this
+     * runs where it was not known -- so what it must not do is take the run down before the turn
+     * that would have migrated the conversation has had its chance.
+     */
+    test('passes over a message carrying no content blocks at all', () => {
+        const result = newToolResult('tu1', 'a');
+        const messages = [
+            {type: 'function_call', call_id: 'c1', name: 'read_file', arguments: '{}'},
+            {role: 'assistant', tool_calls: [{id: 'c2', type: 'function'}]},
+            {role: 'user', content: [result]},
+        ] as unknown as ThinkingMessage[];
+        expect(compactor.resultsOf(messages)).toEqual([result]);
+    });
 });
 
 describe('AnthropicMessagesCompactor getContentLength', () => {

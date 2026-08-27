@@ -33,8 +33,8 @@ const mocks = vi.hoisted(() => ({
     planExecutionGroups: vi.fn<(toolUseDefs: ToolUseDef[], context: unknown) => ToolUseDef[][]>(),
     clearAwayUser: vi.fn<(loopId: string) => void>(),
     compactOldResults: vi.fn(),
-    compactFullHistory: vi.fn<(force: boolean, ...rest: unknown[]) => Promise<void>>(
-        async () => undefined
+    compactFullHistory: vi.fn<(force: boolean, ...rest: unknown[]) => Promise<boolean>>(
+        async () => true
     ),
     budgetOf: vi.fn<(...args: unknown[]) => {tokens: number; bytes: number}>(
         () => ({tokens: 150000, bytes: 4 * 1024 * 1024})
@@ -565,6 +565,21 @@ describe('one turn', () => {
             throw new Error('This operation was aborted');
         });
         await loop.runInvoke('hi', {browserId: 'b1', abortSignal: controller.signal});
+        expect(mocks.markHistoryProtocol).not.toHaveBeenCalled();
+        expect(loop.isOutdated()).toBe(true);
+    });
+
+    /**
+     * The other way a migration comes back having done nothing: the summarizer refused, or was
+     * refused itself, and the history is still every old message it was. A summary is the whole of
+     * the conversion, so no summary is no conversion -- and the mark is the one thing that decides
+     * whether anything ever tries again.
+     */
+    test('leaves the session on the old protocol when the summary came back unusable', async () => {
+        const {loop, llm} = newLoop({outdated: true});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        mocks.compactFullHistory.mockResolvedValueOnce(false);
+        await loop.runInvoke('hi', {browserId: 'b1'});
         expect(mocks.markHistoryProtocol).not.toHaveBeenCalled();
         expect(loop.isOutdated()).toBe(true);
     });

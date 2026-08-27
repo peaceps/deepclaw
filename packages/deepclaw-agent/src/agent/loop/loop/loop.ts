@@ -333,16 +333,19 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             compactor.compactOldResults(this.history, context);
         }
         const budget = LLMWindowService.budgetOf(this.agentId, this.llm.modelName());
-        await compactor.compactFullHistory(
+        const converted = await compactor.compactFullHistory(
             this.outdated || force || this.overTokenBudget(budget),
             context, this.footPrints, this.llm, this.history, budget
         );
-        if (this.outdated) {
-            // Only here, the call above having come back: the history is in the shape of this model
-            // at last. Anything that cut that call short -- a stop above all -- has thrown past
-            // this instead, leaving both the loop and the session on the old protocol, so that the
-            // next run is the migration over again rather than the old messages sent to a model
-            // that answers them with an error.
+        if (this.outdated && converted) {
+            // Only here, the call above having come back with a summary: the history is in the
+            // shape of this model at last. Anything that cut that call short -- a stop above all --
+            // has thrown past this instead, and a summarizer that answered with anything but a
+            // summary reports it, both leaving the loop and the session on the old protocol, so
+            // that the next run is the migration over again rather than the old messages sent to a
+            // model that answers them with an error. That is the whole of what the flag is for: a
+            // session marked migrated is a session nothing will ever try to migrate again, and the
+            // conversation under it stays unreadable to every model it is ever pointed at.
             //
             // Written out before the session is told, and in that order: the summary lives in
             // memory alone until the turn ends, a whole llm call and every tool of it away, and a
