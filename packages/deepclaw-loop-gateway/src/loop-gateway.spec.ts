@@ -118,7 +118,7 @@ function newRuntime(overrides: Partial<AgentRuntime> = {}): AgentRuntime {
     return {
         turnCount: 1,
         historyPersistIndex: 0,
-        recoveryState: {maxTokenRetries: 0, refusalState: ''},
+        recoveryState: {maxTokenRetries: 0, inputMaxTokenRetries: 0, refusalState: ''},
         usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
         ...overrides,
     };

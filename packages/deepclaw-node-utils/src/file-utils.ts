@@ -173,25 +173,61 @@ export class FileUtils {
         return sorted[0]?.file || '';
     }
 
-    public static enforceFileCountLimit(folder: string, limit: number): void {
-        const fullPath = this.getAbsolutePath(folder);
-        if (!fs.existsSync(fullPath)) {
-            return;
-        }
-
-        const files = fs.readdirSync(fullPath).map(file => {
-            const filePath = path.join(fullPath, file);
-            const stat = fs.statSync(filePath);
-            return { filePath, stat };
-        }).filter(item => item.stat.isFile()).sort((a, b) => a.stat.mtimeMs - b.stat.mtimeMs);
-
+    /**
+     * Cuts a folder back to the newest so many files, by when each was last written, and never
+     * raises: what it is asked for is room before something is written, and a caller that cannot
+     * make room is still a caller with something to write. It is called from inside the logger, so
+     * a throw from here would come out of whatever line was being logged -- most often a line in a
+     * catch block, taking the place of the error it was reporting.
+     *
+     * Which is also why a file that will not go is passed over rather than taken as a failure: on
+     * windows the file another process has open cannot be deleted at all, and stopping at the first
+     * of those would leave everything older than it there for good. `keep` is for saying so before
+     * the attempt where the caller knows; those files count towards the limit and are never thrown
+     * away, so a folder of nothing but kept files simply stays as it is. A `keep` that raises rather
+     * than answers is read as a yes, which is both halves of what this promises: no telling whether
+     * a file is wanted is no reason to delete it, and none to raise out of here either.
+     */
+    public static enforceFileCountLimit(
+        folder: string, limit: number, keep?: (fileName: string) => boolean
+    ): void {
+        const files = this.filesByAge(this.getAbsolutePath(folder));
         const removeCount = files.length - limit;
         if (removeCount <= 0) {
             return;
         }
 
         for (const file of files.slice(0, removeCount)) {
-            fs.rmSync(file.filePath);
+            try {
+                if (keep?.(file.name)) {
+                    continue;
+                }
+                fs.rmSync(file.filePath);
+            } catch {
+                // It is wanted, somebody is writing it, it has already gone, or there was no
+                // telling which of those. Either way, not this one.
+            }
+        }
+    }
+
+    /** The files of a folder, oldest first. A folder there is no reading holds none of them. */
+    private static filesByAge(
+        fullPath: string
+    ): {name: string, filePath: string, mtimeMs: number}[] {
+        try {
+            return fs.readdirSync(fullPath).flatMap(name => {
+                const filePath = path.join(fullPath, name);
+                try {
+                    const stat = fs.statSync(filePath);
+                    return stat.isFile() ? [{name, filePath, mtimeMs: stat.mtimeMs}] : [];
+                } catch {
+                    // Gone between the folder being read and the ask about it: one file fewer.
+                    return [];
+                }
+            }).sort((one, other) => one.mtimeMs - other.mtimeMs);
+        } catch {
+            // Not there, or not ours to read. Neither is a folder to cut anything back in.
+            return [];
         }
     }
 

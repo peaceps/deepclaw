@@ -73,6 +73,21 @@ making room run before the expensive one instead of after it; and where a long o
 the model in brief, the brief is now the first five hundred characters and the last five hundred
 rather than the first thousand, an error being a thing that happens at the end of the output and the
 beginning being where the boilerplate is.
+the log files no longer pile up. there was one per process and nothing ever took one away, so the
+folder grew for as long as deepclaw had been installed rather than with anything anybody did: four
+and a half thousand of them here, all but a couple of hundred with nothing in them at all. empty
+because a logger is asked for where a module is imported, so every process that imported anything of
+ours opened a file whether or not it ever had a line to write, and building the web app alone spawns
+a great many that never do. a file is now opened by the first line written to it, which is also the
+moment it is named after, and fifty are kept, the oldest going as a new one is opened -- fifty being
+the processes of a running install several times over, and further back than a log of this kind is
+ever read. what a process is still writing to is never taken away, however old it looks: a file is
+only as new as its last line, and a server left idle overnight has the oldest log here while still
+needing it. unlinking that one on linux would not rotate it, it would leave the process writing
+lines nobody can read again, so the pid is in the name and the process is asked after before its
+file goes. and none of this can stop a line from being logged: the first line a process writes is
+usually one in a catch block, where an error about the state of the log folder would take the place
+of the error being reported.
 
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a

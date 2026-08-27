@@ -187,17 +187,89 @@ describe('FileUtils', () => {
         });
     });
 
-    test('enforceFileCountLimit removes the oldest files beyond the limit', () => {
-        const dir = 'tmp/limited';
-        for (let i = 1; i <= 4; i++) {
-            FileUtils.writeFile(`${dir}/f${i}.txt`, `${i}`);
-        }
+    /** Four files of known ages in a folder of their own, `f1` the oldest, and where they lie. */
+    function fourAgedFiles(dir: string): string {
         const base = path.join(process.cwd(), dir);
         for (let i = 1; i <= 4; i++) {
+            FileUtils.writeFile(`${dir}/f${i}.txt`, `${i}`);
             fs.utimesSync(path.join(base, `f${i}.txt`), new Date(i * 1_000), new Date(i * 1_000));
         }
-        FileUtils.enforceFileCountLimit(dir, 2);
+        return base;
+    }
+
+    test('enforceFileCountLimit removes the oldest files beyond the limit', () => {
+        const base = fourAgedFiles('tmp/limited');
+        FileUtils.enforceFileCountLimit('tmp/limited', 2);
         expect(fs.readdirSync(base).sort()).toEqual(['f3.txt', 'f4.txt']);
+    });
+
+    /**
+     * On windows the file a running process has open cannot be deleted, and one of those is exactly
+     * what this folder holds: room is what is being asked for, so the ones that can go, go.
+     */
+    test('enforceFileCountLimit passes over a file that will not go', () => {
+        const dir = 'tmp/held-open';
+        const base = fourAgedFiles(dir);
+        const held = path.join(base, 'f1.txt');
+        const rmSync = fs.rmSync;
+        vi.spyOn(fs, 'rmSync').mockImplementation((target, options) => {
+            if (String(target) === held) {
+                throw new Error('EBUSY: resource busy or locked');
+            }
+            rmSync(target, options);
+        });
+        try {
+            FileUtils.enforceFileCountLimit(dir, 2);
+        } finally {
+            // Restored here and not after the assertions: a spy on rmSync left standing would
+            // outlive this test and take the temp folder of the whole file with it.
+            vi.restoreAllMocks();
+        }
+        expect(fs.readdirSync(base).sort()).toEqual(['f1.txt', 'f3.txt', 'f4.txt']);
+    });
+
+    /** The one it is told to keep counts towards the limit and is never the one that goes. */
+    test('enforceFileCountLimit keeps what it is told to keep', () => {
+        const base = fourAgedFiles('tmp/kept');
+        FileUtils.enforceFileCountLimit('tmp/kept', 2, name => name === 'f1.txt');
+        expect(fs.readdirSync(base).sort()).toEqual(['f1.txt', 'f3.txt', 'f4.txt']);
+    });
+
+    /**
+     * Asking after a process can go wrong the way anything can. No telling whether a file is wanted
+     * is no reason to delete it, and none to raise out of a call whose whole promise is that it
+     * will not: the caller of this one is about to log a line, most likely about something else
+     * that already went wrong.
+     */
+    test('enforceFileCountLimit keeps what it cannot ask about', () => {
+        const base = fourAgedFiles('tmp/unaskable');
+        expect(() => FileUtils.enforceFileCountLimit('tmp/unaskable', 2, name => {
+            if (name === 'f1.txt') {
+                throw new Error('no telling');
+            }
+            return false;
+        })).not.toThrow();
+        expect(fs.readdirSync(base).sort()).toEqual(['f1.txt', 'f3.txt', 'f4.txt']);
+    });
+
+    /**
+     * Called to make room before something is written, so a caller that cannot have room is still a
+     * caller with something to write. The logger calls it, and a throw from here would come out of
+     * whatever line was being logged.
+     */
+    test('enforceFileCountLimit says nothing of a folder it cannot read', () => {
+        expect(() => FileUtils.enforceFileCountLimit('tmp/never-made', 2)).not.toThrow();
+        const dir = 'tmp/unreadable';
+        FileUtils.writeFile(`${dir}/a.txt`, 'a');
+        vi.spyOn(fs, 'readdirSync').mockImplementation(() => {
+            throw new Error('EACCES: permission denied');
+        });
+        try {
+            expect(() => FileUtils.enforceFileCountLimit(dir, 0)).not.toThrow();
+        } finally {
+            vi.restoreAllMocks();
+        }
+        expect(fs.readdirSync(path.join(process.cwd(), dir))).toEqual(['a.txt']);
     });
 
     test('enforceFileCountLimit keeps all files when under the limit', () => {
