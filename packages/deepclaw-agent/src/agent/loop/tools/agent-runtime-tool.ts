@@ -1,5 +1,6 @@
 import {AgentRuntimeStatus} from "@deepclaw/core";
 import { ToolDesc } from "../../definitions/tool-definitions";
+import { AgentFeelingService } from "../../loop/services/agent-feeling-service";
 import { AgentIdentityManager } from "../../loop/services/agent-identity-manager";
 
 
@@ -55,6 +56,10 @@ export const updateAgentRuntimeTool: ToolDesc<UpdateAgentRuntimeInput> = {
             eventType: 'updateAgentRuntime',
             content: {agentId, mood, emotion}
         });
+        // Kept here as well, where the prompt can reach it. What went to the gateway went to the
+        // user, and a run that cannot see the card it put up there has no way of telling whether
+        // what it feels now is news.
+        AgentFeelingService.remember(agentId, {mood, emotion});
 
         return `Agent runtime status updated successfully`;
     },

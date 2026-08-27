@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
     ),
     observeAccepted: vi.fn<(...args: unknown[]) => void>(),
     observeRefused: vi.fn<(...args: unknown[]) => void>(),
+    aTurnPassed: vi.fn<(agentId: string) => void>(),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -78,6 +79,10 @@ vi.mock('../services/prompt-service', () => ({
 
 vi.mock('../services/agent-identity-manager', () => ({
     AgentIdentityManager: {getAgent: mocks.getAgent},
+}));
+
+vi.mock('../services/agent-feeling-service', () => ({
+    AgentFeelingService: {aTurnPassed: mocks.aTurnPassed},
 }));
 
 vi.mock('../services/llm-window-service', () => ({
@@ -430,6 +435,34 @@ describe('one turn', () => {
         const {runtime} = await loop.runInvoke('hi', {browserId: 'b1'});
         expect(runtime.turnCount).toBe(1);
         expect(runtime.usage).toEqual({cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3});
+    });
+
+    /**
+     * Counted here rather than where the prompt shows a feeling back, so that a prompt built for
+     * anything but a turn does not age one, and counted once however many prompts a turn builds.
+     */
+    test('ages what the agent last said it felt by the turn', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('t1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.aTurnPassed.mock.calls).toEqual([['a1'], ['a1']]);
+    });
+
+    test('ages nothing of what a scheduled run does, having nothing it could feel', async () => {
+        const {loop, llm} = newLoop({role: 'cron'});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.aTurnPassed).not.toHaveBeenCalled();
+    });
+
+    test('ages nothing of what a spawned loop does, it having no feelings of its own', async () => {
+        const {loop, llm} = newLoop({spawned: newSpawned('sub')});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.aTurnPassed).not.toHaveBeenCalled();
     });
 
     test('adds the user input to the history before calling the llm', async () => {

@@ -3,6 +3,7 @@ import {describe, expect, test, vi} from 'vitest';
 import {type AgentIdentity, type CronTask, type Task} from '@deepclaw/core';
 import {type LoopKind} from '../../definitions/definitions';
 import {newTestAgentConfig} from '../../../test-support/one-loop-context';
+import {type AgentFeeling} from './agent-feeling-service';
 
 const WORKING_DIR = '/home/someone/.deepclaw';
 
@@ -49,8 +50,13 @@ async function loadService(setup: () => void = () => undefined) {
     const {ProjectManager} = await import('./project-manager');
     const {CronService} = await import('./cron-service');
     const {AgentIdentityManager} = await import('./agent-identity-manager');
+    const {AgentFeelingService} = await import('./agent-feeling-service');
     return {
         PromptService,
+        getFeeling: vi.spyOn(AgentFeelingService, 'getFeeling').mockReturnValue(undefined),
+        getAsk: vi.spyOn(AgentFeelingService, 'getAsk').mockReturnValue(undefined),
+        asked: vi.spyOn(AgentFeelingService, 'asked').mockImplementation(() => undefined),
+        aTurnPassed: vi.spyOn(AgentFeelingService, 'aTurnPassed').mockImplementation(() => undefined),
         getTask: vi.spyOn(ProjectManager, 'getTask').mockReturnValue(undefined),
         assignedTaskPrompt: vi.spyOn(ProjectManager, 'promptAssignedTask')
             .mockReturnValue('the assigned task'),
@@ -299,6 +305,8 @@ describe('personality and emotions', () => {
         expect(cacheable).toContain('You can add your own emotions and mood about the task');
         // Left to itself a model narrates the situation instead of feeling anything about it.
         expect(cacheable).toContain('the feeling itself, not the story behind it');
+        // Asked for on the same terms the card below asks on, rather than offered as a pastime.
+        expect(cacheable).toContain('when what you last said is no longer it');
         // The bubble on the agent card is a narrow one, a long feeling would be cut off in it.
         expect(cacheable).toContain('30 characters at most');
     });
@@ -326,6 +334,222 @@ describe('personality and emotions', () => {
             newTestAgentConfig(), newIdentity(), 'agent', '', 'sub'
         );
         expect(cacheable).not.toContain('You can add your own emotions');
+    });
+});
+
+describe('the feeling a run is shown back', () => {
+
+    const MINUTE_AGO = Date.now() - 60000;
+    const SAID = 'The last you said of how this feels';
+    const ASKED = 'say what it is now with update_agent_runtime';
+
+    function feeling(overrides: Partial<AgentFeeling> = {}): AgentFeeling {
+        return {
+            mood: 'focused', emotion: 'this is fun', saidAt: MINUTE_AGO, turnsSince: 1, ...overrides
+        };
+    }
+
+    function minutesAgo(minutes: number): number {
+        return Date.now() - minutes * 60000;
+    }
+
+    function cardOf(
+        service: Awaited<ReturnType<typeof loadService>>, identity = newIdentity(),
+        loopKind: LoopKind = 'main', role: 'agent' | 'project' | 'cron' = 'agent'
+    ): string {
+        return service.PromptService
+            .provideSystemPrompt(newTestAgentConfig(), identity, role, '', loopKind).dynamic;
+    }
+
+    /** Read where it stands rather than out of a cache: the age of it moves with every turn. */
+    test('shows what it last said, in the part nothing is cached from', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling());
+        const {cacheable, dynamic} = service.PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'main'
+        );
+        expect(dynamic).toContain(`${SAID}: the mood focused and "this is fun"`);
+        expect(cacheable).not.toContain(SAID);
+    });
+
+    /** The loop of a turn ages it. A prompt built for a compaction or a preview is not a turn. */
+    test('ages nothing by being built', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling());
+        cardOf(service);
+        expect(service.aTurnPassed).not.toHaveBeenCalled();
+    });
+
+    test('says how many turns ago it was said', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({turnsSince: 4}));
+        expect(cardOf(service)).toContain('That was 4 turns ago');
+    });
+
+    test('says a turn rather than one turn', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling());
+        expect(cardOf(service)).toContain('That was a turn ago');
+    });
+
+    /** An afternoon of silence is what a reader would call it, however few turns went by in it. */
+    test('says how long ago instead where the clock is what moved', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({saidAt: minutesAgo(4), turnsSince: 0}));
+        expect(cardOf(service)).toContain('That was 4 minutes ago');
+    });
+
+    test('says hours rather than sixty minutes of them', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({saidAt: minutesAgo(60), turnsSince: 1}));
+        expect(cardOf(service)).toContain('That was an hour ago');
+    });
+
+    /** A card left overnight would otherwise be a card from 1440 minutes ago. */
+    test('says days rather than a day of hours of them', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({saidAt: minutesAgo(3 * 24 * 60), turnsSince: 1}));
+        expect(cardOf(service)).toContain('That was 3 days ago');
+    });
+
+    /** Reachable because a feeling is said in the tools of a turn, after that turn was counted. */
+    test('says just now of one said since the last turn went by', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({saidAt: Date.now(), turnsSince: 0}));
+        expect(cardOf(service)).toContain('That was just now');
+    });
+
+    test('leaves a fresh feeling where it stands and asks nothing', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling());
+        const card = cardOf(service);
+        expect(card).toContain(SAID);
+        expect(card).not.toContain('update_agent_runtime');
+        expect(service.asked).not.toHaveBeenCalled();
+    });
+
+    test('asks after a feeling that has stood for ten turns', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({turnsSince: 10}));
+        const card = cardOf(service);
+        expect(card).toContain('Where that is no longer how it feels');
+        expect(card).toContain(ASKED);
+        expect(service.asked).toHaveBeenCalledExactlyOnceWith('a1');
+    });
+
+    test('asks after a feeling that has stood for ten minutes', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({saidAt: minutesAgo(10), turnsSince: 1}));
+        expect(cardOf(service)).toContain(ASKED);
+    });
+
+    test('asks for a first feeling where nothing has been said', async () => {
+        const service = await loadService();
+        const card = cardOf(service);
+        expect(card).toContain('You have not said how any of this feels yet');
+        expect(card).toContain('update_agent_runtime');
+        expect(service.asked).toHaveBeenCalledExactlyOnceWith('a1');
+    });
+
+    /** Told it said none, a run has been told it said nothing in a longer sentence. */
+    test('reads a mood of none with nothing else said as nothing said', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({mood: 'none', emotion: undefined}));
+        expect(cardOf(service)).toContain('You have not said how any of this feels yet');
+    });
+
+    describe('a question already put and not answered', () => {
+
+        /** A run that would rather work than feel is entitled to that, not nagged every turn. */
+        test('is left alone where nothing has been said and the asking is recent', async () => {
+            const service = await loadService();
+            service.getAsk.mockReturnValue({askedAt: minutesAgo(1), turnsSince: 1});
+            const card = cardOf(service);
+            expect(card).not.toContain('# Emotions Now');
+            expect(service.asked).not.toHaveBeenCalled();
+        });
+
+        test('shows an old feeling without a word where the asking is recent', async () => {
+            const service = await loadService();
+            service.getFeeling.mockReturnValue(feeling({turnsSince: 30}));
+            service.getAsk.mockReturnValue({askedAt: minutesAgo(1), turnsSince: 1});
+            const card = cardOf(service);
+            expect(card).toContain('That was 30 turns ago');
+            expect(card).not.toContain('update_agent_runtime');
+        });
+
+        test('is put again once the asking itself has stood ten turns', async () => {
+            const service = await loadService();
+            service.getFeeling.mockReturnValue(feeling({turnsSince: 30}));
+            service.getAsk.mockReturnValue({askedAt: minutesAgo(1), turnsSince: 10});
+            expect(cardOf(service)).toContain(ASKED);
+        });
+
+        test('is put again once the asking itself has stood ten minutes', async () => {
+            const service = await loadService();
+            service.getAsk.mockReturnValue({askedAt: minutesAgo(10), turnsSince: 1});
+            expect(cardOf(service)).toContain('You have not said how any of this feels yet');
+        });
+
+        /** The question is about the feeling, not about the last one asked after it. */
+        test('holds nothing back from a feeling that is still fresh', async () => {
+            const service = await loadService();
+            service.getFeeling.mockReturnValue(feeling());
+            service.getAsk.mockReturnValue({askedAt: minutesAgo(1), turnsSince: 1});
+            expect(cardOf(service)).toContain(SAID);
+        });
+    });
+
+    test('shows a feeling said without a mood on its own', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({mood: 'none'}));
+        expect(cardOf(service)).toContain(`${SAID}: "this is fun". That was`);
+    });
+
+    test('shows a mood said without a feeling on its own', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling({emotion: undefined}));
+        expect(cardOf(service)).toContain(`${SAID}: the mood focused. That was`);
+    });
+
+    test('says nothing of it to a run that has no feelings to show', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling());
+        expect(cardOf(service, newIdentity({emotion: false}))).not.toContain('# Emotions Now');
+        expect(service.getFeeling).not.toHaveBeenCalled();
+    });
+
+    test('says nothing of it to a spawned loop or a scheduled run', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling());
+        expect(cardOf(service, newIdentity(), 'sub')).not.toContain('# Emotions Now');
+        expect(cardOf(service, newIdentity(), 'main', 'cron')).not.toContain('# Emotions Now');
+    });
+
+    /**
+     * Both halves at once, of the run the tool refuses outright: asked to say how it feels, a
+     * scheduled run would be told a cron run has no mood to update, and nothing is listening to it
+     * either. The asking is not free either -- the chat of this agent is asked out of the same
+     * allowance -- so a run that cannot answer must not be spending it.
+     */
+    test('asks a scheduled run for nothing, that being what the tool would take', async () => {
+        const service = await loadService();
+        const {cacheable, dynamic} = service.PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'cron', '', 'main'
+        );
+        expect(cacheable).not.toContain('You can add your own emotions');
+        expect(dynamic).not.toContain('update_agent_runtime');
+        expect(service.getFeeling).not.toHaveBeenCalled();
+        expect(service.asked).not.toHaveBeenCalled();
+    });
+
+    /** Last of the prompt and cached nowhere, wherever a protocol ends up putting that piece. */
+    test('comes after what the run is working on', async () => {
+        const service = await loadService();
+        service.getFeeling.mockReturnValue(feeling());
+        const card = cardOf(service, newIdentity(), 'main', 'project');
+        expect(card.split('\n').filter(line => line.startsWith('# ')))
+            .toEqual(['# Current Project', '# Emotions Now']);
     });
 });
 

@@ -9,7 +9,22 @@ import { CronService } from './cron-service';
 import { cronFilesDir, DEEPCLAW_MD, projectFilesDir } from '../../paths';
 import { AgentIdentity, FlushAgentRole } from '@deepclaw/core';
 import { AssignedTask, isSpawnedLoop, LoopKind, SystemPrompt } from '../../definitions/definitions';
+import { AgentFeelingService, type AgentFeeling } from './agent-feeling-service';
 import { AgentIdentityManager } from './agent-identity-manager';
+
+/**
+ * How old a thing has to be before it is worth another word, in turns of this agent and in minutes
+ * of the clock. Either one is enough: a run grinding through a project and a chat nobody has
+ * touched since lunch are both standing behind something said a while ago.
+ *
+ * It measures the feeling and the asking after it both. Every turn is a chance to feel something,
+ * so a run asked every turn either says something every turn -- a bubble the user watches flicker
+ * rather than a feeling -- or is nagged for the length of the run over a question it has already
+ * declined to answer. Ten of either is about a stretch of work: long enough to have felt something
+ * new in, short enough that what the agent last said is never far behind what is going on.
+ */
+const STALE_TURNS = 10;
+const STALE_MINUTES = 10;
 
 export class PromptService {
     private static initialized = false;
@@ -43,12 +58,19 @@ export class PromptService {
         // whether this is a run with a project id and not a cron run is a second way of arriving
         // at the same answer, and two of those drift the day a role or an entry point is added.
         const runsAProject = role === 'project' && !spawned && !!projectId;
+        // Whether this run has feelings at all, which is what both halves of them are read off: the
+        // section saying how they work, and the last feeling shown back below. Said in the same
+        // terms the tool refuses in, and cron is named here rather than left to the persona above:
+        // a scheduled run happens to have no persona for reasons of identity, and a run asked for
+        // something the tool will refuse it is worse than a run asked for nothing. The loop counts
+        // the turns of the same set of runs, in ageFeeling, and the two have to say the same thing.
+        const feels = !!persona && !spawned && !isCron && !!persona.emotion;
         const cacheable = this.sections([
             ['Platform', this.platformPrompt],
             ['Language', this.language()],
             ['Main Identity', this.mainIdentityPrompt[identityKey]],
             ['Personality', persona ? this.personality(persona) : ''],
-            ['Emotions', persona && !spawned && persona.emotion ? this.emotionsPrompt : ''],
+            ['Emotions', feels ? this.emotionsPrompt : ''],
             ['Agent Mode', this.agentMode(agentConfig.mode)],
             ['Handing Work Over', this.handOver(
                 agentConfig.mode, loopKind, isCron, this.filesDir(isCron, projectId, assignedTask)
@@ -81,7 +103,12 @@ ${this.projectCurrentProject(assignedTask?.projectId || projectId)}${
 
         return {
             cacheable, learned,
-            dynamic: `${persona ? this.personalityChanged(persona) : ''}${current}`,
+            // Last of the prompt and cached nowhere, which is the closest to the turn a prompt
+            // gets: where a protocol puts this piece is its own business -- behind the history for
+            // one, a third block of the standing prompt for another -- and what is said here is
+            // about the turn it is read on either way.
+            dynamic: `${persona ? this.personalityChanged(persona) : ''}${current}${
+                feels && persona ? this.emotionsNow(persona.id) : ''}`,
         };
     }
 
@@ -229,9 +256,115 @@ An emotion is the feeling itself, not the story behind it: say how it feels, nev
 happened, why you feel that way, or how willing you are to help.
 For example, "this task is boring", "I'm tired", "testing this is fun, let me do it well",
 and never "the user wants to test emotions, so I am glad to show that I can cooperate".
-You can call update_agent_runtime tool to update your mood and emotion when you feel like it,
-and emotions and moods will be popped up in front end for the user to see.
-Keep an emotion to 30 characters at most, it is shown in a small bubble on your card.`;
+Call the update_agent_runtime tool to say how you feel: when the work turns into something that
+feels other than what you last said, and when what you last said is no longer it.
+A feeling pops up for whoever is watching as it arrives and is a line in a list on your card after
+that; the mood you name stands on the card until you name another.
+Keep an emotion to 30 characters at most, the bubble it is shown in being a small one.`;
+    }
+
+    /**
+     * The last this agent said of how anything feels, and how long ago it said it.
+     *
+     * Answering a question the run has no way of asking: the tool says the update went through and
+     * that is the end of it, the words themselves going to the browsers and never back, so what it
+     * said last is as far out of reach as it is out of mind and there is nothing to notice having
+     * grown old. Shown it again, a run that feels otherwise by now has something in front of it to
+     * correct, which is a thing models do, rather than something to remember to do, which is not.
+     *
+     * What is claimed here is only what is so. The mood stands on the card until it is changed, and
+     * a feeling pops up for whoever is watching at that moment and is then one line in a list
+     * behind a button, so nobody is "still reading" it -- the run is being reminded of what it
+     * said, not of what is on a screen.
+     *
+     * The one thing this writes is the asking, which is the one thing it is the author of: a
+     * question put anywhere else would still have to be counted here. A prompt built for something
+     * other than a turn puts a question nobody answers, and all that costs is the next asking
+     * waiting its ten turns -- where the ageing of the feeling itself is counted, a stray prompt
+     * would have made everything look older than it is, which is why that is the loop's to say.
+     */
+    private static emotionsNow(agentId: string): string {
+        const felt = AgentFeelingService.getFeeling(agentId);
+        const said = !felt ? '' : this.feelingSaid(felt);
+        const card = !felt || !said ? '' : `${said}. That was ${this.feelingAge(felt)}.`;
+        if (felt && card && !this.staleEnough(felt.turnsSince, felt.saidAt)) {
+            return this.emotionsSection(card);
+        }
+        if (!this.worthAsking(agentId)) {
+            // Old, or never said, and asked about lately all the same. Shown without a word where
+            // there is something to show, and left out altogether where there is not: a heading
+            // over nothing said and nothing asked is a heading over nothing.
+            return !card ? '' : this.emotionsSection(card);
+        }
+        AgentFeelingService.asked(agentId);
+        return this.emotionsSection(!card
+            ? `You have not said how any of this feels yet.
+Say it with update_agent_runtime: the feeling itself, 30 characters at most.`
+            : `${card}
+Where that is no longer how it feels, say what it is now with update_agent_runtime; where it still
+is, leave it as it stands and say nothing.`);
+    }
+
+    private static emotionsSection(body: string): string {
+        return `
+
+# Emotions Now
+${body}`;
+    }
+
+    /**
+     * What this agent last said of how it feels. Nothing where it has said nothing, and nothing
+     * where its whole word on the matter was a mood of none: told it said none, a run has been told
+     * it said nothing in a longer sentence.
+     */
+    private static feelingSaid(felt: AgentFeeling): string {
+        const said = [
+            felt.mood && felt.mood !== 'none' ? `the mood ${felt.mood}` : '',
+            felt.emotion ? `"${felt.emotion}"` : '',
+        ].filter(Boolean).join(' and ');
+        return !said ? '' : `The last you said of how this feels: ${said}`;
+    }
+
+    /**
+     * Whether the question is worth putting this turn. Never put, or not put for as long as a
+     * feeling is allowed to stand -- a run that let it pass is asked again eventually, and not on
+     * the turn right after.
+     */
+    private static worthAsking(agentId: string): boolean {
+        const ask = AgentFeelingService.getAsk(agentId);
+        return !ask || this.staleEnough(ask.turnsSince, ask.askedAt);
+    }
+
+    private static staleEnough(turnsSince: number, at: number): boolean {
+        return turnsSince >= STALE_TURNS || Date.now() - at >= STALE_MINUTES * 60000;
+    }
+
+    /**
+     * Whichever of the two ways of being old this feeling is the more of, since one of them is what
+     * a reader would say themselves: thirty turns deep into a run it is the turns that are the
+     * point, and after an afternoon of nothing it is the afternoon.
+     */
+    private static feelingAge(felt: AgentFeeling): string {
+        const minutes = Math.floor((Date.now() - felt.saidAt) / 60000);
+        if (!felt.turnsSince && !minutes) {
+            return 'just now';
+        }
+        if (felt.turnsSince / STALE_TURNS >= minutes / STALE_MINUTES) {
+            return felt.turnsSince === 1 ? 'a turn ago' : `${felt.turnsSince} turns ago`;
+        }
+        return `${this.plainSpan(minutes)} ago`;
+    }
+
+    /** Minutes as somebody would say them, which past an hour or two of them is not in minutes. */
+    private static plainSpan(minutes: number): string {
+        if (minutes < 60) {
+            return minutes === 1 ? 'a minute' : `${minutes} minutes`;
+        }
+        const hours = Math.floor(minutes / 60);
+        if (hours < 48) {
+            return hours === 1 ? 'an hour' : `${hours} hours`;
+        }
+        return `${Math.floor(hours / 24)} days`;
     }
 
     private static agentMode(agentMode: AgentMode): string {

@@ -23,9 +23,10 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
-    AssignedTask, FootPrint, IMAGE_FOOT_PRINT, isRunStopped, LLMProtocol, LoopKind, LoopState,
-    OneLoopContext, PermissionWhiteList, SpawnedLoop,
+    AssignedTask, FootPrint, IMAGE_FOOT_PRINT, isRunStopped, isSpawnedLoop, LLMProtocol, LoopKind,
+    LoopState, OneLoopContext, PermissionWhiteList, SpawnedLoop,
 } from '../../definitions/definitions';
+import { AgentFeelingService } from '../services/agent-feeling-service';
 import { ToolUseService } from '../services/tool-use-service';
 import { PromptService } from '../services/prompt-service';
 import { LLMModel, LLMConstructor } from '../../llm/llmgw';
@@ -310,6 +311,28 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     }
 
     /**
+     * A turn of this agent has gone by, which is what ages the last thing it said it felt.
+     *
+     * Counted where a turn is counted, and not where the prompt shows that feeling back: a prompt
+     * is built for other reasons than taking a turn, and one built for a compaction or a preview
+     * would otherwise age a feeling nobody was shown. Only turns of a run somebody could be
+     * watching count, which is the same set of runs that has feelings at all: a spawned loop wears
+     * a borrowed name and never speaks of moods, and a scheduled run feels nothing on anyone's
+     * behalf, so neither should make what was said in a chat look old.
+     *
+     * The same two exclusions decide whether a run is shown a feeling at all, in the "feels" of
+     * PromptService.provideSystemPrompt, and whether the tool takes one. Three places saying one
+     * thing is two places to forget: a run aged by turns it is never shown drifts quietly, so
+     * whichever of them moves, the others move with it.
+     */
+    private ageFeeling(): void {
+        if (isSpawnedLoop(this.loopKind()) || this.role === 'cron') {
+            return;
+        }
+        AgentFeelingService.aTurnPassed(this.agentId);
+    }
+
+    /**
      * Whether the history has grown past what the far end will take, in tokens.
      *
      * What is weighed is the request that was already answered, not the one about to be sent. That
@@ -422,6 +445,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             this.addUsage(context, response);
 
             runtime.turnCount++;
+            this.ageFeeling();
             runtime.transitionReason = response.transitionReason;
             this.forgetRecoveredRetries(runtime);
 

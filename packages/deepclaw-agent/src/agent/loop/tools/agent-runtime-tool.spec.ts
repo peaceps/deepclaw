@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentIdentity} from '@deepclaw/core';
 import {newTestContext} from '../../../test-support/one-loop-context';
+import {AgentFeelingService} from '../services/agent-feeling-service';
 import {AgentIdentityManager} from '../services/agent-identity-manager';
 import {updateAgentRuntimeTool} from './agent-runtime-tool';
 
@@ -11,6 +12,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
 }));
 
 const getAgent = vi.spyOn(AgentIdentityManager, 'getAgent');
+const remember = vi.spyOn(AgentFeelingService, 'remember').mockImplementation(() => {});
 
 function newIdentity(overrides: Partial<AgentIdentity> = {}): AgentIdentity {
     return {
@@ -73,11 +75,34 @@ describe('updateAgentRuntimeTool invoke', () => {
         );
     });
 
+    /**
+     * The card that went up is out of the run's sight from here on, and the prompt is what shows it
+     * back: what the browsers were told and what the run is told it said have to be the one thing.
+     */
+    test('keeps what it said where the prompt can show it back', async () => {
+        const context = newTestContext();
+        await updateAgentRuntimeTool.invoke({mood: 'happy', emotion: 'this is fun'}, context);
+        expect(remember).toHaveBeenCalledExactlyOnceWith('a1', {mood: 'happy', emotion: 'this is fun'});
+        // The one call, and the same words in both places. Two copies of a feeling that drift are
+        // a run corrected over something the user never read.
+        const {content} = vi.mocked(context.actions.agentHandler.onInfoEvent).mock.calls[0]![0] as
+            {content: {agentId: string; mood?: string; emotion?: string}};
+        expect(remember).toHaveBeenCalledWith(content.agentId, {
+            mood: content.mood, emotion: content.emotion
+        });
+    });
+
+    test('keeps it under the agent running the loop, not the one it stands in for', async () => {
+        await updateAgentRuntimeTool.invoke({mood: 'focused'}, newTestContext({agentId: 'a1', personaId: 'a2'}));
+        expect(remember).toHaveBeenCalledExactlyOnceWith('a1', {mood: 'focused', emotion: undefined});
+    });
+
     test('says there is nothing to do when the call carries neither mood nor emotion', async () => {
         const context = newTestContext();
         const result = await updateAgentRuntimeTool.invoke({}, context);
         expect(result).toBe('Nothing to update: neither mood nor emotion is provided.');
         expect(context.actions.agentHandler.onInfoEvent).not.toHaveBeenCalled();
+        expect(remember).not.toHaveBeenCalled();
     });
 
     test('keeps quiet for a scheduled run, whatever it thinks it feels', async () => {
@@ -85,6 +110,7 @@ describe('updateAgentRuntimeTool invoke', () => {
         const result = await updateAgentRuntimeTool.invoke({mood: 'tired', emotion: 'late shift'}, context);
         expect(result).toBe('A cron run carries no mood of its own, so there is nothing to update.');
         expect(context.actions.agentHandler.onInfoEvent).not.toHaveBeenCalled();
+        expect(remember).not.toHaveBeenCalled();
     });
 
     test('keeps quiet for an agent whose emotions are switched off', async () => {
@@ -93,6 +119,7 @@ describe('updateAgentRuntimeTool invoke', () => {
         const result = await updateAgentRuntimeTool.invoke({mood: 'happy'}, context);
         expect(result).toBe('Agent a1 has emotions switched off, so there is nothing to update.');
         expect(context.actions.agentHandler.onInfoEvent).not.toHaveBeenCalled();
+        expect(remember).not.toHaveBeenCalled();
     });
 
     test('keeps quiet for an agent nobody knows', async () => {

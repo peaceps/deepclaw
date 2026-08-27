@@ -188,6 +188,27 @@ already said to arrive -- and the return key needs neither button. a word sent i
 into a chat that was still empty, and the history landing a beat later was put in behind what was
 already held, so the newest thing said sat above everything that came before it. the box now waits
 along with the two buttons.
+an agent is now shown what it last said it felt, and asked about it once that has stood for a while.
+having feelings was an offer and nothing more -- say how it feels when you feel like it -- and an
+offer is what gets skipped by anything with work in front of it: a run would say something once,
+near the start or when reminded, and then go quiet for a hundred turns. the reason it went quiet is
+that nothing ever came back to it. the tool says the update went through, the words go off to the
+browsers and never back, so there was never anything in front of the run to have grown old and
+nothing to correct -- only something to remember to do, which is the thing a model is worst at. so
+the last mood and feeling it said, and how long ago it said them, now go out with every turn, in the
+piece of the prompt that is cached nowhere and stands closest to the turn. under ten turns and ten
+minutes old it is shown and left at that. past either of those it is shown with a question: where
+that is no longer how it feels, say what it is, and where it still is, leave it and say nothing. two
+ways of being old because a chat left alone since lunch and a run that ground through thirty turns
+in five minutes are both standing behind something said in another life, and neither is measured by
+the other. a question nobody answers waits its own ten turns or ten minutes before being put again,
+since a run asked every turn either says something every turn -- a bubble the user watches flicker
+rather than a feeling -- or is nagged for the length of a run over something it has already
+declined. what ages it is the turns of a run somebody could be watching: a spawned loop wears a
+borrowed name and never speaks of moods, a scheduled run feels nothing on anyone's behalf, and
+neither makes what was said in a chat look old, nor is either of them asked how it feels.
+the three dots on the agent header and on the task owner tooltip are hidden, and praise and criticize
+with them. the menu is commented out for feature implementation.
 
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a
