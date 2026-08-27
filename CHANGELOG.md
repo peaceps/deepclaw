@@ -88,6 +88,38 @@ lines nobody can read again, so the pid is in the name and the process is asked 
 file goes. and none of this can stop a line from being logged: the first line a process writes is
 usually one in a catch block, where an error about the state of the log folder would take the place
 of the error being reported.
+the record of a scheduled task no longer grows without end. it was the one thing here that grew with
+time rather than with use -- nobody has to touch a task for it to keep running, and every run wrote a
+line that was never taken away -- and the whole of it was read into memory at startup and held there:
+a task running every five minutes wrote three and a half gigabytes of it in a year. it is kept in
+files of two hundred runs now, twenty five of them, and only the last forty runs of a task stay in
+memory, the rest being read back off the disk when somebody pages past them. which file to read is
+answered by its name, so paging back a year does not read a year. five thousand runs remain readable
+-- thirteen years of a daily task, seventeen days of one running every five minutes -- and what a
+task recorded is the only memory a run has of the runs before it, so this is a limit on how far back
+a digest can look rather than a housekeeping detail. a record left over as one file is put into those
+files the first time it is opened, keeping the runs that would have been kept anyway; nothing is
+destroyed until it has been written elsewhere, so a start that fails partway leaves the record where
+it was and the next one does the same work again. a record written across years holds the odd half
+line, from a process killed while appending one, and such a line now costs the run it was recording
+and nothing else: before it could take the whole of what it was read with, which was a task's window,
+or a file of two hundred runs, or -- when it fell where a file takes its name from -- every attempt
+that record would ever get at being put into files, leaving it to be read whole ever after. reading
+the end of a record is now held to what it may take in bytes as well as in lines, a count of lines
+bounding nothing where one run signs off in a word and another files a page of prose: the five
+thousand that are a megabyte in one record are hundreds of megabytes in another, and reading them to
+keep them was being asked of the machine least able to spare it, since a record usually breaks in the
+first place because the disk it is on is full. so a read stops on the last whole line it can afford,
+and a record fat enough to reach that carries fewer runs into its files than five thousand -- the
+same bargain as the five thousand, struck against the measure that means something.
+a cron page shows twenty runs at a time rather than ten, on the first screen and on a page back
+alike, which is a week of a daily task on one screen instead of half of one. what pays for it is that
+what a run said of itself, which no page shows, is no longer sent to the browser at all: it is the
+largest thing a record carries, and it went out with every record on every push. what reads it is the
+model, through the tool for reading it, and that is untouched. an answer about a task carries twenty
+runs for the same reason, and a report standing in one has half the room it had -- room enough is
+still what most runs sign off in, and one that went on at length was already read where reports are
+read.
 
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a

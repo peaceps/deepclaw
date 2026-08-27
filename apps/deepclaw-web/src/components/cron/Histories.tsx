@@ -2,12 +2,14 @@ import { useTranslation } from 'react-i18next';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDate } from '@/components/component-utils';
-import type { CronJobHistory, CronTask } from '@deepclaw/core';
+import { MAX_DISPLAY_HISTORIES, type CronJobHistory, type CronTask } from '@deepclaw/core';
 import { getCronHistories } from '@/server/data';
 import { TokenUsageIcon } from '@/laf/token-usage';
 import { TaskOutput } from '@/laf/task-output';
 
-const PAGE_SIZE = 10;
+// The same count the server cuts a page to. A copy of it here that drifted would ask for a page of
+// one size, be answered with another, and read the difference as the record having run out.
+const PAGE_SIZE = MAX_DISPLAY_HISTORIES;
 const SCROLL_THRESHOLD = 80;
 
 type HistoriesProps = {

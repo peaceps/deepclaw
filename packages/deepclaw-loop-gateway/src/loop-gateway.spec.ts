@@ -9,11 +9,21 @@ import {
     isLoopStreamEvent, type InvokeSource, type LoopGatewayEvent, type LoopInfo
 } from './loop-gateway-types';
 
+/**
+ * The gateway subscribes to cron once for the life of the process, so the call that carried the
+ * subscriber is recorded in whichever test ran `initGateway` first and cleared away before the next.
+ * Held here instead, where `clearAllMocks` does not reach.
+ */
+const cron = vi.hoisted(() => ({subscriber: undefined as ((task: unknown) => void) | undefined}));
+
 const mocks = vi.hoisted(() => ({
     getLoop: vi.fn<(role: string, agentId: string, projectId: string, handler: AgentHandler) => unknown>(
         () => undefined
     ),
-    cronSubscribe: vi.fn<(cb: (task: CronTask) => void) => () => void>(() => () => undefined),
+    cronSubscribe: vi.fn<(cb: (task: CronTask) => void) => () => void>(cb => {
+        cron.subscriber = cb as (task: unknown) => void;
+        return () => undefined;
+    }),
     mcpConnect: vi.fn(),
     getTokenUsage: vi.fn(),
     newAgentIdentity: vi.fn(),
@@ -1015,6 +1025,49 @@ describe('delegations', () => {
     test('pauses and closes a cron task through the cron service', () => {
         LoopGateway.updateCronTaskStatus('c1', true, false);
         expect(mocks.updateCronTaskStatus).toHaveBeenCalledWith({id: 'c1', pause: true, close: false});
+    });
+
+    /**
+     * The report a run wrote is the largest thing a record carries and nothing in the web app shows
+     * it, so it does not go over the wire. Every way a record reaches a browser has to leave it out,
+     * or the one that forgot to would carry it all by itself.
+     */
+    describe('the report a run wrote', () => {
+
+        const history = {
+            start: 1000, completed: 2000, status: 'success' as const, finalText: 'the whole report',
+            usage: {cachedInputTokens: 0, noCachedInputTokens: 0, outputTokens: 0},
+        };
+
+        test('is not in a listed task', () => {
+            mocks.getCronTasks.mockReturnValue([{id: 'c1', title: 'nightly', histories: [history]}]);
+            const [task] = LoopGateway.getCronTasks();
+            expect(task!.histories[0]).not.toHaveProperty('finalText');
+            expect(task!.histories[0]).toMatchObject({start: 1000, status: 'success'});
+        });
+
+        test('is not in a page of histories', () => {
+            mocks.getCronHistories.mockReturnValue([history]);
+            expect(LoopGateway.getCronHistories('c1', 1234, 10)[0]).not.toHaveProperty('finalText');
+        });
+
+        test('is not in the update pushed when a run starts or ends', () => {
+            LoopGateway.initGateway();
+            cron.subscriber!({id: 'c1', histories: [history]});
+            const pushed = events.find(event => event.eventType === 'updateCron') as {
+                content: {histories: unknown[]}
+            };
+            expect(pushed.content.histories[0]).not.toHaveProperty('finalText');
+            expect(pushed.content.histories[0]).toMatchObject({start: 1000, status: 'success'});
+        });
+
+        test('leaves an update carrying no histories alone', () => {
+            LoopGateway.initGateway();
+            cron.subscriber!({id: 'c1', nextRun: 'tomorrow'});
+            expect(events).toContainEqual(
+                {eventType: 'updateCron', content: {id: 'c1', nextRun: 'tomorrow'}}
+            );
+        });
     });
 
     test('reads the token usage of a loop from the session service', () => {

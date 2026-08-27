@@ -1,10 +1,11 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type CronJobHistory, type CronTask} from '@deepclaw/core';
 import {newTestContext} from '../../../test-support/one-loop-context';
-import {CronService, MAX_DISPLAY_HISTORIES} from '../services/cron-service';
+import {TRUNCATE_THRESHOLD} from '../../loop-utils';
+import {CronService} from '../services/cron-service';
 import {
-    createCronTaskTool, getCronHistoriesTool, HISTORIES_READ_MAX, updateCronOutputTool,
-    updateCronTaskTool
+    createCronTaskTool, getCronHistoriesTool, HISTORIES_READ_MAX, REPORT_HISTORIES,
+    REPORT_KEPT_LENGTH, updateCronOutputTool, updateCronTaskTool
 } from './cron-tool';
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -32,12 +33,18 @@ function newHistory(overrides: Partial<CronJobHistory> = {}): CronJobHistory {
     };
 }
 
+/** The runs of the task as the service answers for them, which is newest first. Given oldest first. */
+function recorded(histories: CronJobHistory[]): void {
+    getCronHistories.mockReturnValue([...histories].reverse());
+}
+
 describe('createCronTaskTool invoke', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
         createCronTask.mockReturnValue(cronTask());
         getCronTaskDetail.mockReturnValue(cronTask({histories: []}));
+        recorded([]);
     });
 
     test('creates the task with the current agent as its creator', async () => {
@@ -63,6 +70,7 @@ describe('updateCronTaskTool invoke', () => {
         vi.clearAllMocks();
         updateCronTask.mockReturnValue(cronTask());
         getCronTaskDetail.mockReturnValue(cronTask({histories: []}));
+        recorded([]);
     });
 
     test('forwards the patch untouched to the service', async () => {
@@ -78,9 +86,7 @@ describe('updateCronTaskTool invoke', () => {
 
     /** A patch of the schedule is no reason to read every report of the task back. */
     test('leaves what the runs reported out of the answer', async () => {
-        getCronTaskDetail.mockReturnValue(cronTask({
-            histories: [newHistory({output: {type: 'markdown', content: '# the whole digest'}})],
-        }));
+        recorded([newHistory({output: {type: 'markdown', content: '# the whole digest'}})]);
         const result = await updateCronTaskTool.invoke({id: 'c1', cron: '0 9 * * 1'}, newTestContext());
         expect(result).not.toContain('the whole digest');
         expect(result).toContain('<Output kept, read it with get_cron_histories>');
@@ -93,6 +99,7 @@ describe('updateCronOutputTool invoke', () => {
         vi.clearAllMocks();
         updateCronOutput.mockReturnValue({skipped: []});
         getCronTaskDetail.mockReturnValue(cronTask({histories: []}));
+        recorded([]);
     });
 
     test('stores the output on the task', async () => {
@@ -105,7 +112,29 @@ describe('updateCronOutputTool invoke', () => {
         const result = await updateCronOutputTool.invoke(
             {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
         );
-        expect(result).toContain(`last max ${MAX_DISPLAY_HISTORIES} histories`);
+        expect(result).toContain(`last max ${REPORT_HISTORIES} histories`);
+    });
+
+    /**
+     * The task as the service hands it out has already been cut to what a page of the ui shows, so
+     * runs taken off it would make this count the smaller of the two and nothing else: raising it
+     * would do nothing, while the share of one report, worked out by dividing by it, would shrink to
+     * match runs that never arrived.
+     */
+    test('asks for the runs it carries rather than taking the ones a page shows', async () => {
+        await updateCronOutputTool.invoke(
+            {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
+        );
+        expect(getCronHistories)
+            .toHaveBeenCalledExactlyOnceWith('c1', Number.MAX_SAFE_INTEGER, REPORT_HISTORIES);
+    });
+
+    test('carries the runs oldest first, the way the record reads', async () => {
+        recorded([newHistory({start: 1}), newHistory({start: 2})]);
+        const result = await updateCronOutputTool.invoke(
+            {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
+        );
+        expect(result.indexOf('"start":1')).toBeLessThan(result.indexOf('"start":2'));
     });
 
     /** The files are what to hand over, the output is what is kept: they travel apart. */
@@ -132,10 +161,10 @@ describe('updateCronOutputTool invoke', () => {
      * back together they crowd everything else out of the answer, or truncate the whole of it.
      */
     test('leaves what the runs reported out of the answer', async () => {
-        getCronTaskDetail.mockReturnValue(cronTask({histories: [
+        recorded([
             newHistory({output: {type: 'markdown', content: '# the digest of monday'}}),
             newHistory({start: 1755086400000, finalText: 'nothing new to report'}),
-        ]}));
+        ]);
         const result = await updateCronOutputTool.invoke(
             {id: 'c1', output: {type: 'markdown', content: '# the digest of tuesday'}}, newTestContext()
         );
@@ -150,9 +179,7 @@ describe('updateCronOutputTool invoke', () => {
      * this answer as the record shows, so one that went on at length is read where reports are read.
      */
     test('leaves the words of a run that went on at length out of the answer', async () => {
-        getCronTaskDetail.mockReturnValue(cronTask({
-            histories: [newHistory({finalText: 'a'.repeat(2000)})],
-        }));
+        recorded([newHistory({finalText: 'a'.repeat(2000)})]);
         const result = await updateCronOutputTool.invoke(
             {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
         );
@@ -160,13 +187,53 @@ describe('updateCronOutputTool invoke', () => {
         expect(result).toContain('<Report kept, read it with get_cron_histories>');
     });
 
+    /**
+     * The share of one report is the budget divided by how many runs stand in the answer, and the
+     * two cannot both be written down: a count raised against a share left where it was buys an
+     * answer past what a read holds, filed away whole and handed back as a preview of itself, which
+     * is a worse answer than fewer runs and the way to the rest of them.
+     */
+    test('answers within what a read holds however talkative every run was', async () => {
+        recorded(Array.from({length: REPORT_HISTORIES}, (_, index) => newHistory({
+            start: 1755000000000 + index,
+            // As long as a report can be and still stand in the answer, which is the worst the
+            // budget ever has to carry.
+            finalText: 'a'.repeat(REPORT_KEPT_LENGTH),
+        })));
+        const result = await updateCronOutputTool.invoke(
+            {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
+        );
+        expect(result.length).toBeLessThan(TRUNCATE_THRESHOLD);
+        expect(result).not.toContain('<Report kept, read it with get_cron_histories>');
+    });
+
+    /**
+     * The share is where a report stops standing in the answer, not where it is cut off: either the
+     * whole of it is carried or none of it is, and reading it as a length to truncate to would make
+     * the budget above hold for reports it does not.
+     */
+    test('carries a report up to the share whole and one past it not at all', async () => {
+        const under = 'u'.repeat(REPORT_KEPT_LENGTH);
+        const over = 'o'.repeat(REPORT_KEPT_LENGTH + 1);
+        recorded([
+            newHistory({start: 1755000000000, finalText: under}),
+            newHistory({start: 1755000000001, finalText: over}),
+        ]);
+        const result = await updateCronOutputTool.invoke(
+            {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
+        );
+        expect(result).toContain(under);
+        expect(result).not.toContain(over.slice(0, 20));
+        expect(result).toContain('<Report kept, read it with get_cron_histories>');
+    });
+
     /** An output already filed away has no words left in it, and the path is how it is read. */
     test('leaves an output that was filed away as it lies', async () => {
-        getCronTaskDetail.mockReturnValue(cronTask({histories: [newHistory({output: {
+        recorded([newHistory({output: {
             type: 'markdown',
             content: '<Content saved to file>',
             path: '/api/file/cron/c1/output/1755000000000.md',
-        }})]}));
+        }})]);
         const result = await updateCronOutputTool.invoke(
             {id: 'c1', output: {type: 'text', content: 'done'}}, newTestContext()
         );

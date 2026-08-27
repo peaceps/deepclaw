@@ -47,6 +47,7 @@ type LoopState = {
     /** One per run, handed to the loop so that a stop reaches whatever the run is waiting on. */
     controller?: AbortController;
 };
+
 type LoopStore = Record<string, LoopState>;
 export type DeepclawDataInfo = {
     agents: AgentEmployee[], projects: Project[], runningTasks: RunningTask[], busyLoops: string[],
@@ -73,7 +74,9 @@ class LoopGatewayImpl {
 
     public static initGateway(): void {
         if (this.cronUnsubscriber) return;
-        this.cronUnsubscriber = CronService.subscribe(task => this.fireSSEEvent({eventType: 'updateCron', content: task}));
+        this.cronUnsubscriber = CronService.subscribe(
+            task => this.fireSSEEvent({eventType: 'updateCron', content: this.cronTaskForBrowser(task)})
+        );
         MCPService.connect();
     }
 
@@ -560,15 +563,47 @@ class LoopGatewayImpl {
     }
 
     public static getCronTasks(): CronTask[] {
-        return CronService.getCronTasks();
+        return CronService.getCronTasks().map(task => this.cronTaskForBrowser(task));
     }
 
     public static getCronHistories(id: string, beforeStart: number, limit?: number): CronJobHistory[] {
-        return CronService.getCronHistories(id, beforeStart, limit);
+        return CronService.getCronHistories(id, beforeStart, limit)
+            .map(history => this.historyForBrowser(history));
     }
 
     public static updateCronTaskStatus(id: string, pause?: boolean, close?: boolean): void {
         CronService.updateCronTaskStatus({id, pause, close});
+    }
+
+    /**
+     * A task on its way to a browser, with what no browser reads left out.
+     *
+     * Done here rather than where the runs are recorded because `finalText` is not dead weight
+     * everywhere: it is the report itself, and the tool a run reads its own past with is served the
+     * same records by the same service. This is the boundary the browser is on, and the only one
+     * where leaving it out is safe.
+     */
+    private static cronTaskForBrowser<T extends {histories?: CronJobHistory[] | null}>(task: T): T {
+        return task.histories
+            ? {...task, histories: task.histories.map(history => this.historyForBrowser(history))}
+            : task;
+    }
+
+    /**
+     * One run of a task as a browser gets it: the report it wrote is not sent.
+     *
+     * Nothing in the web app reads it -- a run is shown by its output and its usage -- and it is the
+     * largest field a record has, a run that reported at length carrying kilobytes of prose that go
+     * over the wire on every push and every page. What wants it is the model, through its own tool,
+     * and that path does not come through here.
+     */
+    private static historyForBrowser(history: CronJobHistory): CronJobHistory {
+        // Everything but the one field, rather than a list of the fields to keep: a field added
+        // later reaches the browser on its own, and forgetting to add it here would be the quieter
+        // mistake.
+        const forBrowser = {...history};
+        delete forBrowser.finalText;
+        return forBrowser;
     }
 
     public static getDataInfo(): DeepclawDataInfo {

@@ -3,6 +3,40 @@ import os from 'os';
 import path from 'path';
 import { createHash } from 'crypto';
 
+/** How much of the end of a file is read at once when only its last lines are wanted. */
+const TAIL_BLOCK_BYTES = 64 * 1024;
+
+/**
+ * How many bytes a read of the last lines may take, whatever the count asked for comes to.
+ *
+ * A count of lines is not a bound on anything when a line has no bound: a record of runs that each
+ * wrote a page of prose runs to tens of kilobytes a line, and the same five thousand lines that are
+ * a megabyte in one file are hundreds of megabytes in another. What the bytes then cost is more than
+ * themselves, and it is spent on the machine this whole scheme exists to protect, since what usually
+ * breaks the writing of such a file is a disk with nothing left on it.
+ *
+ * More than themselves by some four times over, this being a bound on what is read and not on what
+ * is held. A read that reaches it holds four of itself at once: the blocks walked back over, the
+ * buffer they are joined into, the string that decodes to, and the lines that splits into. The
+ * first two are the bytes exactly; the last two are the bytes again where the content is ascii and
+ * a string can be kept to a byte a character, and up to twice that where one character outside
+ * latin-1 anywhere in the file -- a single chinese word will do -- makes the whole string two-byte.
+ * Thirty two megabytes read is therefore something like a hundred and fifty held, and what is held
+ * is what the machine being protected feels.
+ *
+ * The figure stays where it is regardless. It is a ceiling no ordinary record comes near, five
+ * thousand runs signing off in a sentence being a megabyte of them, so lowering it until the
+ * arithmetic came out at the name would buy that headroom by cutting how far back the few records
+ * that do reach it can be read.
+ *
+ * So the count is what is wanted and this is what is affordable, and a read that reaches this stops
+ * on the last whole line it has. A caller asking for lines it does not get is a caller carrying less
+ * of a very fat record than it meant to, which is the loss worth taking against not running at all.
+ */
+const TAIL_BUDGET_BYTES = 32 * 1024 * 1024;
+
+const LINE_BREAK = 0x0a;
+
 export class FileUtils {
 
     /** A moment as a name a file or a folder can carry, which sorts the way the clock ran. */
@@ -30,6 +64,63 @@ export class FileUtils {
             throw new Error(`File ${filePath} not found.`);
         }
         return fs.readFileSync(absolutePath, 'utf8');
+    }
+
+    /**
+     * The last lines of a file, without reading what comes before them.
+     *
+     * Which is the whole point: a record that is only ever appended to and only ever read from the
+     * end has no size at which reading all of it to keep the last forty is reasonable, and a file
+     * that has grown to gigabytes is one a startup cannot afford to hold in memory even for the
+     * moment it takes to throw the front of it away.
+     *
+     * Read backwards a block at a time until one more line break has gone by than there are lines
+     * wanted -- one more, because the break before a line is the only thing that says the line is
+     * whole rather than the tail of a longer one -- or until `TAIL_BUDGET_BYTES` have been read,
+     * whichever comes first. Blank lines are dropped, so a record ending in a break, as an appended
+     * one does, does not answer with an empty last line.
+     *
+     * Whatever stopped the walk, it stopped somewhere in the middle of the file rather than at a
+     * line, so what the read begins with is the tail of a line rather than a line. It goes: in the
+     * ordinary case it would have gone anyway, there being more whole lines behind it than were
+     * asked for, and in the case the budget cut short it is the difference between the lines being
+     * whole and the oldest of them being half of one.
+     */
+    public static readTailLines(filePath: string, count: number): string[] {
+        if (count <= 0) {
+            return [];
+        }
+        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(filePath));
+        if (!fs.existsSync(absolutePath)) {
+            return [];
+        }
+        const fd = fs.openSync(absolutePath, 'r');
+        try {
+            let position = fs.fstatSync(fd).size;
+            const blocks: Buffer[] = [];
+            let breaks = 0;
+            let read = 0;
+            while (position > 0 && breaks <= count && read < TAIL_BUDGET_BYTES) {
+                const size = Math.min(TAIL_BLOCK_BYTES, position);
+                position -= size;
+                const block = Buffer.alloc(size);
+                fs.readSync(fd, block, 0, size, position);
+                // Kept whole and decoded at the end: a character of utf-8 can straddle the seam
+                // between two blocks, and each half of one decodes to nothing either side of it.
+                blocks.unshift(block);
+                read += size;
+                for (let at = block.indexOf(LINE_BREAK); at !== -1; at = block.indexOf(LINE_BREAK, at + 1)) {
+                    breaks++;
+                }
+            }
+            const lines = Buffer.concat(blocks).toString('utf8').split('\n');
+            if (position > 0) {
+                lines.shift();
+            }
+            return lines.filter(Boolean).slice(-count);
+        } finally {
+            fs.closeSync(fd);
+        }
     }
 
     /**
@@ -131,6 +222,20 @@ export class FileUtils {
      */
     public static deleteDir(filePath: string): void {
         fs.rmSync(this.getAbsolutePath(this.sanitizeFileName(filePath)), {force: true, recursive: true});
+    }
+
+    /**
+     * The files directly under this one, by name and nothing else. Which is the difference from
+     * `readDir`: a folder of files too big to want in memory can still be asked what it holds.
+     */
+    public static listFiles(dirPath: string): string[] {
+        const absolutePath = this.getAbsolutePath(this.sanitizeFileName(dirPath));
+        if (!fs.existsSync(absolutePath)) {
+            return [];
+        }
+        return fs.readdirSync(absolutePath, {withFileTypes: true})
+            .filter(entry => entry.isFile())
+            .map(entry => entry.name);
     }
 
     /** The folders directly under this one, by name. A path that is not there holds none. */

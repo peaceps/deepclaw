@@ -35,6 +35,77 @@ describe('FileUtils', () => {
         expect(() => FileUtils.readFile('missing/file.txt')).toThrow('not found');
     });
 
+    test('listFiles names the files of a folder and leaves the folders out', () => {
+        FileUtils.writeFile('tmp/listed/one.jsonl', 'a\n');
+        FileUtils.writeFile('tmp/listed/two.jsonl', 'b\n');
+        FileUtils.writeFile('tmp/listed/under/three.jsonl', 'c\n');
+        expect(FileUtils.listFiles('tmp/listed').sort()).toEqual(['one.jsonl', 'two.jsonl']);
+        expect(FileUtils.listFiles('tmp/listed/nowhere')).toEqual([]);
+    });
+
+    describe('readTailLines', () => {
+
+        function record(name: string, lines: string[], trailingBreak = true): string {
+            const file = `tmp/tail/${name}.jsonl`;
+            FileUtils.writeFile(file, lines.join('\n') + (trailingBreak ? '\n' : ''));
+            return file;
+        }
+
+        test('returns the last lines in the order they were written', () => {
+            const file = record('short', ['one', 'two', 'three', 'four']);
+            expect(FileUtils.readTailLines(file, 2)).toEqual(['three', 'four']);
+        });
+
+        test('returns every line when fewer were written than asked for', () => {
+            const file = record('fewer', ['one', 'two']);
+            expect(FileUtils.readTailLines(file, 10)).toEqual(['one', 'two']);
+        });
+
+        test('reads a file whose last line has no break after it', () => {
+            const file = record('unterminated', ['one', 'two', 'three'], false);
+            expect(FileUtils.readTailLines(file, 2)).toEqual(['two', 'three']);
+        });
+
+        test('does not answer with half of a line', () => {
+            // Lines big enough that the three wanted do not fit in one read, so the last block ends
+            // partway through a line: the break in front of it is the only thing that says the line
+            // is whole rather than the tail of a longer one.
+            const lines = Array.from({length: 6}, (_, index) => `${index}:${'x'.repeat(30000)}`);
+            const file = record('blocks', lines);
+            expect(FileUtils.readTailLines(file, 3)).toEqual(lines.slice(-3));
+        });
+
+        test('reads a character that straddles the seam between two blocks', () => {
+            // Three of these span more than one read, and the seam lands mid character: each half of
+            // one decodes to nothing on its own, so the blocks have to be joined before decoding.
+            const lines = Array.from({length: 6}, (_, index) => `${index}:${'汉'.repeat(10000)}`);
+            const file = record('utf8', lines);
+            expect(FileUtils.readTailLines(file, 3)).toEqual(lines.slice(-3));
+        });
+
+        test('drops the blank lines a record picked up', () => {
+            const file = record('blank', ['one', '', 'two', '', '', 'three']);
+            expect(FileUtils.readTailLines(file, 2)).toEqual(['two', 'three']);
+        });
+
+        test('stops at what a read may take, a count of lines bounding nothing on its own', () => {
+            // Forty lines of a megabyte is forty megabytes, and the count that is a megabyte in one
+            // record is hundreds of them in a record whose runs each wrote a page of prose.
+            const lines = Array.from({length: 40}, (_, index) => `${index}:${'x'.repeat(1024 * 1024)}`);
+            const tail = FileUtils.readTailLines(record('budget', lines), 40);
+            expect(tail.length).toBeGreaterThan(0);
+            expect(tail.length).toBeLessThan(40);
+            // Fewer lines than were asked for, and every one of them whole and in its place.
+            expect(tail).toEqual(lines.slice(-tail.length));
+        });
+
+        test('answers nothing for a file that is not there, or for no lines at all', () => {
+            expect(FileUtils.readTailLines('tmp/tail/ghost.jsonl', 5)).toEqual([]);
+            expect(FileUtils.readTailLines(record('none', ['one']), 0)).toEqual([]);
+            expect(FileUtils.readTailLines(record('empty', []), 5)).toEqual([]);
+        });
+    });
+
     test('isPathInWorkspace returns true for local path', () => {
         const localPath = path.join(process.cwd(), 'tmp', 'nested', 'note.md');
         expect(FileUtils.isPathInWorkspace(localPath)).toBe(true);

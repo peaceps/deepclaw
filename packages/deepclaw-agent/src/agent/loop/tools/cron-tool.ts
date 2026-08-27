@@ -2,7 +2,7 @@ import type { CronJobHistory, LLMTaskOutput } from "@deepclaw/core";
 import { FileStore } from "@deepclaw/node-utils";
 import { OneLoopContext } from "../../definitions/definitions";
 import { ToolDesc } from "../../definitions/tool-definitions";
-import { CronService, MAX_DISPLAY_HISTORIES } from "../services/cron-service";
+import { CronService } from "../services/cron-service";
 import {
     EXT_DESCRIPTION, keptOutput, MAX_GENERATED_FILES, requireReadableOutput, skippedFilesNote,
     TRUNCATE_THRESHOLD
@@ -35,16 +35,37 @@ export const HISTORIES_READ_MAX = 5;
 const ANSWER_BUDGET = TRUNCATE_THRESHOLD * 0.6;
 
 /**
+ * How many runs stand in an answer about the task. How many a page of the ui holds is a question of
+ * its own, and the count the reading tool works to is a third: this one is the count the share of
+ * one report is divided out of, so it belongs where that share is worked out.
+ */
+export const REPORT_HISTORIES = 20;
+
+/**
  * How much of what a run said of itself an answer about the task carries. As many runs stand in
  * such an answer as the record shows, each of them as talkative as it liked, so the share of one is
  * the budget of a read split that many ways: a run signing off in a line is carried as it stands.
+ *
+ * Which is why the count and the share cannot both be written down: their product is the budget, and
+ * a count raised against a share left where it was buys an answer too long to be an answer at all,
+ * filed away whole and handed back as a preview of itself.
  */
-const REPORT_KEPT_LENGTH = ANSWER_BUDGET / MAX_DISPLAY_HISTORIES;
+export const REPORT_KEPT_LENGTH = ANSWER_BUDGET / REPORT_HISTORIES;
 
-/** The task as an answer to a write of it, with what its runs reported left out. */
+/**
+ * The task as an answer to a write of it, with what its runs reported left out.
+ *
+ * The runs are asked for rather than taken off the task, because the task as it is handed out has
+ * already been cut to what a page of the ui shows. Taking them from there would make this count the
+ * smaller of the two counts and nothing else -- raising it would do nothing, while the share of one
+ * report, which is worked out by dividing by it, would shrink to match a number of runs that never
+ * arrived. Asked for, it means what it says.
+ */
 function cronTaskAfterWrite(id: string): string {
     const cronTask = CronService.getCronTaskDetail(id);
-    return JSON.stringify({...cronTask, histories: cronTask.histories.map(historyAfterWrite)});
+    const histories = CronService.getCronHistories(id, Number.MAX_SAFE_INTEGER, REPORT_HISTORIES)
+        .reverse().map(historyAfterWrite);
+    return JSON.stringify({...cronTask, histories});
 }
 
 /**
@@ -189,7 +210,7 @@ it. Only files, not folders, and only inside the workspace.`
         const {generatedFiles, ...output} = input.output;
         requireReadableOutput(output);
         const {skipped} = CronService.updateCronOutput(input.id, output, generatedFiles);
-        return `Cron output updated successfully, here\'s the detail with last max ${MAX_DISPLAY_HISTORIES} histories:
+        return `Cron output updated successfully, here\'s the detail with last max ${REPORT_HISTORIES} histories:
 ${cronTaskAfterWrite(input.id)}${skippedFilesNote(skipped)}`;
     },
 }

@@ -48,7 +48,11 @@ export const SKILLS_LOCK_FILE = 'skills-lock.json';
 // Cron
 export const CRON_DIR = '.cron';
 export const CRON_TASK_JSON = 'cron.json';
+/** The record of a task as one file, which is what it was before it was sharded. */
 export const CRON_HISTORY_JSONL = 'history.jsonl';
+
+/** Where the shards of the record live, each named for the run it opens with. */
+export const CRON_HISTORY_DIR = 'history';
 
 // Global
 export const GLOBAL_MEMORY_DIR = '.memory';
