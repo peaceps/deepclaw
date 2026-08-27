@@ -1,5 +1,5 @@
 import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
-import { PROJECT_DIR, PROJECT_JSON, projectOutputDir } from '../../paths';
+import { ARCHIVED_PROJECT_DIR, PROJECT_DIR, PROJECT_JSON, projectOutputDir } from '../../paths';
 import { type Project, type Task, type TaskStepsContext, getProjectStatus, MissionPriority, PROJECT_CONFIG } from '@deepclaw/core';
 import { fileAwayOutput } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
@@ -47,6 +47,12 @@ export class ProjectManager {
             try {
                 const project = JSON.parse(content) as Project;
                 if (project && project.id && project.title && project.description) {
+                    // Being in this folder is what says a project was not put away, so a date found
+                    // here is one the folder has outlived: a project moved back by hand is a project
+                    // again, and the date left in its file would otherwise take it off the board the
+                    // next time an agent touched it. Same for a folder an interrupted archive left
+                    // behind, where the date reached the file and the move never happened.
+                    delete project.archivedAt;
                     project.priority = project.priority || 'low';
                     project.tasks = project.tasks || {};
                     this.ensureTaskIds(project.tasks);
@@ -300,6 +306,44 @@ export class ProjectManager {
             }
         }
         return res;
+    }
+
+    /**
+     * Puts a project away: off the board, out of the list an agent is handed, and moved whole to
+     * ARCHIVED_PROJECT_DIR under the id it had, with the date it was put away written into it.
+     *
+     * The folder moves rather than a flag being set, because where a project lies is a thing every
+     * reader of the disk already agrees on: the live folder holds projects and nothing else, and
+     * moving one back is the whole of restoring it -- tasks, chat, reports, and the paths those
+     * reports are filed under, none of which had to be told. It leaves this map at the same time,
+     * so the board, the list a run reads and every tool that reaches for a project by id are done
+     * with it at once, and none of them has to remember to ask.
+     *
+     * The date goes in before the move, so the copy that lands carries it. Taken back off the
+     * project if either step fails, so that a project archiving failed on is the project it was in
+     * every respect: the date alone would be a thing to go off later, every write of a project
+     * being a write of the whole of it, so the next unrelated task edit would carry it to disk. A
+     * date that reached the file before a move that then failed is harmless for the same reason
+     * `loadProjects` gives, and is gone with the next write either way.
+     *
+     * Whether an agent is working on it right now is not a thing this class can see, and a project
+     * put away under a run would leave that run reaching for a project nobody has: the question is
+     * asked where it can be answered, which is above this.
+     */
+    public static archiveProject(projectId: string): Project {
+        const project = this.getProjectDetail(projectId);
+        project.archivedAt = new Date().toISOString();
+        try {
+            this.saveProject(projectId);
+            if (!FileUtils.movePath(`${PROJECT_DIR}/${projectId}`, `${ARCHIVED_PROJECT_DIR}/${projectId}`)) {
+                throw new Error(`The folder of project ${projectId} went missing before it was archived.`);
+            }
+        } catch (error) {
+            delete project.archivedAt;
+            throw error;
+        }
+        delete this.projects[projectId];
+        return project;
     }
 
     public static getProjectDetail(projectId: string): Project {

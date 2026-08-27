@@ -120,6 +120,26 @@ model, through the tool for reading it, and that is untouched. an answer about a
 runs for the same reason, and a report standing in one has half the room it had -- room enough is
 still what most runs sign off in, and one that went on at length was already read where reports are
 read.
+a project can be put away. finishing a project never took it off the board -- the last task goes done
+and the project closes itself, and there it stays, among the ones there is still something to do
+about, in the list every agent is handed at the start of every run. archiving is the user saying they
+are done with it, which is a different thing from the work being done: the row leaves the board, the
+project leaves that list, and the folder moves whole to .archivedProjects, under the id it had, with
+the date it was put away written into it. nothing is deleted, and lying there is the whole of whatd
+archived means: a project put away by mistake is a folder to move back, and it comes back with
+everything it had after a program restart -- its tasks, its chat, its reports and the paths those reports are filed under --
+none of which has to be told anything. a date left over in a folder that is still live is read as
+what it is, the leavings of a move that did not happen, so an archive interrupted halfway loses
+nothing either. it cannot be done while the session of that project is running, since that run would
+come back to mark a task done and find the project gone. what was being said about the project is let
+go of along with it, every conversation of it and by whichever agent: one held on to would go on
+counting the messages it had written into a file that has since moved, and put the next one it was
+handed into the middle of a new file, in a folder standing where the project used to be.
+what can be done with a project as a whole now sits in a bar under its tasks, and that is where the
+project report is read from too, rather than off the header of the row. the header is one wide button
+for folding the row open and shut, and everything put in it has to catch the click before it reaches
+that button: a report was worth it, a thing that takes a project off the board is not. opening a
+project first is the guard, and a confirm is the other.
 
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a

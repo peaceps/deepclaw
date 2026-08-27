@@ -119,6 +119,28 @@ class UIChatServiceImpl {
         this.messageIndexCache.delete(chatKey);
     }
 
+    /**
+     * Forgets every conversation of a project, for where the folder those are written in moves out
+     * from under them.
+     *
+     * By the project rather than by the loop, because neither the loops nor the agents are the whole
+     * of what is held here: a project can be talked to by more than one agent, and a conversation
+     * that was only ever read is held here with no loop held anywhere. What such a chat holds is the
+     * dangerous half -- the count of what has already been written -- and left behind it would have
+     * the next message land in the middle of a file that has moved away, taking a new one with a
+     * hole in it where the conversation used to be.
+     */
+    public static forgetProject(projectId: string): void {
+        const held = new Set([
+            ...this.messageStore.keys(), ...this.persistedIndex.keys(), ...this.messageIndexCache.keys()
+        ]);
+        for (const chatKey of held) {
+            if (splitLoopId(this.splitChatKey(chatKey).loopId).projectId === projectId) {
+                this.forget(chatKey);
+            }
+        }
+    }
+
     private static addCachedIndex(chatKey: string, lastMessageId: string, index: number): void {
         if (!this.messageIndexCache.has(chatKey)) {
             this.messageIndexCache.set(chatKey, new Map());

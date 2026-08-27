@@ -154,6 +154,12 @@ export const en = {
                     labels: {
                         save: 'Press Enter to save',
                     },
+                    archive: {
+                        action: 'Archive',
+                        hint: 'Take this project off the board, keeping it on disk',
+                        running: 'Someone is working on this project right now',
+                        confirm: 'Archive "{{title}}"? It leaves the board and the list the agents read, and stays on disk.',
+                    },
                 },
                 task: {
                     pause: {

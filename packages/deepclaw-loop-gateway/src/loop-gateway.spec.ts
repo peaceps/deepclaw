@@ -31,6 +31,9 @@ const mocks = vi.hoisted(() => ({
     getAgents: vi.fn(),
     getAgent: vi.fn<(id: string) => {id: string, fired: boolean} | undefined>(),
     updateProject: vi.fn(),
+    archiveProject: vi.fn<(id: string) => unknown>(
+        (id: string) => ({id, archivedAt: '2026-02-02T00:00:00.000Z'})
+    ),
     updateTask: vi.fn(),
     getProjectDetail: vi.fn(),
     getProjectList: vi.fn(),
@@ -52,6 +55,7 @@ const mocks = vi.hoisted(() => ({
     listSessions: vi.fn<() => unknown[]>(() => []),
     hasRunningCommand: vi.fn<(loopId: string) => boolean>(() => false),
     forget: vi.fn<(loopId: string) => void>(),
+    forgetProject: vi.fn<(projectId: string) => void>(),
     migrateLegacyChatFile: vi.fn<(loopId: string) => void>(),
     getOlderMessages: vi.fn<() => unknown[]>(() => []),
     saveImage: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
@@ -82,6 +86,7 @@ vi.mock('@deepclaw/agent', () => ({
     },
     ProjectManager: {
         updateProject: mocks.updateProject,
+        archiveProject: mocks.archiveProject,
         updateTask: mocks.updateTask,
         getProjectDetail: mocks.getProjectDetail,
         getProjectList: mocks.getProjectList,
@@ -110,6 +115,7 @@ vi.mock('./ui-chat-service', () => ({
         addMessage: mocks.addMessage,
         replaceMessage: mocks.replaceMessage,
         forget: mocks.forget,
+        forgetProject: mocks.forgetProject,
         migrateLegacyChatFile: mocks.migrateLegacyChatFile,
         getOlderMessages: mocks.getOlderMessages,
     },
@@ -925,6 +931,93 @@ describe('data updates', () => {
         LoopGateway.updateProjectTags('p1', ['urgent']);
         expect(mocks.updateProject).toHaveBeenCalledWith({id: 'p1', tags: ['urgent']});
         expect(events).toContainEqual({eventType: 'updateProject', content: {id: 'p1', tags: ['urgent']}});
+    });
+
+    test('announces a project put away with the date it was put away on', () => {
+        mocks.archiveProject.mockReturnValue({id: 'p1', archivedAt: '2026-02-02T00:00:00.000Z'});
+        LoopGateway.archiveProject('p1');
+        expect(mocks.archiveProject).toHaveBeenCalledWith('p1');
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', archivedAt: '2026-02-02T00:00:00.000Z'}
+        });
+    });
+
+    /**
+     * The folder has moved, so a chat that stayed would write the next message into the middle of a
+     * file that is gone and a loop that stayed would answer out of a project nobody has. More than
+     * one agent may have been talking about it, so this goes by the project.
+     */
+    test('lets go of every chat and loop of the project it put away', async () => {
+        const first = nextLoop('project', 'p-gone');
+        LoopGateway.invoke(first.loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(first.loopId)).toBe(false));
+        const second = nextLoop('project', 'p-gone');
+        LoopGateway.invoke(second.loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(second.loopId)).toBe(false));
+        const built = mocks.getLoop.mock.calls.length;
+
+        LoopGateway.archiveProject('p-gone');
+
+        expect(mocks.forgetProject).toHaveBeenCalledWith('p-gone');
+        // A loop that is no longer held is one built again by whatever reaches for it next, which is
+        // how a dropped loop shows from out here.
+        LoopGateway.invoke(first.loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        LoopGateway.invoke(second.loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        expect(mocks.getLoop.mock.calls.length).toBe(built + 2);
+    });
+
+    test('leaves the loops of other projects where they are', async () => {
+        const other = nextLoop('project', 'p-other');
+        LoopGateway.invoke(other.loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(other.loopId)).toBe(false));
+        const built = mocks.getLoop.mock.calls.length;
+
+        LoopGateway.archiveProject('p-gone');
+
+        LoopGateway.invoke(other.loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        expect(mocks.getLoop.mock.calls.length).toBe(built);
+    });
+
+    /** The project leaves the manager, and the run coming back to it would find nothing there. */
+    test('refuses to put away a project with a run going', () => {
+        const {loopInfo, loop} = nextLoop('project', 'p-busy');
+        loop.invoke.mockReturnValue(deferred<AgentInvokeResponse>().promise);
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        expect(() => LoopGateway.archiveProject('p-busy')).toThrow('Project p-busy has a run going.');
+        expect(mocks.archiveProject).not.toHaveBeenCalled();
+        expect(mocks.forgetProject).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Nothing is let go of until the project has been put away, so a project that stays is a project
+     * with everything it was being talked in still held. What a chat thrown away too early costs is
+     * only the reading of it back off the disk, which is why the order is worth stating rather than
+     * worth guarding.
+     */
+    test('holds on to the chats and loops of a project it failed to put away', async () => {
+        const {loopInfo, loopId} = nextLoop('project', 'p-kept');
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        const built = mocks.getLoop.mock.calls.length;
+        mocks.archiveProject.mockImplementationOnce(() => {
+            throw new Error('the archive folder is read only');
+        });
+
+        expect(() => LoopGateway.archiveProject('p-kept')).toThrow('the archive folder is read only');
+
+        expect(mocks.forgetProject).not.toHaveBeenCalled();
+        expect(events.filter(event => event.eventType === 'updateProject')).toEqual([]);
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        expect(mocks.getLoop.mock.calls.length).toBe(built);
+    });
+
+    /** A loop that has been used and is sitting idle is nothing to hold the project back. */
+    test('puts away a project whose loop is no longer running', async () => {
+        const {loopInfo, loopId} = nextLoop('project', 'p-idle');
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        LoopGateway.archiveProject('p-idle');
+        expect(mocks.archiveProject).toHaveBeenCalledWith('p-idle');
     });
 
     test('announces the refreshed task list of a project', () => {

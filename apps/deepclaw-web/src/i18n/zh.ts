@@ -154,6 +154,12 @@ export const zh = {
                     labels: {
                         save: '按 Enter 保存',
                     },
+                    archive: {
+                        action: '归档',
+                        hint: '把项目从看板上收起来，文件仍然留在磁盘上',
+                        running: '这个项目正在被推进，此时不能归档',
+                        confirm: '归档「{{title}}」？它会离开看板，也不再出现在 agent 读到的项目清单里，文件仍留在磁盘上。',
+                    },
                 },
                 task: {
                     pause: {

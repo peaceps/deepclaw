@@ -1,5 +1,5 @@
 import { type Project, PROJECT_CONFIG } from '@deepclaw/core';
-import { CalendarDays, ChevronDown, ChevronRight, FileText, Folder } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronRight, Folder } from 'lucide-react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useRef } from 'react';
@@ -10,7 +10,6 @@ import { EditableLabels } from '@/laf/editable-labels';
 import { updateProjectTags } from '@/server/data';
 import { ProjectOwner } from './ProjectOwner';
 import { ProjectMeta } from './ProjectMeta';
-import { TaskOutput } from '@/laf/task-output';
 
 type ProjectRowProps = {
     project: Project; isExpanded: boolean; onToggle: () => void;
@@ -107,18 +106,6 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
                 onInteract={clearSkipToggle}
               />
               <ProjectMeta project={project} />
-              {/* The whole header toggles the row, and the modal the link opens hangs inside it. */}
-              {project.output && <div
-                className="flex-shrink-0"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <TaskOutput
-                  output={project.output}
-                  title={project.title}
-                  modalTitle={t('web.pages.projects.project.report')}
-                  icon={<FileText size={14} />}
-                />
-              </div>}
             </div>
           </div>
         </div>

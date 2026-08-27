@@ -314,6 +314,43 @@ describe('UIChatService forgetting a conversation', () => {
         expect(UIChatService.getOlderMessages('agent.cursors', page[0]!.id)).toEqual([]);
     });
 
+    /** A project can be talked to by more than one agent, and all of it is written in one folder. */
+    test('holds nothing of any conversation of the project it forgot', () => {
+        fill('project.a1.p-gone', 2);
+        fill('project.a2.p-gone', 2);
+        fill('project.a1.p-stays', 2);
+        UIChatService.forgetProject('p-gone');
+        expect(UIChatService.getOlderMessages('project.a1.p-gone')).toEqual([]);
+        expect(UIChatService.getOlderMessages('project.a2.p-gone')).toEqual([]);
+        expect(ids(UIChatService.getOlderMessages('project.a1.p-stays'))).toEqual(['m1', 'm2']);
+    });
+
+    /**
+     * The count of what was written is the half worth forgetting, and a conversation that was only
+     * read holds it without any loop being held anywhere: kept, the next message would land in the
+     * middle of a file that has moved away.
+     */
+    test('writes from the start of the file after the project it was in was forgotten', () => {
+        fill('project.a1.p-index', 3);
+        UIChatService.forgetProject('p-index');
+        vi.clearAllMocks();
+        mocks.readFile.mockImplementation(() => {
+            throw new Error('not found');
+        });
+        const message = newMessage('n1');
+        UIChatService.addMessage('project.a1.p-index', message);
+        expect(mocks.appendFile).toHaveBeenCalledExactlyOnceWith(
+            '.projects/p-index/session/chat.jsonl', `${JSON.stringify(message)}\n`
+        );
+    });
+
+    /** An agent chat carries no project, and every project it ever spoke about is somebody else's. */
+    test('leaves the chats that belong to no project alone', () => {
+        fill('agent.a1', 2);
+        UIChatService.forgetProject('p-gone');
+        expect(ids(UIChatService.getOlderMessages('agent.a1'))).toEqual(['m1', 'm2']);
+    });
+
     /** Reading one back is not talking in it, so what the live chat holds is left as it was. */
     test('keeps the live conversation while one that was closed is read', () => {
         fill('agent.both', 2);

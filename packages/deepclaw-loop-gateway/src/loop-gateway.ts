@@ -472,6 +472,41 @@ class LoopGatewayImpl {
         this.fireSSEEvent({ eventType: 'updateProject', content: { id: projectId, tags } });
     }
 
+    /**
+     * Puts a project away at the user's word, and says so to every browser: the row goes, here as
+     * on the tab that asked.
+     *
+     * Refused while the session of that project is running: the project leaves the manager, and the
+     * run that comes back to mark a task done would find nothing to mark. What is asked is whether a
+     * loop of this project is at work, not whether anything anywhere is touching it -- a scheduled
+     * run, or a chat of an agent that belongs to no project, reaches a project by the id it was given
+     * and none of those show up here. Those are left to fail on their next write, as a tool error the
+     * model is told about and the run carries on from, which is a cheaper thing to allow than keeping
+     * a note of every project every loop has touched. The button is disabled while the session runs,
+     * so this is for the click that got in first rather than for the user to read.
+     */
+    public static archiveProject(projectId: string): void {
+        if (this.getBusyLoops().some(loopId => splitLoopId(loopId).projectId === projectId)) {
+            throw new Error(`Project ${projectId} has a run going.`);
+        }
+        const project = ProjectManager.archiveProject(projectId);
+        // Past here the folder has moved, so every conversation of that project is one written where
+        // nothing is any more, and is let go of rather than kept: a chat that stayed would count the
+        // messages it had already written and put the next one in the middle of a file that is gone,
+        // and a loop that stayed would be an agent answering out of a project nobody has. Nothing is
+        // rebuilt in their place -- there is no project left to build one for -- and it is by the
+        // project rather than by one loop, since more than one agent may have been talking about it.
+        UIChatService.forgetProject(projectId);
+        for (const loopId of Object.keys(this.loops)) {
+            if (splitLoopId(loopId).projectId === projectId) {
+                delete this.loops[loopId];
+            }
+        }
+        this.fireSSEEvent({
+            eventType: 'updateProject', content: {id: projectId, archivedAt: project.archivedAt}
+        });
+    }
+
     public static updateProjectTask(projectId: string, task: UpdateContent<Task>): void {
         // The board hands a task to an agent by id, and an id is anything the request cared to
         // send: a task assigned to a name nobody works under would never be worked on again.

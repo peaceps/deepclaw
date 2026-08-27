@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Notebook } from 'lucide-react';
 import type { Project } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
+import { ProjectActions } from './ProjectActions';
 import { useAppStore } from '@/lib/store';
 
 const columns = [
@@ -22,9 +23,11 @@ export function ProjectTasks({project}: ProjectTasksProps) {
   const {t} = useTranslation();
   const agents = useAppStore(s => s.agents);
 
+    // The tasks scroll, the bar under them does not: what can be done with the project as a whole
+    // stays where it was put, rather than being something to scroll a long board to reach.
     return (
         <div className={`flex flex-col items-center border-r border-gray-200 bg-gray-50 transition-all duration-300
-          lg:max-h-[600px] lg:overflow-y-auto ${collapsed ? 'w-12' : 'lg:w-[60%]'}`}>
+          lg:max-h-[600px] ${collapsed ? 'w-12' : 'lg:w-[60%]'}`}>
             
           <div className={`hidden lg:flex items-center border-b border-gray-200
               bg-gray-50 w-full ${collapsed ? 'flex-col' : 'pl-6 justify-end'} py-3`}>
@@ -44,7 +47,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                     <Notebook size={20} />
                 </div>
             ) : (
-                <div className="flex-1 p-4 bg-gray-50/50 w-full">
+                <div className="flex-1 min-h-0 lg:overflow-y-auto p-4 bg-gray-50/50 w-full">
                     {Object.keys(project.tasks).length === 0 ? (
                     <div className="py-8 text-center text-gray-400"><p>{t('web.pages.projects.project.noTasks')}</p></div>
                     ) : (
@@ -75,6 +78,9 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                     )}
                 </div>
             )}
+            {/* Nothing of the project fits in a rail twelve wide, so a folded panel shows none of
+                it: the panel opens by the chevron above, which is there either way. */}
+            {!collapsed && <ProjectActions project={project} />}
         </div>
     );
 }

@@ -19,6 +19,13 @@ export const AGENT_LLM_WINDOW_JSON = 'llm-window.json';
 
 // Project session
 export const PROJECT_DIR = '.projects';
+/**
+ * Where a project the user put away is kept, whole, under the id it had. Beside the live folder
+ * rather than inside it, so that what reads the projects reads only projects. Being here is what
+ * archived means: moving a folder back is the way back, and it comes back with everything it had,
+ * the paths its report is filed under included.
+ */
+export const ARCHIVED_PROJECT_DIR = '.archivedProjects';
 export const PROJECT_JSON = 'project.json';
 
 // Folders under each session

@@ -29,6 +29,16 @@ export async function updateProjectTags(projectId: string, tags: string[]): Prom
     }
 }
 
+export async function archiveProject(projectId: string): Promise<void> {
+    try {
+        LoopGateway.archiveProject(projectId);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error archiving project:', error);
+        throw error;
+    }
+}
+
 /** The id finds the task, the rest is everything a card on the board is allowed to write. */
 export type TaskEdit =
     Pick<Task, 'id'> & Partial<Pick<Task, 'title' | 'description' | 'pause' | 'verified' | 'assignee'>>;

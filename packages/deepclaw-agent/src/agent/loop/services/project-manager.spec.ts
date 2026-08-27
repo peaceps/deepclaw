@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     writeFile: vi.fn<(path: string, content: string) => string>((path: string) => path),
     exists: vi.fn<(path: string) => boolean>(() => false),
     hashString: vi.fn<(text: string) => string>(() => 'hash'),
+    movePath: vi.fn<(from: string, to: string) => boolean>(() => true),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -15,6 +16,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
         writeFile: mocks.writeFile,
         exists: mocks.exists,
         hashString: mocks.hashString,
+        movePath: mocks.movePath,
     },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
@@ -28,6 +30,7 @@ async function loadManager(files: Record<string, {dir: string; content: string}>
     mocks.readDir.mockReturnValue(files);
     mocks.writeFile.mockImplementation((path: string) => path);
     mocks.exists.mockReturnValue(false);
+    mocks.movePath.mockReturnValue(true);
     vi.resetModules();
     return (await import('./project-manager')).ProjectManager;
 }
@@ -130,6 +133,20 @@ describe('loadProjects at import time', () => {
             },
         })}});
         expect(manager.getProjectDetail('p-stored').tasks['t1']!.id).toBe('t1');
+    });
+
+    /**
+     * Lying in the live folder is what says a project was not put away, so a date found there is one
+     * the folder has outlived: a project moved back by hand, or one an interrupted archive left with
+     * the date written and the move undone.
+     */
+    test('reads a project in the live folder as one that was never put away', async () => {
+        const manager = await loadManager({p1: {dir: '.projects/p1', content: storedProject({
+            archivedAt: '2024-02-02T00:00:00.000Z',
+        })}});
+        expect(manager.getProjectDetail('p-stored').archivedAt).toBeUndefined();
+        expect(manager.getProjectList(true).projects.open)
+            .toEqual([{id: 'p-stored', title: 'Stored', description: 'from disk'}]);
     });
 
     test('skips a file that is not valid json', async () => {
@@ -775,6 +792,94 @@ describe('getProjectList', () => {
         const list = manager.getProjectList(true);
         expect(list.projects.open.map(project => project.id)).toEqual([open]);
         expect(list.projects.closed.map(project => project.id)).toEqual([closed]);
+    });
+});
+
+describe('archiveProject', () => {
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    test('writes the date it was put away into the project on disk', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const archived = manager.archiveProject(id);
+        expect(archived.archivedAt).toEqual(expect.any(String));
+        const written = mocks.writeFile.mock.calls[mocks.writeFile.mock.calls.length - 1]!;
+        expect(written[0]).toBe(`.projects/${id}/project.json`);
+        expect(JSON.parse(written[1]).archivedAt).toBe(archived.archivedAt);
+    });
+
+    /** Written where the project lies and moved after, so the copy that lands carries the date. */
+    test('moves the whole folder to the archive under the id it had', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.archiveProject(id);
+        expect(mocks.movePath).toHaveBeenCalledWith(`.projects/${id}`, `.archivedProjects/${id}`);
+        expect(mocks.writeFile.mock.calls.at(-1)![0]).toBe(`.projects/${id}/project.json`);
+        expect(mocks.movePath.mock.invocationCallOrder[0])
+            .toBeGreaterThan(mocks.writeFile.mock.invocationCallOrder.at(-1)!);
+    });
+
+    /** A folder that is not there is not a project that was archived, whatever the write said. */
+    test('keeps the project when its folder is nowhere to be moved', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        mocks.movePath.mockReturnValue(false);
+        expect(() => manager.archiveProject(id))
+            .toThrow(`The folder of project ${id} went missing before it was archived.`);
+        expect(manager.getProjectDetail(id).archivedAt).toBeUndefined();
+    });
+
+    test('keeps the project when the move throws', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        mocks.movePath.mockImplementation(() => {
+            throw new Error('the archive folder is read only');
+        });
+        expect(() => manager.archiveProject(id)).toThrow('the archive folder is read only');
+        expect(manager.getProjectDetail(id).title).toBe('Ship it');
+        expect(manager.getProjectDetail(id).archivedAt).toBeUndefined();
+    });
+
+    /** Everything reading the map is done with it at once, rather than each having to ask. */
+    test('leaves the project nowhere to be found here', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.archiveProject(id);
+        expect(manager.getProjectList(true)).toEqual({projects: {open: [], closed: []}});
+        expect(() => manager.getProjectDetail(id)).toThrow('Project not found.');
+        expect(manager.getTask(id, 'design')).toBeUndefined();
+    });
+
+    /**
+     * Written before it is forgotten, so a disk that will not take it changes nothing at all -- the
+     * date included. A date left on the project would reach disk under the next edit of any task in
+     * it, every write being a write of the whole project, and the restart after that would pass over
+     * a project the user was told had stayed.
+     */
+    test('keeps the project as it was when the write fails', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        mocks.writeFile.mockImplementation(() => {
+            throw new Error('disk full');
+        });
+        expect(() => manager.archiveProject(id)).toThrow('disk full');
+        expect(manager.getProjectDetail(id).title).toBe('Ship it');
+        expect(manager.getProjectDetail(id).archivedAt).toBeUndefined();
+    });
+
+    /** The date only ever reaches disk as part of archiving, so an edit after a failed one is clean. */
+    test('writes no archive date under a later task edit when the write failed', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        mocks.writeFile.mockImplementationOnce(() => {
+            throw new Error('disk full');
+        });
+        expect(() => manager.archiveProject(id)).toThrow('disk full');
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        const written = mocks.writeFile.mock.calls[mocks.writeFile.mock.calls.length - 1]!;
+        expect(JSON.parse(written[1]).archivedAt).toBeUndefined();
+    });
+
+    test('throws for an unknown id', () => {
+        expect(() => manager.archiveProject('ghost')).toThrow('Project not found.');
     });
 });
 

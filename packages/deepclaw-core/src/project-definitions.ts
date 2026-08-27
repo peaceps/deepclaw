@@ -19,6 +19,20 @@ export type Project = {
     description: string;
     createdAt: string;
     closedAt?: string;
+    /**
+     * When the user put the project away, which is a different thing from when it closed. Closing is
+     * what the work did -- the last task went done and the project said so of itself -- and a closed
+     * project is still on the board, still in the list an agent reads, still something to pick up.
+     * This is the user saying they are done with it.
+     *
+     * Never read this to ask whether a project was put away. Where the folder lies is what answers
+     * that, and a project that can be reached at all is one lying among the live ones: the manager
+     * drops this field off anything it loads, so every project handed out from there has none. What
+     * it is for is the two moments the answer is being given -- the record that lands in the archive
+     * folder carries the date, and the update sent to the browsers carries it as the word to take the
+     * row off the board -- and outside of those two it is absent by design.
+     */
+    archivedAt?: string;
     creator: string;
     priority: MissionPriority;
     tags?: string[];

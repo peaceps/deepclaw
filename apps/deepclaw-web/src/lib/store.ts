@@ -187,8 +187,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
   getProjects: () => get().projects,
   setProjects: (projects) => set({ projects }),
+  /** A project put away is off the board, the gateway dropping it from the list it hands out. */
   updateProject: (project: UpdateContent<Project>): void => {
-    set((state) => ({ projects: handleUpdatedArrayContent(state.projects, project) }));
+    set((state) => ({
+      projects: handleUpdatedArrayContent(state.projects, project, !!project.archivedAt),
+    }));
   },
   updateProjectTask: (projectId: string, data: UpdateContent<Task>): void => {
     set((state) => {

@@ -13,8 +13,8 @@ import { fetchFile, getFileNameFromPath, saveToFile } from '@/lib/browser-file-u
  * of only shows in the heading it opens under, and in the name it is saved by.
  */
 export function TaskOutput(
-    {output, title, modalTitle, icon}: {
-        output: LLMTaskOutput, title: string, modalTitle?: string, icon?: ReactNode
+    {output, title, modalTitle, icon, label}: {
+        output: LLMTaskOutput, title: string, modalTitle?: string, icon?: ReactNode, label?: string
     }
 ) {
     const [modalContent, setModalContent] = useState<string>('');
@@ -41,6 +41,8 @@ export function TaskOutput(
     }, [openPreview]);
 
     return (<>
+        {/* A report handed over as a file is downloaded and not read here, whatever it is called
+            among other things to do: the word for it is the one thing about it that is certain. */}
         {output.type === 'binary' ? <Link href={output.path!} download
           className="inline-flex items-center gap-1.5 text-[12px] text-sky-600">
             {icon}
@@ -53,7 +55,7 @@ export function TaskOutput(
           className="inline-flex items-center gap-1.5 text-[12px] text-sky-600 cursor-pointer
             hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">
             {icon}
-            {t('web.pages.output.view')}
+            {label ?? t('web.pages.output.view')}
         </span>}
 
         {modalContent && <ContentModal
