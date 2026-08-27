@@ -513,6 +513,17 @@ describe('AbstractMessagesCompactor compactFullHistory', () => {
         expect(prompt).not.toContain('ls');
     });
 
+    test('names a file read again and again only once', async () => {
+        const {llm, newInputMessage} = newFakeLLM();
+        const footPrints: FootPrint[] = [
+            {type: 'read_file', content: 'src/a.ts'},
+            {type: 'read_file', content: 'src/b.ts'},
+            {type: 'read_file', content: 'src/a.ts'},
+        ];
+        await new TestCompactor().compactFullHistory(true, newContext(), footPrints, llm, [{role: 'assistant', content: 'hello'}]);
+        expect(newInputMessage.mock.calls[0]![0]).toContain('- src/a.ts\n- src/b.ts\nIf needed');
+    });
+
     test('leaves the action trace empty when no file was read', async () => {
         const {llm, newInputMessage} = newFakeLLM();
         const footPrints: FootPrint[] = [{type: 'run_command', content: 'ls'}];

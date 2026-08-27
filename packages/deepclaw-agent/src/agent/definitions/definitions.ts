@@ -31,6 +31,17 @@ export type FootPrint = {
 export const IMAGE_FOOT_PRINT = 'image';
 
 /**
+ * What a file the agent read is filed under, so a summary can list what the run has already seen.
+ *
+ * Named here rather than at either end that uses it, which is the whole of what this constant is
+ * for: a footprint is written in a tool and read in the compactor, two files with no reason to
+ * import each other, and the only thing that made the trace work was the two spelling the same
+ * word. They did not. The compactor asked for this name while every writer used another, so the
+ * action trace of every summary went out empty and nothing anywhere could say so.
+ */
+export const READ_FILE_FOOT_PRINT = 'read_file';
+
+/**
  * The system prompt in the three pieces the cache reads it in. Both of the first two are cached,
  * with a breakpoint of their own each: what the agent learns about itself mid session sits behind
  * the part that never moves, so a memory it saves rewrites its own piece and leaves the rest read

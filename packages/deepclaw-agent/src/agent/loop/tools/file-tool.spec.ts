@@ -52,6 +52,32 @@ describe('readFileTool invoke', () => {
         const properties = readFileTool.tool.schema.properties as {limit: {minimum: number}};
         expect(properties.limit.minimum).toBe(1);
     });
+
+    test('leaves a footprint naming the file it read', async () => {
+        const context = newTestContext();
+        await readFileTool.invoke({filePath: 'src/a.ts'}, context);
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'read_file', content: 'src/a.ts'});
+    });
+
+    /** Part of a file is still a file the run has seen, and the one the trace is most use for. */
+    test('leaves a footprint for a read cut down to a limit', async () => {
+        mocks.readFile.mockReturnValue('0123456789');
+        const context = newTestContext();
+        await readFileTool.invoke({filePath: 'src/a.ts', limit: 4}, context);
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'read_file', content: 'src/a.ts'});
+    });
+
+    /** The trace says the run holds the file, and a read that threw holds nothing. */
+    test('leaves no footprint where the file could not be read', async () => {
+        mocks.readFile.mockImplementationOnce(() => {
+            throw new Error('File src/a.ts not found.');
+        });
+        const context = newTestContext();
+        await expect(readFileTool.invoke({filePath: 'src/a.ts'}, context)).rejects.toThrow();
+        expect(context.actions.addFootPrint).not.toHaveBeenCalled();
+    });
 });
 
 describe('writeFileTool invoke', () => {

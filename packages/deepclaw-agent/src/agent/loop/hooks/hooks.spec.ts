@@ -11,6 +11,13 @@ vi.mock('../services/background-command-manager', () => ({
     BackgroundCommandManager: {drainFinishedCommands: mocks.drainFinishedCommands},
 }));
 
+/**
+ * A tool use leaves no footprint. It used to leave one carrying its whole serialized input, which
+ * nothing ever read back -- the two things that read footprints ask for the files that were read
+ * and for the pictures that were drawn -- while a `write_file` put the entire file into the array
+ * for the life of the loop. What a run called and what it passed is already written down, as the
+ * tool_use message it is, in the history the session keeps.
+ */
 describe('foot print hook', () => {
 
     beforeEach(() => {
@@ -18,15 +25,12 @@ describe('foot print hook', () => {
         mocks.drainFinishedCommands.mockReturnValue([]);
     });
 
-    test('records every tool use with its input', async () => {
+    test('leaves no footprint for a tool use', async () => {
         const context = newTestContext();
         await HookManager.emitVisitor('preEachToolUse', context, {
             id: 'tu1', name: 'read_file', input: {filePath: 'a.md'}
         });
-        expect(context.actions.addFootPrint).toHaveBeenCalledExactlyOnceWith({
-            type: 'toolUse',
-            content: 'read_file with input {"filePath":"a.md"}',
-        });
+        expect(context.actions.addFootPrint).not.toHaveBeenCalled();
     });
 });
 

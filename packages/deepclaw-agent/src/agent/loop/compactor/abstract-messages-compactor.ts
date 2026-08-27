@@ -1,6 +1,6 @@
 import { FileUtils } from '@deepclaw/node-utils';
 import { LLMModel } from '../../llm/llmgw';
-import { FootPrint, OneLoopContext } from '../../definitions/definitions';
+import { FootPrint, OneLoopContext, READ_FILE_FOOT_PRINT } from '../../definitions/definitions';
 import { HISTORY_DIR } from '../../paths';
 import { HISTORY_COMPACT_FILE } from '../../paths';
 import { HookManager } from '../services/hook-manager';
@@ -249,9 +249,16 @@ ${this.getFootPrintsText(footPrints)}
 Continue from where we left off without re-asking the user.`);
     }
 
+    /**
+     * Each file once, however often it was read. A run returns to the same handful of files all
+     * day -- reads one, edits it, reads it back -- and a list that said so a hundred times would
+     * spend the room the summary is being trimmed to fit on saying nothing new.
+     */
     private getFootPrintsText(footPrints: FootPrint[]): string {
-        const readFiles = footPrints.filter(footPrint => footPrint.type === 'read_file')
-            .map(footPrint => `- ${footPrint.content}`).join('\n');
+        const readFiles = [...new Set(
+            footPrints.filter(footPrint => footPrint.type === READ_FILE_FOOT_PRINT)
+                .map(footPrint => footPrint.content)
+        )].map(filePath => `- ${filePath}`).join('\n');
         return readFiles.length === 0 ? '' : `The agent read the following files:
 ${readFiles}
 If needed, you can read the full content of these files by using the read_file tool.`;

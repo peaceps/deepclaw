@@ -2,7 +2,7 @@ import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FileUtils } from '@deepclaw/node-utils';
 import { PermissionService } from '../services/permission-service';
-import { OneLoopContext } from '../../definitions/definitions';
+import { OneLoopContext, READ_FILE_FOOT_PRINT } from '../../definitions/definitions';
 
 type FileOperationInput = {
     filePath: string;
@@ -27,12 +27,18 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    invoke: async function(input: ReadFileInput): Promise<string> {
+    invoke: async function(input: ReadFileInput, context: OneLoopContext): Promise<string> {
         const { filePath, limit } = input;
         if (limit !== undefined && limit < 1) {
             throw new Error('The limit has to be at least one character.');
         }
         const content = FileUtils.readFile(filePath);
+        // After the read rather than before it. What the trace tells a summarizer is that the run
+        // has this file in hand already; a path that could not be opened is one the model would be
+        // sent back to for content that was never there. A limited read is left in for the
+        // opposite reason: it saw the file and holds only part of it, which is exactly the case
+        // the trace exists to point at.
+        context.actions.addFootPrint({type: READ_FILE_FOOT_PRINT, content: filePath});
         if (limit) {
             return content.slice(0, limit);
         }
