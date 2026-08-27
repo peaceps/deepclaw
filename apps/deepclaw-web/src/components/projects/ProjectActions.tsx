@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { Archive, FileText } from 'lucide-react';
-import { splitLoopId, type Project } from '@deepclaw/core';
+import { splitLoopId, type SlimProject } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/lib/store';
 import { archiveProject } from '@/server/data';
@@ -18,7 +18,7 @@ import { TaskOutput } from '@/laf/task-output';
  * header, and a project is not a thing to put away by a stray click on a row. Having to open the
  * project first is the guard, and the confirm behind the button is the other one.
  */
-export function ProjectActions({project}: {project: Project}) {
+export function ProjectActions({project}: {project: SlimProject}) {
     const getProjects = useAppStore(s => s.getProjects);
     const setProjects = useAppStore(s => s.setProjects);
     const updateProject = useAppStore(s => s.updateProject);

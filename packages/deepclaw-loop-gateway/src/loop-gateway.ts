@@ -1,5 +1,5 @@
 import type {
-    AgentHandler, AgentEmployee, Project, Task, AgentIdentity,
+    AgentHandler, AgentEmployee, Task, AgentIdentity,
     AgentInfoEvent,
     AgentInteractionEvent,
     ChatMessage,
@@ -11,9 +11,11 @@ import type {
     FlushAgentRole,
     SealedAgentHandler,
     RunningTask,
+    SlimProject,
 } from "@deepclaw/core";
 import {
-    getLoopId, INTERACTION_TIMEOUT, newMessage, splitLoopId, type CronTask, type CronJobHistory
+    getLoopId, INTERACTION_TIMEOUT, newMessage, splitLoopId, slimProject,
+    slimProjectRow, type CronTask, type CronJobHistory
 } from "@deepclaw/core";
 import { globalize, UpdateContent } from "@deepclaw/utils";
 import {
@@ -50,8 +52,8 @@ type LoopState = {
 
 type LoopStore = Record<string, LoopState>;
 export type DeepclawDataInfo = {
-    agents: AgentEmployee[], projects: Project[], runningTasks: RunningTask[], busyLoops: string[],
-    cronTasks: CronTask[]
+    agents: AgentEmployee[], projects: SlimProject[], runningTasks: RunningTask[],
+    busyLoops: string[], cronTasks: CronTask[]
 };
 
 type InteractionResolver = {
@@ -517,9 +519,13 @@ class LoopGatewayImpl {
             }
         }
         ProjectManager.updateTask(projectId, task);
-        this.fireSSEEvent({ eventType: 'updateProject', content: {
-            id: projectId, tasks: ProjectManager.getProjectDetail(projectId).tasks
-        }});
+        // The whole project rather than its tasks alone: how many there are is read off a row that
+        // holds none of them, and tasks arriving without it would leave that count saying what it
+        // said before the edit.
+        this.fireSSEEvent({
+            eventType: 'updateProject',
+            content: slimProject(ProjectManager.getProjectDetail(projectId)),
+        });
     }
 
     /** From the browser the question is with, and from no other: the rest are onlookers. */
@@ -653,13 +659,23 @@ class LoopGatewayImpl {
         };
     }
 
-    private static getProjects(): Project[] {
-        const res: Project[] = [];
+    /**
+     * Every project, as a row of the board rather than whole: the tasks stay here until a row is
+     * opened and asks for them. This is the one part of what a page is handed that grows with how
+     * many projects there are, and the tasks are almost all of a project by weight.
+     */
+    private static getProjects(): SlimProject[] {
+        const res: SlimProject[] = [];
         const projects = ProjectManager.getProjectList(true);
         projects.projects.open.concat(projects.projects.closed).forEach(p => {
-            res.push(ProjectManager.getProjectDetail(p.id));
+            res.push(slimProjectRow(ProjectManager.getProjectDetail(p.id)));
         });
         return res;
+    }
+
+    /** The whole of one project, for the row that just opened on it. */
+    public static getProjectDetail(projectId: string): SlimProject {
+        return slimProject(ProjectManager.getProjectDetail(projectId));
     }
 
     /** The moods and the emotions come along: a tab that connects later sees what the others saw. */

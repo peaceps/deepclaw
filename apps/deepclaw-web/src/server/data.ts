@@ -1,6 +1,6 @@
 'use server';
 
-import type { Task, CronJobHistory, AgentSoulIdentity } from "@deepclaw/core";
+import type { Task, CronJobHistory, AgentSoulIdentity, SlimProject } from "@deepclaw/core";
 import { LoopGateway, type SkillInfo } from "@deepclaw/loop-gateway";
 import { UpdateContent } from "@deepclaw/utils";
 import { revalidatePath } from "next/cache";
@@ -25,6 +25,19 @@ export async function updateProjectTags(projectId: string, tags: string[]): Prom
         revalidatePath('/', 'layout');
     } catch (error) {
         console.error('Error saving project tags:', error);
+        throw error;
+    }
+}
+
+/**
+ * The whole of one project, tasks included, for a row that just opened on it. The board is handed
+ * every project without any of their tasks, so this is where the tasks of one come from.
+ */
+export async function getProjectDetail(projectId: string): Promise<SlimProject> {
+    try {
+        return LoopGateway.getProjectDetail(projectId);
+    } catch (error) {
+        console.error('Error reading project detail:', error);
         throw error;
     }
 }

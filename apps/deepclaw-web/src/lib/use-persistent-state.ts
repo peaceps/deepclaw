@@ -52,6 +52,11 @@ function subscribeToKey(key: string, listener: () => void): () => void {
     return () => { listeners.delete(listener); };
 }
 
+function parseRaw<T>(raw: string | null, accept: (parsed: unknown) => Box<T> | null): Box<T> | null {
+    if (raw === null) return null;
+    try { return accept(JSON.parse(raw)); } catch { return null; }
+}
+
 const noStoredValue = () => null;
 
 function usePersistentValue<T>(
@@ -63,10 +68,7 @@ function usePersistentValue<T>(
     const getSnapshot = useCallback(() => readRaw(key), [key]);
     const raw = useSyncExternalStore(subscribe, getSnapshot, noStoredValue);
 
-    const stored = useMemo(() => {
-        if (raw === null) return null;
-        try { return accept(JSON.parse(raw)); } catch { return null; }
-    }, [raw, accept]);
+    const stored = useMemo(() => parseRaw(raw, accept), [raw, accept]);
 
     const [override, setOverride] = useState<Box<T> | null>(null);
     const base = stored ? stored.value : defaultValue;
@@ -78,13 +80,29 @@ function usePersistentValue<T>(
         writeRaw(key, JSON.stringify(override.value ?? null));
     }, [key, override]);
 
+    /**
+     * The base read out of the store at the moment it is wanted, rather than the one this render
+     * happens to be holding.
+     *
+     * A setter closed over the base is a new setter every time a value is written, the write going
+     * to the store and coming back out of it as a new base. These are handed down to children that
+     * hold still only for as long as what they are handed does -- the project board gives one
+     * toggle to every row that way -- and a setter that changed under them would redraw the lot.
+     * Nothing is lost by reading late: this is only ever reached before the first write of this
+     * component's life, and the store is where the value that render read came from anyway.
+     */
+    const readBase = useCallback(() => {
+        const box = parseRaw(readRaw(key), accept);
+        return box ? box.value : defaultValue;
+    }, [key, accept, defaultValue]);
+
     const set = useCallback((next: T | ((prev: T) => T)) => {
         setOverride(prev => ({
             value: typeof next === 'function'
-                ? (next as (prev: T) => T)(prev ? prev.value : base)
+                ? (next as (prev: T) => T)(prev ? prev.value : readBase())
                 : next,
         }));
-    }, [base]);
+    }, [readBase]);
 
     return [value, set] as const;
 }

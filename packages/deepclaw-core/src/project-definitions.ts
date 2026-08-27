@@ -50,6 +50,38 @@ export type Project = {
     canStartTasks: string[];
 };
 
+/**
+ * A project as a browser holds it, which is the whole of it but for the tasks, and the count of
+ * those where they were.
+ *
+ * The tasks are the bulk of a project and a row on the board shows none of them until it is
+ * opened, so the list a page starts with leaves them behind -- a hundred projects arrive as a
+ * hundred headers rather than a hundred task tables, which is the one thing on that page that
+ * grows with how many projects there are. Everything a header does show is here: the counts it
+ * reads off `completedTasks` and `ongoingTasks`, which are lists of ids and not of tasks, and how
+ * many there are in all, which is what nothing else could say once the tasks are gone.
+ *
+ * Slim is what such a project is handed out as rather than what it stays. The tasks come after,
+ * from the row that opened asking for them and from every later word about the project, which
+ * carry the whole of it -- one filled that way is this type still, so absent means not asked for
+ * yet rather than none, and `taskCount` is what answers whether there are any.
+ */
+export type SlimProject = Omit<Project, 'tasks'> & {
+    taskCount: number;
+    tasks?: Record<string, Task>;
+};
+
+/** The whole project, tasks and all. The count travels with them, never apart. */
+export function slimProject(project: Project): SlimProject {
+    return {...project, taskCount: Object.keys(project.tasks).length};
+}
+
+/** What a row of the board is drawn from, which is all of it but the tasks. */
+export function slimProjectRow(project: Project): SlimProject {
+    const {tasks, ...rest} = project;
+    return {...rest, taskCount: Object.keys(tasks).length};
+}
+
 export type TaskStepsContext = {
     steps: string[];
     currentStepIndex: number;
@@ -90,21 +122,28 @@ export type RunningTask = {
     startedAt: string;
 };
 
-export function getProjectStatus(project: Project): MissionStatus {
+/** Asked of the project itself and never of its tasks, so either shape of one can answer. */
+export function getProjectStatus(project: Omit<Project, 'tasks'>): MissionStatus {
     if (!project.closedAt) {
         return !project.ongoingTasks.length && !project.completedTasks.length ? 'todo' : 'ongoing';
     }
     return 'done';
 }
 
-export function getProjectProgress(project?: Project | null): number | null {
-    let progress = null;
-    if (project) {
-        const total = Object.values(project.tasks).length;
-        const done = Object.values(project.tasks).filter(task => task.status === 'done').length;
-        progress = total > 0 ? Math.round(done / total * 100) : 0;
+/**
+ * How far along a project is, from the two numbers rather than from the tasks: the done ones are
+ * `completedTasks`, which is kept as a list of ids beside them, and how many there are in all is
+ * the one thing a browser holding no tasks still has to be told. Counting the tasks instead would
+ * be asking for them, which is most of a project, to arrive at a percentage.
+ */
+export function getProjectProgress(
+    project?: {completedTasks: string[]; taskCount: number} | null
+): number | null {
+    if (!project) {
+        return null;
     }
-    return progress;
+    return project.taskCount > 0
+        ? Math.round(project.completedTasks.length / project.taskCount * 100) : 0;
 }
 
 export function getTaskProgress(task: Task): number | null {

@@ -1,6 +1,6 @@
 import { AgentEmployee, AgentRuntimeStatus } from "./agent-definitions";
 import { FlushAgentRole } from "./flush-agent-types";
-import { Project, RunningTask } from "./project-definitions";
+import { SlimProject, RunningTask } from "./project-definitions";
 import { DistributiveOmit, UpdateContent } from "@deepclaw/utils";
 import { CronTask } from "./cron-definitions";
 
@@ -65,7 +65,7 @@ export type AgentInfoEvent = FlushAgentEvent & {
 
 export type AgentProjectInfoEvent = AgentInfoEvent & {
     eventType: 'updateProject',
-    content: UpdateContent<Project>
+    content: UpdateContent<SlimProject>
 };
 
 export type AgentAgentInfoEvent = AgentInfoEvent & {

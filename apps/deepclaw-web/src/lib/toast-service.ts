@@ -1,5 +1,5 @@
 import type { SSEToastEvent } from "@/app/api/sse-types";
-import { AgentEmployee, INTERACTION_TIMEOUT, Project, splitLoopId } from "@deepclaw/core";
+import { AgentEmployee, INTERACTION_TIMEOUT, SlimProject, splitLoopId } from "@deepclaw/core";
 import {i18nInstance} from '@deepclaw/i18n';
 
 /** Where a toast takes the user, once the page it names is known to be there to be opened. */
@@ -25,7 +25,7 @@ export class ToastService {
      * nothing.
      */
     public static parseToastEvent(
-        content: SSEToastEvent['content'], projects: Project[], agents: AgentEmployee[]
+        content: SSEToastEvent['content'], projects: SlimProject[], agents: AgentEmployee[]
     ): ParsedToast {
         const res: ParsedToast = {
             title: '',

@@ -1,12 +1,14 @@
-import { type Project, getProjectProgress, getProjectStatus } from '@deepclaw/core';
+import { type SlimProject, getProjectProgress, getProjectStatus } from '@deepclaw/core';
 import { CheckCircle2, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getProjectStatusStyles } from '../styles-mapping';
 import { ProgressBar } from '@/laf/progress-bar';
 
-export function ProjectMeta({ project }: { project: Project }) {
+export function ProjectMeta({ project }: { project: SlimProject }) {
   const {t} = useTranslation();
-  const totalTasks = Object.keys(project.tasks).length;
+  // Everything here is read off the project rather than counted out of its tasks, which a row that
+  // was never opened does not hold.
+  const totalTasks = project.taskCount;
   const inProgressTasks = project.ongoingTasks.length;
   const completedTasks = project.completedTasks.length;
   const progress = getProjectProgress(project);

@@ -1025,7 +1025,23 @@ describe('data updates', () => {
         mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks});
         LoopGateway.updateProjectTask('p1', {id: 't1', status: 'done'});
         expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', status: 'done'});
-        expect(events).toContainEqual({eventType: 'updateProject', content: {id: 'p1', tasks}});
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1},
+        });
+    });
+
+    /**
+     * A row holds the count and none of the tasks, so tasks arriving without it would leave the
+     * count saying what it said before the edit.
+     */
+    test('announces how many tasks there are along with them', () => {
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {
+            t1: {id: 't1'}, t2: {id: 't2'}, t3: {id: 't3'},
+        }});
+        LoopGateway.updateProjectTask('p1', {id: 't1', title: 'renamed'});
+        expect(events.at(-1)).toEqual(expect.objectContaining({
+            content: expect.objectContaining({taskCount: 3}),
+        }));
     });
 
     test('hands a task to an agent that works here', () => {
@@ -1049,13 +1065,38 @@ describe('data updates', () => {
         expect(mocks.updateTask).not.toHaveBeenCalled();
     });
 
-    test('collects agents and full project details', () => {
+    test('collects agents and every project, open and closed', () => {
         mocks.getAgents.mockReturnValue([{id: 'a1', name: 'Ada'}]);
         mocks.getProjectList.mockReturnValue({projects: {open: [{id: 'p1'}], closed: [{id: 'p2'}]}});
-        mocks.getProjectDetail.mockImplementation((id: string) => ({id, title: `title of ${id}`}));
+        mocks.getProjectDetail.mockImplementation(
+            (id: string) => ({id, title: `title of ${id}`, tasks: {}})
+        );
         const info = LoopGateway.getDataInfo();
         expect(info.agents).toEqual([{id: 'a1', name: 'Ada', mood: 'none', emotions: []}]);
         expect(info.projects.map(project => project.id)).toEqual(['p1', 'p2']);
+    });
+
+    /**
+     * The tasks are almost all of a project by weight and the one part of this list that grows
+     * with how many projects there are, so what a page starts with holds the count and no more.
+     */
+    test('hands over every project without any of their tasks', () => {
+        mocks.getProjectList.mockReturnValue({projects: {open: [{id: 'p1'}], closed: []}});
+        mocks.getProjectDetail.mockReturnValue({
+            id: 'p1', title: 'Ship it', tasks: {t1: {id: 't1'}, t2: {id: 't2'}},
+        });
+        expect(LoopGateway.getDataInfo().projects).toEqual([
+            {id: 'p1', title: 'Ship it', taskCount: 2},
+        ]);
+    });
+
+    /** The whole of one, for the row that opened and has to draw the tasks themselves. */
+    test('hands over the tasks of a single project when asked for it', () => {
+        const tasks = {t1: {id: 't1'}, t2: {id: 't2'}};
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', title: 'Ship it', tasks});
+        expect(LoopGateway.getProjectDetail('p1')).toEqual({
+            id: 'p1', title: 'Ship it', tasks, taskCount: 2,
+        });
     });
 
     /** Moods live in memory only, so a tab that connects later has to be told how everyone feels. */

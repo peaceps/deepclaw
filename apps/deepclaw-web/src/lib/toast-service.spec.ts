@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {type AgentEmployee, INTERACTION_TIMEOUT, type Project} from '@deepclaw/core';
+import {type AgentEmployee, INTERACTION_TIMEOUT, type SlimProject} from '@deepclaw/core';
 import type {SSEToastEvent} from '@/app/api/sse-types';
 import {ToastService} from './toast-service';
 
@@ -25,7 +25,8 @@ function newAgent(overrides: Partial<AgentEmployee> = {}): AgentEmployee {
     };
 }
 
-function newProject(overrides: Partial<Project> = {}): Project {
+/** As the toast service is handed one, which is as the board holds it: no tasks, only the count. */
+function newProject(overrides: Partial<SlimProject> = {}): SlimProject {
     return {
         id: 'p1',
         title: 'Ship it',
@@ -33,7 +34,7 @@ function newProject(overrides: Partial<Project> = {}): Project {
         createdAt: '2024-01-01T00:00:00.000Z',
         creator: 'a1',
         priority: 'medium',
-        tasks: {},
+        taskCount: 0,
         completedTasks: [],
         ongoingTasks: [],
         canStartTasks: [],

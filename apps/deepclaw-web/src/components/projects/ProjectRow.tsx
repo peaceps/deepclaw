@@ -1,8 +1,8 @@
-import { type Project, PROJECT_CONFIG } from '@deepclaw/core';
+import { type SlimProject, PROJECT_CONFIG } from '@deepclaw/core';
 import { CalendarDays, ChevronDown, ChevronRight, Folder } from 'lucide-react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useRef } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { ProjectTasks } from './ProjectTasks';
 import { formatDate } from '@/components/component-utils';
 import { useAppStore } from '@/lib/store';
@@ -12,10 +12,26 @@ import { ProjectOwner } from './ProjectOwner';
 import { ProjectMeta } from './ProjectMeta';
 
 type ProjectRowProps = {
-    project: Project; isExpanded: boolean; onToggle: () => void;
+    project: SlimProject; isExpanded: boolean; onToggle: (projectId: string) => void;
 }
 
-export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
+/**
+ * One project on the board, folded to its header until it is opened.
+ *
+ * Held back from re-rendering while what it is handed stays the same. A run says what step it is
+ * on often, and each of those replaces the array of projects while leaving every project but one
+ * the object it already was: without this, a board of any length redraws every header at that
+ * rate, the folded ones and the ones off the screen along with the rest.
+ *
+ * Which makes the three props above a thing to keep still. The project comes out of the store
+ * already doing that, and the toggle is asked for the id rather than closed over it, so that the
+ * board hands one function to every row instead of one to each -- a lambda per row would undo all
+ * of this. It rests in turn on the setter naming which row is open, which is built to hold still
+ * for the same reason: one rebuilt each time a row is folded would carry the whole board with it.
+ */
+export const ProjectRow = memo(function ProjectRow(
+  { project, isExpanded, onToggle }: ProjectRowProps
+) {
   const updateProject = useAppStore(s => s.updateProject);
   const ownerAgent = useAppStore(s => s.agents.find(a => a.id === project.creator));
   const tagsRef = useRef<HTMLDivElement>(null);
@@ -54,8 +70,8 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
       skipToggleRef.current = false;
       return;
     }
-    onToggle();
-  }, [onToggle]);
+    onToggle(project.id);
+  }, [onToggle, project.id]);
 
   return (
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -122,4 +138,4 @@ export function ProjectRow({ project, isExpanded, onToggle }: ProjectRowProps) {
         )}
       </div>
   );
-}
+});

@@ -1,5 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
-import type {AgentEmployee, ChatMessage, CronTask, Project, RunningTask, Task} from '@deepclaw/core';
+import type {
+    AgentEmployee, ChatMessage, CronTask, SlimProject, RunningTask, Task
+} from '@deepclaw/core';
 import {type AgentActivity, deriveAgentSummary, sessionBrowserId, useAppStore} from './store';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -33,7 +35,8 @@ function newTask(overrides: Partial<Task> = {}): Task {
     };
 }
 
-function newProject(overrides: Partial<Project> = {}): Project {
+/** Tasks and all, as a project reaches a row that opened. A row that did not is `newProjectRow`. */
+function newProject(overrides: Partial<SlimProject> = {}): SlimProject {
     return {
         id: 'p1',
         title: 'Ship it',
@@ -42,11 +45,19 @@ function newProject(overrides: Partial<Project> = {}): Project {
         creator: 'a1',
         priority: 'medium',
         tasks: {},
+        taskCount: 0,
         completedTasks: [],
         ongoingTasks: [],
         canStartTasks: [],
         ...overrides,
     };
+}
+
+/** A project as the board is handed it, holding the count of its tasks and none of the tasks. */
+function newProjectRow(overrides: Partial<SlimProject> = {}): SlimProject {
+    const row = newProject(overrides);
+    delete row.tasks;
+    return row;
 }
 
 function newRunningTask(overrides: Partial<RunningTask> = {}): RunningTask {
@@ -91,6 +102,11 @@ function newChatMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 
 function store(): ReturnType<typeof useAppStore.getState> {
     return useAppStore.getState();
+}
+
+/** The tasks of a project a test put there itself, which are always there to be read. */
+function tasksOf(projectId: string): Record<string, Task> {
+    return store().getProjects().find(project => project.id === projectId)!.tasks!;
 }
 
 describe('deriveAgentSummary', () => {
@@ -447,22 +463,21 @@ describe('app store', () => {
 
         test('merges the patch into the task with that id', () => {
             store().updateProjectTask('p1', {id: 'write-tests', status: 'ongoing', assignee: 'a1'});
-            expect(store().getProjects()[0].tasks['write-tests'])
+            expect(tasksOf('p1')['write-tests'])
                 .toEqual(newTask({status: 'ongoing', assignee: 'a1'}));
         });
 
         /** Nothing is filed under the title, so new words on a task leave it where it stood. */
         test('renames a task without moving it', () => {
             store().updateProjectTask('p1', {id: 'write-tests', title: 'cover the store'});
-            expect(store().getProjects()[0].tasks['write-tests'])
-                .toEqual(newTask({title: 'cover the store'}));
-            expect(Object.keys(store().getProjects()[0].tasks)).toEqual(['write-tests', 'ship-it']);
+            expect(tasksOf('p1')['write-tests']).toEqual(newTask({title: 'cover the store'}));
+            expect(Object.keys(tasksOf('p1'))).toEqual(['write-tests', 'ship-it']);
         });
 
         test('leaves the other tasks of the project untouched', () => {
-            const before = store().getProjects()[0].tasks['ship-it'];
+            const before = tasksOf('p1')['ship-it'];
             store().updateProjectTask('p1', {id: 'write-tests', status: 'done'});
-            expect(store().getProjects()[0].tasks['ship-it']).toBe(before);
+            expect(tasksOf('p1')['ship-it']).toBe(before);
         });
 
         test('leaves the other projects untouched', () => {
@@ -474,7 +489,7 @@ describe('app store', () => {
         test('drops a task field that is patched with null', () => {
             store().updateProjectTask('p1', {id: 'write-tests', assignee: 'a1'});
             store().updateProjectTask('p1', {id: 'write-tests', assignee: null});
-            expect(store().getProjects()[0].tasks['write-tests']).not.toHaveProperty('assignee');
+            expect(tasksOf('p1')['write-tests']).not.toHaveProperty('assignee');
         });
 
         test('throws for an unknown project', () => {
@@ -483,6 +498,16 @@ describe('app store', () => {
 
         test('throws for an unknown task', () => {
             expect(() => store().updateProjectTask('p1', {id: 'ghost'})).toThrow('Task not found.');
+        });
+
+        /**
+         * Only a card writes here, and a card is drawn from tasks that were asked for: a project
+         * holding none is one no card of was ever drawn, which is the same as an id nobody has.
+         */
+        test('throws for a project whose tasks were never asked for', () => {
+            store().setProjects([newProjectRow()]);
+            expect(() => store().updateProjectTask('p1', {id: 'write-tests'}))
+                .toThrow('Task not found.');
         });
     });
 

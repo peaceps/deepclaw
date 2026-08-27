@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
-  Project, AgentEmployee, AgentStatus, AgentProjectStats, CronTask, RunningTask, Task, ChatMessage
+  SlimProject, AgentEmployee, AgentStatus, AgentProjectStats, CronTask, RunningTask, Task,
+  ChatMessage
 } from '@deepclaw/core';
 import { getProjectStatus, splitLoopId } from '@deepclaw/core';
 import { UpdateContent } from '@deepclaw/utils';
@@ -30,7 +31,7 @@ export function useAgentActivity(): AgentActivity {
  * so the counts and the status answer two different questions.
  */
 export function deriveAgentSummary(
-  agent: AgentEmployee | undefined, projects: Project[], activity: AgentActivity
+  agent: AgentEmployee | undefined, projects: SlimProject[], activity: AgentActivity
 ): AgentSummary {
   const stats: AgentProjectStats = { todo: [], ongoing: [], done: [] };
   if (!agent) {
@@ -93,7 +94,7 @@ type AppState = {
   browserId: string;
   agents: AgentEmployee[];
   activeAgents: AgentEmployee[];
-  projects: Project[];
+  projects: SlimProject[];
   runningTasks: RunningTask[];
   busyLoops: string[];
   cronTasks: CronTask[];
@@ -121,9 +122,9 @@ type AppState = {
   updateAgentEmployee: (employee: UpdateContent<AgentEmployee>) => void;
   showEmotionPopup: (agentId: string, text: string) => void;
   dismissEmotionPopup: (agentId: string) => void;
-  getProjects: () => Project[];
-  setProjects: (projects: Project[]) => void;
-  updateProject: (project: UpdateContent<Project>) => void;
+  getProjects: () => SlimProject[];
+  setProjects: (projects: SlimProject[]) => void;
+  updateProject: (project: UpdateContent<SlimProject>) => void;
   updateProjectTask: (projectId: string, task: UpdateContent<Task>) => void;
   setRunningTasks: (runningTasks: RunningTask[]) => void;
   setBusyLoops: (busyLoops: string[]) => void;
@@ -188,23 +189,29 @@ export const useAppStore = create<AppState>((set, get) => ({
   getProjects: () => get().projects,
   setProjects: (projects) => set({ projects }),
   /** A project put away is off the board, the gateway dropping it from the list it hands out. */
-  updateProject: (project: UpdateContent<Project>): void => {
+  updateProject: (project: UpdateContent<SlimProject>): void => {
     set((state) => ({
       projects: handleUpdatedArrayContent(state.projects, project, !!project.archivedAt),
     }));
   },
+  /**
+   * A card writing its own change in before the server has agreed to it. Only a card can call
+   * this, and a card is only ever drawn from tasks that were asked for, so a project holding none
+   * is not one there was a card of: the same thing an unknown id is, and answered the same way.
+   */
   updateProjectTask: (projectId: string, data: UpdateContent<Task>): void => {
     set((state) => {
       const project = state.projects.find(p => p.id === projectId);
       if (!project) {
         throw new Error('Project not found.');
       }
-      if (!project.tasks[data.id]) {
+      const tasks = project.tasks;
+      if (!tasks?.[data.id]) {
         throw new Error('Task not found.');
       }
       return { projects: state.projects.map(p => p.id === projectId ? {
         ...project,
-        tasks: handleUpdateRecordContent(project.tasks, data),
+        tasks: handleUpdateRecordContent(tasks, data),
       } : p) };
     });
   },

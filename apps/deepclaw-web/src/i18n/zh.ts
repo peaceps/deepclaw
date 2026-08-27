@@ -154,6 +154,7 @@ export const zh = {
                     labels: {
                         save: '按 Enter 保存',
                     },
+                    tasksUnread: '读不到这个项目的任务。把这一行收起来再打开试试。',
                     archive: {
                         action: '归档',
                         hint: '把项目从看板上收起来，文件仍然留在磁盘上',

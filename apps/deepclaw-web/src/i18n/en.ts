@@ -154,6 +154,7 @@ export const en = {
                     labels: {
                         save: 'Press Enter to save',
                     },
+                    tasksUnread: 'The tasks of this project could not be read. Close the row and open it again.',
                     archive: {
                         action: 'Archive',
                         hint: 'Take this project off the board, keeping it on disk',

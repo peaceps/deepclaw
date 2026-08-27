@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { priorityStyles } from '../../styles-mapping';
 import { useAppStore } from "@/lib/store";
+import { useProjectTasks } from "@/lib/use-project-tasks";
 import { formatDate } from "@/components/component-utils";
 
 export function AgentDetailRunningTasks({ agent }: { agent: AgentEmployee }) {
@@ -15,6 +16,9 @@ export function AgentDetailRunningTasks({ agent }: { agent: AgentEmployee }) {
   const runs = runningTasks
     .filter(run => run.agentId === agent.id)
     .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  // A run names a task, and the projects arrive here holding none: the ones being run in are asked
+  // for, which is however many tasks are under way rather than however many projects there are.
+  useProjectTasks([...new Set(runs.map(run => run.projectId))]);
 
   return (
     <InfoCard title="web.pages.agents.details.runningTasks.title" icon={<Activity size={20} />} color="cyan">
@@ -25,7 +29,7 @@ export function AgentDetailRunningTasks({ agent }: { agent: AgentEmployee }) {
             <RunningTaskRow
               key={run.runId}
               run={run}
-              task={projects.find(project => project.id === run.projectId)?.tasks[run.taskId]}
+              task={projects.find(project => project.id === run.projectId)?.tasks?.[run.taskId]}
               startedAt={formatDate(i18n.language, run.startedAt)}
             />
           ))}

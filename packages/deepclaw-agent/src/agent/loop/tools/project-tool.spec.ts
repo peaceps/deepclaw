@@ -133,8 +133,10 @@ describe('createProjectTool invoke', () => {
         const result = await createProjectTool.invoke({
             title: 'ship it', description: 'ship the thing', priority: 'high', tasks: [],
         }, context);
+        // A project reaches a browser with the count of its tasks, which a row that never opened
+        // holds in place of them.
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
-            eventType: 'updateProject', content: newProject(),
+            eventType: 'updateProject', content: {...newProject(), taskCount: 0},
         });
         expect(context.runtime.agentBreakReason).toBe('projectCreated');
         expect(result).toContain('Project created successfully.');
@@ -203,7 +205,7 @@ describe('updateProjectTool invoke', () => {
         const context = newTestContext();
         const result = await updateProjectTool.invoke({projectId: 'pr1'}, context);
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
-            eventType: 'updateProject', content: newProject(),
+            eventType: 'updateProject', content: {...newProject(), taskCount: 0},
         });
         expect(result).toContain('Project updated successfully.');
         expect(context.runtime.agentBreakReason).toBeUndefined();

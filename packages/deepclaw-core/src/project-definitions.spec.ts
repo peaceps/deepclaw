@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest';
 import {
-    getProjectProgress, getProjectStatus, getTaskProgress,
+    getProjectProgress, getProjectStatus, getTaskProgress, slimProject, slimProjectRow,
     type Project, type Task
 } from './project-definitions';
 
@@ -65,31 +65,67 @@ describe('getProjectProgress', () => {
     });
 
     test('returns 0 for a project without tasks', () => {
-        expect(getProjectProgress(newProject())).toBe(0);
+        expect(getProjectProgress({completedTasks: [], taskCount: 0})).toBe(0);
     });
 
     test('returns the percentage of done tasks', () => {
-        const project = newProject({tasks: {
-            t1: newTask({status: 'done'}),
-            t2: newTask({status: 'ongoing'}),
-            t3: newTask({status: 'todo'}),
-            t4: newTask({status: 'done'}),
-        }});
-        expect(getProjectProgress(project)).toBe(50);
+        expect(getProjectProgress({completedTasks: ['t1', 't4'], taskCount: 4})).toBe(50);
     });
 
     test('rounds the percentage', () => {
-        const project = newProject({tasks: {
-            t1: newTask({status: 'done'}),
-            t2: newTask(),
-            t3: newTask(),
-        }});
-        expect(getProjectProgress(project)).toBe(33);
+        expect(getProjectProgress({completedTasks: ['t1'], taskCount: 3})).toBe(33);
     });
 
     test('returns 100 when every task is done', () => {
-        const project = newProject({tasks: {t1: newTask({status: 'done'})}});
-        expect(getProjectProgress(project)).toBe(100);
+        expect(getProjectProgress({completedTasks: ['t1'], taskCount: 1})).toBe(100);
+    });
+
+    /** Asked of a project holding no tasks at all, which is how the board holds most of them. */
+    test('answers for a project whose tasks were never asked for', () => {
+        const project = slimProjectRow(newProject({
+            tasks: {t1: newTask({status: 'done'}), t2: newTask()},
+            completedTasks: ['t1'],
+        }));
+        expect(project.tasks).toBeUndefined();
+        expect(getProjectProgress(project)).toBe(50);
+    });
+});
+
+describe('slimProject', () => {
+
+    test('counts the tasks and keeps them', () => {
+        const project = slimProject(newProject({
+            tasks: {t1: newTask(), t2: newTask({id: 't2'})},
+        }));
+        expect(project.taskCount).toBe(2);
+        expect(Object.keys(project.tasks!)).toEqual(['t1', 't2']);
+    });
+
+    test('counts none for a project with no tasks', () => {
+        expect(slimProject(newProject()).taskCount).toBe(0);
+    });
+});
+
+describe('slimProjectRow', () => {
+
+    /** The count is what is left of the tasks, and the one thing nothing else could say. */
+    test('counts the tasks and leaves them behind', () => {
+        const project = slimProjectRow(newProject({
+            tasks: {t1: newTask(), t2: newTask({id: 't2'})},
+        }));
+        expect(project.taskCount).toBe(2);
+        expect(project.tasks).toBeUndefined();
+        expect('tasks' in project).toBe(false);
+    });
+
+    test('keeps everything the project itself said', () => {
+        const project = slimProjectRow(newProject({
+            title: 'Ship it', tags: ['urgent'], ongoingTasks: ['t1'], completedTasks: ['t2'],
+        }));
+        expect(project).toEqual(expect.objectContaining({
+            id: 'p1', title: 'Ship it', tags: ['urgent'], ongoingTasks: ['t1'],
+            completedTasks: ['t2'], taskCount: 0,
+        }));
     });
 });
 

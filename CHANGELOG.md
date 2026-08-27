@@ -140,6 +140,19 @@ project report is read from too, rather than off the header of the row. the head
 for folding the row open and shut, and everything put in it has to catch the click before it reaches
 that button: a report was worth it, a thing that takes a project off the board is not. opening a
 project first is the guard, and a confirm is the other.
+the projects page no longer starts by loading every task of every project. the board shows none of
+the tasks until a row is opened, and it used to be handed all of them anyway -- the full task table
+of each project, with the steps of each task and the report of each, whether the row was ever opened
+or not. a hundred projects is a couple of thousand tasks by that reckoning, and all of it was
+travelling to the browser and sitting in memory to draw a header that reads two numbers and a bar. a
+project now arrives with the count of its tasks in place of the tasks, which is the one thing about
+them the header could not read off what it already had -- how many are done it had, that being kept
+as a list of ids beside them. the tasks of one project come when a row is opened, and every later
+word about that project carries the whole of it as before, so an open row still watches the steps of
+a task walk across without asking again. the same asking serves the agent page, where a run under
+way names a task to show: those are asked for by the project being run in, which is as many as there
+are runs rather than as many as there are projects. what grew with the size of the board was the
+list, and the list is what stopped growing.
 
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a

@@ -1,7 +1,7 @@
 import { Search, X, CheckCircle2, Clock, AlarmClock } from 'lucide-react';
 import { useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
-import type { MissionStatus, Project } from '@deepclaw/core';
+import type { MissionStatus, SlimProject } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { getProjectStatus } from '@deepclaw/core';
 
@@ -38,7 +38,7 @@ export const DEFAULT_PROJECT_FILTERS: Readonly<ProjectFilters> = Object.freeze({
     owner: 'all',
 });
 
-function textSearchProjects(projects: Project[], query: string): Project[] {
+function textSearchProjects(projects: SlimProject[], query: string): SlimProject[] {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return projects;
     return projects.filter(project => [project.title, project.description, ...(project.tags ?? [])]
@@ -48,7 +48,9 @@ function textSearchProjects(projects: Project[], query: string): Project[] {
         .includes(normalized));
 }
 
-export function filterProjects(projects: Project[], filters: ProjectFilters): Project[] {
+export function filterProjects(
+    projects: SlimProject[], filters: ProjectFilters
+): SlimProject[] {
     let result = textSearchProjects(projects, filters.query);
     if (filters.owner !== 'all') {
         result = result.filter(project => project.creator === filters.owner);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { splitLoopId } from '@deepclaw/core';
 import { useAppStore } from '@/lib/store';
 import {ProjectRow} from './ProjectRow';
@@ -9,6 +9,19 @@ import {
   ProjectSearch, ALL_PROJECT_FILTERS, DEFAULT_PROJECT_FILTERS, filterProjects
 } from './ProjectSearch';
 import { usePersistentString } from '@/lib/use-persistent-state';
+
+/**
+ * What the wrapper of a row is found by, a link asking to be scrolled to one being the only thing
+ * that ever looks for it.
+ *
+ * A ref would be a callback per row, and one written into the map that draws them is a new
+ * function on every render of the board -- a ref given a new function is one React takes back and
+ * gives again, so every row would detach and reattach on every update of any project. The document
+ * already keeps this index, and the one place that wants a row wants it after the board is drawn.
+ */
+function rowElementId(projectId: string): string {
+  return `project-row-${projectId}`;
+}
 
 export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string }) {
   const projects = useAppStore(s => s.projects);
@@ -19,14 +32,18 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
   const calledProject = openChatCall
     ? projects.find(project => project.id === splitLoopId(openChatCall.loopId).projectId)
     : undefined;
-  const projectRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastScrolledProjectIdRef = useRef<string | undefined>(undefined);
   const [expandedProjectId, setExpandedProjectId] = usePersistentString('projects.expandedId');
   const [handledSelectedProjectId, setHandledSelectedProjectId] = useState<string | undefined>();
   const [answeredCall, setAnsweredCall] = useState(0);
   const [filters, setFilters] = useState(DEFAULT_PROJECT_FILTERS);
+  // Newest first, compared as plain strings rather than through localeCompare: these are ISO 8601,
+  // where the order of the text is already the order of the dates. This sorts every project again
+  // on every update that touches any one of them, which is not a place to pay for collation.
   const filteredProjects = useMemo(
-    () => [...filterProjects(projects, filters)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    () => [...filterProjects(projects, filters)].sort(
+      (a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)
+    ),
     [projects, filters]
   );
   const {t} = useTranslation();
@@ -69,7 +86,7 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
     if (expandedProjectId !== selectedProjectId) return;
     if (lastScrolledProjectIdRef.current === selectedProjectId) return;
 
-    const projectElement = projectRefs.current[selectedProjectId];
+    const projectElement = document.getElementById(rowElementId(selectedProjectId));
     if (!projectElement) return;
 
     const frame = requestAnimationFrame(() => {
@@ -79,9 +96,12 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
     return () => cancelAnimationFrame(frame);
   }, [expandedProjectId, filteredProjects, selectedProjectId]);
 
-  const toggleProject = (projectId: string) => {
+  // One handler for every row rather than one closed over each project: the rows skip re-rendering
+  // only for as long as what they are handed stays the same, and a lambda built here in the map
+  // would be a new one on every update of any project, which is every one of them re-rendering.
+  const toggleProject = useCallback((projectId: string) => {
     setExpandedProjectId(prev => (prev === projectId ? undefined : projectId));
-  };
+  }, [setExpandedProjectId]);
 
   return (
     <div className="h-full flex flex-col bg-gray-100">
@@ -95,14 +115,9 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {filteredProjects.length ? filteredProjects.map(project => (
-          <div
-            key={project.id}
-            ref={element => {
-              projectRefs.current[project.id] = element;
-            }}
-          >
+          <div key={project.id} id={rowElementId(project.id)}>
             <ProjectRow project={project}
-              isExpanded={expandedProjectId === project.id} onToggle={() => toggleProject(project.id)}
+              isExpanded={expandedProjectId === project.id} onToggle={toggleProject}
             />
           </div>
         )) : (

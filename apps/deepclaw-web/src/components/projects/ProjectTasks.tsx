@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Notebook } from 'lucide-react';
-import type { Project } from '@deepclaw/core';
+import { ChevronLeft, ChevronRight, Loader2, Notebook } from 'lucide-react';
+import type { SlimProject } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
 import { ProjectActions } from './ProjectActions';
+import { useProjectTasks } from '@/lib/use-project-tasks';
 import { useAppStore } from '@/lib/store';
 
 const columns = [
@@ -15,13 +16,16 @@ const columns = [
 ];
 
 type ProjectTasksProps = {
-    project: Project;
+    project: SlimProject;
 }
 
 export function ProjectTasks({project}: ProjectTasksProps) {
   const [collapsed, setCollapsed] = useState(false);
   const {t} = useTranslation();
   const agents = useAppStore(s => s.agents);
+  // This panel is mounted by the row being opened, so this is the opening asking for the tasks.
+  const {unread} = useProjectTasks([project.id]);
+  const tasks = project.tasks;
 
     // The tasks scroll, the bar under them does not: what can be done with the project as a whole
     // stays where it was put, rather than being something to scroll a long board to reach.
@@ -48,12 +52,20 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                 </div>
             ) : (
                 <div className="flex-1 min-h-0 lg:overflow-y-auto p-4 bg-gray-50/50 w-full">
-                    {Object.keys(project.tasks).length === 0 ? (
+                    {/* No tasks held is a project not read yet rather than a project with none:
+                        which of the two it is, only the answer coming back can say. */}
+                    {!tasks ? (
+                    <div className="py-8 text-center text-gray-400">
+                        {unread
+                          ? <p>{t('web.pages.projects.project.tasksUnread')}</p>
+                          : <Loader2 size={20} className="mx-auto animate-spin" />}
+                    </div>
+                    ) : Object.keys(tasks).length === 0 ? (
                     <div className="py-8 text-center text-gray-400"><p>{t('web.pages.projects.project.noTasks')}</p></div>
                     ) : (
                     <div className="flex flex-col lg:flex-row gap-4 max-sm:max-h-[600px] max-sm:overflow-y-auto">
                         {columns.map(column => {
-                        const columnTasks = Object.values(project.tasks).filter(task => task.status === column.id);
+                        const columnTasks = Object.values(tasks).filter(task => task.status === column.id);
                         return (
                             <div key={column.id} className={`w-full lg:w-64 ${column.color} rounded-lg p-3 flex-shrink-0 flex-1`}>
                             <div className="flex items-center justify-between mb-3">
@@ -65,7 +77,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                                     key={task.id} task={task} projectId={project.id}
                                     assignee={task.assignee ? agents.find(a => a.id === task.assignee) : undefined}
                                     blockedByTitles={task.blockedBy.flatMap(id => {
-                                      const blocker = project.tasks[id];
+                                      const blocker = tasks[id];
                                       return blocker && blocker.status !== 'done' ? [blocker.title] : [];
                                     })}
                                 />)}

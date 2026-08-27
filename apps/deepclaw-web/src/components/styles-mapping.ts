@@ -3,7 +3,7 @@ import { getProjectStatus } from "@deepclaw/core";
 
 export const avatarBG = 'bg-gradient-to-br from-amber-300 to-sky-300';
 
-export function getProjectStatusStyles(project: Project): string {
+export function getProjectStatusStyles(project: Omit<Project, 'tasks'>): string {
     return projectStatusStyles[getProjectStatus(project)];
 }
 

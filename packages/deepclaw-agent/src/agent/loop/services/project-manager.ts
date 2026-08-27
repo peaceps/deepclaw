@@ -1,6 +1,6 @@
 import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { ARCHIVED_PROJECT_DIR, PROJECT_DIR, PROJECT_JSON, projectOutputDir } from '../../paths';
-import { type Project, type Task, type TaskStepsContext, getProjectStatus, MissionPriority, PROJECT_CONFIG } from '@deepclaw/core';
+import { type Project, type Task, type TaskStepsContext, getProjectStatus, MissionPriority, PROJECT_CONFIG, slimProject } from '@deepclaw/core';
 import { fileAwayOutput } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
 
@@ -371,11 +371,17 @@ export class ProjectManager {
         return this.projects[projectId]?.tasks[taskId];
     }
 
-    /** Lets the ui redraw a project, to be called by whoever changed something in it. */
+    /**
+     * Lets the ui redraw a project, to be called by whoever changed something in it.
+     *
+     * The whole of it, tasks included: this is one project rather than all of them, so what it
+     * costs does not grow with the board, and an open row is kept live by it without having to ask
+     * again on every step. The count goes along because a row that never opened holds only that.
+     */
     public static fireProjectInfoEvent(projectId: string, context: OneLoopContext): void {
         context.actions.agentHandler.onInfoEvent({
             eventType: 'updateProject',
-            content: this.getProjectDetail(projectId),
+            content: slimProject(this.getProjectDetail(projectId)),
         });
     }
 

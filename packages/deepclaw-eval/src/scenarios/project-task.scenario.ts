@@ -1,4 +1,6 @@
-import { getProjectProgress, getProjectStatus, type Project, type Task } from '@deepclaw/core';
+import {
+    getProjectProgress, getProjectStatus, slimProject, type Project, type Task
+} from '@deepclaw/core';
 import {
     expectAllToolsSucceeded, expectFile, expectMaxTurns, expectNoUnexpectedQuestion, expectProject,
     expectScriptFullyConsumed, expectStatus, expectToolCalled,
@@ -132,7 +134,10 @@ export const worksAProjectToDone: EvalScenario = {
             project => Object.values(project?.tasks || {}).every(task => task.status === 'done'),
             'both tasks ended up done',
         ),
-        expectProject(project => getProjectProgress(project) === 100, 'the project reads 100% complete'),
+        expectProject(
+            project => getProjectProgress(project && slimProject(project)) === 100,
+            'the project reads 100% complete',
+        ),
         expectProject(
             project => !!project && getProjectStatus(project) === 'done',
             'the project closed itself once the last task was done',
