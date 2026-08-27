@@ -328,6 +328,7 @@ export function useSend(
     role: FlushAgentRole,
     agent: AgentEmployee,
     projectId: string,
+    chatInited: boolean,
     input: string,
     setInput: React.Dispatch<React.SetStateAction<string>>,
     pendingImages: ImageContent[],
@@ -348,6 +349,12 @@ export function useSend(
     const handleSend = async () => {
         const trimmed = input.trim();
         if ((!trimmed && pendingImages.length === 0) || locked) return;
+        // Not before the messages already said are in hand. One sent now goes into a chat that is
+        // still empty, and the history landing after it is put in behind what is held: the word
+        // just written would sit above every word that came before it. The box and the button are
+        // both dead while this is, so nothing on the screen reaches here -- this is the same rule
+        // said where sending happens, sending being what it is a rule about.
+        if (!chatInited) return;
     
         setInput('');
         clearImages();

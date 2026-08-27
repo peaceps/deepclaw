@@ -182,6 +182,12 @@ the word that does that had already been and gone. putting it away again was the
 being no such project to put away, and the refusal restored the list that the ghost was in, so it
 sat on the board until the page was reloaded. an answer about a project that has left the list
 since it was asked for is now dropped rather than written.
+a chat cannot be written into until it has read itself. the box was live from the moment the panel
+appeared, while the send button beside it and the button for pictures both waited for the messages
+already said to arrive -- and the return key needs neither button. a word sent in that moment went
+into a chat that was still empty, and the history landing a beat later was put in behind what was
+already held, so the newest thing said sat above everything that came before it. the box now waits
+along with the two buttons.
 
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a

@@ -82,7 +82,8 @@ export function ChatPanel({
   );
 
   const { handleSend, handleKeyDown } = useSend(
-    loopId, role, agent, projectId, input, setInput, pendingImages, () => setPendingImages([])
+    loopId, role, agent, projectId, chatInited, input, setInput,
+    pendingImages, () => setPendingImages([])
   );
 
   const handleImageSelect = async (files: FileList | null) => {
@@ -238,10 +239,12 @@ export function ChatPanel({
           >
             <ImagePlus size={20} />
           </button>
+          {/* Dead until the messages already said have arrived, as the two buttons beside it are:
+              what is sent into a chat that has not read itself yet lands above its own history. */}
           <input
             type="text"
             value={input}
-            disabled={locked}
+            disabled={locked || !chatInited}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('web.pages.chat.send', { name: agent.name })}
