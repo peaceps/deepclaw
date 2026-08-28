@@ -24,6 +24,20 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  /* 这是一个应用而不是一篇文档。名字、角色、计数、标签这些都是陈设，光标停上去给出
+     I 形，等于邀请人去选一段没人打算选的字。默认给箭头，真正是内容的地方各自要回去。 */
+  cursor: default;
+}
+
+/* 能写的地方要回浏览器自己的判断。写 auto 而不是 text：input 里也有勾选框和选文件，
+   那些地方的 I 形光标跟标签上的一样不该出现，而 auto 只在真能落字的地方才给 I 形。
+   放进 base 层，否则这条不带层的规则会压过元素自己的 cursor-* 工具类。 */
+@layer base {
+  input,
+  textarea,
+  [contenteditable="true"] {
+    cursor: auto;
+  }
 }
 
 /* 自定义滚动条样式 */

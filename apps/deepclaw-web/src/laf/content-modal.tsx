@@ -64,7 +64,7 @@ export function ContentModal(
                 </div>
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto px-4 py-3">
-                    {type === 'text' ? <pre className="text-[13px] text-gray-800 whitespace-pre-wrap break-words font-mono">
+                    {type === 'text' ? <pre className="text-[13px] text-gray-800 whitespace-pre-wrap break-words font-mono cursor-auto">
                         {content}
                     </pre> : <Markdown content={content}></Markdown>}
                 </div>

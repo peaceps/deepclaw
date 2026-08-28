@@ -9,9 +9,14 @@ function transformUrl(url: string): string {
   return isImageRef(url) ? imageSrc(url) : defaultUrlTransform(url);
 }
 
+/**
+ * cursor-auto against the arrow the app sets on everything: a body of text is the one thing on a
+ * page worth taking away, and the I-beam is what says so. The furniture around it -- names, counts,
+ * labels -- offers a selection nobody wants and keeps the arrow.
+ */
 export const Markdown = memo(function Markdown({ content }: { content: string }) {
   return (
-    <div className="prose prose-sm max-w-none wrap-anywhere">
+    <div className="prose prose-sm max-w-none wrap-anywhere cursor-auto">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         urlTransform={transformUrl}

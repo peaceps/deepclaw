@@ -169,10 +169,12 @@ export function ChatPanel({
                     ))}
                   </div>
                 )}
+                {/* cursor-auto for the same reason the Markdown below asks for it: these two
+                    carry what was said, before it is settled enough to render. */}
                 {message.type === 'user' && !!message.content &&
-                    <p className="text-sm whitespace-pre-wrap wrap-anywhere">{message.content}</p>}
+                    <p className="text-sm whitespace-pre-wrap wrap-anywhere cursor-auto">{message.content}</p>}
                 {message.type === 'agent' && (i === agentMessages.length - 1 && writing) &&
-                    <p className="text-sm whitespace-pre-wrap wrap-anywhere">
+                    <p className="text-sm whitespace-pre-wrap wrap-anywhere cursor-auto">
                         {message.content || t('web.pages.chat.loading')}
                     </p>}
                 {message.type === 'agent' && !(i === agentMessages.length - 1 && writing) &&
