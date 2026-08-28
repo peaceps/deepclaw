@@ -89,6 +89,9 @@ function fireRunningTasksEvent(context: OneLoopContext): void {
  * to the loop that spawned it, so a task of another project would be worked on with the wrong ones
  * around it. The run is filed under whoever the subagent stands for, which is the assignee of the
  * task wherever there is one: that is the page the run belongs on.
+ *
+ * Nothing is written here, the board included: what this finds out is what the run is claimed with,
+ * and the claim has to be the first thing that happens once it has.
  */
 function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     if (!input.taskId) {
@@ -112,18 +115,31 @@ function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     if (RunningTaskService.isRunning(projectId, task.id)) {
         throw new Error(`A subagent is working on "${task.title}" already, wait for it to report back.`);
     }
-    // Moving the step index is all a task loop may do to its task, and that is refused while the
-    // task is still todo. Waiting for the assigning loop to remember it would waste the run.
-    if (task.status === 'todo') {
-        ProjectManager.updateTask(projectId, {id: task.id, status: 'ongoing'});
-        ProjectManager.fireProjectInfoEvent(projectId, context);
-    }
     return {
         projectId,
         taskId: task.id,
         agentId: task.assignee || context.agentId,
         startedAt: new Date().toISOString(),
     };
+}
+
+/**
+ * The task is on from here. Moving the step index is all a task loop may do to its own task, and
+ * that is refused while the task is still todo; waiting for the assigning loop to remember it would
+ * waste the run.
+ *
+ * Turned only once there is a run to turn it for. Building that run can fail -- an assignee whose
+ * endpoint names no protocol we speak -- and a task left ongoing behind a handover that never
+ * happened is one nobody can hand to anybody else: the board takes an assignee on a todo task and
+ * on no other. Nor could anything here put it back, ongoing being a one-way step of the board as
+ * well, so the order is the only place this can be got right.
+ */
+function markOngoing(run: PlannedRun, context: OneLoopContext): void {
+    if (ProjectManager.getTask(run.projectId, run.taskId)?.status !== 'todo') {
+        return;
+    }
+    ProjectManager.updateTask(run.projectId, {id: run.taskId, status: 'ongoing'});
+    ProjectManager.fireProjectInfoEvent(run.projectId, context);
 }
 
 export const taskLoopTool: ToolDesc<TaskLoopInput> = {
@@ -171,11 +187,16 @@ everything you already know it needs goes in here rather than into a question.`,
     roles: ['project'],
     invoke: async function(input: TaskLoopInput, context: OneLoopContext): Promise<string> {
         const run = planRun(input, context);
-        const taskLoop = context.actions.newTaskLoop({
-            projectId: run.projectId, taskId: run.taskId,
-        }) as LoopAgent<any, any, any>;
+        // Claimed before anything is awaited, the plan above being what says the task is free. Calls
+        // of one turn run beside each other, and building a loop is an await however it goes, so a
+        // claim made after it would leave two calls naming the same task both past a check neither
+        // of them had yet answered, and two subagents at work in the same files.
         const runId = startRun(run, context);
         try {
+            const taskLoop = await context.actions.newTaskLoop({
+                projectId: run.projectId, taskId: run.taskId,
+            }) as LoopAgent<any, any, any>;
+            markOngoing(run, context);
             return await runSpawnedLoop(taskLoop, input.prompt, context);
         } finally {
             finishRun(runId, context);

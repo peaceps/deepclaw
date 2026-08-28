@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentHandler} from '@deepclaw/core';
 import {newTestAgentConfig, newTestAgentHandler} from '../test-support/one-loop-context';
-import {type CarriedLoopState} from './definitions/definitions';
+import {type CarriedLoopState, type SpawnedLoop} from './definitions/definitions';
 import {LoopInitializer} from './loop-initializer';
 
 const mocks = vi.hoisted(() => {
@@ -101,5 +101,68 @@ describe('LoopInitializer', () => {
         getLoop();
         expect(mocks.loadAgentConfig).toHaveBeenCalledWith('a1');
         expect(mocks.getAgent).toHaveBeenCalledWith('a1');
+    });
+});
+
+/** Agents of two vendors, so that whose config was read shows in the class that came out. */
+function withAgents(endpoints: Record<string, string>): void {
+    mocks.getAgent.mockImplementation(
+        agentId => endpoints[agentId] ? {id: agentId, name: agentId} : undefined
+    );
+    mocks.loadAgentConfig.mockImplementation(agentId => newTestAgentConfig({
+        id: agentId, llm: {baseURL: endpoints[agentId] ?? '', apiKey: 'key', model: 'model'},
+    }));
+}
+
+function newSpawnedRun(runAs?: string): SpawnedLoop {
+    return {
+        kind: 'task', runId: 'r1', assignedTask: {projectId: 'p1', taskId: 'ship-it'},
+        runAs, permissionWhiteList: new Set(),
+    };
+}
+
+describe('LoopInitializer spawning a loop for another loop', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.constructed.length = 0;
+    });
+
+    /**
+     * The whole reason a spawned loop is built here rather than by the loop spawning it: that one
+     * can only build its own kind, and the class has to follow the endpoint the work is sent to.
+     */
+    test('builds it to the protocol of the agent whose model does the work', () => {
+        withAgents({a1: 'https://api.openai.com/v1', a2: 'https://api.anthropic.com'});
+        const handler = newTestAgentHandler() as AgentHandler;
+        const spawned = newSpawnedRun('a2');
+        LoopInitializer.getSpawnedLoop('project', 'a1', 'p1', handler, spawned);
+        expect(mocks.constructed).toEqual([
+            {protocol: 'Anthropic', args: ['project', 'a1', 'p1', handler, spawned]}
+        ]);
+    });
+
+    test('builds it to the protocol of the loop that spawned it where it names no other agent', () => {
+        withAgents({a1: 'https://api.anthropic.com'});
+        LoopInitializer.getSpawnedLoop(
+            'project', 'a1', 'p1', newTestAgentHandler() as AgentHandler, newSpawnedRun()
+        );
+        expect(mocks.constructed.map(entry => entry.protocol)).toEqual(['Anthropic']);
+    });
+
+    /** A task left with somebody who has since been deleted: the board keeps the name either way. */
+    test('refuses to build a run for an agent that does not work here', () => {
+        withAgents({a1: 'https://api.openai.com/v1'});
+        expect(() => LoopInitializer.getSpawnedLoop(
+            'project', 'a1', 'p1', newTestAgentHandler() as AgentHandler, newSpawnedRun('ghost')
+        )).toThrow('Agent "ghost" not found');
+    });
+
+    /** The likelier of the two by far: the assignee is there, and its endpoint is a typo. */
+    test('refuses an assignee whose endpoint names no protocol we speak', () => {
+        withAgents({a1: 'https://api.openai.com/v1', a2: 'not a url'});
+        expect(() => LoopInitializer.getSpawnedLoop(
+            'project', 'a1', 'p1', newTestAgentHandler() as AgentHandler, newSpawnedRun('a2')
+        )).toThrow('Invalid agent baseURL: not a url');
     });
 });

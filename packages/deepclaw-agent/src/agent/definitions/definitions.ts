@@ -126,6 +126,16 @@ export type SpawnedLoop = {
      * but to work as the agent it belongs to, with the memory and the skills of that agent.
      */
     assignedTask?: AssignedTask;
+    /**
+     * The agent whose config this run works with: its model, its mode, its keys, and nothing else
+     * of it. Who the run speaks as is still the loop that spawned it -- every event of this one is
+     * stamped with that loop's id, and it works under the permissions answered for that loop. A
+     * task handed to somebody else is worked on by their model, it is not authorised anew by them.
+     *
+     * Unset wherever a run works with the config of the loop that spawned it, which is every task
+     * nobody owns and every task owned by the agent handing it over.
+     */
+    runAs?: string;
     /** The list of the loop that spawned it, which it works with instead of asking for itself. */
     permissionWhiteList: PermissionWhiteList;
 }
@@ -155,7 +165,7 @@ export type OneLoopContext = {
     system: SystemPrompt;
     logger: Logger;
     actions: {
-        newTaskLoop: (assignedTask: AssignedTask) => FlushAgent;
+        newTaskLoop: (assignedTask: AssignedTask) => Promise<FlushAgent>;
         newSubLoop: () => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
         agentHandler: SealedAgentHandler;

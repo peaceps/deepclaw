@@ -119,8 +119,14 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             ?? carried?.permissionWhiteList ?? new Set();
         this.lastInputTokens = carried?.lastInputTokens;
         this.footPrints = carried?.footPrints ?? [];
-        this.agentConfig = loadAgentConfig(this.agentId);
-        if (this.role === 'cron') {
+        // Whose model does the work, which is not always whose name is on the run: a task is worked
+        // on by the agent it was assigned to, under the id of the loop that handed it over.
+        this.agentConfig = loadAgentConfig(spawned?.runAs ?? this.agentId);
+        // A run that works rather than talks is in agent mode whatever the config says. A scheduled
+        // run has nobody to talk to; a spawned one was handed its work by a loop that had to be in
+        // agent mode to have the tool at all, and an assignee left in chat mode would otherwise be
+        // given a task and none of the tools to do it with.
+        if (this.role === 'cron' || isSpawnedLoop(this.loopKind())) {
             this.agentConfig = {...this.agentConfig, mode: 'agent'};
         }
         this.sessionDir = SessionService.getSessionDir(this.role, this.agentId, this.projectId, this.spawned);
@@ -398,7 +404,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         if (!this.outdated) {
             compactor.compactOldResults(this.history, context);
         }
-        const budget = LLMWindowService.budgetOf(this.agentId, this.llm.modelName());
+        const budget = LLMWindowService.budgetOf(this.windowKeeper(), this.llm.modelName());
         const converted = await compactor.compactFullHistory(
             this.outdated || force || this.overTokenBudget(budget),
             context, this.footPrints, this.llm, this.history, budget
@@ -629,7 +635,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             // so it reads the refused request as smaller than it was, and a ceiling read from it
             // lands under the wall rather than over. The safe side of the two.
             LLMWindowService.observeRefused(
-                this.agentId, model, refused, estimateTokens(this.serializedHistory())
+                this.windowKeeper(), model, refused, estimateTokens(this.serializedHistory())
             );
             // A refused call answers with a synthetic response whose usage is zeros, so there is
             // no width to prove here and reading it as one would put the lower bound on the floor.
@@ -644,7 +650,18 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             return;
         }
         this.lastInputTokens = inputTokens;
-        LLMWindowService.observeAccepted(this.agentId, model, inputTokens);
+        LLMWindowService.observeAccepted(this.windowKeeper(), model, inputTokens);
+    }
+
+    /**
+     * Whose lesson this is. What a window is learned about is an endpoint, and the agent talking to
+     * it is the one whose config this loop was built to -- the assignee where a task is worked on
+     * somebody else's model, and this loop's own agent everywhere else. Filed under the name on the
+     * run instead, the width found by working a task would be learned by an agent that never made
+     * the call, and the agent that did would go on finding it out again on every task it is handed.
+     */
+    private windowKeeper(): string {
+        return this.agentConfig.id;
     }
 
     private serializedHistory(): string {
@@ -740,12 +757,56 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
      * One task of the project, handed to a loop of its own. It is the loop that spawns loops in
      * turn: a task worth handing over is rarely one thing, and a sub loop that cannot hand anything
      * on leaves every piece of it to be done one after the other.
+     *
+     * The work is done by the model of the agent the task belongs to, which is why this one is not
+     * always built here: a loop can only build its own kind, and an assignee of another vendor
+     * speaks another protocol. Where the task is nobody's, or is the work of the agent handing it
+     * over, there is nothing to pick and the shorter way is taken.
      */
-    public createTaskLoop(assignedTask: AssignedTask): LoopAgent<I, O, LLM> {
+    public async createTaskLoop(assignedTask: AssignedTask): Promise<LoopAgent<any, any, any>> {
         if (this.loopKind() !== 'main') {
             throw new Error(`A ${this.loopKind()} loop cannot create a task loop.`);
         }
-        return this.spawn({kind: 'task', runId: randomUUID(), assignedTask});
+        // Read once here, as the assignee behind the prompt of the run is: a task handed to
+        // somebody else halfway through is worked on by whoever it belonged to at the start.
+        //
+        // The name the board holds, and not the agent it was looked up to: an assignee that has
+        // been deleted from the configuration answers to nobody, and reading this as "then nobody
+        // owns it" would put the task on the model of the loop handing it over -- silently, the one
+        // thing the refusal below exists to prevent. Named here, it is refused by name down there.
+        const runAs = PromptService.taskAssigneeId(assignedTask);
+        const spawned = {kind: 'task' as const, runId: randomUUID(), assignedTask, runAs};
+        if (!runAs || runAs === this.agentId) {
+            return this.spawn(spawned);
+        }
+        return this.spawnAs(runAs, spawned);
+    }
+
+    /**
+     * Asked for where it is used rather than named at the top of the file: what knows every kind of
+     * loop is what builds this one, so it knows this one too, and a module naming it up there would
+     * be asked for a class still being defined. The cron service reaches for it the same way.
+     */
+    private async spawnAs(
+        runAs: string, spawned: Omit<SpawnedLoop, 'permissionWhiteList'>
+    ): Promise<LoopAgent<any, any, any>> {
+        const {LoopInitializer} = await import('../../loop-initializer');
+        try {
+            return LoopInitializer.getSpawnedLoop(
+                this.role, this.agentId, this.projectId, this.spawnedHandler(), this.asRun(spawned)
+            );
+        } catch (error) {
+            // Never quietly on this loop's own model instead. Whoever reads this picked the
+            // assignee, and a task worked by a model they did not choose is worse than one refused.
+            // The cause is held apart rather than run on from a colon: whatever threw ends its
+            // message however it likes, and one that ends in no stop at all would read as a single
+            // sentence with the advice that follows it.
+            throw new Error(
+                `This task belongs to "${runAs}", and no run can be built for that agent `
+                + `(${error instanceof Error ? error.message : 'unknown error'}). `
+                + 'Hand the task to somebody else, or have the user look at that agent.'
+            );
+        }
     }
 
     /** The end of the chain: it works the prompt it was handed and answers with what came of it. */
@@ -753,7 +814,18 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         if (this.loopKind() === 'sub') {
             throw new Error('A sub loop cannot create a sub loop.');
         }
-        return this.spawn({kind: 'sub', runId: randomUUID(), assignedTask: this.assignedTask()});
+        // A helper of a run is that run: it works with the same config, which this loop was already
+        // built to, so there is no class to pick here however the run came about.
+        return this.spawn({
+            kind: 'sub', runId: randomUUID(), assignedTask: this.assignedTask(),
+            runAs: this.spawned?.runAs,
+        });
+    }
+
+    private spawn(spawned: Omit<SpawnedLoop, 'permissionWhiteList'>): LoopAgent<I, O, LLM> {
+        return this.newLoop(
+            this.role, this.agentId, this.projectId, this.spawnedHandler(), this.asRun(spawned)
+        );
     }
 
     /**
@@ -761,12 +833,17 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
      * and text of its own under the loop id they share would read as an answer of that loop. What
      * it has to ask and what it changed do travel on, there is nobody else to hear either.
      */
-    private spawn(spawned: Omit<SpawnedLoop, 'permissionWhiteList'>): LoopAgent<I, O, LLM> {
-        return this.newLoop(this.role, this.agentId, this.projectId, {
+    private spawnedHandler(): AgentHandler {
+        return {
             onStreamText: () => {},
             onInteractionEvent: async (event: AgentInteractionEvent) => this.askOfThisRun(event),
             onInfoEvent: (event: AgentInfoEvent) => this.agentHandler.onInfoEvent(event),
-        }, {...spawned, permissionWhiteList: this.permissionWhiteList});
+        };
+    }
+
+    /** What every loop under this one works with, whoever's model is doing the work. */
+    private asRun(spawned: Omit<SpawnedLoop, 'permissionWhiteList'>): SpawnedLoop {
+        return {...spawned, permissionWhiteList: this.permissionWhiteList};
     }
 
     /** Through the run in progress where it brought a way of its own, the loop's own way otherwise. */

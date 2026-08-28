@@ -57,7 +57,7 @@ export function newTestContext(overrides: Partial<OneLoopContext> = {}): OneLoop
         system: {cacheable: 'cacheable prompt', learned: 'learned prompt', dynamic: 'dynamic prompt'},
         logger: newTestLogger(),
         actions: {
-            newTaskLoop: vi.fn(() => ({} as FlushAgent)),
+            newTaskLoop: vi.fn(async () => ({} as FlushAgent)),
             newSubLoop: vi.fn(() => ({} as FlushAgent)),
             addFootPrint: vi.fn(),
             agentHandler: newTestAgentHandler(),

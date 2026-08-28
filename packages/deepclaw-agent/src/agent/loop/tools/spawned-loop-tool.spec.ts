@@ -60,10 +60,17 @@ function newSpawnedLoop(text = 'spawned loop answer', usage: TokenUsage = newTes
 
 type SpawnedLoopMock = ReturnType<typeof newSpawnedLoop>;
 
+/** A loop that is still being built, so a test can stand in the middle of that await. */
+function pending<T>(): {promise: Promise<T>, settle: (value: T) => void} {
+    let settle!: (value: T) => void;
+    const promise = new Promise<T>(resolve => {settle = resolve;});
+    return {promise, settle};
+}
+
 /** The tool goes to a project run and to no other, so that is the run these are called under. */
 function contextWithTaskLoop(taskLoop: SpawnedLoopMock, projectId = 'p1'): OneLoopContext {
     const context = newTestContext({projectId, role: 'project'});
-    vi.mocked(context.actions.newTaskLoop).mockReturnValue(taskLoop as unknown as FlushAgent);
+    vi.mocked(context.actions.newTaskLoop).mockResolvedValue(taskLoop as unknown as FlushAgent);
     return context;
 }
 
@@ -120,6 +127,62 @@ describe('taskLoopTool invoke', () => {
         await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
         expect(mocks.updateTask).toHaveBeenCalledExactlyOnceWith('p1', {id: 'ship-it', status: 'ongoing'});
         expect(mocks.fireProjectInfoEvent).toHaveBeenCalledExactlyOnceWith('p1', context);
+    });
+
+    /**
+     * The board takes an assignee on a todo task and on no other, and ongoing never goes back. A
+     * task turned before the run exists is therefore a task stuck with an agent no run can be built
+     * for -- which is exactly what the refusal tells the model to fix by handing it to somebody else.
+     */
+    test('leaves the task in todo when no run can be built to work it', async () => {
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        vi.mocked(context.actions.newTaskLoop).mockRejectedValue(new Error('This task belongs to "a2"'));
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
+            .rejects.toThrow('This task belongs to "a2"');
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+        expect(mocks.finishRun).toHaveBeenCalledExactlyOnceWith('run1');
+    });
+
+    test('turns the task ongoing only once there is a run to turn it for', async () => {
+        const taskLoop = newSpawnedLoop();
+        const context = contextWithTaskLoop(taskLoop);
+        const building = pending<FlushAgent>();
+        vi.mocked(context.actions.newTaskLoop).mockReturnValue(building.promise);
+
+        const handover = taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
+        await Promise.resolve();
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+
+        building.settle(taskLoop as unknown as FlushAgent);
+        await handover;
+        expect(mocks.updateTask).toHaveBeenCalledExactlyOnceWith('p1', {id: 'ship-it', status: 'ongoing'});
+    });
+
+    /**
+     * Two of these run beside each other in one turn, and the only thing between them is the claim:
+     * the task is read as free, and from there to claimed nothing may be awaited. Building the loop
+     * is an await whoever the task belongs to, so a claim made after it would let the second call
+     * through a check the first had not answered yet.
+     */
+    test('keeps a second call of the same turn off a task the first just claimed', async () => {
+        const claimed = new Set<string>();
+        mocks.startRun.mockImplementation((run) => {
+            claimed.add((run as {taskId: string}).taskId);
+            return 'run1';
+        });
+        mocks.isRunning.mockImplementation((_projectId, taskId) => claimed.has(taskId));
+        const taskLoop = newSpawnedLoop();
+        const context = contextWithTaskLoop(taskLoop);
+        const building = pending<FlushAgent>();
+        vi.mocked(context.actions.newTaskLoop).mockReturnValue(building.promise);
+
+        const first = taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
+        await expect(taskLoopTool.invoke({prompt: 'go too', taskId: 'ship-it'}, context))
+            .rejects.toThrow('A subagent is working on "ship it" already');
+
+        building.settle(taskLoop as unknown as FlushAgent);
+        await first;
+        expect(context.actions.newTaskLoop).toHaveBeenCalledOnce();
     });
 
     test('leaves a task that is already ongoing where it is', async () => {

@@ -139,13 +139,27 @@ ${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskId)
     /**
      * The agent a task belongs to, which is the one a sub loop stands in for while working on it.
      * The loop asks for it too, to tell the tools of the run which agent they work for.
+     *
+     * Nothing where the board names an agent nobody knows: a name is only worth borrowing where
+     * there is somebody to borrow it from, and the memory, the skills and the personality of a
+     * stranger are all nothing anyway. What that name cannot be dropped from is the choice of whose
+     * model does the work, which is why that is read off the id below and not off this.
      */
     public static taskAssignee(assignedTask?: AssignedTask): AgentIdentity | undefined {
+        const assignee = this.taskAssigneeId(assignedTask);
+        return assignee ? AgentIdentityManager.getAgent(assignee) : undefined;
+    }
+
+    /**
+     * The agent a task names, known here or not. Said as the board has it: an id that answers to
+     * nobody is still an answer, and the run about to be built for it is refused by name rather
+     * than quietly built for whoever asked -- which is a task worked by a model nobody chose.
+     */
+    public static taskAssigneeId(assignedTask?: AssignedTask): string | undefined {
         if (!assignedTask) {
             return undefined;
         }
-        const task = ProjectManager.getTask(assignedTask.projectId, assignedTask.taskId);
-        return task?.assignee ? AgentIdentityManager.getAgent(task.assignee) : undefined;
+        return ProjectManager.getTask(assignedTask.projectId, assignedTask.taskId)?.assignee;
     }
 
     private static init() {

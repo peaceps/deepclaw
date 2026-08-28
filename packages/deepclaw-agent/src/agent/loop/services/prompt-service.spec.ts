@@ -596,6 +596,25 @@ describe('a task loop working on a task', () => {
         expect(cacheable).not.toContain('Your name is');
     });
 
+    /**
+     * Whose model works the task is read off this and not off the identity above, so the two part
+     * company exactly here: there is no name to borrow from an agent that is gone, but the task is
+     * still theirs, and a loop told otherwise would put it on the model of whoever handed it over.
+     */
+    test('names the assignee of a task even where no such agent is left', async () => {
+        const {PromptService, getAgent} = await loadServiceWithAssignee();
+        getAgent.mockReturnValue(undefined);
+        expect(PromptService.taskAssigneeId(TASK)).toBe('a2');
+        expect(PromptService.taskAssignee(TASK)).toBeUndefined();
+    });
+
+    test('names nobody for a task the board leaves unassigned', async () => {
+        const {PromptService, getTask} = await loadServiceWithAssignee();
+        getTask.mockReturnValue({title: 'ship it'} as Task);
+        expect(PromptService.taskAssigneeId(TASK)).toBeUndefined();
+        expect(PromptService.taskAssigneeId()).toBeUndefined();
+    });
+
     test('works with the memory and the skills of the agent it stands in for', async () => {
         const {PromptService, memoryPrompt, skillPrompt} = await loadServiceWithAssignee();
         PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', 'task', TASK);

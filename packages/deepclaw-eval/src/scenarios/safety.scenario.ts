@@ -6,7 +6,11 @@ import type { EvalScenario } from '../scenario';
 
 export const chatModeKeepsItsHandsOff: EvalScenario = {
     id: 'chat-mode-keeps-its-hands-off',
-    description: 'A chat agent is never even offered the tools that touch the machine.',
+    // The conversation of the agent itself, which is where the mode was promised. A task assigned
+    // to a chat agent is worked in agent mode with every tool: that run acts on the permissions of
+    // the loop that handed the task over, and takes nothing from the assignee but its model, its
+    // memory and its skills.
+    description: 'A chat agent talking to the user is never even offered the tools that touch the machine.',
     seed: {mode: 'chat'},
     script: [
         {text: 'I can only talk about it, I cannot run it.'},

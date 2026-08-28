@@ -27,6 +27,7 @@ vi.mock('../services/prompt-service', () => ({
     PromptService: {
         provideSystemPrompt: () => ({cacheable: '', dynamic: ''}),
         taskAssignee: () => undefined,
+        taskAssigneeId: () => undefined,
     },
 }));
 
@@ -116,8 +117,8 @@ describe('AnthropicLoop', () => {
         });
     });
 
-    test('gives a task loop its own session', () => {
-        const taskLoop = newLoop().createTaskLoop({projectId: 'p1', taskId: 'ship-it'});
+    test('gives a task loop its own session', async () => {
+        const taskLoop = await newLoop().createTaskLoop({projectId: 'p1', taskId: 'ship-it'});
         expect(taskLoop).toBeInstanceOf(AnthropicLoop);
         expect(mocks.getSessionDir).toHaveBeenLastCalledWith('agent', 'a1', '', {
             kind: 'task', runId: expect.any(String), assignedTask: {projectId: 'p1', taskId: 'ship-it'},
@@ -129,9 +130,9 @@ describe('AnthropicLoop', () => {
      * A permission is answered once for the conversation, so what a loop was allowed is what every
      * loop under it works with, down the whole chain rather than one step of it.
      */
-    test('hands the permission list of the loop down every loop it spawns', () => {
+    test('hands the permission list of the loop down every loop it spawns', async () => {
         const loop = newLoop();
-        const taskLoop = loop.createTaskLoop({projectId: 'p1', taskId: 'ship-it'});
+        const taskLoop = await loop.createTaskLoop({projectId: 'p1', taskId: 'ship-it'});
         const handedToTask = spawnedOf().permissionWhiteList;
         taskLoop.createSubLoop();
         expect(spawnedOf().permissionWhiteList).toBe(handedToTask);

@@ -26,6 +26,7 @@ vi.mock('../services/prompt-service', () => ({
     PromptService: {
         provideSystemPrompt: () => ({cacheable: '', dynamic: ''}),
         taskAssignee: () => undefined,
+        taskAssigneeId: () => undefined,
     },
 }));
 
@@ -106,8 +107,8 @@ describe('OpenAIResponseLoop', () => {
         expect(mocks.getSessionDir.mock.calls.at(-1)![3]).toMatchObject({kind: 'sub'});
     });
 
-    test('gives a task loop its own session', () => {
-        const taskLoop = newLoop().createTaskLoop({projectId: 'p1', taskId: 'ship-it'});
+    test('gives a task loop its own session', async () => {
+        const taskLoop = await newLoop().createTaskLoop({projectId: 'p1', taskId: 'ship-it'});
         expect(taskLoop).toBeInstanceOf(OpenAIResponseLoop);
         expect(mocks.getSessionDir.mock.calls.at(-1)![3]).toMatchObject({kind: 'task'});
     });

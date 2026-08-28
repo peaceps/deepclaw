@@ -21,6 +21,20 @@ of -- never written down, or written in a conversation it has since let go of --
 nothing, which reads exactly like nothing new. the chat would go on asking from that message and
 never be handed another word said in the conversation, without so much as an error to show for it,
 until the page was loaded again.
+a task now runs on the model of the agent it was assigned to. handing one over built a subagent that
+wore the assignee's name in the prompt and worked with their memory and their skills, but thought with
+the model of whoever handed it out -- so giving a task to somebody better at it, or cheaper at it,
+changed the manner of the run and nothing else about it. the config comes from the assignee now, the
+endpoint and the keys along with it, and a project can be split between agents of different vendors.
+an assignee kept in chat mode works the task in agent mode all the same: a run handed a task and none
+of the tools to do it with is no use to anybody. what does not travel with the model is whose name the
+run answers under: every question a subagent puts to the user still arrives under the loop that handed
+the task over, which is the conversation somebody has open to answer it in. where no run can be built
+for the assignee at all -- an endpoint that names no protocol, an agent deleted out of the config
+while a task still points at it -- the handover is refused by name rather than quietly worked on the
+model of whoever handed it out, and the task stays where it was so that handing it to somebody else
+is still open. a task marked ongoing for a run that never started would have been stuck with that
+agent for good, a new assignee being something the board takes only on a task still in todo.
 and a conversation past twenty thousand messages or eight megabytes now says so in the log. nothing
 is done about it: the whole of a chat is still read and parsed to show the last thirty of it, which
 being let go of turns from a cost paid once into one paid every time it is opened. the line is
