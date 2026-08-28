@@ -4,9 +4,11 @@ import {PAGE_SIZE, UIChatService} from './ui-chat-service';
 
 const mocks = vi.hoisted(() => ({
     readFile: vi.fn<(path: string) => string>(),
-    appendFile: vi.fn(),
+    appendFile: vi.fn<(path: string, content: string) => void>(),
+    writeFile: vi.fn<(path: string, content: string) => string>(() => ''),
     exists: vi.fn<(path: string) => boolean>(() => false),
     movePath: vi.fn<(from: string, to: string) => boolean>(() => false),
+    warn: vi.fn<(message: string) => void>(),
     saveImage: vi.fn<(bytes: Buffer, extension: string, loopId: string) => string>(
         (_bytes, extension, loopId) => `${loopId}/abc123.${extension}`
     ),
@@ -32,9 +34,10 @@ vi.mock('@deepclaw/agent', () => ({
 
 vi.mock('@deepclaw/node-utils', () => ({
     FileUtils: {
-        readFile: mocks.readFile, appendFile: mocks.appendFile,
+        readFile: mocks.readFile, appendFile: mocks.appendFile, writeFile: mocks.writeFile,
         exists: mocks.exists, movePath: mocks.movePath,
     },
+    getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: mocks.warn, error: vi.fn()}),
     ImageStore: {save: mocks.saveImage},
 }));
 
@@ -100,6 +103,37 @@ describe('UIChatService message store', () => {
         const replaced = UIChatService.replaceMessage('agent.replace', 'm1', 'final answer');
         expect(replaced?.content).toBe('final answer');
         expect(mocks.appendFile).toHaveBeenCalledOnce();
+    });
+
+    /**
+     * The empty message an answer is opened with is written by whatever is said next, so the answer
+     * that fills it in is a change to a line the file already has. An append writes nothing for
+     * that -- everything past the end of the file is nothing -- and the answer would be on the page
+     * until the conversation was read back off the disk without it.
+     */
+    test('writes the file again for a change to a message it has already written', () => {
+        UIChatService.addMessage('agent.rewrite', newMessage('m1', ''));
+        UIChatService.addMessage('agent.rewrite', newMessage('m2'));
+        vi.clearAllMocks();
+        UIChatService.replaceMessage('agent.rewrite', 'm1', 'the answer');
+        expect(mocks.appendFile).not.toHaveBeenCalled();
+        expect(mocks.writeFile).toHaveBeenCalledExactlyOnceWith(
+            '.agents/rewrite/session/chat.jsonl',
+            `${JSON.stringify(newMessage('m1', 'the answer'))}\n${JSON.stringify(newMessage('m2'))}\n`
+        );
+    });
+
+    /** Everything past the end of the file is unwritten for a reason, the empty message included. */
+    test('appends a message that is not written yet rather than writing the file again', () => {
+        UIChatService.addMessage('agent.stillAppends', newMessage('m1'));
+        UIChatService.addMessage('agent.stillAppends', newMessage('m2', ''));
+        vi.clearAllMocks();
+        UIChatService.replaceMessage('agent.stillAppends', 'm2', 'the answer');
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(mocks.appendFile).toHaveBeenCalledExactlyOnceWith(
+            '.agents/stillAppends/session/chat.jsonl',
+            `${JSON.stringify(newMessage('m2', 'the answer'))}\n`
+        );
     });
 
     test('ignores a replacement of an unknown message', () => {
@@ -376,5 +410,193 @@ describe('UIChatService forgetting a conversation', () => {
         const last = UIChatService.getOlderMessages('agent.page', undefined, '20260101000000000');
         expect(ids(UIChatService.getOlderMessages('agent.page', last[0]!.id, '20260101000000000')))
             .toEqual(['a1', 'a2', 'a3', 'a4', 'a5']);
+    });
+});
+
+/**
+ * Opening a chat is what puts it here, and opening one builds no loop, so nothing above this can
+ * say when a conversation stops being worth holding. Nothing here counts what is in the store
+ * either: it is static and holds whatever the tests above left in it, which can only bring an
+ * eviction closer. What says a conversation was let go of is having to be read off the disk again.
+ */
+describe('UIChatService letting go of idle conversations', () => {
+    const MAX_LIVE_CHATS = 12;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.readFile.mockImplementation(() => {
+            throw new Error('not found');
+        });
+    });
+
+    /** Every wave opens conversations of its own, so that none of them is a chat already held. */
+    function openChats(count: number, wave: string): void {
+        Array.from({length: count}, (_, i) => UIChatService.getOlderMessages(`agent.${wave}${i}`));
+    }
+
+    test('lets go of the conversation nobody has opened in the longest', () => {
+        UIChatService.addMessage('agent.walkedPast', newMessage('m1'));
+        openChats(MAX_LIVE_CHATS, 'past');
+        expect(UIChatService.getOlderMessages('agent.walkedPast')).toEqual([]);
+    });
+
+    /** Said in it or only read, either one is somebody being in that conversation just now. */
+    test('puts a conversation back at the end of the queue when it is used again', () => {
+        UIChatService.addMessage('agent.usedAgain', newMessage('m1'));
+        openChats(MAX_LIVE_CHATS, 'before');
+        // Let go of by the walk above, and here again: what it holds now is this message alone.
+        UIChatService.addMessage('agent.usedAgain', newMessage('m2'));
+        // A few rather than a storeful: what is asked here is whether using it again moved it out
+        // of the way of the next eviction, and how many the store has room for depends on what the
+        // tests above left in it, a conversation with something unwritten in it never leaving.
+        openChats(4, 'after');
+        expect(ids(UIChatService.getOlderMessages('agent.usedAgain'))).toEqual(['m2']);
+    });
+
+    /**
+     * The empty message an answer is opened with is the one thing here the disk cannot give back,
+     * and an answer whose message is gone by the time it arrives is an answer nobody ever reads.
+     */
+    test('keeps a conversation holding a message that is not written yet', () => {
+        UIChatService.addMessage('agent.unwritten', newMessage('m1', ''));
+        openChats(MAX_LIVE_CHATS * 2, 'crowd');
+        expect(ids(UIChatService.getOlderMessages('agent.unwritten'))).toEqual(['m1']);
+    });
+});
+
+/**
+ * The three things a conversation holds go together or not at all, and letting go of one is the
+ * first thing that ever asks whether they really do: what is read back has to be the conversation
+ * as it was, a cursor handed out before has to still find its place in it, and the count of what is
+ * already written has to come back as the file rather than as whatever it was before.
+ */
+describe('UIChatService reading back a conversation it let go of', () => {
+    const MAX_LIVE_CHATS = 12;
+    const disk = new Map<string, string>();
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        disk.clear();
+        mocks.readFile.mockImplementation(path => {
+            const file = disk.get(path);
+            if (file === undefined) {
+                throw new Error('not found');
+            }
+            return file;
+        });
+        mocks.appendFile.mockImplementation((path, content) => {
+            disk.set(path, (disk.get(path) ?? '') + content);
+        });
+    });
+
+    /**
+     * Enough other conversations to push the one under test out of the store. What they read on
+     * their way in is cleared off after them, so that a read of the file under test past this point
+     * is that conversation being read back -- which is the only thing here that says it was ever
+     * let go of. Without asking for it, all of these would pass just as well against a store that
+     * had quietly stopped letting go of anything.
+     */
+    function crowdOut(): void {
+        Array.from({length: MAX_LIVE_CHATS}, (_, i) => UIChatService.getOlderMessages(`agent.out${i}`));
+        mocks.readFile.mockClear();
+    }
+
+    test('reads it back as it was', () => {
+        const written = fill('agent.backAsWas', 3);
+        crowdOut();
+        expect(UIChatService.getOlderMessages('agent.backAsWas')).toEqual(written);
+        expect(mocks.readFile).toHaveBeenCalledExactlyOnceWith('.agents/backAsWas/session/chat.jsonl');
+    });
+
+    /**
+     * The cursors go with the messages, so the page asked for from one is found by walking the
+     * conversation that was read back rather than by a place remembered from before it was let go.
+     */
+    test('pages on from a cursor it was handed before', () => {
+        fill('agent.backPage', PAGE_SIZE + 5);
+        const page = UIChatService.getOlderMessages('agent.backPage');
+        crowdOut();
+        expect(ids(UIChatService.getOlderMessages('agent.backPage', page[0]!.id)))
+            .toEqual(idRange(1, 5));
+        expect(mocks.readFile).toHaveBeenCalledExactlyOnceWith('.agents/backPage/session/chat.jsonl');
+    });
+
+    /**
+     * The count of what is written goes with them too, and comes back as the length of the file:
+     * anything else and the next message either lands in the middle of it or repeats the whole of
+     * it.
+     */
+    test('writes only the new message to the file, not the conversation again', () => {
+        fill('agent.backAppend', 2);
+        crowdOut();
+        const message = newMessage('m3');
+        UIChatService.addMessage('agent.backAppend', message);
+        expect(mocks.readFile).toHaveBeenCalledExactlyOnceWith('.agents/backAppend/session/chat.jsonl');
+        expect(mocks.appendFile.mock.calls.at(-1)).toEqual([
+            '.agents/backAppend/session/chat.jsonl', `${JSON.stringify(message)}\n`
+        ]);
+        expect(disk.get('.agents/backAppend/session/chat.jsonl')).toBe(
+            [newMessage('m1'), newMessage('m2'), message].map(m => `${JSON.stringify(m)}\n`).join('')
+        );
+    });
+});
+
+/**
+ * Nothing is done about a conversation that has grown big -- the whole of it is still read to show
+ * the last page of it -- but being let go of makes that a thing paid on every opening rather than
+ * once for as long as the program runs, so the day it starts to hurt is worth knowing about.
+ */
+describe('UIChatService reporting a conversation that has grown big', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.readFile.mockImplementation(() => {
+            throw new Error('not found');
+        });
+    });
+
+    test('says so in the log for a conversation of more messages than anybody meant to keep', () => {
+        mocks.readFile.mockReturnValueOnce(`${JSON.stringify(newMessage('m1'))}\n`.repeat(20001));
+        UIChatService.getOlderMessages('agent.huge');
+        expect(mocks.warn).toHaveBeenCalledOnce();
+        expect(mocks.warn.mock.calls[0]![0]).toContain('agent.huge');
+    });
+
+    test('says nothing of a conversation of an ordinary size', () => {
+        mocks.readFile.mockReturnValueOnce(`${JSON.stringify(newMessage('m1'))}\n`);
+        UIChatService.getOlderMessages('agent.ordinary');
+        expect(mocks.warn).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * A storeful of conversations that cannot be let go of leaves the walk nothing to drop until it
+ * reaches the end of the queue -- and the end of the queue is the conversation just read in, which
+ * is the one thing the caller is about to use. Dropped there, the caller is handed a conversation
+ * that is no longer in the store: an empty page where a chat should be, or nothing to push the
+ * next message onto at all.
+ *
+ * The twelve need not be twelve runs going at once. One run that stops partway through an answer
+ * leaves behind the empty message it opened with, never to be filled, and that conversation is
+ * held from then until somebody speaks in it again -- so they gather over days.
+ *
+ * Last of this file: what it pins is pinned for the rest of the run, leaving no room in the store
+ * for anything after it.
+ */
+describe('UIChatService with a storeful of conversations it cannot let go of', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.readFile.mockImplementation(() => {
+            throw new Error('not found');
+        });
+    });
+
+    test('keeps the conversation it has just read in', () => {
+        Array.from({length: 12}, (_, i) => {
+            UIChatService.addMessage(`agent.pinned${i}`, newMessage('m1', ''));
+        });
+        UIChatService.addMessage('agent.arrivedLast', newMessage('m1'));
+        expect(ids(UIChatService.getOlderMessages('agent.arrivedLast'))).toEqual(['m1']);
     });
 });

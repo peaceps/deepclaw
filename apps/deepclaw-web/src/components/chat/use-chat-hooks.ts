@@ -23,6 +23,43 @@ import {
 
 const logger = getLogger('useChatHooks');
 
+/**
+ * What this chat holds is behind whatever the server holds, and this is what closes the gap: the
+ * newest message on the page names the place to carry on from, and a page that holds nothing yet
+ * asks for the last one instead.
+ *
+ * A cursor comes back with the message it names, so an answer with nothing in it is not "nothing
+ * new" -- it is a message the server cannot place. One never written down, or one written in a
+ * conversation it has since let go of and read back from the disk without it. Left at that, this
+ * chat would go on asking from a message that will never resolve and never be handed another thing
+ * said in it, without so much as an error to show for it, until the page is loaded again. So the
+ * last page is asked for whole, which the store merges into what it already holds by id.
+ *
+ * The last page and no further, which leaves a gap where more than a page was said after the
+ * message that cannot be placed: what this chat holds is joined straight onto a page that does not
+ * follow it, and the join does not show. Paging up will not close it either -- that asks from the
+ * oldest message held, which is on the far side of the gap. Left as it is on purpose. Asking back
+ * from the page until it meets what is held costs a round of requests every time the fallback runs,
+ * and dropping what is held instead would throw away a long history scrolled up by hand in the far
+ * commoner case where the page does follow it. Closing it properly is the server's to do: an answer
+ * that says "I cannot place this" rather than an empty one would let this ask again knowing what it
+ * is missing, instead of guessing from a page.
+ */
+export async function pullMessagesFrom(loopId: string, newestMessageId?: string): Promise<ChatMessage[]> {
+    if (!newestMessageId) {
+        return pullOlderMessages(loopId);
+    }
+    const newer = await pullNewerMessages(loopId, newestMessageId);
+    if (newer.length) {
+        return newer;
+    }
+    logger.warn(
+        `The server cannot place ${newestMessageId} of ${loopId}. Asking for the last page instead, `
+        + 'which leaves out whatever was said between the two.'
+    );
+    return pullOlderMessages(loopId);
+}
+
 export function useInitChat(loopId: string,
     setChatInited: React.Dispatch<React.SetStateAction<boolean>>,
     setInput: React.Dispatch<React.SetStateAction<string>>,
@@ -36,10 +73,7 @@ export function useInitChat(loopId: string,
       setInput('');
       let cancelled = false;
       const newestMessageId = getNewestMessageId(loopId);
-      const pullPromise = newestMessageId
-          ? pullNewerMessages(loopId, newestMessageId)
-          : pullOlderMessages(loopId);
-      pullPromise.then(messages => {
+      pullMessagesFrom(loopId, newestMessageId).then(messages => {
           if (cancelled) return;
           addPulledMessages(loopId, messages);
       }).catch(err => {

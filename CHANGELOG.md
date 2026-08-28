@@ -1,3 +1,31 @@
+v0.0.18
+a conversation nobody has read or written in for a while is no longer held in memory either. one
+that was opened was read off the disk whole and kept for as long as the program ran, so a walk down
+the agent list was enough to leave every transcript it passed behind it -- and nothing was ever
+going to take one away, because opening a chat builds no loop, and a loop being let go of was the
+only thing that would have. the twelve most recently used are kept now and the idlest past that is
+dropped, which costs it nothing but being read again the next time somebody opens it. one is never
+dropped while it holds something the disk cannot give back: the empty message an answer is opened
+with lives in memory alone until the answer fills it, and a conversation let go of in between would
+leave that answer with nothing to land on.
+an answer written into a message that was already on the disk used to be kept in memory alone. the
+file is only ever added to, and everything past the end of it is nothing, so a change to a line
+already in there wrote nothing at all. that showed as nothing for as long as the memory copy
+outlived the program, and would have shown as the answer never having happened the first time a
+conversation was let go of and read back. the file is written again for those now. it was never as
+rare as it sounds: the empty message an answer is opened with is written down by whatever is said
+next, so saying anything at all while an answer was on its way was enough.
+a chat that asks to be caught up from a message the server cannot place now asks for the last page
+rather than going quiet. it asks from the newest message it holds, and one the server has no record
+of -- never written down, or written in a conversation it has since let go of -- was answered with
+nothing, which reads exactly like nothing new. the chat would go on asking from that message and
+never be handed another word said in the conversation, without so much as an error to show for it,
+until the page was loaded again.
+and a conversation past twenty thousand messages or eight megabytes now says so in the log. nothing
+is done about it: the whole of a chat is still read and parsed to show the last thirty of it, which
+being let go of turns from a cost paid once into one paid every time it is opened. the line is
+there so that the day one of them grows into a problem is a day somebody knows rather than guesses.
+
 v0.0.17
 a conversation is now summarized against what the model will actually take, rather than against a
 count of characters. how many tokens a request came to is something the model says back on every

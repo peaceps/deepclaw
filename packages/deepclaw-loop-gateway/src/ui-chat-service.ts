@@ -1,7 +1,7 @@
 import {AGENTS_DIR, CHAT_FILE, PROJECT_DIR, SessionService} from '@deepclaw/agent';
 import { ChatMessage, splitLoopId } from '@deepclaw/core';
 import { globalize } from '@deepclaw/utils';
-import { FileUtils } from '@deepclaw/node-utils';
+import { FileUtils, getLogger } from '@deepclaw/node-utils';
 import { storeImages } from './image-refs';
 
 /**
@@ -18,7 +18,37 @@ const EMPTY_RANGE: [number, number] = [0, 0];
  */
 const ARCHIVED_KEY_SEPARATOR = '#';
 
-// TODO FULL MEMORY
+/**
+ * How many conversations are held in memory at once.
+ *
+ * Held here rather than counted by the gateway along with its loops, because a loop is not what
+ * puts a conversation in this store: a chat is read into memory by being opened, and opening one
+ * builds no loop at all. A walk down the agent list would otherwise leave every transcript it
+ * passed behind it, for as long as the program runs.
+ *
+ * Twelve for the same reason the loop store keeps twelve -- it is how many agents and projects
+ * anybody goes back and forth between -- and the cost of going over is the same too: the next word
+ * said in the conversation that was let go of reads it back off the disk first.
+ *
+ * Soft, as that one is: a conversation holding something that is not on the disk yet is kept
+ * whatever its age.
+ */
+const MAX_LIVE_CHATS = 12;
+
+/**
+ * What one conversation has to reach before it is worth a word in the log, in messages and in bytes
+ * of the file. The whole of a chat is read and parsed to show the last page of it, so a big one is
+ * paid for on every cold open -- and being let go of makes cold opens the common case rather than
+ * the once-per-process one.
+ *
+ * Nothing is done about it here. This is the line past which somebody should be told, so that the
+ * day a conversation grows into a problem is a day it is known rather than guessed at.
+ */
+const BIG_CHAT_MESSAGES = 20000;
+const BIG_CHAT_BYTES = 8 * 1024 * 1024;
+
+const logger = getLogger('UIChatService');
+
 class UIChatServiceImpl {
 
     private static messageIndexCache: Map<string, Map<string, number>> = new Map();
@@ -37,12 +67,26 @@ class UIChatServiceImpl {
         }
     }
 
+    /**
+     * The message as it stands afterwards, or nothing where this conversation holds no such message.
+     *
+     * A message that is already written is written again in place, which is the whole file: what
+     * every other write goes through can only add to the end of it. Rare, and not as rare as it
+     * sounds -- the empty message an answer is opened with is written by whatever is said next,
+     * long before the answer that fills it comes back.
+     */
     public static replaceMessage(loopId: string, id: string, text: string): ChatMessage | undefined {
         this.ensureMessageLoaded(loopId);
         const messages = this.messageStore.get(loopId)!;
-        const message = messages.find(m => m.id === id);
-        if (message) {
-            message.content = text;
+        const index = messages.findIndex(m => m.id === id);
+        const message = messages[index];
+        if (!message) {
+            return undefined;
+        }
+        message.content = text;
+        if (index < (this.persistedIndex.get(loopId) ?? 0)) {
+            this.rewriteMessages(loopId);
+        } else {
             this.saveMessages(loopId);
         }
         return message;
@@ -160,6 +204,53 @@ class UIChatServiceImpl {
         if (!this.messageStore.has(chatKey)) {
             this.loadPersistedMessages(chatKey);
         }
+        this.freshest(chatKey);
+        this.evictIdleChats(chatKey);
+    }
+
+    /**
+     * Moves a conversation to the end of the store, the end being where the one just used belongs.
+     * Insertion order is the whole of the recency kept here: a map holds a key where it was first
+     * put, so a key taken out and put back is a key at the end, and the front is the one nobody has
+     * asked for in the longest.
+     */
+    private static freshest(chatKey: string): void {
+        const messages = this.messageStore.get(chatKey);
+        if (!messages) {
+            return;
+        }
+        this.messageStore.delete(chatKey);
+        this.messageStore.set(chatKey, messages);
+    }
+
+    /**
+     * Lets go of the conversations nobody has read or written in for the longest, down to the limit.
+     * Nothing is lost by it: the file is what a conversation is, and this store is only the copy
+     * that saves reading it again.
+     *
+     * Two are never let go of. One is what the disk cannot give back: a conversation holding a
+     * message that is not written yet -- the empty one an answer is opened with -- would come back
+     * without it, and the answer that fills it would then have no message to land on. The other is
+     * the conversation being read or written this very moment, named here rather than left to its
+     * place at the end of the queue: where every one ahead of it is being kept, the walk reaches
+     * the end, and the caller would be handed a conversation dropped out from under it between
+     * being read in and being used.
+     */
+    private static evictIdleChats(inUse: string): void {
+        for (const chatKey of this.messageStore.keys()) {
+            if (this.messageStore.size <= MAX_LIVE_CHATS) {
+                return;
+            }
+            if (chatKey === inUse || this.holdsUnwritten(chatKey)) {
+                continue;
+            }
+            this.forget(chatKey);
+        }
+    }
+
+    private static holdsUnwritten(chatKey: string): boolean {
+        const held = this.messageStore.get(chatKey)?.length ?? 0;
+        return held > (this.persistedIndex.get(chatKey) ?? 0);
     }
 
     private static loadPersistedMessages(chatKey: string): void {
@@ -168,7 +259,13 @@ class UIChatServiceImpl {
             this.migrateLegacyChatFile(loopId);
         }
         const chatFilePath = this.getChatFile(chatKey);
+        // The empty conversation and the count of nothing written are put down together, before the
+        // read that is allowed to fail. A read that does fail leaves whatever it managed, and half
+        // of this pair is the dangerous half: a count left over from the conversation that was here
+        // before names a place in a file that was never read, and the messages said next would be
+        // skipped over from the front and never written at all.
         this.messageStore.set(chatKey, []);
+        this.persistedIndex.set(chatKey, 0);
         try {
             const file = FileUtils.readFile(chatFilePath);
             const lines = file.split('\n').filter(line => !!line.trim());
@@ -181,9 +278,26 @@ class UIChatServiceImpl {
                 }
             }
             this.persistedIndex.set(chatKey, this.messageStore.get(chatKey)!.length);
+            this.reportSize(chatKey, lines.length, file);
         } catch {
             // TODO PASS
         }
+    }
+
+    /**
+     * Says so where a conversation has grown big enough that reading it back is worth noticing.
+     * Nothing here reads a part of a file, so the whole of it is parsed to show the last page of it,
+     * and every time it is opened cold at that.
+     */
+    private static reportSize(chatKey: string, messages: number, file: string): void {
+        const bytes = Buffer.byteLength(file, 'utf8');
+        if (messages <= BIG_CHAT_MESSAGES && bytes <= BIG_CHAT_BYTES) {
+            return;
+        }
+        logger.warn(
+            `Chat ${chatKey} has grown to ${messages} messages and ${bytes} bytes, `
+            + 'all of which is read and parsed every time it is opened.'
+        );
     }
 
     private static chatKey(loopId: string, sessionId?: string): string {
@@ -251,6 +365,33 @@ class UIChatServiceImpl {
             FileUtils.appendFile(chatFilePath, content);
         } catch {
             // TODO pass
+        }
+    }
+
+    /**
+     * Writes the file again out of what has already been written to it, for a change to a line that
+     * is in there. An append asked to do this writes nothing at all -- the increment it takes is
+     * everything past the last line, and the change is behind that -- so the message would be
+     * changed in memory and left as it was on the disk. That showed as nothing while the memory copy
+     * outlived the process, and shows as the change never having happened the moment a conversation
+     * is let go of and read back.
+     *
+     * Only as far as the file already goes. Anything past that is not written yet for a reason: the
+     * empty message an answer is opened with is in there, and a rewrite that took it along would
+     * leave it in the conversation for good.
+     */
+    private static rewriteMessages(chatKey: string): void {
+        const messages = this.messageStore.get(chatKey) ?? [];
+        const written = messages.slice(0, this.persistedIndex.get(chatKey) ?? 0);
+        const content = written.map(m => JSON.stringify(m)).join('\n') + (written.length > 0 ? '\n' : '');
+        try {
+            FileUtils.writeFile(this.getChatFile(chatKey), content);
+        } catch (error) {
+            // An append that fails is a message missing from the file, which the conversation read
+            // back shows as such. This one fails into the shape of the bug it is here to fix: the
+            // old line is still on the disk while the new one is on the page, and the two agree
+            // again -- on the old one -- the day the conversation is read back.
+            logger.warn(`Rewriting the chat file of ${chatKey} failed, leaving it as it was: ${error}`);
         }
     }
 
