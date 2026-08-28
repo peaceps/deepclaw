@@ -61,7 +61,3 @@ export async function listSessions(loopId: string): Promise<SessionSummary[]> {
 export async function pushChatMessage(browserId: string, loopId: string, message: ChatMessage): Promise<void> {
     LoopGateway.addMessage(browserId, loopId, message);
 }
-
-export async function updateChatMessage(browserId: string, loopId: string, id: string, text: string): Promise<void> {
-    LoopGateway.updateMessage(browserId, loopId, id, text);
-}

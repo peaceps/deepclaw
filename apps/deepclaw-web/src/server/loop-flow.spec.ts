@@ -6,8 +6,6 @@ import type {
     AgentHandler, AgentInteractionEvent, AgentInteractionEventPayload, AgentInvokeOptions,
     AgentInvokeResponse, AgentRuntime, ChatMessage,
 } from '@deepclaw/core';
-/** The rule the view keeps a finished run by, taken from where the view takes it. */
-import {keepReply} from '@/lib/kept-reply';
 
 /**
  * The way from a chat that sends a message to a run that answers it, walked over the parts the
@@ -27,7 +25,7 @@ const {LoopInitializer, ToolUseService} = await import('@deepclaw/agent');
 const {SSEServer} = await import('@/app/api/sse-server');
 const {
     activeLoop, inactiveLoop, invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
-    resolveInteraction, updateChatMessage, listSessions, pullSessionMessages, startNewSession,
+    resolveInteraction, listSessions, pullSessionMessages, startNewSession,
 } = await import('@/server/loop-agent');
 
 afterAll(() => {
@@ -46,6 +44,7 @@ type Frame = {
     browserId?: string;
     busy?: boolean;
     text?: string;
+    tag?: string;
     done?: boolean;
     update?: boolean;
     message?: ChatMessage;
@@ -140,6 +139,14 @@ class FakeAgent {
         });
     }
 
+    /** A tool saying something about itself on the stream, in the shape that tool chose. */
+    public streamTagged(text: string, tag: string): void {
+        this.handler.onStreamText({
+            eventType: 'stream', loopId: this.loopId, browserId: this.browserId(),
+            text, tag, done: false,
+        });
+    }
+
     /**
      * Through the way the run brought where it brought one, the loop's own otherwise, which is what
      * a loop it spawned asks through as well: for a run of a chat the two are the same way.
@@ -152,8 +159,12 @@ class FakeAgent {
         return askOfThisRun ? askOfThisRun(question) : this.handler.onInteractionEvent(question);
     }
 
-    public async finish(text: string): Promise<void> {
-        this.finishRun!({text, runtime: emptyRuntime()});
+    /**
+     * The run ends. The line it ends on is its answer, and `said` is everything it had said by
+     * then, which is more than the answer wherever the run narrated its way there.
+     */
+    public async finish(text: string, said: string = text): Promise<void> {
+        this.finishRun!({text, said, runtime: emptyRuntime()});
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(this.loopId)).toBe(false));
     }
 
@@ -177,17 +188,6 @@ class FakeBrowser {
     private readonly busyLoops: Map<string, boolean> = new Map();
     private streaming?: {loopId: string; msgId: string};
     private watching?: string;
-    /**
-     * What this tab still has to tell the server. The word of a run travels over the network, so it
-     * arrives after the gateway has already written the end of that run itself: whatever the tab
-     * says of a finished run is the last word on it.
-     *
-     * Which is an order the clock keeps rather than anything holding it: the gateway writes the end
-     * of the run in a microtask of its own, the tab needs a trip down the stream and one back up
-     * through a server action. Were the tab ever to arrive first, the run would be kept as the last
-     * round it was written in, and this fixture would go on believing otherwise.
-     */
-    private readonly owed: (() => Promise<unknown>)[] = [];
 
     constructor(browserId: string) {
         this.browserId = browserId;
@@ -226,7 +226,6 @@ class FakeBrowser {
     }
 
     public async openChat(loopId: string): Promise<void> {
-        await this.settle();
         const held = this.messages.get(loopId) ?? [];
         const newest = held[held.length - 1]?.id;
         const pulled = newest
@@ -238,7 +237,6 @@ class FakeBrowser {
     }
 
     public async leaveChat(): Promise<void> {
-        await this.settle();
         const loopId = this.watching!;
         this.watching = undefined;
         this.modal = undefined;
@@ -261,7 +259,6 @@ class FakeBrowser {
 
     /** The button in the header. Nothing is emptied here: the server says so, to every tab. */
     public async startNew(loopId: string) {
-        await this.settle();
         return startNewSession(loopId);
     }
 
@@ -343,6 +340,11 @@ class FakeBrowser {
         if (!streaming || frame.browserId !== this.browserId || frame.loopId !== streaming.loopId) {
             return;
         }
+        // Read by whoever knows the tag and by nobody else: the answer being written here is what
+        // the run said, and a tool's own shape of words is no part of it.
+        if (frame.tag) {
+            return;
+        }
         const message = (this.messages.get(streaming.loopId) ?? [])
             .find(item => item.id === streaming.msgId);
         if (!frame.done) {
@@ -351,16 +353,9 @@ class FakeBrowser {
             }
             return;
         }
+        // Nothing is sent back: the tab reads the stream onto the screen and the server writes the
+        // run down, so the whole of it arrives here once more as a message of its own.
         this.streaming = undefined;
-        keepReply(message?.content, frame.text, text => this.owed.push(
-            () => updateChatMessage(this.browserId, streaming.loopId, streaming.msgId, text)
-        ));
-    }
-
-    private async settle(): Promise<void> {
-        for (const tell of this.owed.splice(0)) {
-            await tell();
-        }
     }
 
     private handleChat(loopId: string, frame: Frame): void {
@@ -426,6 +421,54 @@ describe('a chat that sends a message', () => {
         await agent.finish('Hello');
         expect(browser.textOf(loopId)).toBe('Hello');
         expect(browser.isBusy(loopId)).toBe(false);
+    });
+
+    /**
+     * What the first report of this was: a run narrated its way through a long piece of work and
+     * the whole of it went off the screen as it ended, leaving the one sentence it ended on --
+     * until the page was reloaded, which brought all of it back from the file.
+     */
+    // run 结束时留在聊天里的是全文，不是它最后那句话
+    test('keeps the whole of what was written, not the line the run ended on', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+
+        await browser.send(loopId, 'hi');
+        agent.stream('Read the file. ');
+        agent.stream('Fixed the typo.');
+        agent.stream('', true);
+        await agent.finish('Fixed the typo.', 'Read the file. Fixed the typo.');
+
+        expect(browser.textOf(loopId)).toBe('Read the file. Fixed the typo.');
+        // And the file says the same, so nothing changes under a reload either way.
+        await browser.reload().openChat(loopId);
+        expect(browser.textOf(loopId)).toBe('Read the file. Fixed the typo.');
+    });
+
+    /**
+     * A tool telling the stream where it has got to sends its own shape of words -- the step tool
+     * sends the task as json -- and the chat has no reading of that but to print it. It stood in
+     * the answer until the run ended and the message written from what was said wiped it, so what
+     * it left was a flash of json in the middle of a sentence.
+     */
+    // 工具带 tag 发上流的东西不进聊天，比如 update_task_current_step 的那段 json
+    test('leaves a tagged frame out of the answer it is writing', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+
+        await browser.send(loopId, 'hi');
+        agent.stream('Working on it. ');
+        agent.streamTagged('{"id":"design","currentStepIndex":1}', 'update_task_current_step');
+        agent.stream('Done.');
+        expect(browser.textOf(loopId)).toBe('Working on it. Done.');
+
+        agent.stream('', true);
+        await agent.finish('Done.', 'Working on it. Done.');
+        expect(browser.textOf(loopId)).toBe('Working on it. Done.');
     });
 
     /** What the first report of this was: the chat kept the thinking label of a run long over. */

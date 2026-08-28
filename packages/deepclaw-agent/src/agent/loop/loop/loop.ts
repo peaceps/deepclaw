@@ -16,6 +16,7 @@ import {
     FlushAgentRole,
     addTokenUsage,
     isImageRef,
+    streamShape,
     type ImageContent,
     type SealedAgentHandler,
     type TokenUsage,
@@ -45,6 +46,9 @@ type ToolRunResult = {
     toolUseDef: ToolUseDef;
     result: ToolUseResult;
 }
+
+/** How a run ends, in the two shapes it is read in; see `AgentInvokeResponse`. */
+type RunEnding = Omit<AgentInvokeResponse, 'runtime'>;
 
 /** A turn that got somewhere: the model asked for a tool, or answered. */
 const PROGRESS_TRANSITION_REASONS: LLMTransitionReason[] = ['toolUse', 'endLoop'];
@@ -263,24 +267,26 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     private async _invokeLoopAndReturn(state: LoopState<I>): Promise<AgentInvokeResponse> {
         const runtime = state.oneLoopContext.runtime;
-        let finalText = '';
+        let ending: RunEnding = {text: '', said: ''};
         try {
             SessionService.updateSessionRuntime(state.oneLoopContext, {status: 'running'});
-            finalText = await this.agentLoop(state);
-            return {text: finalText, runtime};
+            ending = this.trimmed(await this.agentLoop(state));
+            return {...ending, runtime};
         } catch (error) {
             const msg = `Error in loop, ${error instanceof Error ? error.message : 'Unknown error.'}`;
             runtime.transitionReason = 'error';
             runtime.agentBreakReason = undefined;
             state.oneLoopContext.logger.error(error, msg);
-            finalText = msg;
-            return {text: msg, runtime};
+            ending = this.trimmed({text: msg, said: this.saidWith(state.said, msg)});
+            return {...ending, runtime};
         } finally {
             try {
                 await HookManager.emitVisitor('postLoopEnd', state.oneLoopContext);
             } finally {
+                // The line under a closed conversation is read rather than watched, so it is the
+                // answer that stands there and not the run that arrived at it.
                 SessionService.saveHistory(this.history, state.oneLoopContext, {
-                    finalText, usage: runtime.usage
+                    finalText: ending.text, usage: runtime.usage
                 }, true);
                 this.historyPersistIndex = runtime.historyPersistIndex;
             }
@@ -320,19 +326,26 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         }
     }
 
-    private async agentLoop(state: LoopState<I>): Promise<string> {
+    private async agentLoop(state: LoopState<I>): Promise<RunEnding> {
         while (true) {
             const runtime = state.oneLoopContext.runtime;
             if (runtime.turnCount >= this.turnLimit) {
                 runtime.transitionReason = 'endLoop';
-                const finalText = i18nInstance.t('agent.maxTurnReached', {
-                    finalText: this.extractFinalText(state.messages)
-                });
+                const notice = i18nInstance.t('agent.maxTurnReached');
+                const said = this.appended(state.said, notice);
+                // Only what the stream has not carried yet, which is the notice and the space
+                // before it. Sent whole, the words above it would be read a second time from the
+                // moment the run ended until the message written from `said` landed over them.
                 this.agentHandler.onStreamText({
                     browserId: state.oneLoopContext.browserId,
-                    text: finalText
+                    text: said.slice(state.said.length)
                 });
-                return finalText;
+                // The reader handed the answer alone has nothing else of the run, so the last thing
+                // the model said is given to them with the notice under it -- the same way round as
+                // every other ending words itself, an ending being no use above the words it ends.
+                // The chat has those words already and is given the notice alone.
+                const last = this.extractFinalText(state.messages);
+                return {text: this.appended(last, notice), said};
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
                 this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
@@ -340,24 +353,81 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
-                let finalText = this.extractFinalText(state.messages);
-                if (runtime.transitionReason === 'error') {
-                    await HookManager.emitVisitor('turnError', state.oneLoopContext);
-                    finalText = finalText || i18nInstance.t('common.unexpected');
-                } else if (isAgentStopReason(runtime.agentBreakReason)) {
-                    finalText = runtime.agentBreakDetail || this.wrapAgentBreakMessage(finalText, 'agentStop', runtime.agentBreakReason);
-                } else if (isExternalInterruptReason(runtime.agentBreakReason)) {
-                    await HookManager.emitVisitor('externalInterrupt', state.oneLoopContext, runtime.agentBreakReason);
-                    finalText = runtime.agentBreakDetail || this.wrapAgentBreakMessage(finalText, 'externalInterrupt', runtime.agentBreakReason);
-                }
-                return finalText;
+                return this.endOfRun(state);
             }
         }
     }
 
-    private wrapAgentBreakMessage(text: string, type: string, flag: AgentBreakReason) {
-        const notice = i18nInstance.t(`agent.agentBreak.${type}.${flag}.user`);
+    /**
+     * How the run ends, worded for both of its readers.
+     *
+     * The two differ in what the ending is written after, and only there: everything the run said
+     * for the chat that watched it say so, the last thing it said for whoever is handed the answer
+     * alone. A notice is the part neither reader was ever streamed -- a project left for the user
+     * to look at, a stop, a failure the model never got to word -- so it is added to both, and a
+     * run ending on its own words needs nothing added to either.
+     */
+    private async endOfRun(state: LoopState<I>): Promise<RunEnding> {
+        const runtime = state.oneLoopContext.runtime;
+        const last = this.extractFinalText(state.messages);
+        if (runtime.transitionReason === 'error') {
+            await HookManager.emitVisitor('turnError', state.oneLoopContext);
+            // The words a failing turn left were streamed as they came; the ones standing in for
+            // a turn that left none, or refused before it began, reach the reader from here alone.
+            const text = last || i18nInstance.t('common.unexpected');
+            return {text, said: this.saidWith(state.said, text)};
+        }
+        if (isAgentStopReason(runtime.agentBreakReason)) {
+            // A detail is what whatever stopped the run had to say about it, and it answers for the
+            // whole of the run: nothing of the run is put in front of it, the last message under a
+            // break like this being as often a tool result as a sentence. Only where there is none
+            // does the run end on a line of its own, and then the words are worth reading first.
+            const detail = runtime.agentBreakDetail;
+            const notice = detail || this.agentBreakNotice('agentStop', runtime.agentBreakReason);
+            return {
+                text: detail || this.appended(last, notice),
+                said: this.appended(state.said, notice),
+            };
+        }
+        if (isExternalInterruptReason(runtime.agentBreakReason)) {
+            await HookManager.emitVisitor('externalInterrupt', state.oneLoopContext, runtime.agentBreakReason);
+            // A stop has no answer of its own, so both readers are given the run: everything it
+            // said and the one notice. Everything, and not the words of this turn alone -- a stop
+            // lands as easily in a turn opened after a tool call, which the model may enter
+            // without a word to say, and a bare notice there would take back off the screen every
+            // line the run had put on it.
+            const stopped = this.appended(
+                state.said, this.agentBreakNotice('externalInterrupt', runtime.agentBreakReason)
+            );
+            return {text: stopped, said: stopped};
+        }
+        return {text: last, said: state.said || last};
+    }
+
+    /**
+     * Blank space at the end of a run, once, where the stream drops it: what closes a stream is
+     * trimmed, and a run that ended on empty lines would otherwise leave them in the chat and in
+     * the line under a closed conversation. Only at the end -- trimmed as it came, a chunk ending
+     * on the space before the next word would lose it.
+     */
+    private trimmed(ending: RunEnding): RunEnding {
+        return {text: ending.text.trimEnd(), said: ending.said.trimEnd()};
+    }
+
+    /**
+     * Everything the run said with its ending after it, unless the ending is already the last of
+     * what it said -- which it is whenever the model worded it, and never when the loop did.
+     */
+    private saidWith(said: string, ending: string): string {
+        return said.trimEnd().endsWith(ending.trimEnd()) ? said : this.appended(said, ending);
+    }
+
+    private appended(text: string, notice: string): string {
         return text ? `${text}\n\n${notice}` : notice;
+    }
+
+    private agentBreakNotice(type: string, flag: AgentBreakReason): string {
+        return i18nInstance.t(`agent.agentBreak.${type}.${flag}.user`);
     }
 
     /**
@@ -478,11 +548,16 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             // conversation makes, and a stop landing in it must end the run the same way a stop
             // landing in the turn does rather than throwing its way out as a failure.
             await this.compactIfNeeded(context);
+            const held = state.messages.length;
             const response = await this.llm.invoke(
                 context.loopConfig.mode,
                 context.system,
                 state.messages,
-                (text: string) => {
+                (raw: string) => {
+                    // Kept in the shape it goes out in. What is held here is written down as the
+                    // message once the run is over, and text of another shape is a message that
+                    // reads as what was on the screen without being it.
+                    const text = streamShape(raw);
                     said += text;
                     state.said += text;
                     this.agentHandler.onStreamText({browserId: context.browserId, text});
@@ -491,6 +566,27 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 context.abortSignal
             );
             saved = true;
+            // The words of a turn reach the screen and `said` by being streamed, and an adapter
+            // that hands them back in the response streams none: read afterwards, the run would be
+            // one that never spoke -- the chat left holding the ending alone under a turn of work,
+            // and the reader given the answer handed more of the run than the one who watched it.
+            // The message the call pushed is those words, and here is the one moment it is the last
+            // of the history: the results of the tools it asked for land under it further down.
+            // Streamed as it is taken, so that what the chat is written is what was on the screen.
+            //
+            // Asked of what this call left behind and not of what happens to lie last, because a
+            // call that pushes nothing is a real thing: a refusal is kept out of the history so the
+            // compaction has an untouched conversation to work on. Read the other way, whatever the
+            // turn opened on -- the user's own question, the whole of a summary, the line asking
+            // the model to carry on from an output limit -- would be played back to them as the
+            // agent speaking, and written into the chat as that.
+            const spoke = state.messages.length > held;
+            const unstreamed = said || !spoke ? '' : streamShape(this.extractFinalText(state.messages));
+            if (unstreamed) {
+                said = unstreamed;
+                state.said += unstreamed;
+                this.agentHandler.onStreamText({browserId: context.browserId, text: unstreamed});
+            }
 
             this.addUsage(context, response);
 
@@ -593,20 +689,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
      * that message; where they did, or where there were none, a line saying the run was stopped
      * stands in, since a message with nothing in it is refused just as surely.
      *
-     * What the user reads is settled here too, and it is deliberately not that message: the line
-     * above is written for the model, and reading it back would put two sentences saying the very
-     * same thing one after the other. They read back everything the run said to them, followed by
-     * the one notice, or the notice alone where it never said anything. Everything, and not the
-     * words of this turn alone: a stop lands as easily in a turn opened after a tool call, which
-     * the model may enter without a word to say, and answering the run with a bare notice there
-     * would take back off the screen every line it had put on it.
+     * That message is written for the model and is read by nobody else: what the user is told is
+     * worded in `endOfRun`, deliberately not from here, since reading this one back would put two
+     * sentences saying the very same thing one after the other.
      */
     private endStoppedTurn(
         state: LoopState<I>, reason: ExternalInterruptReason, said: string, saved: boolean
     ): void {
         const runtime = state.oneLoopContext.runtime;
         runtime.agentBreakReason = reason;
-        runtime.agentBreakDetail = this.wrapAgentBreakMessage(state.said, 'externalInterrupt', reason);
         const notice = i18nInstance.t(`agent.agentBreak.externalInterrupt.${reason}.llm`);
         this.history.push(this.llm.newInputMessage(saved ? notice : (said || notice), false));
     }

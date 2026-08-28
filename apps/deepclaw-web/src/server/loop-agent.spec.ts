@@ -2,7 +2,7 @@ import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type ChatMessage, type ImageContent, type TokenUsage} from '@deepclaw/core';
 import {
     activeLoop, getTokenUsage, inactiveLoop, invoke, pullNewerMessages, pullOlderMessages,
-    pushChatMessage, resolveInteraction, updateChatMessage,
+    pushChatMessage, resolveInteraction,
 } from './loop-agent';
 
 const mocks = vi.hoisted(() => ({
@@ -153,10 +153,5 @@ describe('chat messages', () => {
         const message = newMessage();
         await pushChatMessage('b1', 'agent.a1', message);
         expect(mocks.addMessage).toHaveBeenCalledWith('b1', 'agent.a1', message);
-    });
-
-    test('updates the text of a message', async () => {
-        await updateChatMessage('b1', 'agent.a1', 'm1', 'edited');
-        expect(mocks.updateMessage).toHaveBeenCalledWith('b1', 'agent.a1', 'm1', 'edited');
     });
 });

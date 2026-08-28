@@ -384,6 +384,12 @@ class LoopGatewayImpl {
         return UIChatService.getOlderMessages(loopId, endMessageId, sessionId);
     }
 
+    /**
+     * Sets a run going and answers at once with the message it will be written into. The run comes
+     * back later through `onDone`, worded for whoever asked for it: a caller that was streamed the
+     * run as it happened is handed all of it, one that watched none of it the answer alone. Which
+     * of the two is read off the source, in `reportAnswer`.
+     */
     public static invoke(
         loopInfo: LoopInfo, options: InvokeOption, input: string,
         agentHandler?: Partial<Omit<SealedAgentHandler, 'onInfoEvent'>>,
@@ -485,8 +491,8 @@ class LoopGatewayImpl {
         invoke: () => Promise<AgentInvokeResponse>,
         onDone?: (text: string) => void
     ): void {
-        invoke().then(({text}) => {
-            this.reportAnswer(loopId, source, loopState, text, onDone);
+        invoke().then((answer) => {
+            this.reportAnswer(loopId, source, loopState, answer, onDone);
         // Unreachable, and kept as the last line of defence rather than as a path with behaviour
         // of its own. A loop wraps its whole run and answers with the error instead of throwing
         // it, FlushAgent.invoke wraps that again, and what it answers with is a promise that only
@@ -508,14 +514,31 @@ class LoopGatewayImpl {
      * worth telling the caller about: the answer itself already went out. Left to throw, any of
      * these would land in the catch above, which calls onDone again with the error — an IM user
      * would read the answer and then, underneath it, be told the turn failed.
+     *
+     * Which of the two the run is given as comes down to whether the reader watched it happen, and
+     * that is asked once here for both the chat and whoever is waiting on the call. Somebody who
+     * read the run as it came holds every word of it already: written short, the message would
+     * change under the eyes reading it and change back on the next reload, and a screen the run was
+     * printed on would end up with the last line of it standing for the whole. A reply carried to IM
+     * is read by somebody who watched none of it, and there the answer is what they asked for; the
+     * copy of it left in the chat is that same reply, being what that reader was already sent. Asked
+     * twice, the file and the screen of one conversation come to say different things — which is
+     * what a terminal reading it the way IM does looked like.
+     *
+     * A run that answered with nothing leaves the message it was opened with exactly as it was,
+     * and an empty message is how a run still thinking is drawn: a run over and a run thinking read
+     * the same. Left standing, as it has always stood — writing nothing over nothing changes none
+     * of it, and what such a run should say instead is a sentence nobody has written yet.
      */
     private static reportAnswer(
-        loopId: string, source: InvokeSource, loopState: LoopState, text: string,
+        loopId: string, source: InvokeSource, loopState: LoopState, answer: AgentInvokeResponse,
         onDone?: (text: string) => void
     ): void {
         try {
-            onDone?.(text);
-            this.updateMessage('', loopId, loopState.invoke!.msgId!, source === 'im' ? `📱 ${text}` : text);
+            const {text, said} = answer;
+            const watched = source !== 'im';
+            onDone?.(watched ? said : text);
+            this.updateMessage('', loopId, loopState.invoke!.msgId!, watched ? said : `📱 ${text}`);
             const usage = SessionService.getTokenUsage(loopId);
             if (usage) {
                 this.fireSSEEvent({eventType: 'tokenUsage', loopId, usage});

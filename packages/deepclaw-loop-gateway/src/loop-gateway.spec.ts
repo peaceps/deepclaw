@@ -146,11 +146,16 @@ function newRuntime(overrides: Partial<AgentRuntime> = {}): AgentRuntime {
     };
 }
 
+/** A run that says no more than it answers with, which is most of what these tests need of one. */
+function answered(text: string, said: string = text): AgentInvokeResponse {
+    return {text, said, runtime: newRuntime()};
+}
+
 function newFakeLoop() {
     return {
         isOutdated: vi.fn(() => false),
         invoke: vi.fn<(input: string, options?: AgentInvokeOptions) => Promise<AgentInvokeResponse>>(
-            async () => ({text: 'reply', runtime: newRuntime()})
+            async () => answered('reply')
         ),
         updateAgentConfig: vi.fn(),
         setExternalInterruptReason: vi.fn(),
@@ -415,7 +420,7 @@ describe('eviction', () => {
             held.loopInfo, {source: 'web', browserId: 'b1'}, 'hi'
         ));
         LoopGateway.fireBusyEvent(held.loopId, false);
-        releases.push(() => invoked.resolve({text: 'done', runtime: newRuntime()}));
+        releases.push(() => invoked.resolve(answered('done')));
         const alsoIdle = idlestLoop();
         fillStore();
         expect(wasRebuilt(held.loopId)).toBe(false);
@@ -512,7 +517,7 @@ describe('eviction', () => {
      */
     test('gives nothing to a loop built again for having gone stale', async () => {
         const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({text: 'done', runtime: newRuntime()});
+        loop.invoke.mockResolvedValue(answered('done'));
         LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'first');
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         loop.isOutdated.mockReturnValue(true);
@@ -556,7 +561,7 @@ describe('invoke', () => {
         expect(events).toContainEqual({
             eventType: 'updateBusyLoops', content: expect.arrayContaining([loopId])
         });
-        invoked.resolve({text: 'done', runtime: newRuntime()});
+        invoked.resolve(answered('done'));
         await vi.waitFor(() => expect(LoopGateway.getBusyLoops()).not.toContain(loopId));
         expect(events.at(-1)).toEqual({
             eventType: 'updateBusyLoops', content: expect.not.arrayContaining([loopId])
@@ -591,26 +596,47 @@ describe('invoke', () => {
         const {msgId} = LoopGateway.invoke(
             loopInfo, {source: 'web', browserId: 'b1'}, 'hi', undefined, onDone
         );
-        invoked.resolve({text: 'final answer', runtime: newRuntime()});
+        invoked.resolve(answered('final answer'));
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         expect(mocks.replaceMessage).toHaveBeenCalledWith(loopId, msgId, 'final answer');
         expect(onDone).toHaveBeenCalledWith('final answer');
         expect(busyEvents(events).at(-1)).toEqual({eventType: 'busy', loopId, busy: false});
     });
 
+    /**
+     * The chat and the caller are one reader here: a terminal prints the run as it comes and then
+     * prints what it is handed in place of it. Given the answer, the run it just watched would come
+     * off the screen at the end of it, and the conversation would read one way in the terminal and
+     * another way in the browser.
+     */
+    // 看着这轮跑完的人，屏幕上留下的和聊天里落的是同一段
+    test('hands a caller that watched the run the whole of it, as the chat has it', async () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        const onDone = vi.fn();
+        loop.invoke.mockResolvedValue(answered('final answer', 'a long way there\n\nfinal answer'));
+        const {msgId} = LoopGateway.invoke(loopInfo, {source: 'tui'}, 'hi', undefined, onDone);
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        expect(mocks.replaceMessage)
+            .toHaveBeenCalledWith(loopId, msgId, 'a long way there\n\nfinal answer');
+        expect(onDone).toHaveBeenCalledWith('a long way there\n\nfinal answer');
+    });
+
+    /** 镜像回聊天的那条 im 消息，还是 im 用户读到的那句 */
     test('marks an answer that came through im', async () => {
         const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({text: 'final answer', runtime: newRuntime()});
-        const {msgId} = LoopGateway.invoke(loopInfo, {source: 'im'}, 'hi');
+        const onDone = vi.fn();
+        loop.invoke.mockResolvedValue(answered('final answer', 'a long way there\n\nfinal answer'));
+        const {msgId} = LoopGateway.invoke(loopInfo, {source: 'im'}, 'hi', undefined, onDone);
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         expect(mocks.replaceMessage).toHaveBeenCalledWith(loopId, msgId, '📱 final answer');
+        expect(onDone).toHaveBeenCalledWith('final answer');
     });
 
     test('publishes the token usage of the session when there is one', async () => {
         const usage = {cachedInputTokens: 1, noCachedInputTokens: 2, outputTokens: 3};
         mocks.getTokenUsage.mockReturnValue(usage);
         const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({text: 'done', runtime: newRuntime()});
+        loop.invoke.mockResolvedValue(answered('done'));
         LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
         await vi.waitFor(() => expect(events).toContainEqual({eventType: 'tokenUsage', loopId, usage}));
     });
@@ -631,7 +657,7 @@ describe('invoke', () => {
      */
     test('does not report a failure over an answer it already gave', async () => {
         const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({text: 'final answer', runtime: newRuntime()});
+        loop.invoke.mockResolvedValue(answered('final answer'));
         mocks.replaceMessage.mockImplementation(() => {
             throw new Error('the chat file is gone');
         });
@@ -643,7 +669,7 @@ describe('invoke', () => {
 
     test('frees the loop even when writing the answer down fails', async () => {
         const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({text: 'final answer', runtime: newRuntime()});
+        loop.invoke.mockResolvedValue(answered('final answer'));
         mocks.replaceMessage.mockImplementation(() => {
             throw new Error('the chat file is gone');
         });
@@ -669,7 +695,7 @@ describe('invoke', () => {
 
     test('rebuilds an outdated loop before using it again', async () => {
         const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({text: 'done', runtime: newRuntime()});
+        loop.invoke.mockResolvedValue(answered('done'));
         LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'first');
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         loop.isOutdated.mockReturnValue(true);
@@ -792,7 +818,7 @@ describe('stop', () => {
 
     test('has nothing left to abort once the run is over', async () => {
         const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({text: 'done', runtime: newRuntime()});
+        loop.invoke.mockResolvedValue(answered('done'));
         LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         expect(LoopGateway.stop(loopId)).toBe(false);
@@ -803,7 +829,7 @@ describe('startNewSession', () => {
 
     async function idleLoop() {
         const {loopInfo, loopId, loop} = nextLoop();
-        loop.invoke.mockResolvedValue({text: 'done', runtime: newRuntime()});
+        loop.invoke.mockResolvedValue(answered('done'));
         LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         return {loopInfo, loopId, loop};
@@ -1096,7 +1122,7 @@ describe('askedBrowser', () => {
     /** With no run on there is nobody being asked: the next run is asked for and asks by itself. */
     test('answers with nothing for a loop that is not running', async () => {
         const {loopId, invoked} = runningLoop();
-        invoked.resolve({text: 'done', runtime: newRuntime()});
+        invoked.resolve(answered('done'));
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         expect(LoopGateway.askedBrowser(loopId)).toBeUndefined();
     });

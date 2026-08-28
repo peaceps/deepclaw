@@ -55,7 +55,11 @@ export class TestLlmAgent extends LoopAgent<ThinkingMessage, ThinkingResponse, T
                 this.agentHandler.onStreamText({browserId: 'test', text: lines[i++]!});
                 if (i >= lines.length) {
                     clearInterval(interval);
-                    resolve({text: 'its done.', runtime: this.emptyRuntime()});
+                    resolve({
+                        text: 'its done.',
+                        said: `${lines.join('')}\n\nits done.`,
+                        runtime: this.emptyRuntime(),
+                    });
                 }
             }, 100);
         });

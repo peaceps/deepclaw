@@ -1,7 +1,8 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {
-    type AgentHandler, type AgentInvokeOptions, type AgentRuntime, type ImageContent,
-    type FlushAgentRole, type LLMTransitionReason, type SealedAgentHandler, type TokenUsage
+    type AgentHandler, type AgentInvokeOptions, type AgentInvokeResponse, type AgentRuntime,
+    type ImageContent, type FlushAgentRole, type LLMTransitionReason, type SealedAgentHandler,
+    type TokenUsage
 } from '@deepclaw/core';
 import {type AgentConfig, type AgentMode} from '@deepclaw/config';
 import {type Logger} from '@deepclaw/node-utils';
@@ -163,7 +164,18 @@ class FakeLLM {
         if (response.observedLimit) {
             this.observedLimit = response.observedLimit;
         }
-        onText(response.text ?? '');
+        // A refusal leaves nothing behind at all: not a word on the stream, and no message in the
+        // history either -- the gateway keeps it out so the compaction has the conversation as it
+        // stood to work on. A fixture that left one would say every call adds a message, and the
+        // code under it could go on believing that.
+        if (response.transitionReason === 'inputMaxTokens') {
+            return response;
+        }
+        // Only what there is to say. A turn that goes straight to a tool says nothing, and an
+        // empty chunk is a frame the stream never carried.
+        if (response.text) {
+            onText(response.text);
+        }
         messages.push({
             role: 'assistant',
             text: response.text ?? '',
@@ -248,7 +260,7 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
         return this.agentHandler;
     }
 
-    public runInvoke(input: string, options: AgentInvokeOptions): Promise<{text: string, runtime: AgentRuntime}> {
+    public runInvoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         return this._invoke(input, options);
     }
 
@@ -918,6 +930,15 @@ describe('parallel tool use', () => {
 
 describe('turn limit', () => {
 
+    /** A model with a word to say and a tool to call every turn, which runs until it is stopped. */
+    function streamingToTheLimit(llm: FakeLLM): void {
+        llm.invoke.mockImplementation(async (...args) => {
+            args[3]('still going. ');
+            args[2].push({role: 'assistant', text: 'still going. '});
+            return {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]};
+        });
+    }
+
     test('ends the run with the final text once the turns are spent', async () => {
         const {loop, llm, handler} = newLoop();
         llm.invoke.mockImplementation(async (...args) => {
@@ -928,6 +949,180 @@ describe('turn limit', () => {
         expect(runtime.turnCount).toBe(100);
         expect(text).toContain('agent.maxTurnReached');
         expect(handler.onStreamText).toHaveBeenCalledWith(expect.objectContaining({browserId: 'b1'}));
+    });
+
+    /**
+     * The same way round as every other ending: the last of the run, and the notice under it. A run
+     * out of turns is one stopped in the middle of a tool call, so the last of it is as often a
+     * result as a sentence -- which is the case in `endOfRun` too, and the reason to word the two
+     * alike: written the other way here, this branch is as likely to be the one an ending added
+     * later is copied from, and the two shapes would read as if the difference meant something.
+     */
+    // 交出去的答案是「这轮最后落下的 + 空行 + 中止说明」，和别处的结束语一个形状
+    test('hands out the last of the run with the notice under it', async () => {
+        const {loop, llm} = newLoop();
+        streamingToTheLimit(llm);
+        const {text} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(text).toBe('demo done\n\nagent.maxTurnReached');
+    });
+
+    /** The chat read those words as they were written and has no use for a second copy of them. */
+    // 聊天里只补一句中止说明，不再把最后那段重抄一遍
+    test('leaves the chat the notice alone, the words of the run being there already', async () => {
+        const {loop, llm} = newLoop();
+        streamingToTheLimit(llm);
+        const {said} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(said).toBe(`${'still going. '.repeat(100)}\n\nagent.maxTurnReached`);
+    });
+
+    /**
+     * The one ending the loop puts words of its own on the stream, so it is the one place the two
+     * can come apart: sent whole, the notice carries the last thing the model said, and a stream
+     * being added to rather than replaced would show that paragraph twice from the moment the run
+     * ended until the message written from `said` landed over it.
+     */
+    // 流上补的和最终落盘的是同一段，中间不会先重一遍再被覆盖回去
+    test('reads on the screen as what is written down, at the moment it is written', async () => {
+        const {loop, llm, handler} = newLoop();
+        streamingToTheLimit(llm);
+        const {said} = await loop.runInvoke('hi', {browserId: 'b1'});
+        const onScreen = vi.mocked(handler.onStreamText).mock.calls
+            .map(call => call[0].text).join('');
+        expect(onScreen).toBe(said);
+    });
+});
+
+/**
+ * A run is read in two places and they want two different things of it. The chat watched it happen
+ * and holds every word already, so an answer written there has to be all of them: written short, it
+ * would take the run off the screen as it ended and put it back on the next reload, the file having
+ * the whole of it all along. An answer carried to IM or standing under a closed conversation is
+ * read by somebody who watched none of it, and there the last word is the answer.
+ */
+describe('what a run leaves behind', () => {
+
+    // 一轮跑完：聊天里留下全程，交出去的是最后那句
+    test('says the last word and leaves behind every word', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', text: 'reading the file. ', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'fixed the typo.'},
+        ];
+        const {text, said} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(text).toBe('fixed the typo.');
+        expect(said).toBe('reading the file. fixed the typo.');
+    });
+
+    /**
+     * Everything downstream reads the run off `said`, which the stream fills. An adapter with no
+     * stream in it would leave that empty and every reading of the run with it: the chat written
+     * from `said` would hold the ending alone, and the reader handed the answer -- read off the
+     * history instead -- would have more of the run than the one who sat and watched it.
+     */
+    // 适配器不走流、只在响应里给文字时，说过的话照样进聊天和屏幕
+    test('takes the words of an adapter that streams none of them', async () => {
+        const {loop, llm, handler} = newLoop();
+        llm.invoke.mockImplementation(async (...args) => {
+            args[2].push({role: 'assistant', text: 'quietly done'});
+            return {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]};
+        });
+        mocks.executeToolCall.mockImplementationOnce(async (def, context) => {
+            (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'projectCreated';
+            return {result: {id: def.id, content: 'created'}, success: true};
+        });
+        const {said} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(said).toBe('quietly done\n\nagent.agentBreak.agentStop.projectCreated.user');
+        expect(handler.onStreamText)
+            .toHaveBeenCalledWith(expect.objectContaining({browserId: 'b1', text: 'quietly done'}));
+    });
+
+    /**
+     * The other side of the same question: a call the llm refused pushes nothing, so what lies
+     * last in the history is whatever the turn opened on -- the user's own question here, a whole
+     * summary after a compaction, the line asking the model to carry on from an output limit. Read
+     * as words handed back without being streamed, any of those would be played onto the screen as
+     * the agent speaking and written into the chat as that.
+     */
+    // 被拒的那轮什么也没往历史里推，上一条消息不是模型说的话
+    test('takes nothing from a call the llm refused', async () => {
+        const {loop, llm, handler} = newLoop();
+        llm.responses = [
+            {transitionReason: 'inputMaxTokens'},
+            {transitionReason: 'endLoop', text: 'answered at last'},
+        ];
+        const {said} = await loop.runInvoke('what did i ask', {browserId: 'b1'});
+        expect(said).toBe('answered at last');
+        // The one frame of the run, the refused call having put nothing on the stream either.
+        expect(handler.onStreamText).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({text: 'answered at last'})
+        );
+    });
+
+    /**
+     * The stream is read in one shape and the file is written in another otherwise: what goes out
+     * has its line endings evened out, and a copy kept of the raw text would put the message a
+     * hair off what was watched being written. Blank lines at the end go the same way, once, where
+     * the last event of a stream drops them.
+     */
+    // 落盘的和流上出去的一个形状：CRLF 归一，末尾空行去掉
+    test('writes down what the stream carried, to the line ending', async () => {
+        const {loop, llm, handler} = newLoop();
+        llm.responses = [{transitionReason: 'endLoop', text: 'first\r\nsecond\n\n'}];
+        const {said} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(said).toBe('first\nsecond');
+        expect(handler.onStreamText).toHaveBeenCalledWith(
+            expect.objectContaining({browserId: 'b1', text: 'first\nsecond\n\n'})
+        );
+    });
+
+    /** The notice is the one part of an ending that never went out over the stream. */
+    // 工具中止 run 时给的说明没走过流，两边都得补上
+    test('adds the notice of an ending to both, the stream having carried neither', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [{
+            transitionReason: 'toolUse', text: 'setting it up. ', toolUses: [toolUse('tu1')],
+        }];
+        mocks.executeToolCall.mockImplementationOnce(async (def, context) => {
+            const runtime = (context as {runtime: AgentRuntime}).runtime;
+            runtime.agentBreakReason = 'projectCreated';
+            runtime.agentBreakDetail = 'project p1 is ready';
+            return {result: {id: def.id, content: 'created'}, success: true};
+        });
+        const {text, said} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(text).toBe('project p1 is ready');
+        expect(said).toBe('setting it up. \n\nproject p1 is ready');
+    });
+
+    /** What broke is worth reading under the work that got as far as it did. */
+    // run 半路炸了：说过的话还在，错误接在后面
+    test('keeps what a run said before it broke, with the failure after it', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [{
+            transitionReason: 'toolUse', text: 'started well', toolUses: [toolUse('tu1')],
+        }];
+        llm.invoke.mockImplementationOnce(llm.invoke.getMockImplementation()!);
+        llm.invoke.mockRejectedValueOnce(new Error('llm exploded'));
+        const {text, said} = await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(text).toBe('Error in loop, llm exploded');
+        expect(said).toBe('started well\n\nError in loop, llm exploded');
+    });
+
+    /** A stop has no answer of its own: what there is of the run is what both are given. */
+    // 被停掉的 run 没有自己的答案，两边给的都是说过的加一句说明
+    test('answers a stopped run with the run itself', async () => {
+        const {loop, llm} = newLoop();
+        const controller = new AbortController();
+        llm.invoke.mockImplementationOnce(async (...args) => {
+            args[3]('halfway through');
+            controller.abort();
+            throw new Error('This operation was aborted');
+        });
+        const {text, said} = await loop.runInvoke(
+            'hi', {browserId: 'b1', abortSignal: controller.signal}
+        );
+        const stopped = 'halfway through\n\nagent.agentBreak.externalInterrupt.userStopped.user';
+        expect(text).toBe(stopped);
+        expect(said).toBe(stopped);
     });
 });
 

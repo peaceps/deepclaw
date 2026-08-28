@@ -8,6 +8,15 @@ import {
     AgentRuntime,
     FlushAgentRole
 } from './flush-agent-types';
+/**
+ * The one shape text takes on its way to a screen. Whoever holds on to a copy of what was streamed
+ * has to hold this one: a message written from text of another shape is a message that differs from
+ * what was watched being written, by the line endings a model happened to answer in.
+ */
+export function streamShape(text: string): string {
+    return text.replace(/\r\n/g, '\n');
+}
+
 export abstract class FlushAgent {
     protected role: FlushAgentRole;
     protected agentId: string;
@@ -51,10 +60,12 @@ export abstract class FlushAgent {
 
     async invoke(input: string, options: AgentInvokeOptions): Promise<AgentInvokeResponse> {
         try {
-            const res = await this._invoke(input, options);
-            return this.finishInvoke(options.browserId, res.text, res.runtime);
+            return this.finishInvoke(options.browserId, await this._invoke(input, options));
         } catch (e: any) {
-            return this.finishInvoke(options.browserId, e?.message || '', this.emptyRuntime());
+            // Nothing was streamed on a way out like this, so the whole of what happened is the
+            // one line, and it is all either reader can be given.
+            const text = e?.message || '';
+            return this.finishInvoke(options.browserId, {text, said: text, runtime: this.emptyRuntime()});
         }
     }
 
@@ -75,21 +86,27 @@ export abstract class FlushAgent {
         }
     }
 
-    private finishInvoke(browserId: string, content: string, runtime: AgentRuntime): Promise<AgentInvokeResponse> {
+    /**
+     * The last event of a stream, which says the stream is over and carries the answer with it.
+     *
+     * Nothing reads that text today: every reader of a stream watched it arrive and holds it
+     * already, and takes the run itself from the message written from the response. So the answer
+     * rides along as the shape of the event and not as anything anybody is being told -- which is
+     * also why it is the answer and not the run, a reader who took it for the run being one that
+     * put the last line of it in place of everything above.
+     */
+    private finishInvoke(browserId: string, response: AgentInvokeResponse): Promise<AgentInvokeResponse> {
         return new Promise((resolve) => {
             setTimeout(() => {
-                this.flusher({eventType: 'stream', browserId, text: content, done: true});
-                resolve({text: content, runtime});
+                this.flusher({eventType: 'stream', browserId, text: response.text, done: true});
+                resolve(response);
             }, 100);
         });
     }
     
     private formatLLMText(text: string, done: boolean): string {
         if (!text) return '';
-        let result = text.replace(/\r\n/g, '\n');
-        if (done) {
-            result = result.trimEnd();
-        }
-        return result;
+        const result = streamShape(text);
+        return done ? result.trimEnd() : result;
     }
 }

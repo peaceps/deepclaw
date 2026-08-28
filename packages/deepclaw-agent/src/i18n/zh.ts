@@ -8,7 +8,7 @@ export const zh = {
                 expertises: '网络搜索,代码生成',
             }
         },
-        maxTurnReached: '超过最大迭代次数，运行中止！\n{{finalText}}',
+        maxTurnReached: '超过最大迭代次数，运行中止！',
         contextTooLong: '这段对话对当前模型来说太长了，压缩之后依然超出上限。请新开一个对话，或者换一个上下文窗口更大的模型。',
         agentBreak: {
             agentStop: {

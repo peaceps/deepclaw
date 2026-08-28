@@ -6,11 +6,10 @@ import { useInteractionModalStore } from '@/lib/interaction-modal-store';
 import { useToastStore } from '@/lib/toast-store';
 import {
     invoke, pullNewerMessages, pullOlderMessages, pushChatMessage,
-    resolveInteraction, updateChatMessage, activeLoop, inactiveLoop,
+    resolveInteraction, activeLoop, inactiveLoop,
     getTokenUsage, pullSessionMessages, startNewSession, stopLoop
 } from "@/server/loop-agent";
 import { useAppStore } from '@/lib/store';
-import { keepReply } from '@/lib/kept-reply';
 import {
     AgentEmployee, AgentInteractionEvent, AgentStreamEvent, ChatMessage, FlushAgentRole, newMessage,
     TokenUsage, type ImageContent
@@ -372,7 +371,7 @@ export function useSend(
     const addMessage = useAppStore(s => s.addMessage);
     const setChatBusy = useAppStore(s => s.setChatBusy);
     const locked = useAppStore(s => !!s.busyChatKeys[loopId]);
-    const subscribeStream = usePersistStream(browserId, loopId);
+    const subscribeStream = useStreamIntoMessage(browserId, loopId);
     const {t} = useTranslation();
 
     function addAndFireMessage(msg: ChatMessage) {
@@ -428,10 +427,17 @@ export function useSend(
     };
 }
 
-function usePersistStream(
+/**
+ * Writes an answer into the message it belongs to as it is read off the stream.
+ *
+ * Only onto the screen: what the run said is written down by the server that heard it say so, and
+ * arrives here again as the whole message once the run is over. The tab sending its own copy back
+ * would be a second writer of one message, and the later of the two wins -- which is whichever the
+ * network happened to favour, over text the run had already ended with.
+ */
+function useStreamIntoMessage(
     browserId: string, loopId: string,
 ): (msgId: string) => () => void {
-    const getMessageById = useAppStore(s => s.getMessageById);
     const updateMessage = useAppStore(s => s.updateMessage);
     const sseClient = useSSEClient();
 
@@ -439,20 +445,21 @@ function usePersistStream(
       sseUrl(browserId),
       'stream',
       (event) => {
-        if (event.loopId !== loopId || event.browserId !== browserId) return;
-        if (!event.done) {
-          updateMessage(event.loopId, msgId, event.text);
-        } else {
-          keepReply(getMessageById(event.loopId, msgId)?.content, event.text,
-            text => updateChatMessage(browserId, event.loopId, msgId, text));
+        // A tagged frame is a tool saying something about itself, in whatever shape that tool
+        // chose, and it is no part of the answer being written here: the chat is written from
+        // what the run said, and a frame nobody rewrites into words would stand in the message
+        // until the run ended and then be wiped by the answer landing over it.
+        if (event.loopId !== loopId || event.browserId !== browserId || event.done || event.tag) {
+          return;
         }
+        updateMessage(event.loopId, msgId, event.text);
       },
       {
         removeOn: ({done}) => !!done,
         // Two chats of one tab now share the stream, so each has to keep a listener of its own.
         key: loopId,
       },
-    ), [browserId, loopId, getMessageById, sseClient, updateMessage]);
+    ), [browserId, loopId, sseClient, updateMessage]);
 
     return stream;
 }

@@ -9,6 +9,8 @@ import {type ImageContent} from './agent-definitions';
 
 class TestAgent extends FlushAgent {
     public reply = 'done';
+    /** Everything the run said, where it said more than it answered with. */
+    public narration: string | undefined;
     public failWith = '';
     public lastInput = '';
     public lastImages: ImageContent[] | undefined;
@@ -19,7 +21,11 @@ class TestAgent extends FlushAgent {
         if (this.failWith) {
             throw new Error(this.failWith);
         }
-        return {text: this.reply, runtime: {...this.emptyRuntime(), turnCount: 3}};
+        return {
+            text: this.reply,
+            said: this.narration ?? this.reply,
+            runtime: {...this.emptyRuntime(), turnCount: 3},
+        };
     }
 
     public sealedHandler(): SealedAgentHandler {
@@ -140,6 +146,20 @@ describe('FlushAgent invoke', () => {
         }]);
     });
 
+    /**
+     * The event closes a stream that was read all along, so it carries the answer alone; the run
+     * behind it is handed to the caller, who writes it down for whoever reads it later.
+     */
+    test('ends the stream with the answer and answers with the whole run', async () => {
+        const {handler, streams} = newRecordingHandler();
+        const agent = new TestAgent('agent', 'a1', '', handler);
+        agent.reply = 'all good';
+        agent.narration = 'looked around\n\nall good';
+        const response = await agent.invoke('do it', {browserId: 'b1'});
+        expect(streams[0]!.text).toBe('all good');
+        expect(response.said).toBe('looked around\n\nall good');
+    });
+
     test('trims trailing whitespace on the final event but not on the response', async () => {
         const {handler, streams} = newRecordingHandler();
         const agent = new TestAgent('agent', 'a1', '', handler);
@@ -155,6 +175,8 @@ describe('FlushAgent invoke', () => {
         agent.failWith = 'llm exploded';
         const response = await agent.invoke('x', {browserId: 'b1'});
         expect(response.text).toBe('llm exploded');
+        // Nothing was streamed on the way out, so the one line is the whole of the run as well.
+        expect(response.said).toBe('llm exploded');
         expect(response.runtime).toEqual(agent.newEmptyRuntime());
         expect(streams[0]!.text).toBe('llm exploded');
     });

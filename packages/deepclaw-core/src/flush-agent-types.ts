@@ -86,8 +86,18 @@ export type AgentInvokeOptions = {
     abortSignal?: AbortSignal;
 }
 
+/**
+ * What a run leaves behind, in the two shapes it is read in.
+ *
+ * A chat watched every word of it go by and keeps all of them: replacing that with the last of
+ * them would take back off the screen everything the run had put on it, and would leave the file
+ * saying something other than what the user read. Everywhere else a run is read rather than
+ * watched -- a reply carried to IM, the line under a closed conversation -- and there the last
+ * word is the answer, the rest being work shown to nobody who asked for it.
+ */
 export type AgentInvokeResponse = {
     text: string;
+    said: string;
     runtime: AgentRuntime;
 };
 
@@ -95,6 +105,11 @@ export type AgentRuntime = {
     turnCount: number;
     transitionReason?: LLMTransitionReason;
     agentBreakReason?: AgentBreakReason;
+    /**
+     * What the run says for itself where a tool ended it, in the user's own words. A stop leaves
+     * it unset and is worded where every other ending is: only a tool knows enough about the
+     * ending it caused to say more than the reason for it.
+     */
     agentBreakDetail?: string;
     historyPersistIndex: number;
     recoveryState: {

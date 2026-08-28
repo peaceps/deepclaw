@@ -23,7 +23,6 @@ vi.mock('@/server/loop-agent', () => ({
     invoke: vi.fn(),
     pushChatMessage: vi.fn(),
     resolveInteraction: vi.fn(),
-    updateChatMessage: vi.fn(),
     activeLoop: vi.fn(),
     inactiveLoop: vi.fn(),
     getTokenUsage: vi.fn(),
