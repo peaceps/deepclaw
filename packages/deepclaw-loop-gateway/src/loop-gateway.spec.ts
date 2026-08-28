@@ -33,6 +33,9 @@ const mocks = vi.hoisted(() => ({
     getAgents: vi.fn(),
     getAgent: vi.fn<(id: string) => {id: string, fired: boolean} | undefined>(),
     updateProject: vi.fn(),
+    startProject: vi.fn<(id: string) => unknown>(
+        (id: string) => ({id, startedAt: '2026-02-01T00:00:00.000Z'})
+    ),
     archiveProject: vi.fn<(id: string) => unknown>(
         (id: string) => ({id, archivedAt: '2026-02-02T00:00:00.000Z'})
     ),
@@ -88,6 +91,7 @@ vi.mock('@deepclaw/agent', () => ({
     },
     ProjectManager: {
         updateProject: mocks.updateProject,
+        startProject: mocks.startProject,
         archiveProject: mocks.archiveProject,
         updateTask: mocks.updateTask,
         getProjectDetail: mocks.getProjectDetail,
@@ -1150,6 +1154,15 @@ describe('data updates', () => {
         LoopGateway.updateProjectTags('p1', ['urgent']);
         expect(mocks.updateProject).toHaveBeenCalledWith({id: 'p1', tags: ['urgent']});
         expect(events).toContainEqual({eventType: 'updateProject', content: {id: 'p1', tags: ['urgent']}});
+    });
+
+    /** Every browser hears it, so the start button goes from the tabs that were not pressed too. */
+    test('announces a project the user started with the date it started on', () => {
+        LoopGateway.startProject('p1');
+        expect(mocks.startProject).toHaveBeenCalledWith('p1');
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', startedAt: '2026-02-01T00:00:00.000Z'}
+        });
     });
 
     test('announces a project put away with the date it was put away on', () => {

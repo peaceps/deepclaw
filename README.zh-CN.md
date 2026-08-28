@@ -209,7 +209,7 @@ Agent 页面和对话有专门为窄屏做的布局，看板的列在挤不下�
 | `remove_background_command` | 清掉一个不再需要的后台进程 |
 | `generate_image` | 用配置好的供应商生成图片 |
 | `create_project` / `update_project` | 创建和管理项目 |
-| `create_simple_task` / `update_task` | 创建和管理任务 |
+| `update_task` | 推进任务，归档它的产出 |
 | `update_task_current_step` | 推进任务的步骤进度 |
 | `get_project_list` / `get_project_detail` | 读取项目状态 |
 | `task_loop` | 把项目里的一个任务交给能继续拆分它的子 agent |

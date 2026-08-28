@@ -583,6 +583,22 @@ class LoopGatewayImpl {
     }
 
     /**
+     * The user setting the work of a project going, and every browser told the moment it is written:
+     * a project starts once and the button for it goes with the start, so a second tab showing that
+     * button on a project already under way is the one thing that has to be put right at once.
+     *
+     * The date is all this writes. Whoever pressed it starts the run of that project itself, the
+     * same way a message sent to it does, so that one path leads into a project run and not two: the
+     * word the agent is given, and the message of it the user reads back, are the same word.
+     */
+    public static startProject(projectId: string): void {
+        const project = ProjectManager.startProject(projectId);
+        this.fireSSEEvent({
+            eventType: 'updateProject', content: {id: projectId, startedAt: project.startedAt}
+        });
+    }
+
+    /**
      * Puts a project away at the user's word, and says so to every browser: the row goes, here as
      * on the tab that asked.
      *

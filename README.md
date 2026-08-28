@@ -249,7 +249,7 @@ alongside the built-in ones. Set the server URL in the advanced settings.
 | `remove_background_command` | Drop a background process that is no longer needed |
 | `generate_image` | Generate an image via the configured provider |
 | `create_project` / `update_project` | Create and manage projects |
-| `create_simple_task` / `update_task` | Create and manage tasks |
+| `update_task` | Move a task along and file what it produced |
 | `update_task_current_step` | Advance task step progress |
 | `get_project_list` / `get_project_detail` | Read project state |
 | `task_loop` | Hand one task of the project to a subagent that can split it further |

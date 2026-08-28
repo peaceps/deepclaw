@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
-    getProjectProgress, getProjectStatus, getTaskProgress, slimProject, slimProjectRow,
-    type Project, type Task
+    getProjectProgress, getProjectStatus, getTaskProgress, isProjectStarted, slimProject,
+    slimProjectRow, type Project, type Task
 } from './project-definitions';
 
 function newTask(overrides: Partial<Task> = {}): Task {
@@ -44,16 +44,43 @@ describe('getProjectStatus', () => {
         expect(getProjectStatus(project)).toBe('done');
     });
 
-    test('is todo while nothing has started', () => {
+    test('is todo while the plan is still being talked over', () => {
         expect(getProjectStatus(newProject())).toBe('todo');
     });
 
-    test('is ongoing once a task is in progress', () => {
-        expect(getProjectStatus(newProject({ongoingTasks: ['t1']}))).toBe('ongoing');
+    /** The row says the work is on from the moment the user says so, not from the first handover. */
+    test('is ongoing from the moment the user started it', () => {
+        expect(getProjectStatus(newProject({startedAt: '2026-01-02T00:00:00.000Z'}))).toBe('ongoing');
     });
 
-    test('is ongoing once a task is completed', () => {
-        expect(getProjectStatus(newProject({completedTasks: ['t1']}))).toBe('ongoing');
+    /**
+     * Work an agent put in motion says nothing about the project, and a project that carries work
+     * carries the date as well: the loader writes it for the records made before it existed.
+     */
+    test('is todo where a task moved without the user having started it', () => {
+        expect(getProjectStatus(newProject({ongoingTasks: ['t1']}))).toBe('todo');
+        expect(getProjectStatus(newProject({completedTasks: ['t1']}))).toBe('todo');
+    });
+});
+
+describe('isProjectStarted', () => {
+
+    test('is not started while it is only planned', () => {
+        expect(isProjectStarted(newProject())).toBe(false);
+    });
+
+    test('is started once the user said so', () => {
+        expect(isProjectStarted(newProject({startedAt: '2026-01-02T00:00:00.000Z'}))).toBe(true);
+    });
+
+    /**
+     * The one thing a run must not be able to do is answer this itself, and a task it moved to
+     * ongoing is exactly that. Old records are dated by the loader, so nothing is lost by not
+     * reading them here.
+     */
+    test('is not started by work an agent put in motion on its own', () => {
+        expect(isProjectStarted(newProject({ongoingTasks: ['t1']}))).toBe(false);
+        expect(isProjectStarted(newProject({completedTasks: ['t1']}))).toBe(false);
     });
 });
 

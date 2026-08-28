@@ -40,12 +40,14 @@ describe('getProjectStatusStyles', () => {
         expect(getProjectStatusStyles(newProject())).toBe(projectStatusStyles.todo);
     });
 
-    test('styles a project with ongoing tasks as ongoing', () => {
-        expect(getProjectStatusStyles(newProject({ongoingTasks: ['t1']}))).toBe(projectStatusStyles.ongoing);
+    test('styles a started project as ongoing', () => {
+        const project = newProject({startedAt: '2024-01-02T00:00:00.000Z', ongoingTasks: ['t1']});
+        expect(getProjectStatusStyles(project)).toBe(projectStatusStyles.ongoing);
     });
 
-    test('styles a project with completed tasks as ongoing while it stays open', () => {
-        expect(getProjectStatusStyles(newProject({completedTasks: ['t1']}))).toBe(projectStatusStyles.ongoing);
+    test('styles a started project as ongoing while it stays open', () => {
+        const project = newProject({startedAt: '2024-01-02T00:00:00.000Z', completedTasks: ['t1']});
+        expect(getProjectStatusStyles(project)).toBe(projectStatusStyles.ongoing);
     });
 
     test('styles a closed project as done', () => {

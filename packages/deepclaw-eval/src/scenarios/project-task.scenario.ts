@@ -53,6 +53,7 @@ const RELEASE_PROJECT: Project = {
     title: 'Ship 0.4',
     description: 'Write the release notes and tell the team about them.',
     createdAt: '2026-01-01T00:00:00.000Z',
+    startedAt: '2026-01-01T00:00:00.000Z',
     creator: DEFAULT_AGENT_ID,
     priority: 'high',
     tasks: {

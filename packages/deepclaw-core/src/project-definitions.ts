@@ -18,6 +18,16 @@ export type Project = {
     title: string;
     description: string;
     createdAt: string;
+    /**
+     * When the user set the work going. A project is planned first and worked after, and this is
+     * the word between the two: until it is here, the plan is still being talked over and no task
+     * of it goes out to anybody.
+     *
+     * Written by the user pressing start, and by nothing an agent can reach: the whole of what this
+     * field is for is to be the one thing in a project that only they can say. A record from before
+     * it existed is dated on the way in, where the loader can see the work already in it.
+     */
+    startedAt?: string;
     closedAt?: string;
     /**
      * When the user put the project away, which is a different thing from when it closed. Closing is
@@ -122,12 +132,33 @@ export type RunningTask = {
     startedAt: string;
 };
 
-/** Asked of the project itself and never of its tasks, so either shape of one can answer. */
+/**
+ * Whether the user has set the work of this project going, which is the date and nothing else.
+ *
+ * Deliberately not read off the tasks. Whether one of them is ongoing looks like the same answer,
+ * and it is an answer an agent writes: update_task moves a task to ongoing, so a run refused a
+ * handover could open this gate by marking the task itself -- and the board, reading the same
+ * thing, would take the start button off the row while it was at it, leaving the user with a
+ * project started in their name and no way to start it. A record from before this date existed is
+ * dated as it is loaded instead, once, where nothing of a run can reach it.
+ */
+export function isProjectStarted(project: Omit<Project, 'tasks'>): boolean {
+    return !!project.startedAt;
+}
+
+/**
+ * Asked of the project itself and never of its tasks, so either shape of one can answer.
+ *
+ * A project is under way from the word that set it going rather than from the first task to move:
+ * those are a second apart, and only the first of them is a thing that happened. Read off the
+ * tasks, a project the user had just started would sit on the board saying nothing had begun while
+ * the button that says so was already gone from its row.
+ */
 export function getProjectStatus(project: Omit<Project, 'tasks'>): MissionStatus {
-    if (!project.closedAt) {
-        return !project.ongoingTasks.length && !project.completedTasks.length ? 'todo' : 'ongoing';
+    if (project.closedAt) {
+        return 'done';
     }
-    return 'done';
+    return isProjectStarted(project) ? 'ongoing' : 'todo';
 }
 
 /**

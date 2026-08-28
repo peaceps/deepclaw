@@ -155,6 +155,16 @@ export const zh = {
                         save: '按 Enter 保存',
                     },
                     tasksUnread: '读不到这个项目的任务。把这一行收起来再打开试试。',
+                    start: {
+                        action: '开工',
+                        hint: '让 agent 按这份计划把任务发下去',
+                        running: '这个项目正在跑，等这一轮结束再开工',
+                        confirm: '开工「{{title}}」？agent 会开始把上面这些任务发给子 agent，发出去就收不回来了。',
+                        kickoff: '开工吧，按这份计划把可以开始的任务发下去。',
+                        busy: '已开工，但 agent 正在跑上一轮，没听见这句。等它跑完，到它的聊天里再说一声。',
+                        error: '已开工，但没能叫动 agent。到它的聊天里说一声。',
+                        failed: '没能开工，什么都没改，可以再按一次。',
+                    },
                     archive: {
                         action: '归档',
                         hint: '把项目从看板上收起来，文件仍然留在磁盘上',

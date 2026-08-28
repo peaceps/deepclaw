@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     deleteDir: vi.fn<(dir: string) => void>(() => undefined),
     dropSession: vi.fn<(dir: string) => void>(() => undefined),
     getTask: vi.fn<(projectId: string, taskId: string) => unknown>(() => todoTask()),
+    getProjectDetail: vi.fn<(projectId: string) => unknown>(() => startedProject()),
     updateTask: vi.fn<(projectId: string, task: unknown) => void>(() => undefined),
     fireProjectInfoEvent: vi.fn<(projectId: string, context: unknown) => void>(() => undefined),
     startRun: vi.fn<(run: unknown) => string>(() => 'run1'),
@@ -20,8 +21,17 @@ function todoTask(status = 'todo') {
     return {id: 'ship-it', title: 'ship it', status};
 }
 
+/** As it stands whenever a task of it is handed out: the user has set the work going. */
+function startedProject(overrides: Record<string, unknown> = {}) {
+    return {
+        id: 'p1', startedAt: '2026-01-01T00:00:00.000Z',
+        ongoingTasks: [], completedTasks: [], ...overrides,
+    };
+}
+
 vi.mock('../services/project-manager', () => ({ProjectManager: {
     getTask: mocks.getTask,
+    getProjectDetail: mocks.getProjectDetail,
     updateTask: mocks.updateTask,
     fireProjectInfoEvent: mocks.fireProjectInfoEvent,
 }}));
@@ -83,6 +93,7 @@ function contextWithSubLoop(subLoop: SpawnedLoopMock): OneLoopContext {
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.getTask.mockReturnValue(todoTask());
+    mocks.getProjectDetail.mockReturnValue(startedProject());
     mocks.isRunning.mockReturnValue(false);
     mocks.startRun.mockReturnValue('run1');
 });
@@ -220,6 +231,36 @@ describe('taskLoopTool invoke', () => {
         await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
             .rejects.toThrow('This session runs no project');
         expect(mocks.getTask).not.toHaveBeenCalled();
+        expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The plan is the user's to agree to, and a run that hands work out while they are still
+     * changing it is the whole of what the start button was put there to stop.
+     */
+    test('refuses to hand a task over before the user started the project', async () => {
+        mocks.getProjectDetail.mockReturnValue(startedProject({startedAt: undefined}));
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
+            .rejects.toThrow('The user has not started this project.');
+        expect(mocks.startRun).not.toHaveBeenCalled();
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+        expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A run turned away here is a run holding a task it was told marks itself ongoing, and moving
+     * it there by hand is a short step to take. Were work in the project an answer to whether the
+     * project was started, that step would open this gate -- so it is the date and only the date.
+     * A record from before the date existed is dated as the manager loads it.
+     */
+    test('refuses to hand a task over to a project a run put to work itself', async () => {
+        mocks.getProjectDetail.mockReturnValue(
+            startedProject({startedAt: undefined, ongoingTasks: ['drafted']})
+        );
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
+            .rejects.toThrow('The user has not started this project.');
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
     });
 

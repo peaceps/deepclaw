@@ -1,0 +1,25 @@
+---
+description: CHANGELOG entry style
+alwaysApply: true
+---
+
+# CHANGELOG
+
+One short sentence per change, saying what it does. Nothing else: no detail, no reasoning, no what
+it was like before. Those belong in the code and its comments, where whoever needs them is already
+standing.
+
+Good:
+
+```
+a project now waits for the start button on the board before any of its tasks is worked.
+```
+
+Bad, and this is the whole of one entry saying what the line above says:
+
+```
+a project now waits for you to start it. an agent that had just laid a plan out with you would go
+straight on to handing its tasks to subagents, and there was nothing between talking a project over
+and having it worked apart: the only way to stop it was to be quicker than it. an open row on the
+board has a start button now, and until it is pressed nothing of that project moves.
+```

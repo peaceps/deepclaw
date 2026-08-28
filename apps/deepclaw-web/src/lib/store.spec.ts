@@ -7,6 +7,9 @@ import {type AgentActivity, deriveAgentSummary, sessionBrowserId, useAppStore} f
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/** The word that set a project going, which is what says the work on it is on. */
+const STARTED = '2024-01-02T00:00:00.000Z';
+
 function newAgent(overrides: Partial<AgentEmployee> = {}): AgentEmployee {
     return {
         id: 'a1',
@@ -126,8 +129,8 @@ describe('deriveAgentSummary', () => {
     test('sorts the projects into todo, ongoing and done', () => {
         const projects = [
             newProject(),
-            newProject({id: 'p2', title: 'Half way', ongoingTasks: ['t1']}),
-            newProject({id: 'p3', title: 'Nearly there', completedTasks: ['t1']}),
+            newProject({id: 'p2', title: 'Half way', startedAt: STARTED, ongoingTasks: ['t1']}),
+            newProject({id: 'p3', title: 'Nearly there', startedAt: STARTED, completedTasks: ['t1']}),
             newProject({id: 'p4', title: 'All done', closedAt: '2024-02-01T00:00:00.000Z'}),
         ];
         expect(deriveAgentSummary(newAgent(), projects, idle()).stats)
@@ -165,7 +168,7 @@ describe('deriveAgentSummary', () => {
 
     test('reports a fired agent as fired but still counts the projects', () => {
         const summary = deriveAgentSummary(
-            newAgent({fired: true}), [newProject({ongoingTasks: ['t1']})],
+            newAgent({fired: true}), [newProject({startedAt: STARTED, ongoingTasks: ['t1']})],
             idle({runningTasks: [newRunningTask()]})
         );
         expect(summary).toEqual({status: 'fired', stats: {todo: [], ongoing: ['Ship it'], done: []}});

@@ -6,7 +6,6 @@ import {AgentIdentityManager} from '../services/agent-identity-manager';
 import {ProjectManager} from '../services/project-manager';
 import {
     createProjectTool,
-    createSimpleTaskTool,
     getProjectDetailTool,
     getProjectListTool,
     updateProjectTool,
@@ -144,33 +143,27 @@ describe('createProjectTool invoke', () => {
     });
 });
 
-describe('createSimpleTaskTool invoke', () => {
-
-    test('wraps the single task into a project that mirrors it', async () => {
-        const context = newTestContext();
-        const result = await createSimpleTaskTool.invoke({
-            id: 'fix-bug', title: 'fix bug', description: 'fix the bug',
-            priority: 'urgent', steps: ['repro', 'patch'],
-        }, context);
-        expect(createTask).toHaveBeenCalledExactlyOnceWith({
-            id: 'fix-bug', title: 'fix bug', description: 'fix the bug', priority: 'urgent',
-            steps: ['repro', 'patch'], agentId: 'a1',
-        });
-        expect(createProject).toHaveBeenCalledExactlyOnceWith(
-            {agentId: 'a1', title: 'fix bug', description: 'fix bug desc', priority: 'medium'},
-            [newTask('fix-bug', 'fix bug')]
-        );
-        expect(context.runtime.agentBreakReason).toBe('projectCreated');
-        expect(result).toContain('Task created successfully.');
-    });
-});
-
 describe('updateProjectTool invoke', () => {
 
     test('patches the project without rebuilding its tasks', async () => {
         await updateProjectTool.invoke({projectId: 'pr1', title: 'ship it faster'}, newTestContext());
         expect(createTask).not.toHaveBeenCalled();
         expect(updateProject).toHaveBeenCalledExactlyOnceWith({id: 'pr1', title: 'ship it faster'}, undefined);
+    });
+
+    /**
+     * Nothing holds a call to the schema by the time it lands here, additionalProperties being a
+     * word only some providers keep. The date the user set the work going is the one field of a
+     * project no run may write, and a field this tool never named reaches no further than this.
+     */
+    test('leaves a field the model made up out of the patch', async () => {
+        await updateProjectTool.invoke({
+            projectId: 'pr1', title: 'ship it faster',
+            startedAt: '2026-01-01T00:00:00.000Z',
+            closedAt: '2026-01-01T00:00:00.000Z',
+        } as Parameters<typeof updateProjectTool.invoke>[0], newTestContext());
+        expect(updateProject)
+            .toHaveBeenCalledExactlyOnceWith({id: 'pr1', title: 'ship it faster'}, undefined);
     });
 
     test('rebuilds the task list when new tasks are given', async () => {
@@ -293,7 +286,7 @@ describe('the report a closed project is asked for', () => {
         expect(result).not.toContain(ASKED);
     });
 
-    /** The wrapper of a simple task, whose one task report already says the whole of it. */
+    /** A project of one task, whose one task report already says the whole of it. */
     test('is not asked for from a project of a single task', async () => {
         getProjectDetail.mockReturnValue(closedProject({tasks: {design: newTask('design')}}));
         const result = await updateTaskTool.invoke(
@@ -554,7 +547,6 @@ describe('project tool metadata', () => {
     /** A subagent reports its work, the loop that assigned the task is the one acting on it. */
     test('a task loop may only move the step index of the task it works', () => {
         expect(createProjectTool.loopKinds).toEqual(['main']);
-        expect(createSimpleTaskTool.loopKinds).toEqual(['main']);
         expect(updateProjectTool.loopKinds).toEqual(['main']);
         expect(updateTaskTool.loopKinds).toEqual(['main']);
         expect(updateTaskCurrentStepTool.loopKinds).toEqual(['main', 'task']);
@@ -582,7 +574,6 @@ describe('project tool metadata', () => {
     /** Ending the loop mid group would let the siblings of the call run past the stop. */
     test('only the tools that can end the loop run on their own', () => {
         expect(createProjectTool.parallelSafe).toBe(false);
-        expect(createSimpleTaskTool.parallelSafe).toBe(false);
         expect(updateTaskTool.parallelSafe).toBe(false);
         expect(updateProjectTool.parallelSafe).toBe(true);
         expect(updateTaskCurrentStepTool.parallelSafe).toBe(true);

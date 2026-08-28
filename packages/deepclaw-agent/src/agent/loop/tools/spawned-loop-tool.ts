@@ -1,5 +1,5 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { addTokenUsage, type RunningTask } from '@deepclaw/core';
+import { addTokenUsage, isProjectStarted, type RunningTask } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import { OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
@@ -108,6 +108,13 @@ function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     const task = ProjectManager.getTask(projectId, input.taskId);
     if (!task) {
         throw new Error(`Task "${input.taskId}" not found in project "${projectId}".`);
+    }
+    // The whole project waits on one word from the user, so this is asked of the project rather
+    // than of the task, and asked here rather than left to the prompt: a plan being talked over is
+    // exactly when a model is most sure the work can begin.
+    if (!isProjectStarted(ProjectManager.getProjectDetail(projectId))) {
+        throw new Error('The user has not started this project. No task of it goes to a subagent ' +
+            'before they press start on the board: tell them what is ready to go and wait.');
     }
     if (task.status === 'done') {
         throw new Error(`Task "${task.title}" is done, and a done task never goes back to ongoing.`);

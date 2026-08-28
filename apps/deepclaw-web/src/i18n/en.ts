@@ -155,6 +155,16 @@ export const en = {
                         save: 'Press Enter to save',
                     },
                     tasksUnread: 'The tasks of this project could not be read. Close the row and open it again.',
+                    start: {
+                        action: 'Start work',
+                        hint: 'Let the agent hand the tasks of this plan out',
+                        running: 'This project is in the middle of a run, wait for it to finish',
+                        confirm: 'Start "{{title}}"? The agent begins handing the tasks above out to subagents, and there is no calling that back.',
+                        kickoff: 'Start the work on this project: hand out the tasks that are ready.',
+                        busy: 'The work is on, but the agent was in the middle of a run and did not hear it. Tell it in its chat once that run is done.',
+                        error: 'The work is on, but the agent could not be reached. Tell it in its chat.',
+                        failed: 'The work could not be started. Nothing was changed, and it is worth trying again.',
+                    },
                     archive: {
                         action: 'Archive',
                         hint: 'Take this project off the board, keeping it on disk',

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Play } from 'lucide-react';
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]),'
     + ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -12,11 +12,23 @@ function focusStops(card: HTMLElement | null): HTMLElement[] {
     return [...(card?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
 }
 
+/**
+ * How the question looks, which is how it reads: a warning in front of something being taken away,
+ * and the colour of the button that opened it in front of something being set going. The same
+ * dialog either way -- both are asked because nothing takes the answer back -- and red on a green
+ * button would say the work about to start is a thing being lost.
+ */
+const TONES = {
+    danger: {icon: AlertTriangle, mark: 'text-red-500', confirm: 'bg-red-500 hover:bg-red-600'},
+    go: {icon: Play, mark: 'text-emerald-600', confirm: 'bg-emerald-600 hover:bg-emerald-700'},
+} as const;
+
 type ConfirmModalProps = {
     title: string;
     message: string;
     confirmLabel?: string;
     cancelLabel?: string;
+    tone?: keyof typeof TONES;
     onConfirm: () => void;
     onCancel: () => void;
 };
@@ -28,9 +40,10 @@ type ConfirmModalProps = {
  * behind it is what the question is about.
  */
 export function ConfirmModal({
-    title, message, confirmLabel, cancelLabel, onConfirm, onCancel,
+    title, message, confirmLabel, cancelLabel, tone = 'danger', onConfirm, onCancel,
 }: ConfirmModalProps) {
     const { t } = useTranslation();
+    const {icon: ToneIcon, mark, confirm} = TONES[tone];
     const cardRef = useRef<HTMLDivElement>(null);
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -99,7 +112,7 @@ export function ConfirmModal({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-start gap-3 px-5 pt-5">
-                    <span className="mt-0.5 flex-shrink-0 text-red-500"><AlertTriangle size={20} /></span>
+                    <span className={`mt-0.5 flex-shrink-0 ${mark}`}><ToneIcon size={20} /></span>
                     <div className="min-w-0">
                         <h2 className="text-base font-semibold text-gray-900">{title}</h2>
                         <p className="mt-1 text-sm text-gray-600 break-words">{message}</p>
@@ -116,8 +129,8 @@ export function ConfirmModal({
                     </button>
                     <button
                         onClick={onConfirm}
-                        className="px-3 py-1.5 text-sm font-medium text-white bg-red-500 rounded-md
-                            hover:bg-red-600 transition-colors cursor-pointer"
+                        className={`px-3 py-1.5 text-sm font-medium text-white rounded-md
+                            transition-colors cursor-pointer ${confirm}`}
                     >
                         {confirmLabel ?? t('web.common.confirm')}
                     </button>

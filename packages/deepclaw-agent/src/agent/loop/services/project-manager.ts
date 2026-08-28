@@ -1,6 +1,6 @@
 import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { ARCHIVED_PROJECT_DIR, PROJECT_DIR, PROJECT_JSON, projectOutputDir } from '../../paths';
-import { type Project, type Task, type TaskStepsContext, getProjectStatus, MissionPriority, PROJECT_CONFIG, slimProject } from '@deepclaw/core';
+import { type Project, type Task, type TaskStepsContext, isProjectStarted, MissionPriority, PROJECT_CONFIG, slimProject } from '@deepclaw/core';
 import { fileAwayOutput } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
 
@@ -57,6 +57,7 @@ export class ProjectManager {
                     project.tasks = project.tasks || {};
                     this.ensureTaskIds(project.tasks);
                     Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
+                    this.ensureStartedAt(project);
                     this.projects[project.id] = project;
                 }
             } catch {
@@ -74,6 +75,24 @@ export class ProjectManager {
     private static ensureTaskIds(tasks: Record<string, Task>): void {
         for (const [key, task] of Object.entries(tasks)) {
             task.id = task.id || key;
+        }
+    }
+
+    /**
+     * A project written before there was a button to start one carries no date, and work in it is
+     * all there is to go by: a task ongoing or done is work somebody set going, whoever that was.
+     * Read as unstarted, such a project would be one with subagents in it that no further task
+     * could be handed to, and one the board offered to start over again.
+     *
+     * Asked here, once, and not everywhere the date is read, because a task being ongoing is
+     * something a run can arrange: read at every gate, it would be a gate a run could open. Nothing
+     * of a run has happened yet at load, so what this dates is only ever the old records it is for.
+     * The date is the day the project was written, the record saying nothing of when work began,
+     * and it goes to disk with the next write of the project like any other field.
+     */
+    private static ensureStartedAt(project: Project): void {
+        if (!project.startedAt && (project.ongoingTasks.length || project.completedTasks.length)) {
+            project.startedAt = project.createdAt;
         }
     }
 
@@ -107,13 +126,18 @@ export class ProjectManager {
         if (!project) {
             throw new Error(`Project ${projectInfo.id} not found.`);
         }
-        if (getProjectStatus(project) !== 'todo' && !!tasks) {
+        // The plan is settled by the user agreeing to it, so it is the date they agreed on that
+        // closes it to rewriting and not the first task to move: those are a second apart, and a
+        // list replaced in between is a list they never saw. Asked of the date rather than of the
+        // status so that what is being asked is on the page -- the two read the same today, and
+        // only one of them is the question.
+        if (isProjectStarted(project) && !!tasks) {
             throw new Error('Only projects in todo state can update tasks.')
         }
         // A report is of work that was done, and a project nobody has started yet has none to
-        // report on: the same thing a task is held to before it goes ongoing. Refused before
-        // anything is written, so a project turned away keeps the words it had.
-        if (projectInfo.output && getProjectStatus(project) === 'todo') {
+        // report on. Refused before anything is written, so a project turned away keeps the words
+        // it had.
+        if (projectInfo.output && !isProjectStarted(project)) {
             throw new Error('Cannot set output when project is in todo state.');
         }
         if (tasks) {
@@ -192,6 +216,17 @@ export class ProjectManager {
         if (!task) {
             throw new Error('Task not found.');
         }
+        const project = this.projects[projectId]!;
+        // Work begins at the user's word, and a task leaving todo is work begun: whoever writes it,
+        // and whether they go on to hand it to a subagent or work it themselves. Asked here rather
+        // than only where a task is handed out, because the status is the same claim wherever it is
+        // written -- a run refused a handover could write it itself and hand the task over on the
+        // strength of it, and the board reading a project by its tasks would have taken the button
+        // away in the meantime.
+        if (taskInfo.status && taskInfo.status !== 'todo' && !isProjectStarted(project)) {
+            throw new Error('The user has not started this project. No task of it leaves todo '
+                + 'before they press start on the board: tell them the plan is ready and wait.');
+        }
         // The words on a task are only ever read, so they are free to change at any point of the
         // work. Blank ones are no rewrite though, they leave a task nobody can read off the board.
         for (const field of ['title', 'description'] as const) {
@@ -247,7 +282,6 @@ export class ProjectManager {
         if (!task.closedAt && taskInfo.status === 'done') {
             task.closedAt = new Date().toISOString();
         }
-        const project = this.projects[projectId]!;
         if (!project.closedAt && Object.values(project.tasks).every(task => task.status === 'done')) {
             project.closedAt = new Date().toISOString();
         }
@@ -346,6 +380,25 @@ export class ProjectManager {
         return project;
     }
 
+    /**
+     * The user setting the work of a project going. Everything that hands a task out reads this,
+     * and until it is here a project is a plan being talked over.
+     *
+     * Pressed twice, the first date stands: what the second press would move is the moment the
+     * work began, which is a thing that already happened. Whoever asks is told nothing of that --
+     * a project that is started is started -- and the answer carries the project either way, the
+     * date on it being what the browsers are told.
+     */
+    public static startProject(projectId: string): Project {
+        const project = this.getProjectDetail(projectId);
+        if (project.startedAt) {
+            return project;
+        }
+        project.startedAt = new Date().toISOString();
+        this.saveProject(projectId);
+        return project;
+    }
+
     public static getProjectDetail(projectId: string): Project {
         const project = this.projects[projectId];
         if (!project) {
@@ -389,17 +442,15 @@ export class ProjectManager {
         return `## Project Management tools
 You can use project related tools to plan, manage projects.
 Projects are considered long term goals that can be broken down into tasks, they will be persisted in file system.
-Simple tasks are independent tasks and not related to any project when created,
-but they'll be wrapped into a project after it's created and can be searched with get_project_list as the same as normal projects.
-They will also be persisted in file system.
+A job too small to break down is a project of a single task, which is planned, started and reported
+like any other: work lives in a project or nowhere.
 
 ## Get project task info
 You can get all projects info with get_project_list tool, and get detailed info of a project with get_project_detail tool.
 
-## Create project and simple task
-If you consider a job should be a project, use create_project tool to create it.
-If one job is not big enough to be a project, you can directly create a simple task with create_simple_task without putting it into a project.
-Always create a project/simple task if asked to do something, even if the user didn\'t explicitly ask you to create one.
+## Create a project
+Use the create_project tool.
+Always create a project if asked to do something, even if the user didn\'t explicitly ask you to create one.
 You can create detailed steps for each task if needed,
 steps info are important for user to get current task execution status, so make sure to update them in a timely manner.
 
@@ -408,16 +459,25 @@ Every task carries an id you gave it when it was created, and that id is how eve
 The title beside it is what the user reads: they may rename a task at any time, so read a task by
 its id and never by the words on it.
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
-For simple tasks just set the wrapped project id.
 
 ## Report a finished project
 A project closes itself once its last task is done. What it produced as a whole is no task report,
 so write it with the update_project tool, in output: the user reads that off the project without
-opening a task. A project wrapping a single task needs none, the task report is already the whole.`;
+opening a task. A project of a single task needs none, the task report is already the whole.`;
     }
 
+    /**
+     * Said the same way to every project run, started or not, so that the standing prompt of a run
+     * is the same string before and after the user presses start. Which of the two a project is
+     * stands with the project itself, in `promptCurrentProject`, where everything else that changes
+     * under a run is said.
+     */
     public static promptTaskDelegation(): string {
         return `## Run the tasks through subagents
+Nothing of a project goes out before the user starts it, which they do with the start button on the
+board: until then the task_loop tool refuses every task and no task may be marked ongoing, and the
+plan is what there is to work on with them. What follows is how a project runs from the moment they
+start it.
 You run this project, you do not work through its tasks yourself. Hand every task that is ready to
 a subagent: call the task_loop tool with the id of the task, and the subagent works as the agent
 the task is assigned to, with the description and the steps of it in front of it. It can split the
@@ -474,7 +534,9 @@ ${JSON.stringify({
     completedTasks: project.completedTasks,
     ongoingTasks: project.ongoingTasks,
     canStartTasks: project.canStartTasks,
-})}
+})}${isProjectStarted(project) ? '' : `
+The user has not started this project yet: no task of it is handed to anybody or marked ongoing
+before they do, and what there is to do with it meanwhile is to go through the plan with them.`}
 If the user does not specify another project, assume they are talking about this project.` : ''}`
     }
 }

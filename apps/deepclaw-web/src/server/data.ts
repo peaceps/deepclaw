@@ -58,6 +58,20 @@ export async function getProjectDetail(projectId: string): Promise<SlimProject> 
     }
 }
 
+/**
+ * The user setting the work going. Only the date is written here: the run that follows is the one
+ * the chat sends, so the words that start the project reach the agent and the transcript together.
+ */
+export async function startProject(projectId: string): Promise<void> {
+    try {
+        LoopGateway.startProject(projectId);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error starting project:', error);
+        throw error;
+    }
+}
+
 export async function archiveProject(projectId: string): Promise<void> {
     try {
         LoopGateway.archiveProject(projectId);

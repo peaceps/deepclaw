@@ -34,8 +34,7 @@ function reportReminder(project: Project): string {
     if (!project.closedAt || project.output) {
         return '';
     }
-    // A project of one task is the wrapper a simple task is kept in, and a report of the whole of
-    // one task is the report of that task written twice.
+    // A report of the whole of one task is the report of that task written twice.
     if (Object.keys(project.tasks).length < 2) {
         return '';
     }
@@ -231,83 +230,6 @@ ${projectAfterWrite(project)}`;
     },
 }
 
-type CreateSimpleTaskInput = {
-    id: string;
-    title: string;
-    description: string;
-    priority: MissionPriority;
-    steps?: string[];
-};
-
-export const createSimpleTaskTool: ToolDesc<CreateSimpleTaskInput> = {
-    tool: {
-        name: 'create_simple_task',
-        description: `Create a single task without dependencies. It will be wrapped into a project that contains only this task.
-they will be persisted in file system. After task created, user can review the plan and ask to make changes to the plan, 
-so do not call tools updating project/tasks immediately with create_simple_task`,
-        schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-                id: {
-                    type: 'string',
-                    description: `How every tool reaches this task from now on. Give it a short
-lowercase handle of what the task is about, "design" or "api-schema". The user never sees it and it
-never changes, unlike the title beside it.`,
-                    pattern: TASK_ID_PATTERN,
-                    minLength: 1,
-                    maxLength: 30,
-                },
-                title: {
-                    type: 'string',
-                    description: `The title of the task, will display to the user.`,
-                    minLength: 1,
-                    maxLength: PROJECT_CONFIG.maxTaskTitleLength,
-                },
-                description: {
-                    type: 'string',
-                    description: 'A short description of the task, will display to the user.',
-                    minLength: 1,
-                    maxLength: PROJECT_CONFIG.maxTaskDescriptionLength,
-                },
-                priority: {
-                    type: 'string',
-                    enum: ['low', 'medium', 'high', 'urgent'],
-                    description: 'The priority of the task.'
-                },
-                steps: {
-                    type: 'array',
-                    items: {type: 'string'},
-                    description: `The detailed steps to complete the task. Max step count is ${PROJECT_CONFIG.maxTaskStepsCount}.
-You can update the current step index of the task via update_task_current_step tool when task is ongoing to keep track of the progress. 
-All steps should be done when task is going to be marked as done.`,
-                    maxItems: PROJECT_CONFIG.maxTaskStepsCount,
-                },
-            },
-            required: ['id', 'title', 'description', 'priority'],
-        },
-    },
-    agentMode: ['agent'],
-    parallelSafe: false,
-    loopKinds: ['main'],
-    invoke: async function(input: CreateSimpleTaskInput, context: OneLoopContext): Promise<string> {
-        const task: Task = ProjectManager.createTask(
-            {...input, agentId: context.agentId}
-        );
-        const project = ProjectManager.createProject({
-            agentId: context.agentId,
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
-        }, [task]);
-        ProjectManager.fireProjectInfoEvent(project.id, context);
-        context.runtime.agentBreakReason = 'projectCreated';
-        return `Task created successfully.
-Here's the wrapper project info:
-${projectAfterWrite(project)}`;
-    }
-};
-
 type UpdateProjectInput = {
     projectId: string;
     title?: string;
@@ -384,16 +306,23 @@ the old one away along with everything pointing at it. Leave a task out only to 
     parallelSafe: true,
     loopKinds: ['main'],
     invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
-        const {projectId, tasks, ...patch} =  input;
-        if (patch.output) {
-            requireReadableOutput(patch.output);
+        // What arrives here is held to the schema above by nothing: additionalProperties is a word
+        // only some providers keep, and a call carrying one field more is a call like any other by
+        // the time it lands. So what a run may write is copied over one field at a time, the way
+        // update_task does, rather than swept into a patch. A project carries dates that are the
+        // user's word and no run's -- startedAt is the whole of what the start button means -- and
+        // the surest way for a run not to reach them is for this to name what it can reach.
+        const projectInfo: UpdateContent<Omit<Project, 'tasks'>> = {id: input.projectId};
+        if (input.title) projectInfo.title = input.title;
+        if (input.description) projectInfo.description = input.description;
+        if (input.priority) projectInfo.priority = input.priority;
+        if (input.output) {
+            requireReadableOutput(input.output);
+            projectInfo.output = input.output;
         }
-        const projectTasks = tasks && buildTasks(tasks, context);
-        const project = ProjectManager.updateProject({
-            id: projectId,
-            ...patch,
-        }, projectTasks);
-        ProjectManager.fireProjectInfoEvent(projectId, context);
+        const projectTasks = input.tasks && buildTasks(input.tasks, context);
+        const project = ProjectManager.updateProject(projectInfo, projectTasks);
+        ProjectManager.fireProjectInfoEvent(input.projectId, context);
         return `Project updated successfully.
 Here's the project info:
 ${projectAfterWrite(project)}${reportReminder(project)}`;
@@ -440,7 +369,10 @@ to be something else. Rewriting it is free at any point of the work, the same as
                     type: 'string', enum: ['todo', 'ongoing', 'done'],
                     description: `The executable status of the task.
 'todo' is the initial status, 'ongoing' is the status when the task is being worked on,
-'done' is the status when the task is completed. You can only update the status to the next status.`,
+'done' is the status when the task is completed. You can only update the status to the next status.
+A task leaves todo only once the user has started the project it belongs to, whether you work it
+yourself or hand it to somebody: until they say so, the plan is there to be talked over and nothing
+in it is under way.`,
                 },
                 steps: {
                     type: 'array',
@@ -593,7 +525,7 @@ type GetProjectListInput = {
 export const getProjectListTool: ToolDesc<GetProjectListInput> = {
     tool: {
         name: 'get_project_list',
-        description: `Get the list of projects including simple task wrapper projects. If includingClosed is true,
+        description: `Get the list of projects. If includingClosed is true,
 closed projects will also be included.`,
         schema: {
             type: 'object',

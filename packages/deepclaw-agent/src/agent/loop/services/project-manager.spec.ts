@@ -52,10 +52,16 @@ function newSteps(count: number): string[] {
     return [...Array(count).keys()].map(index => `step ${index}`);
 }
 
-function newProject(manager: ProjectManagerType, tasks: Task[]): Project {
+/** A project as it lies while its plan is still being talked over: no task of it may move yet. */
+function newPlannedProject(manager: ProjectManagerType, tasks: Task[]): Project {
     return manager.createProject(
         {agentId: 'a1', title: 'Ship it', description: 'ship the thing', priority: 'high'}, tasks
     );
+}
+
+/** A project the user has set going, which is what a test of the work itself wants. */
+function newProject(manager: ProjectManagerType, tasks: Task[]): Project {
+    return manager.startProject(newPlannedProject(manager, tasks).id);
 }
 
 /** A project as it lies on disk, whose tasks may well be older than the fields a task has today. */
@@ -133,6 +139,49 @@ describe('loadProjects at import time', () => {
             },
         })}});
         expect(manager.getProjectDetail('p-stored').tasks['t1']!.id).toBe('t1');
+    });
+
+    /**
+     * A project written before there was a button to start one carries no date, and the work in it
+     * is all there is to go by. Left undated, it would be a project in full flight that no further
+     * task could be handed to, and one the board offered to start over again.
+     */
+    test('dates a project stored with work already in it as one that was started', async () => {
+        const manager = await loadManager({p1: {dir: '.projects/p1', content: storedProject({
+            tasks: {
+                design: {title: 'design', description: 'd', status: 'ongoing', priority: 'low', blockedBy: [], blocks: []},
+            },
+        })}});
+        expect(manager.getProjectDetail('p-stored').startedAt).toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    test('dates a project stored with work already finished in it', async () => {
+        const manager = await loadManager({p1: {dir: '.projects/p1', content: storedProject({
+            tasks: {
+                design: {title: 'design', description: 'd', status: 'done', priority: 'low', blockedBy: [], blocks: []},
+            },
+        })}});
+        expect(manager.getProjectDetail('p-stored').startedAt).toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    /** A plan nobody has worked yet is a plan, whether it was written before the date or after. */
+    test('leaves a project stored with nothing but a plan in it unstarted', async () => {
+        const manager = await loadManager({p1: {dir: '.projects/p1', content: storedProject({
+            tasks: {
+                design: {title: 'design', description: 'd', status: 'todo', priority: 'low', blockedBy: [], blocks: []},
+            },
+        })}});
+        expect(manager.getProjectDetail('p-stored').startedAt).toBeUndefined();
+    });
+
+    test('stands by the date a started project was stored with', async () => {
+        const manager = await loadManager({p1: {dir: '.projects/p1', content: storedProject({
+            startedAt: '2025-05-05T00:00:00.000Z',
+            tasks: {
+                design: {title: 'design', description: 'd', status: 'ongoing', priority: 'low', blockedBy: [], blocks: []},
+            },
+        })}});
+        expect(manager.getProjectDetail('p-stored').startedAt).toBe('2025-05-05T00:00:00.000Z');
     });
 
     /**
@@ -253,7 +302,7 @@ describe('createProject', () => {
     });
 
     test('persists the project as json next to its id', () => {
-        const project = newProject(manager, [newTask(manager, 'design')]);
+        const project = newPlannedProject(manager, [newTask(manager, 'design')]);
         expect(mocks.writeFile).toHaveBeenCalledOnce();
         const [path, content] = mocks.writeFile.mock.calls[0]!;
         expect(path).toBe(`.projects/${project.id}/project.json`);
@@ -323,11 +372,23 @@ describe('updateProject', () => {
         expect(updated.tags).toHaveLength(PROJECT_CONFIG.maxTagCount);
     });
 
+    /** The plan is theirs to rewrite for as long as it is only a plan. */
     test('replaces the tasks while the project is still todo', () => {
-        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
         const updated = manager.updateProject({id}, [newTask(manager, 'build')]);
         expect(Object.keys(updated.tasks)).toEqual(['build']);
         expect(updated.canStartTasks).toEqual(['build']);
+    });
+
+    /**
+     * The plan is what the user agreed to when they set the work going, so it is settled from that
+     * moment rather than from the first handover: the two are a second apart, and a list replaced
+     * in between is a list they never agreed to.
+     */
+    test('refuses to replace the tasks once the user started the project', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateProject({id}, [newTask(manager, 'build')]))
+            .toThrow('Only projects in todo state can update tasks.');
     });
 
     test('refuses to replace the tasks once a task is ongoing', () => {
@@ -354,9 +415,9 @@ describe('updateProject', () => {
         expect(() => manager.updateProject({id: 'ghost'})).toThrow('Project ghost not found.');
     });
 
-    /** The same thing a task is held to: nothing was done yet, so there is nothing to report. */
+    /** Nothing has been done yet, so there is nothing to report on. */
     test('refuses a report while the project has not been started', () => {
-        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
         expect(() => manager.updateProject({id, output: {type: 'markdown', content: '# done'}}))
             .toThrow('Cannot set output when project is in todo state.');
         expect(manager.getProjectDetail(id).output).toBeUndefined();
@@ -425,6 +486,37 @@ describe('updateTask status transitions', () => {
         expect(task.status).toBe('ongoing');
         expect(stop).toBe(false);
         expect(manager.getProjectDetail(id).ongoingTasks).toEqual(['design']);
+    });
+
+    /**
+     * A task leaving todo is work begun, and work begins at the user's word. Held to only where a
+     * task is handed to a subagent, this would be a rule a run could walk around: mark the task
+     * ongoing first, and the project reads as one at work to everything that asks it that way.
+     */
+    test('refuses to move a task out of todo before the user started the project', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateTask(id, {id: 'design', status: 'ongoing'}))
+            .toThrow('The user has not started this project.');
+        expect(manager.getProjectDetail(id).tasks['design']!.status).toBe('todo');
+    });
+
+    test('refuses to mark a task done before the user started the project', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateTask(id, {id: 'design', status: 'done'}))
+            .toThrow('The user has not started this project.');
+    });
+
+    /** The words on a task are read, not worked, so they are the user's to change while they plan. */
+    test('takes a rename of a task in a project nobody started yet', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        const {task} = manager.updateTask(id, {id: 'design', title: 'design it properly'});
+        expect(task.title).toBe('design it properly');
+    });
+
+    test('moves a task out of todo once the project is started', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        manager.startProject(id);
+        expect(manager.updateTask(id, {id: 'design', status: 'ongoing'}).task.status).toBe('ongoing');
     });
 
     test('marks an ongoing task done with a closing time', () => {
@@ -883,6 +975,41 @@ describe('archiveProject', () => {
     });
 });
 
+describe('startProject', () => {
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    test('writes the date the user set the work going', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        expect(manager.getProjectDetail(id).startedAt).toBeUndefined();
+        const started = manager.startProject(id);
+        expect(started.startedAt).toBeTruthy();
+        expect(manager.getProjectDetail(id).startedAt).toBe(started.startedAt);
+    });
+
+    test('keeps the project on disk with the date on it', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        manager.startProject(id);
+        const written = mocks.writeFile.mock.calls[mocks.writeFile.mock.calls.length - 1]!;
+        expect(JSON.parse(written[1]).startedAt).toBe(manager.getProjectDetail(id).startedAt);
+    });
+
+    /** Two tabs showing the button both press it, and the moment work began is not a thing to move. */
+    test('stands by the first date when it is started again', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        const first = manager.startProject(id).startedAt;
+        expect(manager.startProject(id).startedAt).toBe(first);
+    });
+
+    test('throws for an unknown id', () => {
+        expect(() => manager.startProject('ghost')).toThrow('Project not found.');
+    });
+});
+
 describe('getProjectDetail', () => {
 
     let manager: ProjectManagerType;
@@ -935,9 +1062,35 @@ describe('prompts', () => {
         expect(manager.promptCurrentProject('ghost')).toBe('');
     });
 
+    /**
+     * Said with the project rather than in the delegation section, which is the same words for
+     * every project run: this is what changes under a run, the user pressing start in the middle
+     * of the conversation being the ordinary way it happens.
+     */
+    test('says a project nobody started is still waiting on the user', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        expect(manager.promptCurrentProject(id)).toContain('has not started this project yet');
+    });
+
+    test('says nothing of starting once the work is on', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(manager.promptCurrentProject(id)).not.toContain('has not started this project yet');
+    });
+
+    /** A project carrying work of its own is one that was started, whatever wrote the date. */
+    test('says nothing of starting to a project already at work without a date', async () => {
+        const started = await loadManager({p1: {dir: '.projects/p1', content: storedProject({
+            tasks: {
+                design: {title: 'design', description: 'd', status: 'ongoing', priority: 'low', blockedBy: [], blocks: []},
+            },
+        })}});
+        expect(started.promptCurrentProject('p-stored')).not.toContain('has not started this project yet');
+    });
+
     test('tells the project owner to hand its tasks to subagents', () => {
         const prompt = manager.promptTaskDelegation();
         expect(prompt).toContain('## Run the tasks through subagents');
+        expect(prompt).toContain('Nothing of a project goes out before the user starts it');
         expect(prompt).toContain('call the task_loop tool with the id of the task');
         expect(prompt).toContain('Use sub_loop instead where there is nothing on the board');
         expect(prompt).toContain('Handing a task over marks it ongoing');
