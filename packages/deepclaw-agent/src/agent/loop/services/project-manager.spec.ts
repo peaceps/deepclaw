@@ -472,6 +472,144 @@ describe('updateProject', () => {
     });
 });
 
+describe('addTask', () => {
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    test('puts the task on the board of a project still todo', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const added = manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it', priority: 'high',
+        });
+        expect(added.status).toBe('todo');
+        const project = manager.getProjectDetail(id);
+        expect(Object.keys(project.tasks)).toEqual(['design', 'build']);
+        expect(project.canStartTasks).toEqual(expect.arrayContaining(['build']));
+    });
+
+    /** The use the tool exists for: the work itself found what the plan left out. */
+    test('puts the task on the board of a project underway', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        const added = manager.addTask(id, {
+            agentId: 'a1', id: 'review', title: 'review', description: 'review it', priority: 'low',
+        });
+        expect(added.status).toBe('todo');
+        const project = manager.getProjectDetail(id);
+        expect(project.tasks['review']).toBeDefined();
+        // An unblocked task can start even while another one is being worked on.
+        expect(project.canStartTasks).toEqual(['review']);
+    });
+
+    test('waits behind the tasks it is blocked by', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it',
+            priority: 'high', blockedBy: ['design'],
+        });
+        const project = manager.getProjectDetail(id);
+        expect(project.canStartTasks).toEqual([]);
+        expect(project.tasks['design']!.blocks).toEqual(['build']);
+        // ... and starts once what it waits for is done.
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(manager.getProjectDetail(id).canStartTasks).toEqual(['build']);
+    });
+
+    test('keeps the assignee it was given and falls back to the agent adding it', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it', priority: 'high',
+        }).assignee).toBe('a1');
+        expect(manager.addTask(id, {
+            agentId: 'a1', id: 'review', title: 'review', description: 'review it',
+            priority: 'low', assignee: 'a2',
+        }).assignee).toBe('a2');
+    });
+
+    test('refuses a task whose id is on the board already', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.addTask(id, {
+            agentId: 'a1', id: 'design', title: 'design again', description: 'no', priority: 'low',
+        })).toThrow('There is a task "design" on this project already.');
+    });
+
+    test('refuses a task blocked by one nobody knows', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it',
+            priority: 'high', blockedBy: ['ghost'],
+        })).toThrow('Invalid blocked task.');
+    });
+
+    /** The board is the live one: a task refused halfway must leave no mark on the tasks it named. */
+    test('writes nothing on the blockers it got past before being refused', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it',
+            priority: 'high', blockedBy: ['design', 'ghost'],
+        })).toThrow('Invalid blocked task.');
+        expect(manager.getProjectDetail(id).tasks['design']!.blocks).toEqual([]);
+    });
+
+    test('takes the same blocker named twice as the one wait', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const added = manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it',
+            priority: 'high', blockedBy: ['design', 'design'],
+        });
+        expect(added.blockedBy).toEqual(['design']);
+        expect(manager.getProjectDetail(id).tasks['design']!.blocks).toEqual(['build']);
+    });
+
+    test('refuses to crowd the board past its limit', () => {
+        const tasks = [...Array(PROJECT_CONFIG.maxTasksCount).keys()]
+            .map(index => newTask(manager, `t${index}`));
+        const {id} = newProject(manager, tasks);
+        expect(() => manager.addTask(id, {
+            agentId: 'a1', id: 'one-more', title: 'one more', description: 'no', priority: 'low',
+        })).toThrow('There are too many tasks.');
+    });
+
+    /** Closing is what the work said of itself; a task landing on that would unsay it. */
+    test('refuses a task on a closed project', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(manager.getProjectDetail(id).closedAt).toBeTruthy();
+        expect(() => manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it', priority: 'high',
+        })).toThrow('A closed project takes no new tasks.');
+    });
+
+    test('throws for an unknown project id', () => {
+        expect(() => manager.addTask('ghost', {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it', priority: 'high',
+        })).toThrow('Project ghost not found.');
+    });
+
+    test('persists the project again', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        mocks.writeFile.mockClear();
+        manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it', priority: 'high',
+        });
+        expect(mocks.writeFile).toHaveBeenCalledOnce();
+    });
+
+    test('refuses too many steps', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.addTask(id, {
+            agentId: 'a1', id: 'build', title: 'build', description: 'build it',
+            priority: 'high', steps: newSteps(PROJECT_CONFIG.maxTaskStepsCount + 1),
+        })).toThrow(`Too much steps for a task. Max is ${PROJECT_CONFIG.maxTaskStepsCount}.`);
+    });
+});
+
 describe('updateTask status transitions', () => {
 
     let manager: ProjectManagerType;

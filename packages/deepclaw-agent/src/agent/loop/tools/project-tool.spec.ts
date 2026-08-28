@@ -5,6 +5,7 @@ import {projectFilesDir} from '../../paths';
 import {AgentIdentityManager} from '../services/agent-identity-manager';
 import {ProjectManager} from '../services/project-manager';
 import {
+    addTaskTool,
     createProjectTool,
     getProjectDetailTool,
     getProjectListTool,
@@ -37,6 +38,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
 const createTask = vi.spyOn(ProjectManager, 'createTask');
 const createProject = vi.spyOn(ProjectManager, 'createProject');
 const updateProject = vi.spyOn(ProjectManager, 'updateProject');
+const addTask = vi.spyOn(ProjectManager, 'addTask');
 const updateTask = vi.spyOn(ProjectManager, 'updateTask');
 const updateCurrentStep = vi.spyOn(ProjectManager, 'updateCurrentStep');
 const getProjectList = vi.spyOn(ProjectManager, 'getProjectList');
@@ -64,6 +66,7 @@ beforeEach(() => {
     createTask.mockImplementation(info => newTask(info.id, info.title));
     createProject.mockReturnValue(newProject());
     updateProject.mockReturnValue(newProject());
+    addTask.mockReturnValue(newTask('build'));
     getProjectDetail.mockReturnValue(newProject());
     getAgent.mockImplementation(id => newIdentity(id));
     getAgents.mockReturnValue([newIdentity('a1'), newIdentity('a2'), newIdentity('a3', true)]);
@@ -240,6 +243,63 @@ describe('updateProjectTool invoke', () => {
         );
         expect(result).not.toContain('the whole report');
         expect(result).toContain('<Output kept, read it with get_project_detail>');
+    });
+});
+
+describe('addTaskTool invoke', () => {
+
+    test('passes the task through to the manager under the agent adding it', async () => {
+        await addTaskTool.invoke({
+            projectId: 'pr1', id: 'build', title: 'build it',
+            description: 'build the thing', priority: 'high',
+        }, newTestContext());
+        expect(addTask).toHaveBeenCalledExactlyOnceWith('pr1', {
+            id: 'build', title: 'build it', description: 'build the thing',
+            priority: 'high', agentId: 'a1',
+        });
+    });
+
+    test('keeps an assignee that was named', async () => {
+        await addTaskTool.invoke({
+            projectId: 'pr1', id: 'build', title: 'build it',
+            description: 'build the thing', priority: 'high', assignee: 'a2',
+        }, newTestContext());
+        expect(addTask).toHaveBeenCalledExactlyOnceWith('pr1', {
+            id: 'build', title: 'build it', description: 'build the thing',
+            priority: 'high', assignee: 'a2', agentId: 'a1',
+        });
+    });
+
+    test('refuses a task handed to somebody who does not work here', async () => {
+        getAgent.mockReturnValue(undefined);
+        await expect(addTaskTool.invoke({
+            projectId: 'pr1', id: 'build', title: 'build it',
+            description: 'build the thing', priority: 'high', assignee: 'ghost',
+        }, newTestContext())).rejects.toThrow('No agent "ghost" works here');
+        expect(addTask).not.toHaveBeenCalled();
+    });
+
+    test('announces the board and reports the project back', async () => {
+        const context = newTestContext();
+        const result = await addTaskTool.invoke({
+            projectId: 'pr1', id: 'build', title: 'build it',
+            description: 'build the thing', priority: 'high',
+        }, context);
+        expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
+            eventType: 'updateProject', content: {...newProject(), taskCount: 0},
+        });
+        expect(result).toContain('Task added successfully.');
+        expect(result).toContain(JSON.stringify(newProject()));
+    });
+
+    /** The plan was already agreed on, so the run goes on: only a project of its own stops for one. */
+    test('leaves the loop running', async () => {
+        const context = newTestContext();
+        await addTaskTool.invoke({
+            projectId: 'pr1', id: 'build', title: 'build it',
+            description: 'build the thing', priority: 'high',
+        }, context);
+        expect(context.runtime.agentBreakReason).toBeUndefined();
     });
 });
 

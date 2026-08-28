@@ -4,6 +4,7 @@ a small job is a project of one task now, there is no separate simple task.
 an agent now says how the work feels while a subagent is working a task in its name.
 a chat keeps the whole of what a run wrote instead of shrinking to the line it ended on, which is
 still what an im reply and the preview of a closed conversation say.
+a project already underway now takes a task the plan left out.
 
 v0.0.18
 a conversation nobody has read or written in for a while is no longer held in memory either. one

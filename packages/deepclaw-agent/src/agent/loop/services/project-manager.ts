@@ -195,13 +195,66 @@ export class ProjectManager {
             priority: taskInfo.priority,
             status: 'todo',
             assignee: taskInfo.assignee || taskInfo.agentId,
-            blockedBy: taskInfo.blockedBy || [],
+            // The same blocker named twice is the one wait. Left as two it is written twice over,
+            // here and again in the blocks of what it waits for, and both are read back to whoever
+            // asks for the project.
+            blockedBy: Array.from(new Set(taskInfo.blockedBy || [])),
             blocks: [],
             stepsStatus: !taskInfo.steps?.length ? undefined : {
                 steps: taskInfo.steps,
                 currentStepIndex: -1
             }
         };
+        return task;
+    }
+
+    /**
+     * Puts a task on the board of a project that is still open. The list of a project is planned
+     * up front and frozen where it stood the moment work began -- update_project may replace it
+     * only until the user presses start -- so a task thought up midway had no way onto the board,
+     * and this is that way: work that turned out to be needed is still work of the project, better
+     * kept beside the tasks it came out of than in a project of its own nobody asked for.
+     *
+     * A task added waits behind the ones it names and never the other way round: what is already on
+     * the board keeps the waits it was planned with, since nothing can write blockedBy onto a task
+     * that already exists.
+     *
+     * A closed project takes no new tasks. Closing is what the work said of itself -- every task
+     * done, nothing left to ask for -- and a task landing on that would unsay it, so what follows
+     * on from closed work belongs in a project of its own. A project the user put away is out of
+     * the map already and answers "not found" the same way.
+     */
+    public static addTask(projectId: string, taskInfo: TaskInitInfo): Task {
+        const project = this.projects[projectId];
+        if (!project) {
+            throw new Error(`Project ${projectId} not found.`);
+        }
+        if (project.closedAt) {
+            throw new Error('A closed project takes no new tasks.');
+        }
+        if (project.tasks[taskInfo.id]) {
+            throw new Error(`There is a task "${taskInfo.id}" on this project already.`);
+        }
+        if (Object.keys(project.tasks).length >= PROJECT_CONFIG.maxTasksCount) {
+            throw new Error('There are too many tasks.');
+        }
+        const task = this.createTask(taskInfo);
+        // Every blocker is found before any of them is written to. The board being written on here
+        // is the live one, so a task turned away halfway would leave the blockers it got past
+        // waiting on a task that never landed. Nothing is saved on the way out, but every write of
+        // a project is a write of the whole of it: the next unrelated task edit would carry them
+        // to disk, and the project read back in the meantime says the same.
+        const blockers = task.blockedBy.map(blockedBy => {
+            const blocker = project.tasks[blockedBy];
+            if (!blocker) {
+                throw new Error('Invalid blocked task.');
+            }
+            return blocker;
+        });
+        blockers.forEach(blocker => blocker.blocks.push(task.id));
+        project.tasks[task.id] = task;
+        Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
+        this.saveProject(projectId);
         return task;
     }
 
@@ -453,6 +506,14 @@ Use the create_project tool.
 Always create a project if asked to do something, even if the user didn\'t explicitly ask you to create one.
 You can create detailed steps for each task if needed,
 steps info are important for user to get current task execution status, so make sure to update them in a timely manner.
+
+## Add a task to a project underway
+The work itself finds what the plan left out. Where a project turns out to need another task, add
+it with add_task: it goes on the board beside the ones planned, and waits behind whatever it is
+blocked by. It only ever waits, never the other way round -- a task already on the board cannot be
+made to wait for it -- so work the rest of the board turns out to need is work to do first rather
+than a task to add in front of them. A project takes new tasks only while it is open, so once it
+closed, the work that follows on from it belongs in a project of its own.
 
 ## Update task status
 Every task carries an id you gave it when it was created, and that id is how every tool reaches it.

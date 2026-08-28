@@ -230,6 +230,50 @@ ${projectAfterWrite(project)}`;
     },
 }
 
+type AddTaskInput = ProjectTaskInput & {
+    projectId: string;
+};
+
+export const addTaskTool: ToolDesc<AddTaskInput> = {
+    tool: {
+        name: 'add_task',
+        description: `Add one task to a project that is not closed. The whole task list can only be
+replaced with update_project while the project is still todo, and the work itself keeps finding
+what the plan left out: a follow-up nobody saw coming, a gap a finished task uncovered. This puts
+such a task on the board, where it waits behind the tasks it names in blockedBy like one planned
+from the start. It cannot be put in front of anything: a task already on the board keeps the waits
+it was planned with, so a prerequisite found late is work to do first rather than a task to add.
+A closed project takes no new tasks -- open the work that follows on from it in a project of its
+own instead.`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                projectId: {type: 'string', description: 'The ID of the project.'},
+                ...taskItemSchema.properties,
+            },
+            required: ['projectId', ...taskItemSchema.required],
+        },
+    },
+    agentMode: ['agent'],
+    parallelSafe: false,
+    // The board of a project belongs to the loop that runs it: a subagent works a task it was
+    // handed, it does not put tasks on the board of the project.
+    loopKinds: ['main'],
+    invoke: async function(input: AddTaskInput, context: OneLoopContext): Promise<string> {
+        requireHiredAssignee(input.assignee);
+        const {projectId, ...task} = input;
+        ProjectManager.addTask(projectId, {...task, agentId: context.agentId});
+        ProjectManager.fireProjectInfoEvent(projectId, context);
+
+        // No report reminder here: it speaks for a closed project, and a closed one takes no tasks.
+        const project = ProjectManager.getProjectDetail(projectId);
+        return `Task added successfully.
+Here's the related info:
+${projectAfterWrite(project)}`;
+    }
+};
+
 type UpdateProjectInput = {
     projectId: string;
     title?: string;
@@ -243,7 +287,8 @@ export const updateProjectTool: ToolDesc<UpdateProjectInput> = {
     tool: {
         name: 'update_project',
         description: `Update project info, tasks can only be updated when a project is in todo state.
-The report of the finished project goes here as well, in output.`,
+The report of the finished project goes here as well, in output.
+A task that has to join a project already underway goes in with add_task instead.`,
         schema: {
             type: 'object',
             additionalProperties: false,

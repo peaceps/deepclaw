@@ -13,7 +13,7 @@ import {
 } from '../tools/background-command-tool';
 import {saveMemoryTool, readMemoryDetailTool} from '../tools/save-memory-tool';
 import {createCronTaskTool, getCronHistoriesTool, updateCronOutputTool, updateCronTaskTool} from '../tools/cron-tool';
-import {createProjectTool, updateProjectTool, updateTaskTool,
+import {addTaskTool, createProjectTool, updateProjectTool, updateTaskTool,
     updateTaskCurrentStepTool, getProjectListTool, getProjectDetailTool} from '../tools/project-tool';
 import { base64Tool } from '../tools/encode-decode-tool';
 import { generateImageTool, keepImageTool } from '../tools/image-tool';
@@ -44,6 +44,7 @@ const tools: ToolDesc<any>[] = [
     getCronHistoriesTool,
     createProjectTool,
     updateProjectTool,
+    addTaskTool,
     updateTaskTool,
     updateTaskCurrentStepTool,
     getProjectDetailTool,
