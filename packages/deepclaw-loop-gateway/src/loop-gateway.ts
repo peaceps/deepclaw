@@ -22,7 +22,7 @@ import {
     LoopInitializer, ProjectManager, AgentIdentityManager, LoopAgent, SkillsManager,
     type SkillInfo, SessionService, CronService,
     MCPService, RunningTaskService, ToolUseService, BackgroundCommandManager,
-    type SessionSummary,
+    type SessionSummary, type CarriedLoopState,
 } from "@deepclaw/agent";
 import { type DeepclawConfig } from "@deepclaw/config";
 import { UIChatService } from "./ui-chat-service";
@@ -37,6 +37,37 @@ import { getLogger } from "@deepclaw/node-utils";
 
 const logger = getLogger('LoopGateway');
 
+/**
+ * How many loops are kept in memory at once. Each holds the whole of its own history, whose size
+ * the compaction caps against the window of the model rather than against any figure of ours: about
+ * a megabyte of heap for a common window, a few times that for the largest one, so twelve is tens
+ * of megabytes.
+ *
+ * Twelve is well past what the thing it counts ever comes to. A loopId is `role.agentId[.projectId]`,
+ * so the count is how many agent-and-project pairs have been talked in lately, and going back and
+ * forth between a handful of agents over a handful of projects does not approach it. Going over
+ * costs the idlest loop a cold start on its next turn, which reads its history back off the disk
+ * and hands the rest over: nothing the user is shown.
+ *
+ * Soft, and deliberately so: a candidate the gates hold back is not evicted, so the store climbs
+ * past twelve while every loop in it is busy and comes back down as they fall idle.
+ */
+const MAX_LIVE_LOOPS = 12;
+
+/**
+ * How many of those handovers are held for loops that have not come back. Each is a fraction of the
+ * loop it came from -- a set of at most two words, a number, the paths that conversation has read --
+ * but an entry only leaves as the loop it belongs to is built again, and a conversation talked in
+ * once and never returned to has no such thing coming. Left uncounted, that is a store growing with
+ * how long the program has been up, which is the shape of the very thing the eviction is here for.
+ *
+ * Twice the live limit, because what is worth keeping is what somebody comes back to, and whoever
+ * waited this long has been away for two full turnovers of everything in memory. Dropping one costs
+ * that conversation the permissions it was given asked for a second time: the cold start it is
+ * already having, and nothing more.
+ */
+const MAX_CARRIED_STATES = MAX_LIVE_LOOPS * 2;
+
 type LoopState = {
     info: LoopInfo;
     invoke?: InvokeOption & {
@@ -48,6 +79,8 @@ type LoopState = {
     running: boolean;
     /** One per run, handed to the loop so that a stop reaches whatever the run is waiting on. */
     controller?: AbortController;
+    /** When this loop was last built, opened or run: what the eviction reads to find the idlest. */
+    lastUsedAt: number;
 };
 
 type LoopStore = Record<string, LoopState>;
@@ -70,6 +103,14 @@ type InteractionResolver = {
 class LoopGatewayImpl {
     private static cronUnsubscriber?: () => void;
     private static loops: LoopStore = {};
+    /**
+     * What loops the eviction let go of left for whoever builds them again, by loopId. An entry is
+     * taken away as it is handed over, since a store that is never emptied is the very thing the
+     * eviction above it is here to prevent, and the oldest goes once there are more of them waiting
+     * than `MAX_CARRIED_STATES`, for the ones nobody ever comes back for. `startNewSession` and an
+     * archived project drop theirs outright: neither has a loop coming back to take it.
+     */
+    private static carriedStates: Map<string, CarriedLoopState> = new Map();
     private static sseSubscribers: Set<(e: LoopGatewayEvent) => void> = new Set();
     /** By loop, since a run asks its questions one after the other, its subagents included. */
     private static waitingInteractions: Map<string, InteractionResolver> = new Map();
@@ -178,27 +219,90 @@ class LoopGatewayImpl {
     public static initLoop(
         loopId: string, agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}
     ): void {
-        // TODO LRU
         const {role, agentId, projectId = ''} = splitLoopId(loopId);
-        if (!this.loops[loopId]) {
-            this.loops[loopId] = {
-                info: {role, agentId, projectId},
-                agentHandler,
-                loop: this.createLoop(role, agentId, projectId, agentHandler),
-                running: false
+        const known = this.loops[loopId];
+        if (known) {
+            known.lastUsedAt = Date.now();
+            return;
+        }
+        this.evictIdleLoops();
+        // Handed over before it is dropped, so that an agent too broken to build keeps what it was
+        // given for whichever attempt does build.
+        const carried = this.carriedStates.get(loopId);
+        const loop = this.createLoop(role, agentId, projectId, agentHandler, carried);
+        this.carriedStates.delete(loopId);
+        this.loops[loopId] = {
+            info: {role, agentId, projectId},
+            agentHandler,
+            loop,
+            running: false,
+            lastUsedAt: Date.now(),
+        };
+    }
+
+    /**
+     * Lets go of the loops nobody is in the middle of using, until there is room for one more.
+     *
+     * Reclaiming memory rather than ending anything. What is dropped is an entry in this store, and
+     * the conversation behind it is on disk for whoever builds the loop next to read back -- the
+     * same rebuild `isOutdated` has been doing all along. What was only ever in memory is set aside
+     * here and handed to that one, so a user returning to an evicted loop is not asked again for
+     * permissions they already gave, nor is the loop guessing at a token count it once knew.
+     *
+     * Three gates, each of them a way of saying somebody is still holding the loop: a run going, a
+     * run begun and not yet cleared, a question waiting on its answer. A loop held back is kept even
+     * where it is the idlest there is, which is what makes the limit a soft one.
+     *
+     * Nothing here touches the session folder, and that is what tells this apart from
+     * `startNewSession`, which has to refuse while a background command is still writing into the
+     * folder it moves. A command outlives the loop that started it either way -- it sits in a store
+     * of its own under the same loopId -- so the loop built next drains the result all the same.
+     */
+    private static evictIdleLoops(): void {
+        const idlestFirst = Object.entries(this.loops)
+            .sort(([, one], [, other]) => one.lastUsedAt - other.lastUsedAt);
+        let live = idlestFirst.length;
+        for (const [loopId, loopState] of idlestFirst) {
+            if (live < MAX_LIVE_LOOPS) {
+                return;
             }
+            if (loopState.running || loopState.invoke || this.waitingInteractions.has(loopId)) {
+                continue;
+            }
+            this.carryState(loopId, loopState.loop.carriedState());
+            delete this.loops[loopId];
+            live -= 1;
+        }
+    }
+
+    /**
+     * Holds what a loop left behind for the one built in its place, and lets go of the longest
+     * waiting where too many are waiting at once.
+     *
+     * The oldest is the first the map holds: an entry is always taken away as it is handed over, so
+     * every one of these was put here by the eviction that made it, in the order the evictions
+     * happened.
+     */
+    private static carryState(loopId: string, carried: CarriedLoopState): void {
+        this.carriedStates.set(loopId, carried);
+        for (const oldest of this.carriedStates.keys()) {
+            if (this.carriedStates.size <= MAX_CARRIED_STATES) {
+                return;
+            }
+            this.carriedStates.delete(oldest);
         }
     }
 
     private static createLoop(
         role: FlushAgentRole, agentId: string, projectId: string,
-        agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {}
+        agentHandler: Partial<Omit<AgentHandler, 'onInfoEvent'>> = {},
+        carried?: CarriedLoopState
     ) {
         return LoopInitializer.getLoop(role, agentId, projectId, {
             onStreamText: agentHandler.onStreamText || this.defaultHandler.onStreamText,
             onInteractionEvent: agentHandler.onInteractionEvent || this.defaultHandler.onInteractionEvent,
             onInfoEvent: this.defaultHandler.onInfoEvent
-        });
+        }, carried);
     }
 
     public static isLoopBusy(loopId: string): boolean {
@@ -243,6 +347,9 @@ class LoopGatewayImpl {
         // lazily and fail there if the agent is still broken. Keeping the one that is holding the
         // closed conversation would be keeping an agent that answers out of it.
         UIChatService.forget(loopId);
+        // A new conversation is not the one anything was allowed in, so whatever an eviction set
+        // aside for this loop goes with the old one. The rebuild below is given nothing either.
+        this.carriedStates.delete(loopId);
         const loopState = this.loops[loopId];
         if (loopState) {
             try {
@@ -297,6 +404,7 @@ class LoopGatewayImpl {
             }
         }
         const loopState = this.loops[loopId]!;
+        loopState.lastUsedAt = Date.now();
         const agentMessages = newMessage('agent', agentId, '');
         this.addMessage('', loopId, agentMessages);
         if (this.isLoopBusy(loopId)) {
@@ -502,6 +610,13 @@ class LoopGatewayImpl {
         for (const loopId of Object.keys(this.loops)) {
             if (splitLoopId(loopId).projectId === projectId) {
                 delete this.loops[loopId];
+            }
+        }
+        // Including what an eviction set aside for a loop of this project, which is waiting for a
+        // rebuild that is never coming.
+        for (const loopId of this.carriedStates.keys()) {
+            if (splitLoopId(loopId).projectId === projectId) {
+                this.carriedStates.delete(loopId);
             }
         }
         this.fireSSEEvent({

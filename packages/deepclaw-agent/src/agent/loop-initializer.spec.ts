@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentHandler} from '@deepclaw/core';
 import {newTestAgentConfig, newTestAgentHandler} from '../test-support/one-loop-context';
+import {type CarriedLoopState} from './definitions/definitions';
 import {LoopInitializer} from './loop-initializer';
 
 const mocks = vi.hoisted(() => {
@@ -75,11 +76,24 @@ describe('LoopInitializer', () => {
         expect(mocks.constructed.map(entry => entry.protocol)).toEqual(['OpenAIChat']);
     });
 
+    /** Nothing spawned is built here, and nothing is taken over from a loop nobody named. */
     test('hands the loop its role, ids and handler', () => {
         withBaseURL('https://api.openai.com/v1');
         const handler = newTestAgentHandler() as AgentHandler;
         LoopInitializer.getLoop('project', 'a1', 'p1', handler);
-        expect(mocks.constructed[0]!.args).toEqual(['project', 'a1', 'p1', handler]);
+        expect(mocks.constructed[0]!.args)
+            .toEqual(['project', 'a1', 'p1', handler, undefined, undefined]);
+    });
+
+    test('hands on what a loop that was let go of left behind', () => {
+        withBaseURL('https://api.openai.com/v1');
+        const carried: CarriedLoopState = {
+            permissionWhiteList: new Set(['command']), lastInputTokens: 12, footPrints: [],
+        };
+        LoopInitializer.getLoop(
+            'agent', 'a1', '', newTestAgentHandler() as AgentHandler, carried
+        );
+        expect(mocks.constructed[0]!.args.at(-1)).toBe(carried);
     });
 
     test('reads the endpoint from the config of that very agent', () => {

@@ -7,7 +7,7 @@ import { LoopAgent } from './loop/loop/loop';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop';
 import { loadAgentConfig } from '@deepclaw/config';
 import { detectAgentProtocolFromUrl } from './loop-protocol-detector';
-import { LLMProtocol } from './definitions/definitions';
+import { CarriedLoopState, LLMProtocol, SpawnedLoop } from './definitions/definitions';
 import { OpenAIResponseLoop } from './loop/loop/openai-response-loop';
 
 type LoopConstructor = new (
@@ -15,6 +15,8 @@ type LoopConstructor = new (
     agentId: string,
     projectId: string,
     handler: AgentHandler,
+    spawned?: SpawnedLoop,
+    carried?: CarriedLoopState,
 ) => LoopAgent<any, any, any>;
 
 const loopClassMap: Record<LLMProtocol, LoopConstructor> = {
@@ -28,7 +30,14 @@ export class LoopInitializer {
         ensureBaseFiles();
     }
 
-    public static getLoop(role: FlushAgentRole, agentId: string, projectId: string, handler: AgentHandler): LoopAgent<any, any, any> {
+    /**
+     * `carried` is only ever what a loop dropped for memory left behind, never a lookup of this
+     * one's own: see `CarriedLoopState`. A main loop is what is built here, so `spawned` stays unset.
+     */
+    public static getLoop(
+        role: FlushAgentRole, agentId: string, projectId: string, handler: AgentHandler,
+        carried?: CarriedLoopState
+    ): LoopAgent<any, any, any> {
         const identity = AgentIdentityManager.getAgent(agentId);
         if (!identity) {
             throw new Error(`Agent "${agentId}" not found`);
@@ -38,6 +47,6 @@ export class LoopInitializer {
         if (!protocol) {
             throw new Error(`Invalid agent baseURL: ${config.llm.baseURL}`);
         }
-        return new (loopClassMap[protocol])(role, agentId, projectId, handler);
+        return new (loopClassMap[protocol])(role, agentId, projectId, handler, undefined, carried);
     }
 }

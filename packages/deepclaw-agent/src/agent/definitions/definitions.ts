@@ -73,12 +73,32 @@ export type PermissionGroup = 'command' | 'file';
  * a run spawns works with the very same set: a grant given deep inside a run is a grant the
  * conversation has, and a copy handed down instead would leave each loop asking for itself.
  *
- * It lives exactly as long as the loop holding it, which is a shorter life than the conversation:
- * the gateway builds the loop anew where the session no longer matches the protocol it was written
- * in, so pointing the agent at another provider asks for the permissions again. Nothing granted
- * here is written down anywhere either, and a restart is another fresh set.
+ * It lives as long as the loop holding it, and where that is a shorter life than the conversation
+ * it is meant to be: the gateway builds the loop anew where the session no longer matches the
+ * protocol it was written in, so pointing the agent at another provider asks for the permissions
+ * again. A loop dropped to free memory hands the set on instead (`CarriedLoopState`) -- there is
+ * nothing about that rebuild for a user to be asked about. Nothing granted here is written down
+ * anywhere, so a restart is a fresh set either way.
  */
 export type PermissionWhiteList = Set<PermissionGroup>;
+
+/**
+ * What a loop hands to the one built in its place when the gateway lets it go to reclaim the memory
+ * it was holding. Everything else about it survives on its own: the same agent, the same session on
+ * disk, the same provider. These are the parts of a conversation that were never written anywhere,
+ * so they cross over here or they are gone.
+ *
+ * Given as an argument rather than looked up, and that is the whole of why the type exists. The
+ * rebuild after an eviction and the rebuild after a provider change go through the very same
+ * constructor, and the second one is meant to start over -- so anything the constructor could fetch
+ * for itself would be inherited by both.
+ */
+export type CarriedLoopState = {
+    permissionWhiteList: PermissionWhiteList;
+    /** Absent where the loop it came from never had a request of its own answered. */
+    lastInputTokens?: number;
+    footPrints: FootPrint[];
+};
 
 /**
  * The task a sub loop was spawned for. Kept as a reference instead of a copy of the task, so that

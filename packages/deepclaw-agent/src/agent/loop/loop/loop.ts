@@ -23,8 +23,8 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
-    AssignedTask, FootPrint, IMAGE_FOOT_PRINT, isRunStopped, isSpawnedLoop, LLMProtocol, LoopKind,
-    LoopState, OneLoopContext, PermissionWhiteList, SpawnedLoop,
+    AssignedTask, CarriedLoopState, FootPrint, IMAGE_FOOT_PRINT, isRunStopped, isSpawnedLoop,
+    LLMProtocol, LoopKind, LoopState, OneLoopContext, PermissionWhiteList, SpawnedLoop,
 } from '../../definitions/definitions';
 import { AgentFeelingService } from '../services/agent-feeling-service';
 import { ToolUseService } from '../services/tool-use-service';
@@ -94,21 +94,31 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     /**
      * What the user allowed for good, which outlives the turn it was allowed in: a runtime is built
      * anew for every message, and a permission kept there would be asked for again with the next
-     * one. A spawned loop works with the list of the loop that spawned it. It goes down with this
-     * loop, so a loop the gateway had to build again is a loop that asks once more.
+     * one. A spawned loop works with the list of the loop that spawned it, and a loop standing in
+     * for one the gateway dropped is handed the list of that one; a rebuild that means to start
+     * over -- another provider -- is the only one that asks again.
      */
     private readonly permissionWhiteList: PermissionWhiteList;
 
+    /**
+     * `carried` is what a loop the gateway let go of left behind, and belongs only to that one
+     * caller. The same constructor builds the loop that replaces one retired over a protocol
+     * change, which is meant to begin with none of this.
+     */
     constructor(
         role: FlushAgentRole,
         agentId: string,
         projectId: string,
         handler: AgentHandler,
         spawned?: SpawnedLoop,
+        carried?: CarriedLoopState,
     ) {
         super(role, agentId, projectId, handler);
         this.spawned = spawned;
-        this.permissionWhiteList = spawned?.permissionWhiteList ?? new Set();
+        this.permissionWhiteList = spawned?.permissionWhiteList
+            ?? carried?.permissionWhiteList ?? new Set();
+        this.lastInputTokens = carried?.lastInputTokens;
+        this.footPrints = carried?.footPrints ?? [];
         this.agentConfig = loadAgentConfig(this.agentId);
         if (this.role === 'cron') {
             this.agentConfig = {...this.agentConfig, mode: 'agent'};
@@ -186,6 +196,39 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
 
     public isOutdated(): boolean {
         return this.outdated;
+    }
+
+    /**
+     * What this loop would hand over to one built in its place, for the gateway to hold on to while
+     * there is no loop holding it. Read at the moment it is let go of: the history behind it is on
+     * disk and reads itself back, and these three are what would otherwise go with it.
+     */
+    public carriedState(): CarriedLoopState {
+        return {
+            permissionWhiteList: this.permissionWhiteList,
+            lastInputTokens: this.lastInputTokens,
+            footPrints: this.distinctFootPrints(),
+        };
+    }
+
+    /**
+     * Each of them once. A run comes back to the same handful of files all day -- reads one, edits
+     * it, reads it back -- and the trace says so every time, which cost nothing while it died with
+     * the loop: both readers of it take a set of the contents anyway, so a repeat has never carried
+     * anything either of them could use. Handed on across an eviction it would outlive every loop
+     * that ever held it, and grow with how long a conversation has been talked in rather than with
+     * how much of it there is to say.
+     */
+    private distinctFootPrints(): FootPrint[] {
+        const seen = new Set<string>();
+        return this.footPrints.filter(footPrint => {
+            const key = `${footPrint.type}\n${footPrint.content}`;
+            if (seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        });
     }
 
     protected abstract getLLMConstructor(): LLMConstructor<I, O, unknown, unknown>;

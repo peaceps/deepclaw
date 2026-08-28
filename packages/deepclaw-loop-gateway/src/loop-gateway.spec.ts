@@ -4,6 +4,7 @@ import {
     type CronTask
 } from '@deepclaw/core';
 import {type AgentConfig, type DeepclawConfig} from '@deepclaw/config';
+import type {CarriedLoopState} from '@deepclaw/agent';
 import {LoopGateway} from './loop-gateway';
 import {
     isLoopStreamEvent, type InvokeSource, type LoopGatewayEvent, type LoopInfo
@@ -17,9 +18,10 @@ import {
 const cron = vi.hoisted(() => ({subscriber: undefined as ((task: unknown) => void) | undefined}));
 
 const mocks = vi.hoisted(() => ({
-    getLoop: vi.fn<(role: string, agentId: string, projectId: string, handler: AgentHandler) => unknown>(
-        () => undefined
-    ),
+    getLoop: vi.fn<(
+        role: string, agentId: string, projectId: string, handler: AgentHandler,
+        carried?: CarriedLoopState
+    ) => unknown>(() => undefined),
     cronSubscribe: vi.fn<(cb: (task: CronTask) => void) => () => void>(cb => {
         cron.subscriber = cb as (task: unknown) => void;
         return () => undefined;
@@ -148,6 +150,9 @@ function newFakeLoop() {
         ),
         updateAgentConfig: vi.fn(),
         setExternalInterruptReason: vi.fn(),
+        carriedState: vi.fn<() => CarriedLoopState>(
+            () => ({permissionWhiteList: new Set(), footPrints: []})
+        ),
     };
 }
 
@@ -194,6 +199,12 @@ function nextLoop(role: 'agent' | 'project' = 'agent', projectId?: string) {
     const loopInfo: LoopInfo = projectId ? {role, agentId, projectId} : {role, agentId};
     const loopId = projectId ? `${role}.${agentId}.${projectId}` : `${role}.${agentId}`;
     return {loopInfo, loopId, loop: currentLoop};
+}
+
+/** The stand-in the next build is handed, for a loop built again after it was let go of. */
+function nextFakeLoop() {
+    currentLoop = newFakeLoop();
+    return currentLoop;
 }
 
 function busyEvents(list: LoopGatewayEvent[]): LoopGatewayEvent[] {
@@ -266,7 +277,8 @@ describe('initLoop', () => {
     test('splits the loopId into role, agent and project', () => {
         const {loopId, loopInfo} = nextLoop('project', 'p1');
         LoopGateway.initLoop(loopId);
-        expect(mocks.getLoop).toHaveBeenCalledWith('project', loopInfo.agentId, 'p1', expect.anything());
+        expect(mocks.getLoop)
+            .toHaveBeenCalledWith('project', loopInfo.agentId, 'p1', expect.anything(), undefined);
     });
 
     test('broadcasts plain stream text but swallows tagged text', () => {
@@ -310,6 +322,213 @@ describe('initLoop', () => {
             eventType: 'updateAgentRuntime',
             content: {agentId: 'a1', mood: 'happy', emotions: ['older', 'fresh'], emotion: 'fresh'},
         });
+    });
+});
+
+/**
+ * Letting go of the loops nobody is using, so that a history apiece does not sit in memory for as
+ * long as the process runs.
+ *
+ * Nothing here counts what is in the store. The store is static and holds whatever the tests above
+ * left in it, so age is what an eviction is watched on instead: a loop built with the clock turned
+ * back is the idlest one in there whatever else is, and twelve builds after it are more than the
+ * store keeps, so by the end of them it cannot still be there. What says it was let go of is having
+ * to be built a second time.
+ */
+describe('eviction', () => {
+    const MAX_LIVE_LOOPS = 12;
+    const LONG_AGO = Date.UTC(2020, 0, 1);
+    let aged = 0;
+    /** Loops left held back would hold the eviction of every test below this one back with them. */
+    const releases: (() => void)[] = [];
+
+    afterEach(() => {
+        releases.splice(0).forEach(release => release());
+    });
+
+    function atTime(when: number, build: () => void): void {
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(when);
+        try {
+            build();
+        } finally {
+            clock.mockRestore();
+        }
+    }
+
+    function idlestLoop() {
+        const loop = nextLoop();
+        aged += 1;
+        atTime(LONG_AGO + aged, () => LoopGateway.initLoop(loop.loopId));
+        return loop;
+    }
+
+    function fillStore(): string[] {
+        return Array.from({length: MAX_LIVE_LOOPS}, () => {
+            const {loopId} = nextLoop();
+            LoopGateway.initLoop(loopId);
+            return loopId;
+        });
+    }
+
+    function wasRebuilt(loopId: string): boolean {
+        mocks.getLoop.mockClear();
+        LoopGateway.initLoop(loopId);
+        return mocks.getLoop.mock.calls.length === 1;
+    }
+
+    function holdBusy(loopId: string): void {
+        LoopGateway.fireBusyEvent(loopId, true);
+        releases.push(() => LoopGateway.fireBusyEvent(loopId, false));
+    }
+
+    test('lets go of the idlest loop to make room for the ones after it', () => {
+        const idle = idlestLoop();
+        const filled = fillStore();
+        expect(wasRebuilt(idle.loopId)).toBe(true);
+        expect(wasRebuilt(filled.at(-1)!)).toBe(false);
+    });
+
+    test('keeps a loop with a run going, idlest as it may be', () => {
+        const held = idlestLoop();
+        holdBusy(held.loopId);
+        const alsoIdle = idlestLoop();
+        fillStore();
+        expect(LoopGateway.isLoopBusy(held.loopId)).toBe(true);
+        // The one beside it says the pass really did run and would have taken this one too.
+        expect(wasRebuilt(alsoIdle.loopId)).toBe(true);
+    });
+
+    /**
+     * What a browser reads is `running`, and that can be put down while the run it stood for is
+     * still on its way out. The invoke of that run is what holds the loop here.
+     */
+    test('keeps a loop whose run has not been cleared away yet', () => {
+        const held = idlestLoop();
+        const invoked = deferred<AgentInvokeResponse>();
+        held.loop.invoke.mockReturnValue(invoked.promise);
+        aged += 1;
+        atTime(LONG_AGO + aged, () => LoopGateway.invoke(
+            held.loopInfo, {source: 'web', browserId: 'b1'}, 'hi'
+        ));
+        LoopGateway.fireBusyEvent(held.loopId, false);
+        releases.push(() => invoked.resolve({text: 'done', runtime: newRuntime()}));
+        const alsoIdle = idlestLoop();
+        fillStore();
+        expect(wasRebuilt(held.loopId)).toBe(false);
+        expect(wasRebuilt(alsoIdle.loopId)).toBe(true);
+    });
+
+    test('keeps a loop that is waiting on an answer', async () => {
+        const held = idlestLoop();
+        const answer = capturedHandler().onInteractionEvent({
+            eventType: 'interaction', loopId: held.loopId, browserId: 'b1',
+            type: 'input', content: 'your name?',
+        });
+        const alsoIdle = idlestLoop();
+        fillStore();
+        expect(wasRebuilt(held.loopId)).toBe(false);
+        expect(wasRebuilt(alsoIdle.loopId)).toBe(true);
+        LoopGateway.cancelInteraction('b1', held.loopId, 'disconnected');
+        await expect(answer).rejects.toBe('disconnected');
+    });
+
+    /** The limit is soft, and a loop that is being used is worth more than the limit is. */
+    test('lets the store climb past the limit while every loop in it is held back', () => {
+        const held = Array.from({length: MAX_LIVE_LOOPS}, () => {
+            const {loopId} = idlestLoop();
+            holdBusy(loopId);
+            return loopId;
+        });
+        LoopGateway.initLoop(nextLoop().loopId);
+        expect(held.filter(loopId => !LoopGateway.isLoopBusy(loopId))).toEqual([]);
+    });
+
+    /**
+     * No fourth gate for a background command, which is what `startNewSession` needs one for: that
+     * moves the session folder the command is writing into, and nothing here touches the folder. The
+     * command is filed under the loopId in a store of its own, so the loop built next drains its
+     * result all the same.
+     */
+    test('lets go of an idle loop that has a background command running', () => {
+        mocks.hasRunningCommand.mockReturnValue(true);
+        releases.push(() => mocks.hasRunningCommand.mockReturnValue(false));
+        const idle = idlestLoop();
+        fillStore();
+        expect(wasRebuilt(idle.loopId)).toBe(true);
+    });
+
+    test('hands what the loop it let go of was holding to the one built in its place', () => {
+        const idle = idlestLoop();
+        const carried: CarriedLoopState = {
+            permissionWhiteList: new Set(['file']),
+            lastInputTokens: 4200,
+            footPrints: [{type: 'read_file', content: 'notes.md'}],
+        };
+        idle.loop.carriedState.mockReturnValue(carried);
+        fillStore();
+        mocks.getLoop.mockClear();
+        LoopGateway.initLoop(idle.loopId);
+        expect(mocks.getLoop.mock.calls.at(-1)![4]).toBe(carried);
+    });
+
+    /**
+     * A handover waits for a loop that may never be built again, so the waiting is counted too.
+     * Every build past a full store lets one more loop go and sets aside what it was holding, so
+     * twice the live limit of them is enough to push out whatever was set aside first -- whatever
+     * the tests above left in there, which can only bring that moment closer.
+     */
+    test('lets go of the longest waiting handover once too many are waiting at once', () => {
+        const idle = idlestLoop();
+        idle.loop.carriedState.mockReturnValue({
+            permissionWhiteList: new Set(['file']), footPrints: []
+        });
+        fillStore();
+        Array.from({length: MAX_LIVE_LOOPS * 2}, () => LoopGateway.initLoop(nextLoop().loopId));
+        mocks.getLoop.mockClear();
+        LoopGateway.initLoop(idle.loopId);
+        expect(mocks.getLoop.mock.calls.at(-1)![4]).toBeUndefined();
+    });
+
+    /** A new conversation is not the one those permissions were granted in. */
+    test('drops what it set aside once that conversation is closed', () => {
+        const idle = idlestLoop();
+        idle.loop.carriedState.mockReturnValue({
+            permissionWhiteList: new Set(['file']), footPrints: []
+        });
+        fillStore();
+        expect(LoopGateway.startNewSession(idle.loopId).started).toBe(true);
+        mocks.getLoop.mockClear();
+        LoopGateway.initLoop(idle.loopId);
+        expect(mocks.getLoop.mock.calls.at(-1)![4]).toBeUndefined();
+    });
+
+    /**
+     * The rebuild of a loop pointed at another provider goes through the same factory, and that one
+     * is meant to start over: the permissions were given for a conversation held with somebody else.
+     */
+    test('gives nothing to a loop built again for having gone stale', async () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockResolvedValue({text: 'done', runtime: newRuntime()});
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'first');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        loop.isOutdated.mockReturnValue(true);
+        mocks.getLoop.mockClear();
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'second');
+        expect(mocks.getLoop.mock.calls.at(-1)![4]).toBeUndefined();
+    });
+
+    test('walks past a loop it let go of when a new config comes in', () => {
+        const idle = idlestLoop();
+        fillStore();
+        const agentConfig = newAgentConfig(idle.loopInfo.agentId);
+        LoopGateway.updateConfig(newDeepclawConfig([agentConfig]));
+        expect(idle.loop.updateAgentConfig).not.toHaveBeenCalled();
+        // The loop built in its place is the one the next config reaches, and it read the config of
+        // the moment for itself on the way up.
+        const rebuilt = nextFakeLoop();
+        LoopGateway.initLoop(idle.loopId);
+        LoopGateway.updateConfig(newDeepclawConfig([agentConfig]));
+        expect(rebuilt.updateAgentConfig).toHaveBeenCalledWith(agentConfig);
     });
 });
 

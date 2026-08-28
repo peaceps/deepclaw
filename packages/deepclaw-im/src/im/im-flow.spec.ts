@@ -86,6 +86,7 @@ class FakeAgent {
             return {
                 isOutdated: () => false,
                 updateAgentConfig: () => undefined,
+                carriedState: () => ({permissionWhiteList: new Set(), footPrints: []}),
                 invoke: (_input: string, options: AgentInvokeOptions) =>
                     new Promise<AgentInvokeResponse>(resolve => {
                         this.options = options;

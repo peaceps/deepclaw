@@ -6,8 +6,8 @@ import {
 import {type AgentConfig, type AgentMode} from '@deepclaw/config';
 import {type Logger} from '@deepclaw/node-utils';
 import {
-    type AssignedTask, type LLMProtocol, type LoopKind, type OneLoopContext, type OverflowLimit,
-    type SpawnedLoop, type SystemPrompt,
+    type AssignedTask, type CarriedLoopState, type LLMProtocol, type LoopKind, type OneLoopContext,
+    type OverflowLimit, type SpawnedLoop, type SystemPrompt,
 } from '../../definitions/definitions';
 import {type ToolUseDef, type ToolUseResult} from '../../definitions/tool-definitions';
 import {type LLMConstructor, type LLMModel} from '../../llm/llmgw';
@@ -263,13 +263,22 @@ function newHandler(): AgentHandler {
 
 function newLoop(options: {
     role?: FlushAgentRole, config?: AgentConfig, history?: TestMessage[], outdated?: boolean,
-    handler?: AgentHandler, spawned?: SpawnedLoop
+    handler?: AgentHandler, spawned?: SpawnedLoop, carried?: CarriedLoopState
 } = {}) {
     const handler = options.handler ?? newHandler();
     mocks.loadAgentConfig.mockReturnValue(options.config ?? newTestAgentConfig());
     mocks.loadSession.mockReturnValue({history: options.history ?? [], outdated: options.outdated ?? false});
-    const loop = new TestLoop(options.role ?? 'agent', 'a1', '', handler, options.spawned);
+    const loop = new TestLoop(options.role ?? 'agent', 'a1', '', handler, options.spawned, options.carried);
     return {loop, handler, llm: loop.fakeLLM()};
+}
+
+function newCarried(overrides: Partial<CarriedLoopState> = {}): CarriedLoopState {
+    return {permissionWhiteList: new Set(), footPrints: [], ...overrides};
+}
+
+/** The context of the first tool the run called, which is where the loop's own state shows up. */
+function contextOfFirstTool(): OneLoopContext {
+    return mocks.executeToolCall.mock.calls[0]![1] as OneLoopContext;
 }
 
 /** The history array the loop persisted on its last save. */
@@ -384,6 +393,106 @@ describe('construction', () => {
         const {loop} = newLoop({spawned});
         expect(mocks.getSessionDir).toHaveBeenCalledWith('agent', 'a1', '', spawned);
         expect(loop.getSessionDir()).toBe('.agents/a1/session/s1');
+    });
+});
+
+/**
+ * Standing in for a loop the gateway let go of to reclaim the memory it was holding. The history
+ * comes back off the disk by itself; what crosses over here is everything a conversation has that
+ * was never written down. It is an argument rather than a lookup because the rebuild after a
+ * provider change goes through this very same constructor and is meant to begin with none of it.
+ */
+describe('taking over from a loop that was dropped', () => {
+
+    test('works with the white list the loop it stands in for was granted', async () => {
+        const {loop, llm} = newLoop({
+            carried: newCarried({permissionWhiteList: new Set(['file'])})
+        });
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await loop.runInvoke('read it', {browserId: 'b1'});
+        expect([...contextOfFirstTool().permissionWhiteList]).toEqual(['file']);
+    });
+
+    test('asks for itself where it stands in for nobody', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await loop.runInvoke('read it', {browserId: 'b1'});
+        expect([...contextOfFirstTool().permissionWhiteList]).toEqual([]);
+    });
+
+    /**
+     * The token count is what the compaction is decided on, and the one thing that measures a
+     * history exactly. Without it the first turn of the loop that took over would fall back to
+     * counting bytes at a rate that means something different per conversation.
+     */
+    test('weighs its first turn against the token count it was handed', async () => {
+        const {loop, llm} = newLoop({carried: newCarried({lastInputTokens: 2000})});
+        mocks.budgetOf.mockReturnValue({tokens: 1000, bytes: 4 * 1024 * 1024});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.compactFullHistory.mock.calls.map(call => call[0])).toEqual([true]);
+    });
+
+    test('has nothing to weigh its first turn against where it stands in for nobody', async () => {
+        const {loop, llm} = newLoop();
+        mocks.budgetOf.mockReturnValue({tokens: 1000, bytes: 4 * 1024 * 1024});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.compactFullHistory.mock.calls.map(call => call[0])).toEqual([false]);
+    });
+
+    test('goes on naming the pictures drawn before it', () => {
+        const {loop} = newLoop({
+            carried: newCarried({footPrints: [{type: 'image', content: 'dcimg://agent.a1/a.png'}]})
+        });
+        expect(loop.getDrawnImages()).toEqual(['dcimg://agent.a1/a.png']);
+    });
+
+    test('hands the trace it was given to the compaction of its own first turn', async () => {
+        const footPrints = [{type: 'read_file', content: 'notes.md'}];
+        const {loop, llm} = newLoop({carried: newCarried({footPrints})});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.compactFullHistory.mock.calls[0]![2]).toBe(footPrints);
+    });
+
+    test('offers everything it was handed on to whoever takes over from it', () => {
+        const carried = newCarried({
+            permissionWhiteList: new Set(['command']),
+            lastInputTokens: 900,
+            footPrints: [{type: 'read_file', content: 'notes.md'}],
+        });
+        expect(newLoop({carried}).loop.carriedState()).toEqual(carried);
+    });
+
+    /**
+     * The trace of a run outlives every loop that holds it once it is handed on, and a file read
+     * twice says nothing the second time: both readers of it work off a set of the contents.
+     */
+    test('says each thing it read once to whoever takes over from it', () => {
+        const {loop} = newLoop({carried: newCarried({footPrints: [
+            {type: 'read_file', content: 'notes.md'},
+            {type: 'read_file', content: 'notes.md'},
+            {type: 'image', content: 'notes.md'},
+        ]})});
+        expect(loop.carriedState().footPrints).toEqual([
+            {type: 'read_file', content: 'notes.md'},
+            {type: 'image', content: 'notes.md'},
+        ]);
+    });
+
+    test('offers what the model counted of its last request rather than what it started with', async () => {
+        const {loop, llm} = newLoop({carried: newCarried({lastInputTokens: 900})});
+        llm.usage = {cachedInputTokens: 700, noCachedInputTokens: 300, outputTokens: 5};
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(loop.carriedState().lastInputTokens).toBe(1000);
     });
 });
 

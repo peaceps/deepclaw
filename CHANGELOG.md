@@ -209,6 +209,23 @@ borrowed name and never speaks of moods, a scheduled run feels nothing on anyone
 neither makes what was said in a chat look old, nor is either of them asked how it feels.
 the three dots on the agent header and on the task owner tooltip are hidden, and praise and criticize
 with them. the menu is commented out for feature implementation.
+a conversation nobody has been in for a while no longer keeps its history in memory for as long as
+the program runs. every chat that has been talked in held its whole history there and never let go
+of it, so what the program took grew with the number of agents and projects talked to and came
+down only on a restart. the twelve most recently used are kept now, and the idlest one past that is
+let go of -- its history is on the disk and read back the moment somebody says something to it
+again. a run in progress is never let go of, nor one with a question waiting to be answered, so the
+twelve is a floor rather than a ceiling while everything is busy. nothing about this shows up in a
+conversation: what the user allowed for the rest of it, what the last request came to, and which
+files have been read are all handed to the loop built in its place, so coming back to an old chat
+does not ask for the same permissions a second time. what is set aside that way is counted too, and
+kept for two dozen conversations at most: it is a fraction of the loop it came from, but it waits
+for a rebuild that a chat talked in once is never coming back for, and something a program keeps
+one of per conversation it has ever held is the shape of the thing being fixed here. the one let go
+of is the one that has waited longest, which costs it the permissions it was given, asked for again
+inside the cold start it was going to have anyway. each file it names is named once as it is handed
+over, however many times the conversation read it, since both readers of that list have always
+worked off one of each.
 
 v0.0.16
 press stop and have a run end where it stands, rather than at the end of a turn that may have a
