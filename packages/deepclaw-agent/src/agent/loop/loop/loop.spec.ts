@@ -598,8 +598,32 @@ describe('one turn', () => {
         expect(mocks.aTurnPassed).not.toHaveBeenCalled();
     });
 
-    test('ages nothing of what a spawned loop does, it having no feelings of its own', async () => {
+    test('ages nothing of what a sub loop does, it speaking for nobody', async () => {
         const {loop, llm} = newLoop({spawned: newSpawned('sub')});
+        assignedTo('a2');
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.aTurnPassed).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The turns of a task are turns of the agent it is worked as: the card they age is the one they
+     * would write to, and a feeling of theirs left standing through an afternoon of work done in
+     * their name is exactly what going stale means.
+     */
+    test('ages what the agent a task is worked as last felt', async () => {
+        const {loop, llm} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'})});
+        assignedTo('a2');
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('t1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.aTurnPassed.mock.calls).toEqual([['a2'], ['a2']]);
+    });
+
+    test('ages nothing where the task it works belongs to nobody', async () => {
+        const {loop, llm} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'})});
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('hi', {browserId: 'b1'});
         expect(mocks.aTurnPassed).not.toHaveBeenCalled();

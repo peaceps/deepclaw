@@ -187,6 +187,38 @@ export function personaOf(context: OneLoopContext): string {
 }
 
 /**
+ * Whose card this run speaks from, and nothing where it speaks from none.
+ *
+ * A main loop is its own agent. A run working on a task speaks from the agent that task belongs to:
+ * it thinks with their model, works with their memory and their skills, and answers to their name
+ * in its prompt, so the whole of what it could tell about itself is theirs. That is the run somebody
+ * hands a task to and watches the card of, and a card that stands still through an afternoon of work
+ * done in that name is a card saying the wrong thing.
+ *
+ * Nobody in the three cases where the run is nobody. A scheduled run feels nothing on anyone's
+ * behalf: nobody asked it for anything and nobody watched it go, and what it left on a card would
+ * stand there as the mood of an agent until somebody next opened a chat with them. A sub loop is a
+ * piece of a task rather than a task: several of them run under one borrowed name at once, and one
+ * card written by all of them is a flicker instead of a feeling. A run working a task nobody owns
+ * has no name at all -- its prompt gives it none -- and a mood from it would be a run the user
+ * never saw speaking as the loop that spawned it.
+ *
+ * The tool names the scheduled run again before asking this, and that is worth keeping: it answers
+ * a model with what is true of a cron run rather than with the general shape of the refusal, and
+ * the general shape is the vaguer of the two by exactly the reason.
+ *
+ * The prompt asks the same question in its own terms, in the `feels` of provideSystemPrompt: what a
+ * run may say has to be what it was told it may say, or it is either asked for a feeling that will
+ * be refused or refused one it was invited to give.
+ */
+export function feelerOf(context: OneLoopContext): string | undefined {
+    if (context.role === 'cron' || context.loopKind === 'sub') {
+        return undefined;
+    }
+    return isSpawnedLoop(context.loopKind) ? context.personaId : context.agentId;
+}
+
+/**
  * Whether this run was stopped. The signal is what says so, rather than the exception that came
  * out of whichever await was cut short: every layer below throws a shape of its own for an abort,
  * an SDK is free to change which, and a run reads the same answer from the signal everywhere.

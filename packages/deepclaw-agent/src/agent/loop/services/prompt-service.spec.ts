@@ -328,6 +328,15 @@ describe('personality and emotions', () => {
         expect(cacheable).not.toContain('You can add your own emotions');
     });
 
+    /** It stands in for nobody, so there is nobody whose card it could be speaking from. */
+    test('omits the emotions for a task loop that stands in for nobody', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'task'
+        );
+        expect(cacheable).not.toContain('You can add your own emotions');
+    });
+
     test('omits the emotions for a sub loop that has an identity', async () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(
@@ -630,12 +639,37 @@ describe('a task loop working on a task', () => {
         expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a1', 'agent');
     });
 
-    test('keeps the emotions of the assignee out of its report', async () => {
+    /**
+     * It works as that agent in every way a model could tell: their model answers, their memory and
+     * skills are around it, their name is at the top of the prompt. A card standing still through
+     * an afternoon of that says the wrong thing about the agent whose card it is.
+     */
+    test('feels as the agent it works for', async () => {
         const {PromptService} = await loadServiceWithAssignee();
         const {cacheable} = PromptService.provideSystemPrompt(
             newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
         );
+        expect(cacheable).toContain('You can add your own emotions');
+    });
+
+    test('says nothing of feelings where it works a task nobody owns', async () => {
+        const {PromptService, getTask} = await loadServiceWithAssignee();
+        getTask.mockReturnValue({title: 'ship it'} as Task);
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
+        );
         expect(cacheable).not.toContain('You can add your own emotions');
+    });
+
+    /** A piece of a task, and several of them under that one name at once: one card, all flicker. */
+    test('keeps the emotions of the assignee out of a sub loop working under that name', async () => {
+        const {PromptService} = await loadServiceWithAssignee();
+        const {cacheable, dynamic} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', 'sub', TASK
+        );
+        expect(cacheable).toContain('Your name is Bob');
+        expect(cacheable).not.toContain('You can add your own emotions');
+        expect(dynamic).not.toContain('# Emotions Now');
     });
 
     test('puts the task next to the project it belongs to', async () => {
@@ -645,7 +679,7 @@ describe('a task loop working on a task', () => {
         );
         expect(assignedTaskPrompt).toHaveBeenCalledWith('p1', 'ship-it');
         expect(dynamic.split('\n').filter(line => line.startsWith('# ')))
-            .toEqual(['# Current Project', '# Assigned Task']);
+            .toEqual(['# Current Project', '# Assigned Task', '# Emotions Now']);
         expect(dynamic).toContain('the assigned task');
     });
 

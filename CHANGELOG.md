@@ -35,6 +35,16 @@ while a task still points at it -- the handover is refused by name rather than q
 model of whoever handed it out, and the task stays where it was so that handing it to somebody else
 is still open. a task marked ongoing for a run that never started would have been stuck with that
 agent for good, a new assignee being something the board takes only on a task still in todo.
+an agent now says how the work feels while a task is being worked in its name, rather than only in
+a conversation. a subagent has always worn the assignee's name, and as of this release thinks with
+their model too, but their card stayed exactly as they last left it however long that work ran --
+feelings being something only a chat could have. the mood and the emotion of a task run go to the
+card of the agent the task belongs to now, which is the card somebody would look at to see how it
+is going. a task nobody owns still says nothing, working as it does under no name at all, and
+neither do the helpers a task run spawns for the pieces of its work: several of those run under
+that one name at once and would leave one card flickering between them. where two runs do share a
+name -- an agent in a chat while a subagent works a task as them -- the card shows whichever spoke
+last, one agent being one card.
 and a conversation past twenty thousand messages or eight megabytes now says so in the log. nothing
 is done about it: the whole of a chat is still read and parsed to show the last thirty of it, which
 being let go of turns from a cost paid once into one paid every time it is opened. the line is

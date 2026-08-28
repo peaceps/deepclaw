@@ -20,8 +20,10 @@ export type AgentFeeling = {
  * every turn is a bubble the user watches flicker rather than a feeling.
  *
  * One allowance per agent, as there is one feeling per agent: two loops of one agent running at
- * once -- a chat and a project -- ask out of the same allowance and hear the answer of the other.
- * One agent is one card, so a question about that card is asked of the agent and not of a loop.
+ * once -- a chat and a project, or a subagent off working a task in that agent's name -- ask out of
+ * the same allowance and hear the answer of the other. One agent is one card, so a question about
+ * that card is asked of the agent and not of a loop, and the last word on it belongs to whichever
+ * run spoke last rather than to any one of them.
  */
 export type AgentFeelingAsk = {
     askedAt: number;

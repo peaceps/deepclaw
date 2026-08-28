@@ -1,5 +1,6 @@
 import {AgentRuntimeStatus} from "@deepclaw/core";
 import { ToolDesc } from "../../definitions/tool-definitions";
+import { feelerOf } from "../../definitions/definitions";
 import { AgentFeelingService } from "../../loop/services/agent-feeling-service";
 import { AgentIdentityManager } from "../../loop/services/agent-identity-manager";
 
@@ -35,7 +36,10 @@ export const updateAgentRuntimeTool: ToolDesc<UpdateAgentRuntimeInput> = {
     // Chat mode gets it too: the prompt offers emotions to every agent that has them switched on,
     // and this touches nothing but the agent's own runtime status.
     agentMode: ['agent', 'chat'],
-    loopKinds: ['main'],
+    // A task loop works as the agent the task belongs to, on their model and under their name, and
+    // an afternoon of that is the longest stretch of work that name ever does. Which card it lands
+    // on is decided by feelerOf, and the sub loops under it are left out there.
+    loopKinds: ['main', 'task'],
     invoke: async function(input, context): Promise<string> {
         const {mood, emotion} = input;
         if (!mood && !emotion) {
@@ -46,7 +50,12 @@ export const updateAgentRuntimeTool: ToolDesc<UpdateAgentRuntimeInput> = {
         if (context.role === 'cron') {
             return `A cron run carries no mood of its own, so there is nothing to update.`;
         }
-        const agentId = context.agentId;
+        // Whoever this run works as, which is not always whoever it was spawned by: see feelerOf.
+        // A run standing in for nobody says nothing rather than saying it as the loop above it.
+        const agentId = feelerOf(context);
+        if (!agentId) {
+            return `This run works in nobody's name, so there is no mood of anyone's to update.`;
+        }
         const agent = AgentIdentityManager.getAgent(agentId);
         if (!agent?.emotion) {
             return `Agent ${agentId} has emotions switched off, so there is nothing to update.`;

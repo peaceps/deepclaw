@@ -23,8 +23,9 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
-    AssignedTask, CarriedLoopState, FootPrint, IMAGE_FOOT_PRINT, isRunStopped, isSpawnedLoop,
-    LLMProtocol, LoopKind, LoopState, OneLoopContext, PermissionWhiteList, SpawnedLoop,
+    AssignedTask, CarriedLoopState, feelerOf, FootPrint, IMAGE_FOOT_PRINT, isRunStopped,
+    isSpawnedLoop, LLMProtocol, LoopKind, LoopState, OneLoopContext, PermissionWhiteList,
+    SpawnedLoop,
 } from '../../definitions/definitions';
 import { AgentFeelingService } from '../services/agent-feeling-service';
 import { ToolUseService } from '../services/tool-use-service';
@@ -364,21 +365,21 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
      *
      * Counted where a turn is counted, and not where the prompt shows that feeling back: a prompt
      * is built for other reasons than taking a turn, and one built for a compaction or a preview
-     * would otherwise age a feeling nobody was shown. Only turns of a run somebody could be
-     * watching count, which is the same set of runs that has feelings at all: a spawned loop wears
-     * a borrowed name and never speaks of moods, and a scheduled run feels nothing on anyone's
-     * behalf, so neither should make what was said in a chat look old.
+     * would otherwise age a feeling nobody was shown. Only turns worked in somebody's name count,
+     * and they are counted in that name: a task worked as somebody else ages what that agent said,
+     * being the agent whose card the run is speaking from. A run that speaks from nobody's card
+     * ages nothing, having nothing of anyone's to make look old.
      *
-     * The same two exclusions decide whether a run is shown a feeling at all, in the "feels" of
-     * PromptService.provideSystemPrompt, and whether the tool takes one. Three places saying one
-     * thing is two places to forget: a run aged by turns it is never shown drifts quietly, so
-     * whichever of them moves, the others move with it.
+     * Whose name that is is feelerOf, whole, which is the same question the tool asks before it
+     * takes a feeling and the "feels" of PromptService.provideSystemPrompt asks before a run is
+     * offered one. Nothing of it is asked again out here: a run aged by turns it is never shown
+     * drifts quietly, and a second copy of the rule is where that starts.
      */
-    private ageFeeling(): void {
-        if (isSpawnedLoop(this.loopKind()) || this.role === 'cron') {
-            return;
+    private ageFeeling(context: OneLoopContext): void {
+        const feeler = feelerOf(context);
+        if (feeler) {
+            AgentFeelingService.aTurnPassed(feeler);
         }
-        AgentFeelingService.aTurnPassed(this.agentId);
     }
 
     /**
@@ -494,7 +495,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             this.addUsage(context, response);
 
             runtime.turnCount++;
-            this.ageFeeling();
+            this.ageFeeling(context);
             runtime.transitionReason = response.transitionReason;
             this.forgetRecoveredRetries(runtime);
 

@@ -64,7 +64,13 @@ export class PromptService {
         // a scheduled run happens to have no persona for reasons of identity, and a run asked for
         // something the tool will refuse it is worse than a run asked for nothing. The loop counts
         // the turns of the same set of runs, in ageFeeling, and the two have to say the same thing.
-        const feels = !!persona && !spawned && !isCron && !!persona.emotion;
+        //
+        // A run working on a task is included by having a persona at all, that being the agent it
+        // works as: on their model, with their memory, under their name. A sub loop borrows the
+        // same name and is left out all the same -- it is a piece of the task rather than the task,
+        // and several of them run under that one name at once. Which is feelerOf, in the terms the
+        // tools have to ask it in.
+        const feels = !!persona && loopKind !== 'sub' && !isCron && !!persona.emotion;
         const cacheable = this.sections([
             ['Platform', this.platformPrompt],
             ['Language', this.language()],
