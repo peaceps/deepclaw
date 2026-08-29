@@ -35,7 +35,7 @@ function CronTaskRow({task}: {task: CronTask}) {
   return (
     <Link
       href={`/cron?task=${encodeURIComponent(task.id)}`}
-      className="block bg-gray-50 rounded-lg p-3 cursor-pointer transition-colors
+      className="block bg-gray-50 rounded-lg p-3 transition-colors
         hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2"
       aria-label={`${t('web.pages.agents.details.crons.title')}: ${task.title}`}
     >

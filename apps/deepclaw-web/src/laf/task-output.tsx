@@ -52,7 +52,7 @@ export function TaskOutput(
           onKeyDown={handleKeyDown}
           role="button"
           tabIndex={0}
-          className="inline-flex items-center gap-1.5 text-[12px] text-sky-600 cursor-pointer
+          className="inline-flex items-center gap-1.5 text-[12px] text-sky-600
             hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">
             {icon}
             {label ?? t('web.pages.output.view')}
@@ -68,7 +68,7 @@ export function TaskOutput(
                         : `report_${title}.${output.ext || (output.type === 'text' ? 'txt' : 'md')}`
                 )}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white
-                    bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer">
+                    bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
                 <Download size={16} />
                 {t('web.pages.output.download')}
             </button>}

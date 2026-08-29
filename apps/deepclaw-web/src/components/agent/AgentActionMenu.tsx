@@ -62,7 +62,7 @@ export function AgentActionMenu({
         aria-label={t('web.pages.agents.actions.more')}
         aria-expanded={open}
         onClick={handleButtonClick}
-        className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
       >
         <Ellipsis size={18} />
       </button>
@@ -77,7 +77,7 @@ export function AgentActionMenu({
               type="button"
               role="menuitem"
               onClick={handleActionClick(action)}
-              className="block w-full cursor-pointer px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700"
+              className="block w-full px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-blue-50 hover:text-blue-700"
             >
               {action.label}
             </button>

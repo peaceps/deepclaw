@@ -43,7 +43,7 @@ export function EmojiPicker({ value, onSelect, title, className, placement = 'bo
         type="button"
         title={title}
         onClick={() => setOpen((v) => !v)}
-        className={`cursor-pointer transition-transform hover:scale-105 ${className ?? ''}`}
+        className={`transition-transform hover:scale-105 ${className ?? ''}`}
       >
         {value}
       </button>

@@ -100,7 +100,7 @@ export function EditableLabels({
           className={`inline-flex items-center gap-1 px-3 ${labelPy} rounded-full text-sm
                      border border-dashed border-gray-300 text-gray-500
                      ${classes.hoverText} ${classes.hoverBg}
-                     transition-colors cursor-pointer`}
+                     transition-colors`}
         >
           <Plus size={14} />
           {t('web.common.add')}

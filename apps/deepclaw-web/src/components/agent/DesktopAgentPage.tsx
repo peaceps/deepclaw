@@ -39,7 +39,7 @@ export function DesktopAgentPage({selectedAgent}: {
             <button
               onClick={toggleDetailCollapsed}
               className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600
-                transition-colors cursor-pointer ${detailCollapsed ? '' : 'mr-2'}`
+                transition-colors ${detailCollapsed ? '' : 'mr-2'}`
               }
               title={detailCollapsed ? t('web.common.toggle.expand') : t('web.common.toggle.collapse')}
             >

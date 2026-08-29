@@ -137,7 +137,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
                 type="button"
                 onClick={title.start}
                 title={t('web.pages.projects.task.editTitle')}
-                className="group flex w-full min-w-0 items-start gap-1.5 text-left cursor-pointer"
+                className="group flex w-full min-w-0 items-start gap-1.5 text-left"
               >
                 <span className="font-medium text-gray-900 line-clamp-2">{task.title}</span>
                 <Pencil size={12} className="hidden sm:block flex-shrink-0 mt-1 text-gray-300
@@ -175,7 +175,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
               type="button"
               onClick={description.start}
               title={t('web.pages.projects.task.editDescription')}
-              className="group flex w-full min-w-0 items-start gap-1.5 text-left cursor-pointer"
+              className="group flex w-full min-w-0 items-start gap-1.5 text-left"
             >
               <span className="line-clamp-2">{task.description}</span>
               <Pencil size={12} className="hidden sm:block flex-shrink-0 mt-0.5 text-gray-300
@@ -205,7 +205,7 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
               title={t('web.pages.projects.task.editAssignee')}
               aria-label={t('web.pages.projects.task.editAssignee')}
               className="flex-shrink-0 p-1 -ml-1 rounded text-gray-300 hover:text-gray-600
-                hover:bg-gray-100 transition-colors cursor-pointer"
+                hover:bg-gray-100 transition-colors"
             >
               <Pencil size={12} />
             </button>
@@ -214,14 +214,14 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           {task.status !== 'done' && <button
               onClick={handlePauseClick}
               disabled={awaitingVerify}
-              className='mr-1 flex-shrink-0 cursor-pointer disabled:cursor-not-allowed'
+              className='mr-1 flex-shrink-0 disabled:cursor-not-allowed'
               title={t(`web.pages.projects.task.pause.title.${
                 awaitingVerify ? 'locked' : task.pause ? 'on' : 'off'}`)}>
             <CirclePause size={18} className={`${task.pause ? 'text-yellow-500' : 'text-gray-200'}`} />
           </button>}
           {task.status === 'ongoing' && task.pause && typeof task.verified === 'boolean' && <button
               onClick={handleVerifiedClick}
-              className='mr-1 flex-shrink-0 cursor-pointer'
+              className='mr-1 flex-shrink-0'
               title={t(`web.pages.projects.task.verified.title.${task.verified ? 'on' : 'off'}`)}>
             <ClipboardCheck size={18} className={`${task.verified ? 'text-green-500' : 'text-gray-200'}`} />
           </button>}

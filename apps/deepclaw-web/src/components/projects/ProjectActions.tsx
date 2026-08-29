@@ -136,7 +136,7 @@ export function ProjectActions({project}: {project: SlimProject}) {
                 title={t(`web.pages.projects.project.start.${running ? 'running' : 'hint'}`)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
                     text-emerald-600 border border-emerald-200 rounded-md transition-colors
-                    ${running ? 'opacity-40 cursor-not-allowed' : 'hover:bg-emerald-50 cursor-pointer'}`}
+                    ${running ? 'opacity-40 cursor-not-allowed' : 'hover:bg-emerald-50'}`}
             >
                 <Play size={14} />
                 {t('web.pages.projects.project.start.action')}
@@ -148,7 +148,7 @@ export function ProjectActions({project}: {project: SlimProject}) {
                 title={t(`web.pages.projects.project.archive.${running ? 'running' : 'hint'}`)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
                     text-red-500 border border-red-200 rounded-md transition-colors
-                    ${running ? 'opacity-40 cursor-not-allowed' : 'hover:bg-red-50 cursor-pointer'}`}
+                    ${running ? 'opacity-40 cursor-not-allowed' : 'hover:bg-red-50'}`}
             >
                 <Archive size={14} />
                 {t('web.pages.projects.project.archive.action')}

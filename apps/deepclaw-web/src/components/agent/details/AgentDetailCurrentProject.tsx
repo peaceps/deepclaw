@@ -29,7 +29,7 @@ export function AgentDetailCurrentProject({ agent }: { agent: AgentEmployee }) {
             const progress = getProjectProgress(currentProject);
             return <Link
               href={`/projects?project=${encodeURIComponent(currentProject.id)}`}
-              className="block bg-gray-50 rounded-lg p-3 cursor-pointer transition-colors
+              className="block bg-gray-50 rounded-lg p-3 transition-colors
                 hover:bg-gray-100 focus:outline-none
                 focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
               key={currentProject.id}

@@ -21,6 +21,6 @@ export function TokenUsageIcon({ tokenUsage }: { tokenUsage?: TokenUsage }) {
     const { t } = useTranslation();
     if (!tokenUsage) return null;
     return (
-        <div className="cursor-pointer" title={getTokenUsageTitle(tokenUsage, t)}>🪙</div>
+        <div title={getTokenUsageTitle(tokenUsage, t)}>🪙</div>
     );
 }

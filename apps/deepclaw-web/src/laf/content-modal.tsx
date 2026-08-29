@@ -50,13 +50,13 @@ export function ContentModal(
                         <button
                             onClick={() => setMaximized(!maximized)}
                             title={t(`web.common.${maximized ? 'restore' : 'maximize'}`)}
-                            className="hover:text-gray-600 transition-colors cursor-pointer"
+                            className="hover:text-gray-600 transition-colors"
                         >
                             {maximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                         </button>
                         <button
                             onClick={onClose}
-                            className="hover:text-gray-600 transition-colors cursor-pointer"
+                            className="hover:text-gray-600 transition-colors"
                         >
                             <X size={16} />
                         </button>

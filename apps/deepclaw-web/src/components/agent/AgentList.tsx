@@ -27,7 +27,7 @@ export function AgentList({ onSelect, collapsed = false, onToggleCollapse }: Age
           <button
             onClick={onToggleCollapse}
             className="p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600
-              transition-colors cursor-pointer"
+              transition-colors"
             title={collapsed ? t('web.common.toggle.expand') : t('web.common.toggle.collapse')}
           >
             {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}

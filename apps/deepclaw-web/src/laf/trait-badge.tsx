@@ -25,7 +25,7 @@ export function TraitBadge({ text, color, onRemove, py = 'py-1.5' }: TraitBadgeP
           <button
             type="button"
             onClick={onRemove}
-            className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 transition-colors cursor-pointer"
+            className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 transition-colors"
             aria-label={`Remove ${text}`}
         >
             <X size={14} />

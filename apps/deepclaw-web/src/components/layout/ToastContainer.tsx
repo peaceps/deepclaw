@@ -102,7 +102,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
         'pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-lg',
         'transition-all duration-200',
         clickable
-          ? 'cursor-pointer hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current'
+          ? 'hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current'
           : '',
         leaving
           ? 'opacity-0 translate-x-4'

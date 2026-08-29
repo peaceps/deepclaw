@@ -61,7 +61,7 @@ export function ChatHeader({
             disabled={!canStartNew}
             title={t(`web.pages.chat.session.${locked ? 'busyHint' : 'new'}`)}
             className={`text-gray-400 transition-colors disabled:opacity-30
-              ${canStartNew ? 'hover:text-gray-600 cursor-pointer' : 'cursor-not-allowed'}`}
+              ${canStartNew ? 'hover:text-gray-600' : 'cursor-not-allowed'}`}
           >
             <SquarePen size={18} />
           </button>
@@ -70,7 +70,7 @@ export function ChatHeader({
             type="button"
             onClick={() => setHistoryOpen(open => !open)}
             title={t('web.pages.chat.session.history')}
-            className="text-gray-400 transition-colors hover:text-gray-600 cursor-pointer"
+            className="text-gray-400 transition-colors hover:text-gray-600"
           >
             <History size={18} />
           </button>

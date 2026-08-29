@@ -68,7 +68,7 @@ export function AgentDetailDescription({ agent, onUpdate }: AgentDetailDescripti
           <button
             type="button"
             onClick={startEditing}
-            className="shrink-0 p-1.5 rounded-md text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors cursor-pointer"
+            className="shrink-0 p-1.5 rounded-md text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors"
             aria-label={t('web.common.edit')}
           >
             <Pencil size={14} />

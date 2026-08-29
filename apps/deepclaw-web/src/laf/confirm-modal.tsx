@@ -123,14 +123,14 @@ export function ConfirmModal({
                         ref={cancelRef}
                         onClick={onCancel}
                         className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300
-                            rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
+                            rounded-md hover:bg-gray-100 transition-colors"
                     >
                         {cancelLabel ?? t('web.common.cancel')}
                     </button>
                     <button
                         onClick={onConfirm}
                         className={`px-3 py-1.5 text-sm font-medium text-white rounded-md
-                            transition-colors cursor-pointer ${confirm}`}
+                            transition-colors ${confirm}`}
                     >
                         {confirmLabel ?? t('web.common.confirm')}
                     </button>

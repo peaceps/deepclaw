@@ -40,6 +40,18 @@ body {
   }
 }
 
+/* 能按的地方给手型。浏览器不管这件事，preflight 也不管，于是在这条规则之前，手型靠每个
+   按钮自己记得写 cursor-pointer——五十多个按钮里记得的只有一半，另一半停上去还是箭头。
+   写在这里，按钮就不必再各自声明自己是按钮。
+   按不动的除外：原生按钮看 disabled，自封的按钮只能看 aria-disabled。
+   同样放进 base 层，元素自己的 cursor-* 工具类仍然压得过它。 */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
 /* 自定义滚动条样式 */
 .scrollbar-thin {
   scrollbar-width: thin;

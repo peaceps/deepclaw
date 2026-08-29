@@ -58,7 +58,7 @@ function RunningTaskRow({run, task, startedAt}: {
   return (
     <Link
       href={`/projects?project=${encodeURIComponent(run.projectId)}`}
-      className="block bg-gray-50 rounded-lg p-3 cursor-pointer transition-colors
+      className="block bg-gray-50 rounded-lg p-3 transition-colors
         hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2"
       aria-label={`${t('web.pages.agents.details.runningTasks.title')}: ${label}`}
     >

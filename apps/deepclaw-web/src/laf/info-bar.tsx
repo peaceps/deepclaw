@@ -25,7 +25,7 @@ export function InfoBar({ message, onClose }: InfoBarProps) {
             <span className="flex-1">{message}</span>
             <button
                 onClick={handleClose}
-                className="shrink-0 cursor-pointer text-blue-400 hover:text-blue-600 transition-colors"
+                className="shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
                 aria-label="Close"
             >
                 <X className="w-4 h-4" />

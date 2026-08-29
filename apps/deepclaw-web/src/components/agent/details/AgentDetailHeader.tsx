@@ -108,7 +108,7 @@ export function AgentHeader({ agent, onUpdate }: {
                       onClick={startEditRole}
                       title={t('web.pages.agents.details.header.editRole')}
                       className="hidden sm:inline-flex text-gray-400 hover:text-gray-600
-                        transition-colors cursor-pointer"
+                        transition-colors"
                     >
                       <Pencil size={13} className="sm:w-3.5 sm:h-3.5" />
                     </button>
@@ -122,21 +122,21 @@ export function AgentHeader({ agent, onUpdate }: {
               <div className="flex items-center gap-3">
                 <div
                   title={projectStats.todo.length > 0 ? projectStats.todo.join(', ') : ''}
-                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-gray-50 text-gray-500 cursor-pointer
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-gray-50 text-gray-500
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
                   <span>{t('web.pages.projects.status.todo')}&nbsp;{projectStats.todo.length}</span>
                 </div>
                 <div
                   title={projectStats.ongoing.length > 0 ? projectStats.ongoing.join(', ') : ''}
-                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-sky-50 text-sky-500 cursor-pointer
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-sky-50 text-sky-500
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
                   <span>{t('web.pages.projects.status.ongoing')}&nbsp;{projectStats.ongoing.length}</span>
                 </div>
                 <div
                   title={projectStats.done.length > 0 ? projectStats.done.join(', ') : ''}
-                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-green-50 text-green-600 cursor-pointer
+                  className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-green-50 text-green-600
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
                   <span>{t('web.pages.projects.status.done')}&nbsp;{projectStats.done.length}</span>

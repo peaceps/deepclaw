@@ -36,7 +36,7 @@ export function AgentDetailEmotions({ emotions = [] }: { emotions?: string[] }) 
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(value => !value)}
-        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full
           transition-colors hover:bg-gray-100"
       >
         {/* Faded while there is nothing to read, so the card says as much without being opened. */}
