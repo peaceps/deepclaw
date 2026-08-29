@@ -1,7 +1,7 @@
 import { i18nInstance } from '@deepclaw/i18n';
 import { runCommand, childProcessTimeout} from '@deepclaw/node-utils';
 import { ToolDesc } from '../../definitions/tool-definitions';
-import { isRunStopped, OneLoopContext } from '../../definitions/definitions';
+import { isRunStopped, OneLoopContext, RUN_COMMAND_FOOT_PRINT } from '../../definitions/definitions';
 import { commandGuard } from './command-guard';
 
 type SyncCommandInput = {
@@ -28,6 +28,11 @@ Will return the output of the command. This is local function tool, not MCP comp
 
 async function execute(input: SyncCommandInput, context: OneLoopContext): Promise<string> {
     const { command } = input;
+    // Before the command rather than after it, the other way round from a file read. A read is
+    // filed to say the run holds the content, which a failed read never did; a command is filed to
+    // say the machine was touched, and one that timed out or was killed halfway touched it hardest
+    // of all. This is also the only line left of a command the run itself never came back from.
+    context.actions.addFootPrint({type: RUN_COMMAND_FOOT_PRINT, content: command});
     try {
         // The whole of the output rather than the preview of it. An answer over the limit is filed
         // away and comes back as a path, and a preview is cut to that very limit, so handing one

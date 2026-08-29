@@ -106,6 +106,7 @@ class FakeAgent {
         return askOfThisRun ? askOfThisRun(question) : this.handler.onInteractionEvent(question);
     }
 
+    /** A run of one turn that wrote nothing but its answer, so the two read the same. */
     public async finish(text: string): Promise<void> {
         this.finishRun!({text, said: text, runtime: emptyRuntime()});
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(this.loopId)).toBe(false));

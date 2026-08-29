@@ -516,7 +516,7 @@ describe('taking over from a loop that was dropped', () => {
 
     /**
      * The trace of a run outlives every loop that holds it once it is handed on, and a file read
-     * twice says nothing the second time: both readers of it work off a set of the contents.
+     * twice says nothing the second time: both readers of what is carried work off a set of it.
      */
     test('says each thing it read once to whoever takes over from it', () => {
         const {loop} = newLoop({carried: newCarried({footPrints: [
@@ -528,6 +528,23 @@ describe('taking over from a loop that was dropped', () => {
             {type: 'read_file', content: 'notes.md'},
             {type: 'image', content: 'notes.md'},
         ]);
+    });
+
+    /**
+     * Nothing on the far side of an eviction reads them: what does is the account a spawned loop
+     * gives of itself, and a spawned loop is torn down whole rather than evicted. Carried anyway
+     * they would grow with how long the conversation has been talked in, a command line being
+     * different every time and the one rule that holds this list down being each of them once.
+     */
+    test('leaves what it changed behind rather than handing it on', () => {
+        const {loop} = newLoop({carried: newCarried({footPrints: [
+            {type: 'read_file', content: 'notes.md'},
+            {type: 'write_file', content: 'notes.md'},
+            {type: 'edit_file', content: 'notes.md'},
+            {type: 'run_command', content: 'npm test'},
+            {type: 'run_background_command', content: 'npm run dev'},
+        ]})});
+        expect(loop.carriedState().footPrints).toEqual([{type: 'read_file', content: 'notes.md'}]);
     });
 
     test('offers what the model counted of its last request rather than what it started with', async () => {
@@ -2000,6 +2017,58 @@ describe('spawned loops', () => {
 
     test('has no pictures to hand over when none were drawn', () => {
         expect(newLoop().loop.getDrawnImages()).toEqual([]);
+    });
+
+    /**
+     * The account a run that stopped gives of itself, where the repeats are the point: a command
+     * run three times is a run that tried three times, and the pictures are read off the list
+     * above.
+     */
+    test('reports what it changed in the order it changed it, repeats and all', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1'), toolUse('tu2')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        mocks.executeToolCall.mockImplementation(async (def, context) => {
+            const actions = (context as OneLoopContext).actions;
+            actions.addFootPrint({type: 'image', content: `dcimg://agent.a1/${def.id}.png`});
+            actions.addFootPrint({type: 'run_command', content: 'npm test'});
+            return {result: {id: def.id, content: 'done'}, success: true};
+        });
+        await loop.runInvoke('go', {browserId: 'b1'});
+        expect(loop.getChangeTrace()).toEqual([
+            {type: 'run_command', content: 'npm test'},
+            {type: 'run_command', content: 'npm test'},
+        ]);
+    });
+
+    /**
+     * A run looks at ten things for every one it touches, and the account is cut to its last
+     * twenty steps: the files it read would push out the very work the list is asked for.
+     */
+    test('keeps the files it read out of what it reports', async () => {
+        const {loop, llm} = newLoop();
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'done'},
+        ];
+        mocks.executeToolCall.mockImplementation(async (def, context) => {
+            const actions = (context as OneLoopContext).actions;
+            actions.addFootPrint({type: 'read_file', content: 'src/a.ts'});
+            actions.addFootPrint({type: 'edit_file', content: 'src/b.ts'});
+            actions.addFootPrint({type: 'run_background_command', content: 'npm run dev'});
+            return {result: {id: def.id, content: 'done'}, success: true};
+        });
+        await loop.runInvoke('go', {browserId: 'b1'});
+        expect(loop.getChangeTrace()).toEqual([
+            {type: 'edit_file', content: 'src/b.ts'},
+            {type: 'run_background_command', content: 'npm run dev'},
+        ]);
+    });
+
+    test('has nothing to report of a run that changed nothing', () => {
+        expect(newLoop().loop.getChangeTrace()).toEqual([]);
     });
 
     /** The same prompt drawn twice lands on the same bytes, and one reference is enough. */

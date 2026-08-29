@@ -242,14 +242,15 @@ This conversation was compacted so the agent can continue working.
 Summary of prior context:
 
 ${summary}
-
-The action trace of the conversation:
 ${this.getFootPrintsText(footPrints)}
-
 Continue from where we left off without re-asking the user.`);
     }
 
     /**
+     * The files the conversation has already been through, which says itself in the one sentence
+     * it is read as: a heading over it named these the trace of the conversation, which is what
+     * every other list of steps around here is called and none of them is this one.
+     *
      * Each file once, however often it was read. A run returns to the same handful of files all
      * day -- reads one, edits it, reads it back -- and a list that said so a hundred times would
      * spend the room the summary is being trimmed to fit on saying nothing new.
@@ -259,9 +260,14 @@ Continue from where we left off without re-asking the user.`);
             footPrints.filter(footPrint => footPrint.type === READ_FILE_FOOT_PRINT)
                 .map(footPrint => footPrint.content)
         )].map(filePath => `- ${filePath}`).join('\n');
-        return readFiles.length === 0 ? '' : `The agent read the following files:
+        // The blank line above it belongs to this rather than to the prompt: a run that read
+        // nothing leaves nothing here, and a gap held open around it would be two empty lines
+        // between the summary and the line after.
+        return readFiles.length === 0 ? '' : `
+The agent read the following files:
 ${readFiles}
-If needed, you can read the full content of these files by using the read_file tool.`;
+If needed, you can read the full content of these files by using the read_file tool.
+`;
     }
 
     protected abstract getToolResults(messages: I[]): R[];

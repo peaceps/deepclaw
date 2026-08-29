@@ -101,6 +101,18 @@ describe('runBackgroundCommandTool invoke', () => {
         expect(result).toContain('check_background_command_status');
     });
 
+    /**
+     * Under a name of its own: a command left in the background outlives the loop that started it,
+     * and one already finished in the foreground is nothing anybody has to act on.
+     */
+    test('leaves a footprint naming the command it started', async () => {
+        const context = newTestContext();
+        await runBackgroundCommandTool.invoke({title: 'build', command: 'npm run build'}, context);
+        expect(context.actions.addFootPrint).toHaveBeenCalledExactlyOnceWith({
+            type: 'run_background_command', content: 'npm run build',
+        });
+    });
+
     test('gives every command its own id', async () => {
         const context = newTestContext();
         await runBackgroundCommandTool.invoke({title: 'a', command: 'echo a'}, context);

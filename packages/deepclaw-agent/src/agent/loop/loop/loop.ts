@@ -24,9 +24,9 @@ import {
 } from '@deepclaw/core';
 import { ToolUseResult, ToolUseDef } from '../../definitions/tool-definitions';
 import {
-    AssignedTask, CarriedLoopState, feelerOf, FootPrint, IMAGE_FOOT_PRINT, isRunStopped,
-    isSpawnedLoop, LLMProtocol, LoopKind, LoopState, OneLoopContext, PermissionWhiteList,
-    SpawnedLoop,
+    AssignedTask, CARRIED_FOOT_PRINTS, CarriedLoopState, CHANGE_FOOT_PRINTS, feelerOf, FootPrint,
+    IMAGE_FOOT_PRINT, isRunStopped, isSpawnedLoop, LLMProtocol, LoopKind, LoopState, OneLoopContext,
+    PermissionWhiteList, SpawnedLoop,
 } from '../../definitions/definitions';
 import { AgentFeelingService } from '../services/agent-feeling-service';
 import { ToolUseService } from '../services/tool-use-service';
@@ -204,6 +204,24 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             .map(footPrint => footPrint.content))];
     }
 
+    /**
+     * What the run changed, in the order the run has it and with every repeat kept -- a command
+     * run three times is a run that tried three times. Read off a spawned loop that ended with
+     * nothing to show for itself, where the loop above would otherwise have no way of knowing
+     * whether the work had been half done in its own files or never begun.
+     *
+     * The order is when each step landed here, which for a step of the run itself is when it was
+     * taken and for a step of a subagent is when the subagent came back: what a whole branch did
+     * arrives at once, at the end of it, however long it had been at work.
+     *
+     * What it read is no part of this, and the pictures it drew are not either. The files stay out
+     * because the account is cut to the last of it and a run looks at ten things for every one it
+     * touches; the pictures because they reach the same reader on a path of their own.
+     */
+    public getChangeTrace(): FootPrint[] {
+        return this.footPrints.filter(footPrint => CHANGE_FOOT_PRINTS.includes(footPrint.type));
+    }
+
     public isOutdated(): boolean {
         return this.outdated;
     }
@@ -217,21 +235,29 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         return {
             permissionWhiteList: this.permissionWhiteList,
             lastInputTokens: this.lastInputTokens,
-            footPrints: this.distinctFootPrints(),
+            footPrints: this.carriedFootPrints(),
         };
     }
 
     /**
-     * Each of them once. A run comes back to the same handful of files all day -- reads one, edits
-     * it, reads it back -- and the trace says so every time, which cost nothing while it died with
-     * the loop: both readers of it take a set of the contents anyway, so a repeat has never carried
-     * anything either of them could use. Handed on across an eviction it would outlive every loop
-     * that ever held it, and grow with how long a conversation has been talked in rather than with
-     * how much of it there is to say.
+     * The kinds something on the other side of an eviction reads, each of them once. A run comes
+     * back to the same handful of files all day -- reads one, edits it, reads it back -- and the
+     * trace says so every time, which costs nothing while it dies with the loop: both readers of
+     * what is carried take a set of the contents anyway, so a repeat has never carried anything
+     * either of them could use. Handed on it would outlive every loop that ever held it, and grow
+     * with how long a conversation has been talked in rather than with how much of it there is to
+     * say.
+     *
+     * The changes are dropped rather than deduplicated, having no reader here at all: what reads
+     * them is the account a spawned loop gives of itself, which wants the repeats and reads the
+     * live list. A spawned loop is torn down whole rather than evicted, so it never gets this one.
      */
-    private distinctFootPrints(): FootPrint[] {
+    private carriedFootPrints(): FootPrint[] {
         const seen = new Set<string>();
         return this.footPrints.filter(footPrint => {
+            if (!CARRIED_FOOT_PRINTS.includes(footPrint.type)) {
+                return false;
+            }
             const key = `${footPrint.type}\n${footPrint.content}`;
             if (seen.has(key)) {
                 return false;
@@ -330,6 +356,10 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             const runtime = state.oneLoopContext.runtime;
             if (runtime.turnCount >= this.turnLimit) {
                 runtime.transitionReason = 'endLoop';
+                // Written down as well as worded, because the reason alone cannot tell this ending
+                // from a run that finished what it was doing: both of them end the loop, and only
+                // one of them was in the middle of something when the count ran out.
+                runtime.hitTurnLimit = true;
                 const notice = i18nInstance.t('agent.maxTurnReached');
                 const said = this.appended(state.said, notice);
                 // Only what the stream has not carried yet, which is the notice and the space

@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type FlushAgent, type TokenUsage} from '@deepclaw/core';
 import {newTestContext, newTestRuntime} from '../../../test-support/one-loop-context';
-import {type OneLoopContext} from '../../definitions/definitions';
+import {type FootPrint, type OneLoopContext} from '../../definitions/definitions';
 import {subLoopTool, taskLoopTool} from './spawned-loop-tool';
 
 const mocks = vi.hoisted(() => ({
@@ -65,10 +65,24 @@ function newSpawnedLoop(text = 'spawned loop answer', usage: TokenUsage = newTes
         invoke: vi.fn(async () => ({text, runtime: newTestRuntime({usage})})),
         getSessionDir: vi.fn(() => SESSION_DIR),
         getDrawnImages: vi.fn<() => string[]>(() => []),
+        getChangeTrace: vi.fn<() => FootPrint[]>(() => []),
     };
 }
 
 type SpawnedLoopMock = ReturnType<typeof newSpawnedLoop>;
+
+/** How a failed run comes back: a line saying what went wrong, and the reason on the run itself. */
+function failed(loop: SpawnedLoopMock, changes: FootPrint[]): SpawnedLoopMock {
+    loop.invoke.mockResolvedValue({
+        text: 'Error in loop, context too long.', runtime: newTestRuntime({transitionReason: 'error'}),
+    });
+    loop.getChangeTrace.mockReturnValue(changes);
+    return loop;
+}
+
+function commands(count: number): FootPrint[] {
+    return Array.from({length: count}, (_, index) => ({type: 'run_command', content: `step${index + 1}`}));
+}
 
 /** A loop that is still being built, so a test can stand in the middle of that await. */
 function pending<T>(): {promise: Promise<T>, settle: (value: T) => void} {
@@ -84,10 +98,15 @@ function contextWithTaskLoop(taskLoop: SpawnedLoopMock, projectId = 'p1'): OneLo
     return context;
 }
 
-function contextWithSubLoop(subLoop: SpawnedLoopMock): OneLoopContext {
-    const context = newTestContext();
+function contextWithSubLoop(subLoop: SpawnedLoopMock, overrides: Partial<OneLoopContext> = {}): OneLoopContext {
+    const context = newTestContext(overrides);
     vi.mocked(context.actions.newSubLoop).mockReturnValue(subLoop as unknown as FlushAgent);
     return context;
+}
+
+/** A loop that was spawned itself, which is the only kind ever asked for an account of the work. */
+function taskLoopContextWithSubLoop(subLoop: SpawnedLoopMock): OneLoopContext {
+    return contextWithSubLoop(subLoop, {loopKind: 'task'});
 }
 
 beforeEach(() => {
@@ -366,6 +385,157 @@ describe('subLoopTool invoke', () => {
     test('leaves the text alone when the sub loop drew nothing', async () => {
         const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(newSpawnedLoop('done')));
         expect(result).toBe('done');
+    });
+
+    /**
+     * The session behind the error line is deleted a moment later, so this is the only chance the
+     * loop above gets to hear that half its files were already written.
+     */
+    test('hands up what the sub loop changed before it failed', async () => {
+        const subLoop = failed(newSpawnedLoop(), [
+            {type: 'write_file', content: 'src/b.ts'},
+            {type: 'run_command', content: 'npm test'},
+        ]);
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+        expect(result).toContain('Error in loop, context too long.');
+        expect(result).toContain('write_file: src/b.ts');
+        expect(result).toContain('run_command: npm test');
+    });
+
+    /** A model that will not answer leaves the same half-written files behind as a crash. */
+    test('hands up what the sub loop changed before it refused', async () => {
+        const subLoop = newSpawnedLoop();
+        subLoop.invoke.mockResolvedValue({
+            text: 'The model refused.', runtime: newTestRuntime({transitionReason: 'refused'}),
+        });
+        subLoop.getChangeTrace.mockReturnValue([{type: 'write_file', content: 'src/b.ts'}]);
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+        expect(result).toContain('write_file: src/b.ts');
+    });
+
+    /**
+     * The ending a run that used up its turns comes back with is the ending of a run that had said
+     * everything it had to say, so the reason alone would have this one pass for an answer.
+     */
+    test('hands up what the sub loop changed before it ran out of turns', async () => {
+        const subLoop = newSpawnedLoop();
+        subLoop.invoke.mockResolvedValue({
+            text: 'Now I will update the tests.',
+            runtime: newTestRuntime({transitionReason: 'endLoop', hitTurnLimit: true}),
+        });
+        subLoop.getChangeTrace.mockReturnValue([{type: 'write_file', content: 'src/b.ts'}]);
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+        expect(result).toContain('Now I will update the tests.');
+        expect(result).toContain('write_file: src/b.ts');
+    });
+
+    /** A run that answered has said what it did, in words worth more than a list of paths. */
+    test('says nothing of the steps of a sub loop that answered', async () => {
+        const subLoop = newSpawnedLoop('done');
+        subLoop.getChangeTrace.mockReturnValue(commands(3));
+        expect(await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop))).toBe('done');
+    });
+
+    /**
+     * The run is a tree and its account has to be one too: what a subagent changed is gone with its
+     * session, and the loop above is the only place left that can still report it.
+     */
+    test('keeps what the sub loop changed on the task loop that spawned it', async () => {
+        const subLoop = failed(newSpawnedLoop(), [
+            {type: 'write_file', content: 'src/b.ts'},
+            {type: 'run_command', content: 'npm test'},
+        ]);
+        const context = taskLoopContextWithSubLoop(subLoop);
+        await subLoopTool.invoke({prompt: 'go'}, context);
+        expect(context.actions.addFootPrint).toHaveBeenCalledTimes(2);
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledWith({type: 'write_file', content: 'src/b.ts', viaSubagent: true});
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledWith({type: 'run_command', content: 'npm test', viaSubagent: true});
+    });
+
+    test('keeps what a sub loop changed before it crashed as well', async () => {
+        const subLoop = newSpawnedLoop();
+        subLoop.invoke.mockRejectedValue(new Error('sub loop crashed'));
+        subLoop.getChangeTrace.mockReturnValue([{type: 'write_file', content: 'src/b.ts'}]);
+        const context = taskLoopContextWithSubLoop(subLoop);
+        await expect(subLoopTool.invoke({prompt: 'go'}, context)).rejects.toThrow('sub loop crashed');
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'write_file', content: 'src/b.ts', viaSubagent: true});
+    });
+
+    /**
+     * A throw is what the loop above is told this call was, and a run that threw is the likeliest
+     * of all to have left a file half written. Carried up it would be read by nobody until the
+     * loop above failed in its own right, and by nothing at all where that loop is a main one.
+     */
+    test('reports what a sub loop changed before it threw', async () => {
+        const subLoop = newSpawnedLoop();
+        subLoop.invoke.mockRejectedValue(new Error('sub loop crashed'));
+        subLoop.getChangeTrace.mockReturnValue([
+            {type: 'write_file', content: 'src/b.ts'},
+            {type: 'run_background_command', content: 'npm run dev'},
+        ]);
+        await expect(subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop)))
+            .rejects.toThrow(/sub loop crashed[\s\S]*write_file: src\/b\.ts[\s\S]*run_background_command: npm run dev/);
+    });
+
+    test('leaves a throw with nothing behind it as it came', async () => {
+        const subLoop = newSpawnedLoop();
+        const crash = new Error('sub loop crashed');
+        subLoop.invoke.mockRejectedValue(crash);
+        await expect(subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop)))
+            .rejects.toBe(crash);
+    });
+
+    /**
+     * Nothing ever asks a main loop what it changed: it answers a user, in words it wrote itself.
+     * Kept anyway, the changes of every subagent of a whole conversation would pile up unread.
+     */
+    test('leaves the changes of a sub loop off a main loop', async () => {
+        const subLoop = failed(newSpawnedLoop(), [{type: 'write_file', content: 'src/b.ts'}]);
+        const context = contextWithSubLoop(subLoop);
+        await subLoopTool.invoke({prompt: 'go'}, context);
+        expect(context.actions.addFootPrint).not.toHaveBeenCalled();
+    });
+
+    /** A branch is not a step of the run: what took it is gone, and cannot be asked after. */
+    test('names a step it was handed by a subagent as one', async () => {
+        const subLoop = failed(newSpawnedLoop(), [
+            {type: 'write_file', content: 'src/b.ts'},
+            {type: 'run_background_command', content: 'npm run dev', viaSubagent: true},
+        ]);
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+        expect(result).toContain('write_file: src/b.ts');
+        expect(result).toContain('run_background_command (subagent): npm run dev');
+    });
+
+    /** Where the work stopped is what the loop above needs, and that is the end of the list. */
+    test('keeps the last steps of a long run and says how many it left out', async () => {
+        const subLoop = failed(newSpawnedLoop(), commands(25));
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+        expect(result).toContain('changesCut {\\"count\\":5}');
+        expect(result).toContain('run_command: step25');
+        expect(result).toContain('run_command: step6');
+        expect(result).not.toContain('run_command: step5');
+    });
+
+    test('reads every step as one line, however long the command was', async () => {
+        const subLoop = failed(newSpawnedLoop(), [
+            {type: 'run_command', content: `echo ${'y'.repeat(300)}`},
+            {type: 'run_command', content: 'cat <<EOF > /tmp/x\n  body\nEOF'},
+        ]);
+        const result = await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop));
+        expect(result).toContain(`echo ${'y'.repeat(115)}...`);
+        expect(result).not.toContain('y'.repeat(116));
+        expect(result).toContain('cat <<EOF > /tmp/x body EOF');
+    });
+
+    /** Nothing to report is not a report saying nothing happened. */
+    test('leaves a failure with no steps behind it as it came', async () => {
+        const subLoop = failed(newSpawnedLoop(), []);
+        expect(await subLoopTool.invoke({prompt: 'go'}, contextWithSubLoop(subLoop)))
+            .toBe('Error in loop, context too long.');
     });
 
     test('cleans up the sub loop session directory once it finished', async () => {

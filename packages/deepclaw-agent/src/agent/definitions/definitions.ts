@@ -29,6 +29,13 @@ export type OverflowLimit = {
 export type FootPrint = {
     type: string;
     content: string;
+    /**
+     * Set on a step the run did not take itself but was handed by one of its own subagents. The
+     * account a run gives of the work has the whole tree in it, and whose hands did what is half
+     * of reading such a list: the marked steps also say why the list runs as it does, a branch
+     * landing all at once when it came back rather than a step at a time as the run worked.
+     */
+    viaSubagent?: boolean;
 }
 
 /** What a drawn picture is filed under, so a loop can name the images it produced. */
@@ -44,6 +51,51 @@ export const IMAGE_FOOT_PRINT = 'image';
  * action trace of every summary went out empty and nothing anywhere could say so.
  */
 export const READ_FILE_FOOT_PRINT = 'read_file';
+
+/**
+ * What the run changed rather than what it looked at, filed the same way and read somewhere else
+ * again: a spawned loop that ends without an answer hands these up to the loop that spawned it,
+ * and its session is deleted the moment the call returns, so this is what is left of the work.
+ *
+ * A command in the background is filed apart from one in the foreground, which is the one place
+ * the difference is worth a word: it outlives the loop that started it, the signal it was given
+ * belonging to the run above. A foreground command in the trace is something that happened; a
+ * background one may still be happening, in files nobody upstairs knows are being written.
+ *
+ * It is also the one line of such a trace that leads anywhere. Everything else of a spawned loop
+ * goes with its session, while a background command is filed under the loop id it was started
+ * with -- which a spawned loop shares with the loop above it -- so the run that reads this can
+ * still list it, look in on it and clear it away.
+ */
+export const WRITE_FILE_FOOT_PRINT = 'write_file';
+export const EDIT_FILE_FOOT_PRINT = 'edit_file';
+export const RUN_COMMAND_FOOT_PRINT = 'run_command';
+export const BACKGROUND_COMMAND_FOOT_PRINT = 'run_background_command';
+
+/**
+ * The footprints of a run's doing, which are the ones a spawned loop reports when it ends with the
+ * work unaccounted for. Named as a set because the account is cut to the last of it and the reads
+ * would crowd the changes out of that window: a run reads all day and writes a handful of times,
+ * so twenty steps of everything is twenty files it looked at and no word of what it did.
+ *
+ * A footprint added above belongs in here if it changed something outside the run.
+ */
+export const CHANGE_FOOT_PRINTS: readonly string[] = [
+    WRITE_FILE_FOOT_PRINT, EDIT_FILE_FOOT_PRINT, RUN_COMMAND_FOOT_PRINT, BACKGROUND_COMMAND_FOOT_PRINT,
+];
+
+/**
+ * The footprints worth handing to a loop built in place of one that was evicted, which is the two
+ * kinds something on the other side reads: the files read are listed in every summary from then
+ * on, and the pictures are named by whoever spawned the loop.
+ *
+ * The changes are not among them and would be dead weight if they were. What reads them is the
+ * account a spawned loop gives of itself, and a spawned loop is torn down whole rather than
+ * evicted, so nothing that survives an eviction ever asks for one. Carried anyway they would grow
+ * with how long a conversation has been talked in: a command line is different every time, so the
+ * one thing that holds the carried list down -- each of them once -- does nothing for them.
+ */
+export const CARRIED_FOOT_PRINTS: readonly string[] = [READ_FILE_FOOT_PRINT, IMAGE_FOOT_PRINT];
 
 /**
  * The system prompt in the three pieces the cache reads it in. Both of the first two are cached,

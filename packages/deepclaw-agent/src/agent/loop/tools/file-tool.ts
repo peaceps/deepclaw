@@ -2,7 +2,9 @@ import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FileUtils } from '@deepclaw/node-utils';
 import { PermissionService } from '../services/permission-service';
-import { OneLoopContext, READ_FILE_FOOT_PRINT } from '../../definitions/definitions';
+import {
+    EDIT_FILE_FOOT_PRINT, OneLoopContext, READ_FILE_FOOT_PRINT, WRITE_FILE_FOOT_PRINT
+} from '../../definitions/definitions';
 
 type FileOperationInput = {
     filePath: string;
@@ -66,9 +68,10 @@ export const writeFileTool: ToolDesc<WriteFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    invoke: async function(input: WriteFileInput): Promise<string> {
+    invoke: async function(input: WriteFileInput, context: OneLoopContext): Promise<string> {
         const { filePath, content } = input;
         FileUtils.writeFile(filePath, content);
+        context.actions.addFootPrint({type: WRITE_FILE_FOOT_PRINT, content: filePath});
         return i18nInstance.t('agent.tools.file.write', {path: filePath, length: content.length});
     },
     guard: fileGuard
@@ -95,11 +98,12 @@ export const editFileTool: ToolDesc<EditFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
-    invoke: async function(input: EditFileInput): Promise<string> {
+    invoke: async function(input: EditFileInput, context: OneLoopContext): Promise<string> {
         const { filePath, oldText, newText } = input;
         const content = FileUtils.readFile(filePath);
         const newContent = content.replaceAll(oldText, newText);
         FileUtils.writeFile(filePath, newContent);
+        context.actions.addFootPrint({type: EDIT_FILE_FOOT_PRINT, content: filePath});
         return i18nInstance.t('agent.tools.file.edit', {path: filePath});
     },
     guard: fileGuard

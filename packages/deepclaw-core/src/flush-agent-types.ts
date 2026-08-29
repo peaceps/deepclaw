@@ -111,6 +111,13 @@ export type AgentRuntime = {
      * ending it caused to say more than the reason for it.
      */
     agentBreakDetail?: string;
+    /**
+     * The run stopped because it had used every turn it is allowed, which the reason it stops with
+     * cannot say: a run that ran out mid-work ends the loop the way a run that had said everything
+     * it had to say ends it. Whoever has to tell the two apart -- a loop reading what a subagent
+     * it spawned got through -- reads it here.
+     */
+    hitTurnLimit?: boolean;
     historyPersistIndex: number;
     recoveryState: {
         maxTokenRetries: number;

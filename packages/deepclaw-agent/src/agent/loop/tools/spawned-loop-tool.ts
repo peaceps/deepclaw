@@ -1,7 +1,7 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { addTokenUsage, isProjectStarted, type RunningTask } from '@deepclaw/core';
+import { addTokenUsage, type AgentRuntime, isProjectStarted, type RunningTask } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
-import { OneLoopContext } from '../../definitions/definitions';
+import { FootPrint, isSpawnedLoop, OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
 import { LoopAgent } from '../loop/loop';
 import { ProjectManager } from '../services/project-manager';
@@ -9,6 +9,22 @@ import { RunningTaskService } from '../services/running-task-service';
 import { SessionService } from '../services/session-service';
 
 const MAX_PARALLEL_TASK_LOOPS = 3;
+
+/**
+ * How much of a stopped run's account is worth the tokens. The last steps rather than the first:
+ * what the loop above has to decide is where to pick the work up, and the run had got furthest at
+ * the end. A step is a path or a command line, and one long enough to need cutting is a command
+ * with a here document in it, whose first line names the tool that ran and the file it wrote to.
+ *
+ * The last of a run that spawned subagents is the last to come back rather than the last to
+ * happen: three of them work side by side and each hands its whole list over at once, so the one
+ * that finished last is read as the one that worked last. Cutting the newest of them for an even
+ * share of each would be a truer picture of the tree and a worse answer to the question, which is
+ * where the work stands now: what one subagent did to a file the next one is still working in is
+ * of no use halfway.
+ */
+const MAX_TRACE_STEPS = 20;
+const MAX_TRACE_STEP_LENGTH = 120;
 
 type TaskLoopInput = {
     prompt: string;
@@ -37,6 +53,61 @@ function withDrawnImages(text: string, refs: string[]): string {
 }
 
 /**
+ * What the subagent changed before it stopped, which nothing else of the run can say. What comes
+ * back otherwise is one line -- the endpoint refused, the model would not answer, the turns ran
+ * out, something threw -- and the session holding every turn behind that line is deleted a moment
+ * later, so a loop above reading only the line cannot tell a run that wrote half the files from
+ * one that never started.
+ *
+ * Written under whatever that line was rather than in place of it: the line says what went wrong
+ * and this says what is left of the work, and the loop above needs the two together.
+ */
+function appendChanges(text: string, changes: FootPrint[]): string {
+    if (!changes.length) {
+        return text;
+    }
+    const shown = changes.slice(-MAX_TRACE_STEPS);
+    const dropped = changes.length - shown.length;
+    const steps = [
+        ...(dropped ? [i18nInstance.t('agent.tools.subLoop.changesCut', {count: dropped})] : []),
+        ...shown.map(stepLine),
+    ].join('\n');
+    return `${text}\n\n${i18nInstance.t('agent.tools.subLoop.changes', {steps})}`;
+}
+
+/**
+ * Only where a run that came back did not answer. A run that answered says what it did in its own
+ * words, better than a list of paths ever would. Three endings of one are not an answer: the two
+ * stop reasons that are not one, and the run that used up its turns mid-work -- which ends the
+ * loop with the same reason as a run that had finished, and is the likeliest of the three to have
+ * left work half done. A run stopped by the user is left out of it: everything above it is being
+ * stopped too, so there is nobody upstairs to pick the work up.
+ *
+ * A run that threw never reaches this and is asked no such question. It answered nothing by
+ * definition, and the ending likeliest of all to have left a file half written.
+ */
+function withChanges(text: string, changes: FootPrint[], runtime: AgentRuntime): string {
+    return answered(runtime) ? text : appendChanges(text, changes);
+}
+
+function answered(runtime: AgentRuntime): boolean {
+    const failed = runtime.transitionReason === 'error' || runtime.transitionReason === 'refused';
+    return !failed && !runtime.hitTurnLimit;
+}
+
+/** A step of a branch, named as one: the run reading this is not the run that took it. */
+function stepLine(step: FootPrint): string {
+    const type = step.viaSubagent ? `${step.type} (subagent)` : step.type;
+    return `${type}: ${oneLine(step.content)}`;
+}
+
+/** A step is read as a line of a list, and a command can be a script. */
+function oneLine(content: string): string {
+    const line = content.replace(/\s+/g, ' ').trim();
+    return line.length > MAX_TRACE_STEP_LENGTH ? `${line.slice(0, MAX_TRACE_STEP_LENGTH)}...` : line;
+}
+
+/**
  * Runs a loop that was spawned for this one call and takes its run apart afterwards. Its session
  * was never meant to outlive the answer, and its tokens are only ever counted here: nothing of it
  * is written where a session is kept.
@@ -52,12 +123,54 @@ async function runSpawnedLoop(
             browserId: context.browserId, abortSignal: context.abortSignal
         });
         addTokenUsage(context.runtime.usage, result.runtime.usage);
-        return withDrawnImages(result.text, loop.getDrawnImages());
+        const text = withChanges(result.text, loop.getChangeTrace(), result.runtime);
+        return withDrawnImages(text, loop.getDrawnImages());
+    } catch (error) {
+        // The one ending that leaves the loop above nothing at all. What a run that came back with
+        // an error hands up is a line and a list of what it had got done; a run that threw hands up
+        // the same line, and the list would go with the session unless it is put here -- the throw
+        // is on its way to the model as the whole of what this call was, three frames up.
+        const changes = loop.getChangeTrace();
+        if (!changes.length) {
+            throw error;
+        }
+        const said = error instanceof Error ? error.message : String(error);
+        throw new Error(appendChanges(said, changes), {cause: error});
     } finally {
+        carryChangesUp(loop, context);
         const sessionDir = loop.getSessionDir();
         FileUtils.deleteDir(sessionDir);
         SessionService.dropSession(sessionDir);
     }
+}
+
+/**
+ * What the subagent changed becomes part of what the loop above it changed, the run being a tree
+ * and the work of the tree being nobody's alone. Without this a task loop reports the files it
+ * wrote with its own hands and nothing of the three subagents it handed the real work to, whose
+ * traces live in tool results that go with the session; a whole branch of the work would be
+ * missing from the very account that says what is left of it.
+ *
+ * Marked as somebody else's doing on the way up, a step of a branch being no step of the run: it
+ * says whose hands were on the file, and it says why the list runs as it does, a branch landing
+ * all at once when it came back.
+ *
+ * The changes and nothing else. What the subagent read is its own business and would land in the
+ * list of files this conversation has already seen, which is read as files in this context: a
+ * summary written here would tell the loop it knows the contents of files it has never opened.
+ *
+ * Only where the loop above is itself a spawned one, which is the whole of who is ever asked for
+ * an account. A main loop is asked for none: it answers a user, and what it has to say about a
+ * subagent it wrote down in its own words at the time. Handed them anyway it would hold every
+ * change of every subagent of a whole conversation, read by nobody -- the dead weight the carried
+ * list is filtered to keep out, on the live list instead.
+ */
+function carryChangesUp(loop: LoopAgent<any, any, any>, context: OneLoopContext): void {
+    if (!isSpawnedLoop(context.loopKind)) {
+        return;
+    }
+    loop.getChangeTrace()
+        .forEach(change => context.actions.addFootPrint({...change, viaSubagent: true}));
 }
 
 /**

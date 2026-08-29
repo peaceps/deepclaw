@@ -113,6 +113,23 @@ describe('syncCommandTool invoke', () => {
         const result = await syncCommandTool.invoke({command: 'nope'}, newTestContext());
         expect(result).toBe('agent.tools.syncCommand.error');
     });
+
+    test('leaves a footprint naming the command it ran', async () => {
+        vi.mocked(runCommand).mockResolvedValue({output: 'full output'});
+        const context = newTestContext();
+        await syncCommandTool.invoke({command: 'npm test'}, context);
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'run_command', content: 'npm test'});
+    });
+
+    /** A command that half ran is the one thing the trace of a failed run most has to say. */
+    test('leaves the footprint of a command that failed', async () => {
+        vi.mocked(runCommand).mockRejectedValue(new Error('exit 127'));
+        const context = newTestContext();
+        await syncCommandTool.invoke({command: 'npm run build'}, context);
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'run_command', content: 'npm run build'});
+    });
 });
 
 describe('syncCommandTool metadata', () => {

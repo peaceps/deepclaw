@@ -96,6 +96,27 @@ describe('writeFileTool invoke', () => {
         await writeFileTool.invoke({filePath: 'src/a.ts', content: ''}, newTestContext());
         expect(mocks.writeFile).toHaveBeenCalledExactlyOnceWith('src/a.ts', '');
     });
+
+    test('leaves a footprint naming the file it wrote', async () => {
+        const context = newTestContext();
+        await writeFileTool.invoke({filePath: 'src/a.ts', content: 'body'}, context);
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'write_file', content: 'src/a.ts'});
+    });
+
+    /**
+     * A write that threw changed nothing, and a trace saying it did sends whoever reads it to a
+     * file that never took the content.
+     */
+    test('leaves no footprint where the write failed', async () => {
+        mocks.writeFile.mockImplementationOnce(() => {
+            throw new Error('Read-only file system.');
+        });
+        const context = newTestContext();
+        await expect(writeFileTool.invoke({filePath: 'src/a.ts', content: 'body'}, context))
+            .rejects.toThrow();
+        expect(context.actions.addFootPrint).not.toHaveBeenCalled();
+    });
 });
 
 describe('editFileTool invoke', () => {
@@ -117,6 +138,15 @@ describe('editFileTool invoke', () => {
         mocks.readFile.mockReturnValue('foo bar');
         await editFileTool.invoke({filePath: 'src/a.ts', oldText: 'nope', newText: 'baz'}, newTestContext());
         expect(mocks.writeFile).toHaveBeenCalledExactlyOnceWith('src/a.ts', 'foo bar');
+    });
+
+    /** The read it does on the way is the edit itself, not a file the run went and looked at. */
+    test('leaves one footprint, for the edit rather than the read behind it', async () => {
+        mocks.readFile.mockReturnValue('foo bar foo');
+        const context = newTestContext();
+        await editFileTool.invoke({filePath: 'src/a.ts', oldText: 'foo', newText: 'baz'}, context);
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'edit_file', content: 'src/a.ts'});
     });
 });
 

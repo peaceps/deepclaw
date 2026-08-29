@@ -99,6 +99,15 @@ takes. Draw from a smaller picture.`,
                 drawnImages: `The subagent drew these pictures. Naming one in your own answer is
 what carries it into the chat, nothing the subagent did puts it there:
 {{images}}`,
+                changes: `The subagent did not finish. What it changed before it stopped, in the
+order the changes reached it -- a step marked (subagent) is one of its own subagents, handed over
+whole when that one came back:
+{{steps}}
+Its session is gone and there is nobody left to ask about any of it. A command left in the
+background is the exception: it outlived the subagent and is filed under this run, so
+check_all_background_command_status lists it for you and it may well still be writing. Whatever of
+the work is worth having is yours to look at on disk and to finish or hand out again.`,
+                changesCut: '({{count}} earlier changes left out)',
             },
             project: {
                 taskSteps: {

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { BackgroundCommand, BackgroundCommandManager } from '../services/background-command-manager';
 import { SessionService } from '../services/session-service';
-import { OneLoopContext } from '../../definitions/definitions';
+import { BACKGROUND_COMMAND_FOOT_PRINT, OneLoopContext } from '../../definitions/definitions';
 import { commandGuard } from './command-guard';
 
 type RunBackgroundCommandInput = {
@@ -56,6 +56,10 @@ and the agent can check the result of the background command later.`,
         BackgroundCommandManager.runCommand(backgroundCommand, SessionService.getSessionDir(
             context.role, context.agentId, context.projectId
         ), context.abortSignal);
+        // Filed apart from a command run in the foreground: this one may well outlive the loop that
+        // started it, and whoever reads that in a trace can still look in on it -- the record is
+        // under a loop id a spawned loop shares with the loop above it.
+        context.actions.addFootPrint({type: BACKGROUND_COMMAND_FOOT_PRINT, content: command});
         return `Background command "${title}" created with ID: ${id} starts to run. You can check the status of this command later with check_background_command_status tool.`;
     }
 }

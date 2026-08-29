@@ -1,3 +1,6 @@
+v0.1.0
+a subagent that stops without an answer now reports what it changed, its own subagents included.
+
 v0.0.19
 a project now waits for the start button on the board before any of its tasks is worked.
 a small job is a project of one task now, there is no separate simple task.

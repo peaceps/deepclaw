@@ -499,7 +499,7 @@ describe('AbstractMessagesCompactor compactFullHistory', () => {
         expect(prompt).toContain('Continue from where we left off without re-asking the user.');
     });
 
-    test('lists the files the agent read in the action trace', async () => {
+    test('lists the files the agent read', async () => {
         const {llm, newInputMessage} = newFakeLLM();
         const footPrints: FootPrint[] = [
             {type: 'read_file', content: 'src/a.ts'},
@@ -524,11 +524,14 @@ describe('AbstractMessagesCompactor compactFullHistory', () => {
         expect(newInputMessage.mock.calls[0]![0]).toContain('- src/a.ts\n- src/b.ts\nIf needed');
     });
 
-    test('leaves the action trace empty when no file was read', async () => {
+    /** Nothing read is nothing to say about reading, rather than a heading over an empty list. */
+    test('says nothing of the files when none was read', async () => {
         const {llm, newInputMessage} = newFakeLLM();
         const footPrints: FootPrint[] = [{type: 'run_command', content: 'ls'}];
         await new TestCompactor().compactFullHistory(true, newContext(), footPrints, llm, [{role: 'assistant', content: 'hello'}]);
-        expect(newInputMessage.mock.calls[0]![0]).toContain('The action trace of the conversation:\n\n');
+        const prompt = newInputMessage.mock.calls[0]![0];
+        expect(prompt).not.toContain('files');
+        expect(prompt).toContain('Continue from where we left off without re-asking the user.');
     });
 
     test('reports the compacted size to the hooks', async () => {
