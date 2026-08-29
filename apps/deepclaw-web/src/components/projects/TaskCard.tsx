@@ -2,9 +2,12 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { Ban, CirclePause, ClipboardCheck, Loader2, Pencil } from 'lucide-react';
-import  { type Task, type AgentEmployee, getTaskProgress, PROJECT_CONFIG } from '@deepclaw/core';
+import  {
+  type Task, type AgentEmployee, getTaskProgress, type MissionPriority, PROJECT_CONFIG
+} from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { AssigneePicker } from './AssigneePicker'
+import { PriorityPicker } from './PriorityPicker'
 import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
 import { ProgressBar } from '@/laf/progress-bar';
@@ -23,8 +26,10 @@ type TaskCardProps = {
 export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCardProps) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [pickingAssignee, setPickingAssignee] = useState(false);
+  const [pickingPriority, setPickingPriority] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
   const assigneePencilRef = useRef<HTMLButtonElement>(null);
+  const priorityRef = useRef<HTMLButtonElement>(null);
   const {t} = useTranslation();
   const progress = getTaskProgress(task);
   const updateProjectTask = useAppStore(s => s.updateProjectTask);
@@ -63,6 +68,16 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
     if (agentId === task.assignee) return;
     patchTask({ assignee: agentId }, { assignee: task.assignee });
   }, [task.assignee, patchTask]);
+
+  // Work still to be done can be reordered; work that is done cannot, and the server says the same.
+  const canReprioritize = task.status !== 'done';
+  const pill = `text-xs px-2 py-1 rounded-full whitespace-nowrap ${priorityStyles[task.priority]}`;
+
+  const handlePriorityPick = useCallback((priority: MissionPriority) => {
+    setPickingPriority(false);
+    if (priority === task.priority) return;
+    patchTask({ priority }, { priority: task.priority });
+  }, [task.priority, patchTask]);
 
   const handleVerifiedClick = useCallback(() => {
     if (!task.pause || task.status !== 'ongoing') return;
@@ -117,9 +132,23 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
               <Loader2 size={16} className="text-cyan-500 animate-spin" />
             </span>
           )}
-          <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${priorityStyles[task.priority]}`}>
-            {t(`web.common.priority.${task.priority}`)}
-          </span>
+          {/* The pill is the button: a priority is one of four words and picking between them is
+              the whole of the edit, so there is nothing for a pencil to open that the pill does
+              not open itself. A task that is done keeps the plain pill, having no priority left
+              to change. */}
+          {canReprioritize ? (
+            <button
+              ref={priorityRef}
+              type="button"
+              onClick={() => setPickingPriority(v => !v)}
+              title={t('web.pages.projects.task.editPriority')}
+              className={`${pill} flex-shrink-0 hover:ring-1 hover:ring-gray-300 transition-shadow`}
+            >
+              {t(`web.common.priority.${task.priority}`)}
+            </button>
+          ) : (
+            <span className={pill}>{t(`web.common.priority.${task.priority}`)}</span>
+          )}
         </div>
 
         {description.editing ? (
@@ -232,6 +261,15 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           anchorRef={assigneePencilRef}
           onPick={handleAssigneePick}
           onClose={() => setPickingAssignee(false)}
+        />
+      )}
+
+      {pickingPriority && (
+        <PriorityPicker
+          selected={task.priority}
+          anchorRef={priorityRef}
+          onPick={handlePriorityPick}
+          onClose={() => setPickingPriority(false)}
         />
       )}
     </>

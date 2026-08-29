@@ -1,7 +1,21 @@
 import type { LLMTaskOutput } from "./flush-agent-types";
 
 export type MissionStatus = 'todo' | 'ongoing' | 'done';
-export type MissionPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+/**
+ * The priorities there are, read by the tool schemas, by the list the board opens under the pill,
+ * by the two label maps and the colours the pill is drawn with, and by the service that writes one
+ * down. One list because a priority a model may write has to be one the board can draw and the
+ * service can recognize, and lists of the same four words in five places drift a value apart that
+ * nothing would report.
+ *
+ * Which of the four is offered first is no part of this. A value near the front of an enum is a
+ * value a model reaches for a little sooner, and every plan being written would lean toward urgent
+ * for nothing more than the order a list was typed in: the schemas read it as it stands, and the
+ * board, which wants the loudest word at the top of a list a person reads, turns it over itself.
+ */
+export const MISSION_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+export type MissionPriority = typeof MISSION_PRIORITIES[number];
 
 export const PROJECT_CONFIG = {
     maxTagCount: 5,

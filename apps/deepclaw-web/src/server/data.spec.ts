@@ -173,6 +173,11 @@ describe('updateProjectTask', () => {
         expect(mocks.updateProjectTask).toHaveBeenCalledWith('p1', {id: 'ship-it', assignee: 'a2'});
     });
 
+    test('carries a priority picked off the pill on', async () => {
+        await updateProjectTask('p1', {id: 'ship-it', priority: 'urgent'});
+        expect(mocks.updateProjectTask).toHaveBeenCalledWith('p1', {id: 'ship-it', priority: 'urgent'});
+    });
+
     /** The board writes what a card offers, whatever else a request to this action carried. */
     test('drops what no card on the board may write', async () => {
         await updateProjectTask('p1', {

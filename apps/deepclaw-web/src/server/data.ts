@@ -98,13 +98,16 @@ export async function archiveProject(projectId: string): Promise<void> {
 
 /** The id finds the task, the rest is everything a card on the board is allowed to write. */
 export type TaskEdit =
-    Pick<Task, 'id'> & Partial<Pick<Task, 'title' | 'description' | 'pause' | 'verified' | 'assignee'>>;
+    Pick<Task, 'id'>
+    & Partial<Pick<Task, 'title' | 'description' | 'pause' | 'verified' | 'assignee' | 'priority'>>;
 
 /**
  * What this takes is what anyone who reaches the page can send, and the gateway behind it writes
  * whole task patches, so the fields are copied over one by one: a request that also carried an
  * output or a closing date would otherwise have those filed as the user's doing too. Who a task
- * falls to is the user's to write, and the gateway holds it to an agent that works here.
+ * falls to is the user's to write, and the gateway holds it to an agent that works here; which of
+ * the four words a priority is, and whether the task is still one to be worked at all, is answered
+ * where the task is written down, the board being one of the ways in and not the only one.
  */
 export async function updateProjectTask(projectId: string, task: TaskEdit): Promise<void> {
     try {
@@ -115,6 +118,7 @@ export async function updateProjectTask(projectId: string, task: TaskEdit): Prom
         if (task.pause !== undefined) patch.pause = task.pause;
         if (task.verified !== undefined) patch.verified = task.verified;
         if (task.assignee !== undefined) patch.assignee = task.assignee;
+        if (task.priority !== undefined) patch.priority = task.priority;
         LoopGateway.updateProjectTask(projectId, patch);
         revalidatePath('/', 'layout');
     } catch (error) {

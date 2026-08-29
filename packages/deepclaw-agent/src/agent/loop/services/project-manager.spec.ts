@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {PROJECT_CONFIG, type Project, type Task} from '@deepclaw/core';
+import {type MissionPriority, PROJECT_CONFIG, type Project, type Task} from '@deepclaw/core';
 
 const mocks = vi.hoisted(() => ({
     readDir: vi.fn<(dir: string) => Record<string, {dir: string; content: string}>>(() => ({})),
@@ -100,6 +100,37 @@ describe('loadProjects at import time', () => {
             p1: {dir: '.projects/p1', content: storedProject({priority: undefined})},
         });
         expect(manager.getProjectDetail('p-stored').priority).toBe('low');
+    });
+
+    /**
+     * Nothing held a priority to the four until now, so a word the board cannot draw is on somebody
+     * disk already. A record written is a record there is no refusing on the way in.
+     */
+    test('reads a stored priority that is none of the four as low', async () => {
+        const manager = await loadManager({
+            p1: {dir: '.projects/p1', content: storedProject({priority: 'P0' as MissionPriority})},
+        });
+        expect(manager.getProjectDetail('p-stored').priority).toBe('low');
+    });
+
+    test('reads a stored task priority that is none of the four as low', async () => {
+        const manager = await loadManager({p1: {dir: '.projects/p1', content: storedProject({
+            tasks: {
+                design: {id: 'design', title: 'design', description: 'd', status: 'todo', priority: 'P0', blockedBy: [], blocks: []},
+                build: {id: 'build', title: 'build', description: 'd', status: 'todo', priority: 'high', blockedBy: [], blocks: []},
+            },
+        })}});
+        expect(manager.getTask('p-stored', 'design')!.priority).toBe('low');
+        expect(manager.getTask('p-stored', 'build')!.priority).toBe('high');
+    });
+
+    test('reads a task stored without a priority as low', async () => {
+        const manager = await loadManager({p1: {dir: '.projects/p1', content: storedProject({
+            tasks: {
+                design: {id: 'design', title: 'design', description: 'd', status: 'todo', blockedBy: [], blocks: []},
+            },
+        })}});
+        expect(manager.getTask('p-stored', 'design')!.priority).toBe('low');
     });
 
     test('recomputes the task buckets of a loaded project', async () => {
@@ -267,6 +298,25 @@ describe('createTask', () => {
         const steps = newSteps(PROJECT_CONFIG.maxTaskStepsCount);
         expect(newTask(manager, 'write', {steps}).stepsStatus?.steps).toHaveLength(8);
     });
+
+    /**
+     * Every task a model writes is built here -- a plan, a task added to one, a task list handed
+     * back whole -- so this is the door a fifth priority would come through.
+     */
+    test('refuses a priority that is none of the four', () => {
+        expect(() => manager.createTask({
+            agentId: 'a1', id: 'write', title: 'write', description: 'write it',
+            priority: 'whenever' as MissionPriority,
+        })).toThrow('A priority is one of low, medium, high, urgent, not "whenever".');
+    });
+
+    /** Naming no priority at all is another complaint than naming a word there is no reading. */
+    test('refuses a task that names no priority', () => {
+        expect(() => manager.createTask({
+            agentId: 'a1', id: 'write', title: 'write', description: 'write it',
+            priority: undefined as unknown as MissionPriority,
+        })).toThrow('A priority is needed, one of low, medium, high, urgent.');
+    });
 });
 
 describe('createProject', () => {
@@ -327,6 +377,16 @@ describe('createProject', () => {
         )).toThrow('A project needs a description.');
     });
 
+    test('refuses a project priority that is none of the four', () => {
+        expect(() => manager.createProject(
+            {
+                agentId: 'a1', title: 'Ship it', description: 'ship it',
+                priority: 'whenever' as MissionPriority,
+            },
+            [newTask(manager, 'design')],
+        )).toThrow('A priority is one of low, medium, high, urgent, not "whenever".');
+    });
+
     test('wires blocks as the reverse of blockedBy', () => {
         const project = newProject(manager, [
             newTask(manager, 'design'), newTask(manager, 'build', {blockedBy: ['design']}),
@@ -379,6 +439,13 @@ describe('updateProject', () => {
         expect(updated.title).toBe('Renamed');
         expect(updated.priority).toBe('urgent');
         expect(manager.getProjectDetail(id).title).toBe('Renamed');
+    });
+
+    test('refuses a project priority that is none of the four', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateProject({id, priority: 'whenever' as MissionPriority}))
+            .toThrow('A priority is one of low, medium, high, urgent, not "whenever".');
+        expect(manager.getProjectDetail(id).priority).toBe('high');
     });
 
     test('trims, deduplicates, shortens and caps the tags', () => {
@@ -796,6 +863,45 @@ describe('updateTask status transitions', () => {
         manager.updateTask(id, {id: 'design', status: 'ongoing'});
         expect(manager.updateTask(id, {id: 'design', assignee: 'a1', title: 'design it'}).task)
             .toMatchObject({assignee: 'a1', title: 'design it'});
+    });
+
+    /** How soon the work is to be picked up, which is the user's to change while there is work. */
+    test('takes a new priority on a task still in todo', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(manager.updateTask(id, {id: 'design', priority: 'urgent'}).task.priority).toBe('urgent');
+    });
+
+    test('takes a new priority on a task somebody is working', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(manager.updateTask(id, {id: 'design', priority: 'high'}).task)
+            .toMatchObject({priority: 'high', status: 'ongoing'});
+    });
+
+    test('refuses a new priority on a task that is done', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(() => manager.updateTask(id, {id: 'design', priority: 'urgent'}))
+            .toThrow('Only a task still to be worked takes a new priority.');
+        expect(manager.getTask(id, 'design')!.priority).toBe('low');
+    });
+
+    /** Naming the priority it has already asks for nothing, and an update carrying it is no change. */
+    test('takes an update that repeats the priority of a done task', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(manager.updateTask(id, {id: 'design', priority: 'low', title: 'design it'}).task)
+            .toMatchObject({priority: 'low', title: 'design it'});
+    });
+
+    /** A schema names the four to a model, and a patch arrives here from a request as readily. */
+    test('refuses a priority that is none of the four', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateTask(id, {id: 'design', priority: 'whenever' as MissionPriority}))
+            .toThrow('A priority is one of low, medium, high, urgent, not "whenever".');
+        expect(manager.getTask(id, 'design')!.priority).toBe('low');
     });
 
     test('trims the words it is given', () => {

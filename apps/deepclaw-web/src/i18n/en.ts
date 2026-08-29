@@ -1,3 +1,5 @@
+import type { MissionPriority } from '@deepclaw/core';
+
 export const en = {
     server: {
         meta: {
@@ -13,12 +15,14 @@ export const en = {
                 expand: 'Expand',
                 collapse: 'Collapse',
             },
+            // Held to the priorities there are: a word without a label here is drawn on the board
+            // as the key it was looked up by, which nothing else would report.
             priority: {
                 urgent: 'Urgent',
                 high: 'High',
                 medium: 'Medium',
                 low: 'Low',
-            },
+            } satisfies Record<MissionPriority, string>,
             notReady: 'Coming soon...',
             edit: 'Edit',
             add: 'Add',
@@ -191,6 +195,7 @@ export const en = {
                     editTitle: 'Rename this task',
                     editDescription: 'Rewrite what this task asks for',
                     editAssignee: 'Hand this task to another agent',
+                    editPriority: 'Change how soon this task is to be picked up',
                 }
             },
             chat: {

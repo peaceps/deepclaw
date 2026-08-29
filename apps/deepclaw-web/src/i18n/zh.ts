@@ -1,3 +1,5 @@
+import type { MissionPriority } from '@deepclaw/core';
+
 export const zh = {
     server: {
         meta: {
@@ -18,7 +20,7 @@ export const zh = {
                 high: '高',
                 medium: '中',
                 low: '低',
-            },
+            } satisfies Record<MissionPriority, string>,
             notReady: '功能开发中...',
             edit: '编辑',
             add: '添加',
@@ -191,6 +193,7 @@ export const zh = {
                     editTitle: '重命名这个任务',
                     editDescription: '修改这个任务的描述',
                     editAssignee: '把这个任务交给其他 Agent',
+                    editPriority: '改这个任务的优先级',
                 }
             },
             chat: {

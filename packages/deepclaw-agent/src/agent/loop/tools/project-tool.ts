@@ -1,8 +1,8 @@
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
 import {
-    type LLMTaskOutput, type MissionPriority, type MissionStatus, PROJECT_CONFIG,
-    type Project, type Task
+    type LLMTaskOutput, MISSION_PRIORITIES, type MissionPriority, type MissionStatus,
+    PROJECT_CONFIG, type Project, type Task
 } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
@@ -87,7 +87,7 @@ const taskItemSchema = {
         },
         priority: {
             type: 'string',
-            enum: ['low', 'medium', 'high', 'urgent'],
+            enum: [...MISSION_PRIORITIES],
             description: 'The priority of the task.'
         },
         steps: {
@@ -198,7 +198,7 @@ so do not call tools updating project/tasks immediately with create_project`,
                 },
                 priority: {
                     type: 'string',
-                    enum: ['low', 'medium', 'high', 'urgent'],
+                    enum: [...MISSION_PRIORITIES],
                     description: 'The priority of the project.'
                 },
                 tasks: {
@@ -308,7 +308,7 @@ A task that has to join a project already underway goes in with add_task instead
                 },
                 priority: {
                     type: 'string',
-                    enum: ['low', 'medium', 'high', 'urgent'],
+                    enum: [...MISSION_PRIORITIES],
                     description: 'The priority of the project.'
                 },
                 output: {

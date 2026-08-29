@@ -1,6 +1,6 @@
 import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { ARCHIVED_PROJECT_DIR, PROJECT_DIR, PROJECT_JSON, projectOutputDir } from '../../paths';
-import { type Project, type Task, type TaskStepsContext, isProjectStarted, MissionPriority, PROJECT_CONFIG, slimProject } from '@deepclaw/core';
+import { type Project, type Task, type TaskStepsContext, isProjectStarted, MISSION_PRIORITIES, MissionPriority, PROJECT_CONFIG, slimProject } from '@deepclaw/core';
 import { fileAwayOutput } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
 
@@ -51,6 +51,39 @@ function writableDescription(description: string | null): string {
     return words;
 }
 
+/**
+ * One of the four words, on every way in. Written down, a fifth is read back by everything
+ * downstream as a priority it has no colour, no name and no order for: the pill on the card comes
+ * out blank, the list under it ticks nothing, and the label is the key it was looked up by.
+ *
+ * Asked here rather than at any door, because every door is a suggestion. A schema is what a model
+ * is asked for and not what it sends; a card on the board is one form of a server action, and the
+ * action is an endpoint anybody who reaches the page can post to. Both ends of a project reach
+ * this, the plan a run writes and the pill a user picks, so the word is held to the four here.
+ */
+function writablePriority(priority: MissionPriority | null): MissionPriority {
+    if (!priority) {
+        throw new Error(`A priority is needed, one of ${MISSION_PRIORITIES.join(', ')}.`);
+    }
+    if (!MISSION_PRIORITIES.includes(priority)) {
+        throw new Error(`A priority is one of ${MISSION_PRIORITIES.join(', ')}, not "${priority}".`);
+    }
+    return priority;
+}
+
+/**
+ * The same four words on the way in from disk, where a word that is none of them is read as the
+ * quietest rather than refused: a record already written is a record there is no turning away, and
+ * a project the board cannot draw is worse to its owner than one whose pill reads low.
+ *
+ * There are such records. Nothing held a priority to the four until now, so anything a model once
+ * wrote is on somebody's disk, and a file edited by hand comes through this door as readily. The
+ * word goes back with the next write of the project like every other field read here.
+ */
+function readablePriority(priority: MissionPriority | undefined): MissionPriority {
+    return priority && MISSION_PRIORITIES.includes(priority) ? priority : 'low';
+}
+
 export class ProjectManager {
 
     private static projects: {[id: string]: Project} = {};
@@ -71,9 +104,10 @@ export class ProjectManager {
                     // next time an agent touched it. Same for a folder an interrupted archive left
                     // behind, where the date reached the file and the move never happened.
                     delete project.archivedAt;
-                    project.priority = project.priority || 'low';
+                    project.priority = readablePriority(project.priority);
                     project.tasks = project.tasks || {};
                     this.ensureTaskIds(project.tasks);
+                    this.ensureTaskPriorities(project.tasks);
                     Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
                     this.ensureStartedAt(project);
                     this.projects[project.id] = project;
@@ -93,6 +127,16 @@ export class ProjectManager {
     private static ensureTaskIds(tasks: Record<string, Task>): void {
         for (const [key, task] of Object.entries(tasks)) {
             task.id = task.id || key;
+        }
+    }
+
+    /**
+     * A card is drawn from the task rather than from the project, so a word the board cannot draw
+     * hurts here in the same way and is read the same way out.
+     */
+    private static ensureTaskPriorities(tasks: Record<string, Task>): void {
+        for (const task of Object.values(tasks)) {
+            task.priority = readablePriority(task.priority);
         }
     }
 
@@ -128,7 +172,7 @@ export class ProjectManager {
             id: crypto.randomUUID(),
             title: projectInfo.title,
             description: writableDescription(projectInfo.description),
-            priority: projectInfo.priority,
+            priority: writablePriority(projectInfo.priority),
             creator: projectInfo.agentId,
             createdAt: new Date().toISOString(),
             tasks: taskObject,
@@ -162,6 +206,9 @@ export class ProjectManager {
         // nothing has been written: a project blanked and then turned away is blanked all the same.
         if (projectInfo.description !== undefined) {
             projectInfo.description = writableDescription(projectInfo.description);
+        }
+        if (projectInfo.priority !== undefined) {
+            projectInfo.priority = writablePriority(projectInfo.priority);
         }
         if (tasks) {
             project.tasks = this.convertTasks(tasks);
@@ -215,7 +262,7 @@ export class ProjectManager {
             id: taskInfo.id,
             title: taskInfo.title,
             description: taskInfo.description,
-            priority: taskInfo.priority,
+            priority: writablePriority(taskInfo.priority),
             status: 'todo',
             assignee: taskInfo.assignee || taskInfo.agentId,
             // The same blocker named twice is the one wait. Left as two it is written twice over,
@@ -317,6 +364,15 @@ export class ProjectManager {
         // subagent of the first agent running under a name the board no longer shows for it.
         if (taskInfo.assignee && taskInfo.assignee !== task.assignee && task.status !== 'todo') {
             throw new Error('Only a task still in todo can be handed to another agent.');
+        }
+        if (taskInfo.priority !== undefined) {
+            taskInfo.priority = writablePriority(taskInfo.priority);
+        }
+        // How soon the work is to be picked up, which is a question there is no asking of work that
+        // was finished: the user is offered this on a card in todo and in ongoing and on no other,
+        // and the same holds wherever else it is written from.
+        if (taskInfo.priority && taskInfo.priority !== task.priority && task.status === 'done') {
+            throw new Error('Only a task still to be worked takes a new priority.');
         }
         if (task.status === 'todo' && taskInfo.status === 'done' ||
             task.status === 'ongoing' && taskInfo.status === 'todo' ||
