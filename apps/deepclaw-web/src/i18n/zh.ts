@@ -333,6 +333,9 @@ export const zh = {
                         },
                         imageModel: {
                             placeholder: '<请选择图片模型>',
+                        },
+                        protocol: {
+                            auto: '自动识别',
                         }
                     },
                     advanced: {
@@ -403,6 +406,14 @@ export const zh = {
                     },
                     model: {
                         prompt: '模型名称',
+                    },
+                    protocol: {
+                        prompt: 'LLM 协议',
+                        options: {
+                            Anthropic: 'Anthropic',
+                            OpenAIChat: 'OpenAIChat',
+                            OpenAIResponse: 'OpenAIResponse',
+                        },
                     },
                 },
                 multimodal: {

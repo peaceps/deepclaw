@@ -1,5 +1,41 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
-import {detectAgentProtocolFromUrl, detectAgentSDKFromRequest} from './loop-protocol-detector';
+import {type LLMConfig} from '@deepclaw/config';
+import {
+    agentProtocolOf, detectAgentProtocolFromUrl, detectAgentSDKFromRequest
+} from './loop-protocol-detector';
+
+function llmConfig(overrides: Partial<LLMConfig> = {}): LLMConfig {
+    return {baseURL: 'https://api.openai.com/v1', apiKey: 'key', model: 'model', ...overrides};
+}
+
+describe('agentProtocolOf', () => {
+
+    test('speaks the protocol the config names', () => {
+        expect(agentProtocolOf(llmConfig({protocol: 'OpenAIResponse'}))).toBe('OpenAIResponse');
+        expect(agentProtocolOf(llmConfig({protocol: 'Anthropic'}))).toBe('Anthropic');
+    });
+
+    test('reads the url where the config names none', () => {
+        expect(agentProtocolOf(llmConfig())).toBe('OpenAIChat');
+        expect(agentProtocolOf(llmConfig({baseURL: 'https://api.anthropic.com'}))).toBe('Anthropic');
+    });
+
+    /** What a config written before there was anything to pick looks like, and an emptied pick. */
+    test('reads the url for an empty pick as for none at all', () => {
+        expect(agentProtocolOf(llmConfig({protocol: '' as LLMConfig['protocol']})))
+            .toBe('OpenAIChat');
+    });
+
+    test('gives up where nothing is picked and the url says nothing either', () => {
+        expect(agentProtocolOf(llmConfig({baseURL: 'not a url'}))).toBeNull();
+    });
+
+    /** A pick stands on its own: the url is only ever read when there is nothing to go by. */
+    test('speaks the protocol picked even where the url is no url', () => {
+        expect(agentProtocolOf(llmConfig({baseURL: 'not a url', protocol: 'Anthropic'})))
+            .toBe('Anthropic');
+    });
+});
 
 describe('detectAgentProtocolFromUrl', () => {
 

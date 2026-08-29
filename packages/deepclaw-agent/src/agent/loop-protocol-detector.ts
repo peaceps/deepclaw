@@ -1,4 +1,18 @@
+import { type LLMConfig } from "@deepclaw/config";
 import { LLMProtocol } from "./definitions/definitions";
+
+/**
+ * Which protocol an agent is spoken to in: the one written in its config, and the url read for it
+ * where nothing is. Everything that builds a loop or decides that a built one is of the wrong class
+ * asks this, so that a pick and a guess are the same answer to whoever acts on it.
+ *
+ * Whether the answer is one we have a loop for is not asked here. That is known where the loop is
+ * built and nowhere else, and a name read out of a file is only ever as good as the list it is
+ * checked against.
+ */
+export function agentProtocolOf(llm: LLMConfig): LLMProtocol | null {
+    return llm.protocol || detectAgentProtocolFromUrl(llm.baseURL);
+}
 
 // TODO CHECK FOR OPENAI RESPONSE
 export function detectAgentProtocolFromUrl(baseURL: string): LLMProtocol | null {

@@ -35,7 +35,7 @@ import { LLMModel, LLMConstructor } from '../../llm/llmgw';
 import { getLoopLogger } from '@deepclaw/node-utils';
 import { HookManager } from '../services/hook-manager';
 import { AgentConfig, loadAgentConfig } from '@deepclaw/config';
-import { detectAgentProtocolFromUrl } from '../../loop-protocol-detector';
+import { agentProtocolOf } from '../../loop-protocol-detector';
 import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
 import { SessionService } from '../services/session-service';
@@ -170,20 +170,19 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         let newClient = null;
         if (oldLLMConfig.baseURL !== newLLMConfig.baseURL
             || oldLLMConfig.apiKey !== newLLMConfig.apiKey
+            || oldLLMConfig.protocol !== newLLMConfig.protocol
         ) {
-            let protocolChanged = false;
-            if (oldLLMConfig.baseURL !== newLLMConfig.baseURL) {
-                const oldProtocol = detectAgentProtocolFromUrl(oldLLMConfig.baseURL);
-                const newProtocol = detectAgentProtocolFromUrl(newLLMConfig.baseURL);
-                protocolChanged = oldProtocol !== newProtocol;
-            }
-            if (!protocolChanged) {
+            // The protocol is the class of this loop, which a running one cannot be talked out of:
+            // it is left for the gateway to build again. Asked of the whole llm config rather than
+            // of the url alone, because a protocol picked by hand is a change no url shows -- and
+            // a pick that lands on what the url already said is no change at all.
+            if (agentProtocolOf(oldLLMConfig) !== agentProtocolOf(newLLMConfig)) {
+                this.outdated = true;
+            } else {
                 newClient = {
                     baseURL: newLLMConfig.baseURL,
                     apiKey: newLLMConfig.apiKey,
                 }
-            } else {
-                this.outdated = true;
             }
         }
         const runtimeConfigs = {model: newLLMConfig.model};

@@ -9,6 +9,9 @@ One short sentence per change, saying what it does. Nothing else: no detail, no 
 it was like before. Those belong in the code and its comments, where whoever needs them is already
 standing.
 
+One line as well as one sentence: nothing is wrapped. An entry that will not fit on a line is an
+entry saying too much, so shorten the sentence rather than folding it.
+
 Good:
 
 ```

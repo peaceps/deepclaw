@@ -52,6 +52,14 @@ export const zh = {
                 model: {
                     prompt: '请输入模型名称：',
                 },
+                protocol: {
+                    prompt: '这个端点用哪种协议？',
+                    options: {
+                        Anthropic: 'Anthropic',
+                        OpenAIChat: 'OpenAIChat',
+                        OpenAIResponse: 'OpenAIResponse',
+                    },
+                },
             },
             multimodal: {
                 imageModel: {

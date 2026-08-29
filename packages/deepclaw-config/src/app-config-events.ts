@@ -1,5 +1,6 @@
 import {AgentInteractionEventPayload} from "@deepclaw/core";
 import {IMAGE_MODELS} from "./image-models";
+import {LLM_PROTOCOLS} from "./llm-protocols";
 
 export type CONFIGS_EVENTS = {[key: string]: AgentInteractionEventPayload};
 
@@ -76,6 +77,14 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
     ['agents.llm.model']: {
         type: 'input',
         content: 'config.agents.llm.model.prompt'
+    },
+    /** Nothing picked is the url being read instead, which is what the empty option offers back. */
+    ['agents.llm.protocol']: {
+        type: 'select',
+        content: 'config.agents.llm.protocol.prompt',
+        options: LLM_PROTOCOLS.map((value) => ({
+            label: `config.agents.llm.protocol.options.${value}`, value
+        })),
     },
     ['agents.multimodal.imageModel']: {
         type: 'select',

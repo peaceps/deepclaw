@@ -5,9 +5,13 @@ import {
     FlushAgentRole,
     FlushAgent,
 } from '@deepclaw/core';
-import { AgentConfig } from '@deepclaw/config';
+import { AgentConfig, type LLMProtocol } from '@deepclaw/config';
 
-export type LLMProtocol = 'Anthropic' | 'OpenAIChat' | 'OpenAIResponse';
+/**
+ * Passed on from where it is written down, so that the list a user picks from and the loops built
+ * to it are one list: a protocol offered in the settings with no loop of its own would not compile.
+ */
+export type { LLMProtocol };
 
 /**
  * A limit the far end named while refusing a request, in whichever unit it named it in.

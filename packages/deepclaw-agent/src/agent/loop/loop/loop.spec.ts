@@ -569,6 +569,47 @@ describe('updateAgentConfig', () => {
         expect(loop.isOutdated()).toBe(true);
         expect(llm.updateGWConfig).toHaveBeenCalledWith(null, {model: 'm'});
     });
+
+    /** The url says openai chat either way, so the pick is the only thing that moved. */
+    test('retires the loop when a protocol is picked that the url did not say', () => {
+        const {loop} = newLoop();
+        loop.updateAgentConfig(newTestAgentConfig({
+            llm: {
+                baseURL: 'https://api.example.com', apiKey: 'key', model: 'model',
+                protocol: 'OpenAIResponse',
+            }
+        }));
+        expect(loop.isOutdated()).toBe(true);
+    });
+
+    /** Back to auto, where the url names another protocol than the pick that was cleared. */
+    test('retires the loop when the picked protocol is cleared', () => {
+        const config = newTestAgentConfig({
+            llm: {
+                baseURL: 'https://api.example.com', apiKey: 'key', model: 'model',
+                protocol: 'OpenAIResponse',
+            }
+        });
+        const {loop} = newLoop({config});
+        loop.updateAgentConfig(newTestAgentConfig({
+            llm: {baseURL: 'https://api.example.com', apiKey: 'key', model: 'model'}
+        }));
+        expect(loop.isOutdated()).toBe(true);
+    });
+
+    test('keeps the loop where the protocol picked is the one it was already built to', () => {
+        const {loop, llm} = newLoop();
+        loop.updateAgentConfig(newTestAgentConfig({
+            llm: {
+                baseURL: 'https://api.example.com', apiKey: 'key', model: 'model',
+                protocol: 'OpenAIChat',
+            }
+        }));
+        expect(loop.isOutdated()).toBe(false);
+        expect(llm.updateGWConfig).toHaveBeenCalledWith(
+            {baseURL: 'https://api.example.com', apiKey: 'key'}, {model: 'model'}
+        );
+    });
 });
 
 describe('one turn', () => {

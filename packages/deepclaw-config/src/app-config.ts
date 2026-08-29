@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { DEFAULT_LANG, SUPPORTED_LANGUAGES, SupportedLanguage } from '@deepclaw/i18n';
 import { clone, FileUtils, globalize } from '@deepclaw/node-utils';
 import { IMAGE_MODELS, type ImageModel } from './image-models';
+import { LLM_PROTOCOLS, type LLMProtocol } from './llm-protocols';
 
 const APP_CONFIG_FILE = '.deepclaw.config.json';
 
@@ -28,6 +29,13 @@ export type DeepclawConfig = {
             baseURL: string;
             apiKey: string;
             model: string;
+            /**
+             * How the endpoint is spoken to. Left out, it is worked out from the base url, which is
+             * all there was to go by and is a guess: an OpenAI-compatible url says nothing about
+             * whether it answers on chat completions or on responses. Written here, the guess is
+             * not made.
+             */
+            protocol?: LLMProtocol;
         },
         /** What the agent works in besides words. Drawing, for now. */
         multimodal: {
@@ -190,6 +198,9 @@ export function validateAppConfig(configToValidate: Partial<DeepclawConfig>): {
                 }
                 if (!agent.llm.model) {
                     agentLacks.push('llm.model');
+                }
+                if (agent.llm.protocol && !LLM_PROTOCOLS.includes(agent.llm.protocol)) {
+                    agent.llm.protocol = undefined;
                 }
             }
             if (!agent.multimodal) {

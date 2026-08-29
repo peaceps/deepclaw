@@ -6,7 +6,7 @@ import './loop/hooks/hooks';
 import { LoopAgent } from './loop/loop/loop';
 import { OpenAIChatLoop } from './loop/loop/openai-chat-loop';
 import { loadAgentConfig } from '@deepclaw/config';
-import { detectAgentProtocolFromUrl } from './loop-protocol-detector';
+import { agentProtocolOf } from './loop-protocol-detector';
 import { CarriedLoopState, LLMProtocol, SpawnedLoop } from './definitions/definitions';
 import { OpenAIResponseLoop } from './loop/loop/openai-response-loop';
 
@@ -65,9 +65,15 @@ export class LoopInitializer {
             throw new Error(`Agent "${agentId}" not found`);
         }
         const config = loadAgentConfig(agentId);
-        const protocol = detectAgentProtocolFromUrl(config.llm.baseURL);
+        const protocol = agentProtocolOf(config.llm);
         if (!protocol) {
             throw new Error(`Invalid agent baseURL: ${config.llm.baseURL}`);
+        }
+        // A protocol nobody speaks is dropped where the config is read, so this stands for one
+        // written since the program started: told to speak a protocol we have not got, an agent is
+        // better off saying so than being handed another.
+        if (!(protocol in loopClassMap)) {
+            throw new Error(`Invalid agent LLM protocol: ${protocol}`);
         }
         return protocol;
     }

@@ -336,6 +336,9 @@ export const en = {
                         },
                         imageModel: {
                             placeholder: '<Please select an image model>',
+                        },
+                        protocol: {
+                            auto: 'Auto-detect',
                         }
                     },
                     advanced: {
@@ -406,6 +409,14 @@ export const en = {
                     },
                     model: {
                         prompt: 'LLM model',
+                    },
+                    protocol: {
+                        prompt: 'LLM protocol',
+                        options: {
+                            Anthropic: 'Anthropic',
+                            OpenAIChat: 'OpenAIChat',
+                            OpenAIResponse: 'OpenAIResponse',
+                        },
                     },
                 },
                 multimodal: {

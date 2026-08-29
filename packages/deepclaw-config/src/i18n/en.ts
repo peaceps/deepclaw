@@ -52,6 +52,14 @@ export const en = {
                 model: {
                     prompt: 'Please enter the LLM model name:',
                 },
+                protocol: {
+                    prompt: 'Which protocol does the endpoint speak?',
+                    options: {
+                        Anthropic: 'Anthropic',
+                        OpenAIChat: 'OpenAIChat',
+                        OpenAIResponse: 'OpenAIResponse',
+                    },
+                },
             },
             multimodal: {
                 imageModel: {

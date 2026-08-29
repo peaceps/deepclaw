@@ -1,4 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
+import {type LLMProtocol} from '@deepclaw/config';
 import {type AgentHandler} from '@deepclaw/core';
 import {newTestAgentConfig, newTestAgentHandler} from '../test-support/one-loop-context';
 import {type CarriedLoopState, type SpawnedLoop} from './definitions/definitions';
@@ -30,10 +31,10 @@ vi.mock('./loop/loop/anthropic-loop', () => ({AnthropicLoop: mocks.loopClass('An
 vi.mock('./loop/loop/openai-chat-loop', () => ({OpenAIChatLoop: mocks.loopClass('OpenAIChat')}));
 vi.mock('./loop/loop/openai-response-loop', () => ({OpenAIResponseLoop: mocks.loopClass('OpenAIResponse')}));
 
-function withBaseURL(baseURL: string) {
+function withBaseURL(baseURL: string, protocol?: LLMProtocol) {
     mocks.getAgent.mockReturnValue({id: 'a1', name: 'Ada'});
     mocks.loadAgentConfig.mockReturnValue(newTestAgentConfig({
-        llm: {baseURL, apiKey: 'key', model: 'model'},
+        llm: {baseURL, apiKey: 'key', model: 'model', protocol},
     }));
 }
 
@@ -74,6 +75,29 @@ describe('LoopInitializer', () => {
         withBaseURL('https://api.openai.com/v1');
         getLoop();
         expect(mocks.constructed.map(entry => entry.protocol)).toEqual(['OpenAIChat']);
+    });
+
+    /**
+     * The url is a guess and this is the way past it: an openai-compatible endpoint answering on
+     * responses reads as chat completions, and there is nothing in the address to tell them apart.
+     */
+    test('builds the loop to the protocol the config picked over what the url says', () => {
+        withBaseURL('https://api.openai.com/v1', 'OpenAIResponse');
+        getLoop();
+        expect(mocks.constructed.map(entry => entry.protocol)).toEqual(['OpenAIResponse']);
+    });
+
+    /** A pick is enough on its own, the url only ever being read where there is no pick. */
+    test('builds the loop for an endpoint it could not have classified itself', () => {
+        withBaseURL('https://gateway.internal', 'Anthropic');
+        getLoop();
+        expect(mocks.constructed.map(entry => entry.protocol)).toEqual(['Anthropic']);
+    });
+
+    /** The config file is hand editable, and a protocol we have no loop for is not spoken. */
+    test('refuses a picked protocol it has no loop for', () => {
+        withBaseURL('https://api.openai.com/v1', 'Gopher' as LLMProtocol);
+        expect(() => getLoop()).toThrow('Invalid agent LLM protocol: Gopher');
     });
 
     /** Nothing spawned is built here, and nothing is taken over from a loop nobody named. */
@@ -140,6 +164,22 @@ describe('LoopInitializer spawning a loop for another loop', () => {
         expect(mocks.constructed).toEqual([
             {protocol: 'Anthropic', args: ['project', 'a1', 'p1', handler, spawned]}
         ]);
+    });
+
+    /** One endpoint, two agents: nothing but the pick can account for the class that came out. */
+    test('builds it to the protocol the config of that agent picked', () => {
+        mocks.getAgent.mockImplementation(agentId => ({id: agentId, name: agentId}));
+        mocks.loadAgentConfig.mockImplementation(agentId => newTestAgentConfig({
+            id: agentId,
+            llm: {
+                baseURL: 'https://api.openai.com/v1', apiKey: 'key', model: 'model',
+                protocol: agentId === 'a2' ? 'OpenAIResponse' : undefined,
+            },
+        }));
+        LoopInitializer.getSpawnedLoop(
+            'project', 'a1', 'p1', newTestAgentHandler() as AgentHandler, newSpawnedRun('a2')
+        );
+        expect(mocks.constructed.map(entry => entry.protocol)).toEqual(['OpenAIResponse']);
     });
 
     test('builds it to the protocol of the loop that spawned it where it names no other agent', () => {

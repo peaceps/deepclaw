@@ -5,7 +5,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import type {
-  CONFIGS_EVENTS, AgentConfig, IMConfig, ImageModel, LLMConfig, MultimodalConfig
+  CONFIGS_EVENTS, AgentConfig, IMConfig, ImageModel, LLMConfig, LLMProtocol, MultimodalConfig
 } from '@deepclaw/config';
 import type { AgentInteractionEvent } from '@deepclaw/core';
 import { type ValidationResult } from '@/server/configs';
@@ -157,6 +157,15 @@ export function AgentSettingsCard({
               onInput={(e) => onUpdateLLM(index, { model: e.target.value })}
               error={hasFieldError('llm.model')}
               required
+            />
+            {/* 不选就是按 Base URL 猜，猜法和没有这个字段的时候一样，所以空值是回到自动的那条路 */}
+            <DeepSelect
+              uiInfo={configEvents['agents.llm.protocol'] as Extract<AgentInteractionEvent, {type: 'select'}>}
+              value={agent.llm.protocol}
+              onSelect={(e) => onUpdateLLM(index, {
+                protocol: (e.target.value || undefined) as LLMProtocol | undefined
+              })}
+              placeholder="web.pages.settings.panels.agents.protocol.auto"
             />
           </div>
         </AgentSettingsSection>

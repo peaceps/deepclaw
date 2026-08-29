@@ -5,6 +5,7 @@ import {
     type MultimodalConfig, type UIConfig
 } from './app-config';
 import {type ImageModel} from './image-models';
+import {type LLMProtocol} from './llm-protocols';
 
 function newAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
     return {
@@ -166,6 +167,21 @@ describe('validateAppConfig llm', () => {
         const agent = newAgent({llm: {baseURL: '', apiKey: 'key', model: ''}});
         const {lacks} = validateAppConfig(newConfig({agents: [agent]}));
         expect(agentLacks(lacks)).toEqual(['llm.baseURL', 'llm.model']);
+    });
+
+    test('keeps a protocol we speak and never demands one', () => {
+        const llm = {baseURL: 'https://api.example.com', apiKey: 'key', model: 'm',
+            protocol: 'OpenAIResponse' as const};
+        const {config, lacks} = validateAppConfig(newConfig({agents: [newAgent({llm})]}));
+        expect(config.agents[0]!.llm).toEqual(llm);
+        expect(agentLacks(lacks)).toEqual([]);
+    });
+
+    test('drops a protocol nobody speaks, leaving the url to be read', () => {
+        const llm = {baseURL: 'https://api.example.com', apiKey: 'key', model: 'm',
+            protocol: 'Gopher' as unknown as LLMProtocol};
+        const {config} = validateAppConfig(newConfig({agents: [newAgent({llm})]}));
+        expect(config.agents[0]!.llm.protocol).toBeUndefined();
     });
 });
 

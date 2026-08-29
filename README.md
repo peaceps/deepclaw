@@ -198,6 +198,9 @@ arrives there through the same conversation loop, replying in the chat.
 - OpenAI — chat completions and the responses API
 - Any OpenAI-compatible endpoint (baseURL + apiKey)
 
+The protocol is read off the base URL, which cannot tell chat completions from the responses API. An
+agent whose endpoint is guessed wrong can be told which one to speak in the settings.
+
 Up to 30 agents, each with its own model configuration.
 
 ### Skills on disk

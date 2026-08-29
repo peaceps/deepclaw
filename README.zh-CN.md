@@ -162,6 +162,9 @@ Agent 页面和对话有专门为窄屏做的布局，看板的列在挤不下�
 - OpenAI —— chat completions 和 responses API
 - 任何 OpenAI 兼容的端点（baseURL + apiKey）
 
+协议是按 base URL 认出来的，而 URL 分不出 chat completions 和 responses API。认错了的端点，可以在设置
+里直接指定用哪个协议。
+
 最多 30 个 agent，每个都能配自己的模型。
 
 ### 技能在磁盘上的样子
