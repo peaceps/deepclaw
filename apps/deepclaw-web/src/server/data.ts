@@ -96,7 +96,13 @@ export async function archiveProject(projectId: string): Promise<void> {
     }
 }
 
-/** The id finds the task, the rest is everything a card on the board is allowed to write. */
+/**
+ * The id finds the task, the rest is everything a card on the board is allowed to write.
+ *
+ * No status among them. Moving a task on is one thing to ask for and two to write either way --
+ * taking one up may set the project going, closing one marks every step of it behind it -- and the
+ * two below ask for those as the one thing each of them is.
+ */
 export type TaskEdit =
     Pick<Task, 'id'>
     & Partial<Pick<Task, 'title' | 'description' | 'pause' | 'verified' | 'assignee' | 'priority'>>;
@@ -123,6 +129,35 @@ export async function updateProjectTask(projectId: string, task: TaskEdit): Prom
         revalidatePath('/', 'layout');
     } catch (error) {
         console.error('Error saving project task:', error);
+        throw error;
+    }
+}
+
+/**
+ * The user taking a task up themselves, which sets the project going where it had not been started.
+ * Asked for by id, the same as closing one below: neither is a field a card gets to name.
+ */
+export async function takeUpProjectTask(projectId: string, taskId: string): Promise<void> {
+    try {
+        LoopGateway.takeUpProjectTask(projectId, taskId);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error taking up project task:', error);
+        throw error;
+    }
+}
+
+/**
+ * The user marking a task done, steps and all. Asked for by id rather than sent as a patch: what is
+ * written is not the caller's to choose, and a card that could name the fields would be a card that
+ * could close a task with half its steps unmarked.
+ */
+export async function finishProjectTask(projectId: string, taskId: string): Promise<void> {
+    try {
+        LoopGateway.finishProjectTask(projectId, taskId);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error finishing project task:', error);
         throw error;
     }
 }

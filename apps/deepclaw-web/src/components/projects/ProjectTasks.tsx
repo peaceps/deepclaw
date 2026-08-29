@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Notebook, Pencil } from 'lucide-react';
-import { type SlimProject, PROJECT_CONFIG } from '@deepclaw/core';
+import { type SlimProject, isProjectStarted, PROJECT_CONFIG } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
 import { ProjectActions } from './ProjectActions';
@@ -114,6 +114,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                             <div className="space-y-2">
                                 {columnTasks.map(task => <TaskCard 
                                     key={task.id} task={task} projectId={project.id}
+                                    projectStarted={isProjectStarted(project)}
                                     assignee={task.assignee ? agents.find(a => a.id === task.assignee) : undefined}
                                     blockedByTitles={task.blockedBy.flatMap(id => {
                                       const blocker = tasks[id];

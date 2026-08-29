@@ -6,9 +6,9 @@ import {type SkillInfo} from '@deepclaw/loop-gateway';
 import {type UpdateContent} from '@deepclaw/utils';
 import {
     type TaskEdit,
-    getActiveAgents, getCronHistories, getSkills, setSkillAgents,
-    updateAgentIdentity, updateCronTaskStatus, updateProjectDescription, updateProjectTags,
-    updateProjectTask,
+    finishProjectTask, getActiveAgents, getCronHistories, getSkills, setSkillAgents,
+    takeUpProjectTask, updateAgentIdentity, updateCronTaskStatus, updateProjectDescription,
+    updateProjectTags, updateProjectTask,
 } from './data';
 
 const mocks = vi.hoisted(() => ({
@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
     updateProjectTags: vi.fn<(projectId: string, tags: string[]) => void>(),
     updateProjectDescription: vi.fn<(projectId: string, description: string) => void>(),
     updateProjectTask: vi.fn<(projectId: string, task: object) => void>(),
+    takeUpProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
+    finishProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
     getDataInfo: vi.fn<() => {agents: AgentEmployee[]}>(),
     getSkills: vi.fn<() => SkillInfo[]>(),
     setSkillAgents: vi.fn<(name: string, agentIds?: string[]) => void>(),
@@ -30,6 +32,8 @@ vi.mock('@deepclaw/loop-gateway', () => ({
         updateProjectTags: mocks.updateProjectTags,
         updateProjectDescription: mocks.updateProjectDescription,
         updateProjectTask: mocks.updateProjectTask,
+        takeUpProjectTask: mocks.takeUpProjectTask,
+        finishProjectTask: mocks.finishProjectTask,
         getDataInfo: mocks.getDataInfo,
         getSkills: mocks.getSkills,
         setSkillAgents: mocks.setSkillAgents,
@@ -181,10 +185,21 @@ describe('updateProjectTask', () => {
     /** The board writes what a card offers, whatever else a request to this action carried. */
     test('drops what no card on the board may write', async () => {
         await updateProjectTask('p1', {
-            id: 'ship-it', title: 'ship it', status: 'done',
+            id: 'ship-it', title: 'ship it',
             output: {type: 'text', content: 'shipped'},
-        } as TaskEdit);
+        } as unknown as TaskEdit);
         expect(mocks.updateProjectTask).toHaveBeenCalledWith('p1', {id: 'ship-it', title: 'ship it'});
+    });
+
+    /**
+     * Moving a task on is more than one write either way and each has a door of its own, so no
+     * status comes through this one -- whatever a request that never read the type sends.
+     */
+    test('drops a status, whichever one it is', async () => {
+        for (const status of ['ongoing', 'done', 'todo', 'whenever']) {
+            await updateProjectTask('p1', {id: 'ship-it', status} as unknown as TaskEdit);
+            expect(mocks.updateProjectTask).toHaveBeenLastCalledWith('p1', {id: 'ship-it'});
+        }
     });
 
     test('reports a failing gateway', async () => {
@@ -193,6 +208,44 @@ describe('updateProjectTask', () => {
         });
         await expect(updateProjectTask('p1', newTask())).rejects.toThrow('gateway down');
         expect(console.error).toHaveBeenCalledWith('Error saving project task:', expect.any(Error));
+    });
+});
+
+describe('takeUpProjectTask', () => {
+
+    test('takes the task up by id and revalidates the layout', async () => {
+        await takeUpProjectTask('p1', 'ship-it');
+        expect(mocks.takeUpProjectTask).toHaveBeenCalledWith('p1', 'ship-it');
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    test('reports a failing gateway and does not revalidate', async () => {
+        mocks.takeUpProjectTask.mockImplementation(() => {
+            throw new Error('Only a task still in todo can be taken up.');
+        });
+        await expect(takeUpProjectTask('p1', 'ship-it')).rejects.toThrow('still in todo');
+        expect(console.error)
+            .toHaveBeenCalledWith('Error taking up project task:', expect.any(Error));
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+});
+
+describe('finishProjectTask', () => {
+
+    test('closes the task by id and revalidates the layout', async () => {
+        await finishProjectTask('p1', 'ship-it');
+        expect(mocks.finishProjectTask).toHaveBeenCalledWith('p1', 'ship-it');
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    test('reports a failing gateway and does not revalidate', async () => {
+        mocks.finishProjectTask.mockImplementation(() => {
+            throw new Error('a subagent is working on this task');
+        });
+        await expect(finishProjectTask('p1', 'ship-it')).rejects.toThrow('a subagent is working');
+        expect(console.error)
+            .toHaveBeenCalledWith('Error finishing project task:', expect.any(Error));
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
     });
 });
 

@@ -1140,6 +1140,91 @@ describe('updateCurrentStep', () => {
     });
 });
 
+describe('finishTask', () => {
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    function newOngoingProject(extra: {steps?: string[]} = {}): string {
+        const {id} = newProject(manager, [newTask(manager, 'design', extra)]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        return id;
+    }
+
+    test('marks an ongoing task done with a closing time', () => {
+        const id = newOngoingProject();
+        const task = manager.finishTask(id, 'design');
+        expect(task.status).toBe('done');
+        expect(new Date(task.closedAt!).toISOString()).toBe(task.closedAt);
+        expect(manager.getProjectDetail(id).completedTasks).toEqual(['design']);
+    });
+
+    /** Every step behind it, which is what the status is refused without. */
+    test('marks every step of the task behind it', () => {
+        const id = newOngoingProject({steps: ['one', 'two', 'three']});
+        manager.updateCurrentStep(id, 'design', 1);
+        expect(manager.finishTask(id, 'design').stepsStatus)
+            .toEqual({steps: ['one', 'two', 'three'], currentStepIndex: 3});
+    });
+
+    test('writes the project once for the steps and the status together', () => {
+        const id = newOngoingProject({steps: ['one', 'two']});
+        mocks.writeFile.mockClear();
+        manager.finishTask(id, 'design');
+        expect(mocks.writeFile).toHaveBeenCalledOnce();
+    });
+
+    /** Somebody closing a task by hand has looked at the work, which is what a pause waits for. */
+    test('takes the click as the verdict a paused task was waiting for', () => {
+        const id = newOngoingProject();
+        manager.updateTask(id, {id: 'design', pause: true});
+        const task = manager.finishTask(id, 'design');
+        expect(task.status).toBe('done');
+        expect(task.verified).toBe(true);
+    });
+
+    test('closes a task nobody paused without touching the verdict', () => {
+        const id = newOngoingProject();
+        expect(manager.finishTask(id, 'design').verified).toBeUndefined();
+    });
+
+    test('refuses a task still in todo', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.finishTask(id, 'design'))
+            .toThrow('Only a task being worked on can be marked done.');
+        expect(manager.getTask(id, 'design')!.status).toBe('todo');
+    });
+
+    test('refuses a task that is done already', () => {
+        const id = newOngoingProject();
+        manager.finishTask(id, 'design');
+        expect(() => manager.finishTask(id, 'design'))
+            .toThrow('Only a task being worked on can be marked done.');
+    });
+
+    /** The steps stay where they were, the refusal above being read before anything is written. */
+    test('leaves the steps of a task it refused where they were', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {steps: ['one', 'two']})]);
+        expect(() => manager.finishTask(id, 'design')).toThrow('Only a task being worked on');
+        expect(manager.getTask(id, 'design')!.stepsStatus!.currentStepIndex).toBe(-1);
+    });
+
+    test('refuses a task that is not there', () => {
+        const id = newOngoingProject();
+        expect(() => manager.finishTask(id, 'ghost')).toThrow('Task not found.');
+    });
+
+    test('closes the project once its last task is closed by hand', () => {
+        const id = newOngoingProject();
+        manager.finishTask(id, 'design');
+        const project = manager.getProjectDetail(id);
+        expect(new Date(project.closedAt!).toISOString()).toBe(project.closedAt);
+    });
+});
+
 describe('getProjectList', () => {
 
     let manager: ProjectManagerType;

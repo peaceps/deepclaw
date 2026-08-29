@@ -1,35 +1,51 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
-import { Ban, CirclePause, ClipboardCheck, Loader2, Pencil } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Ban, CirclePause, ClipboardCheck, Loader2, MoreHorizontal, Pencil } from 'lucide-react';
 import  {
-  type Task, type AgentEmployee, getTaskProgress, type MissionPriority, PROJECT_CONFIG
+  type Task, type AgentEmployee, getTaskProgress, type MissionPriority, type MissionStatus,
+  PROJECT_CONFIG
 } from '@deepclaw/core';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { AssigneePicker } from './AssigneePicker'
 import { PriorityPicker } from './PriorityPicker'
+import { TaskStatusMenu } from './TaskStatusMenu'
 import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
 import { ProgressBar } from '@/laf/progress-bar';
-import { updateProjectTask as updateProjectTaskToServer } from '@/server/data';
+import {
+  finishProjectTask as finishProjectTaskOnServer,
+  takeUpProjectTask as takeUpProjectTaskOnServer,
+  updateProjectTask as updateProjectTaskToServer,
+  type TaskEdit,
+} from '@/server/data';
 import { useAppStore } from '@/lib/store';
 import { useEditableField } from '@/lib/use-editable-field';
 import { TaskOutput } from '../../laf/task-output';
+
+/** What a card may ask the server to write, the id of the task being the card's own to fill in. */
+type TaskPatch = Omit<TaskEdit, 'id'>;
 
 type TaskCardProps = {
   task: Task;
   assignee?: AgentEmployee;
   blockedByTitles?: string[];
   projectId: string;
+  /** Taking a task up sets an unstarted project going, which the menu says while that is so. */
+  projectStarted: boolean;
 }
 
-export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCardProps) {
+export function TaskCard(
+  { task, assignee, blockedByTitles, projectId, projectStarted }: TaskCardProps
+) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [pickingAssignee, setPickingAssignee] = useState(false);
   const [pickingPriority, setPickingPriority] = useState(false);
+  const [movingStatus, setMovingStatus] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
   const assigneePencilRef = useRef<HTMLButtonElement>(null);
   const priorityRef = useRef<HTMLButtonElement>(null);
+  const statusRef = useRef<HTMLButtonElement>(null);
   const {t} = useTranslation();
   const progress = getTaskProgress(task);
   const updateProjectTask = useAppStore(s => s.updateProjectTask);
@@ -46,12 +62,20 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
   };
 
   /** The card draws the change straight away and takes it back off if the server refused it. */
-  const patchTask = useCallback((patch: Partial<Task>, rollback: Partial<Task>) => {
+  const draw = useCallback((
+    patch: Partial<Task>, rollback: Partial<Task>, save: () => Promise<void>
+  ) => {
     updateProjectTask(projectId, { id: task.id, ...patch });
-    updateProjectTaskToServer(projectId, { id: task.id, ...patch }).catch(() => {
+    save().catch(() => {
       updateProjectTask(projectId, { id: task.id, ...rollback });
     });
   }, [projectId, task.id, updateProjectTask]);
+
+  // The patch is what the server is asked for and is held to what a card may write; the rollback is
+  // only ever drawn, and puts back whatever the task had.
+  const patchTask = useCallback((patch: TaskPatch, rollback: Partial<Task>) => {
+    draw(patch, rollback, () => updateProjectTaskToServer(projectId, { id: task.id, ...patch }));
+  }, [draw, projectId, task.id]);
 
   const handlePauseClick = useCallback(() => {
     if (awaitingVerify) return;
@@ -78,6 +102,47 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
     if (priority === task.priority) return;
     patchTask({ priority }, { priority: task.priority });
   }, [task.priority, patchTask]);
+
+  // A task that is done is where the board stops: nothing here moves it back, and the service
+  // refuses it from either direction. While a subagent is on the task its status is the run's.
+  const canMoveStatus = task.status !== 'done';
+
+  // The menu goes wherever the button under it went. A subagent taking the task over disables the
+  // button, and the task reaching done takes it off the card altogether -- and the menu is drawn
+  // apart from the card, so it would be left floating there offering a step that is no longer
+  // anybody's to take.
+  useEffect(() => {
+    if (running || !canMoveStatus) setMovingStatus(false);
+  }, [running, canMoveStatus]);
+
+  /**
+   * Each of these is asked for as the one thing it is, the server writing more than the word for
+   * either. The steps of the task are drawn behind it here along with the word: a card left saying
+   * step three of eight under a task that is done would be put right by the announcement a moment
+   * later, and read wrong until it came.
+   */
+  const handleStatusPick = useCallback((next: MissionStatus) => {
+    setMovingStatus(false);
+    if (next === 'ongoing') {
+      draw(
+        { status: 'ongoing' },
+        { status: task.status },
+        () => takeUpProjectTaskOnServer(projectId, task.id),
+      );
+      return;
+    }
+    const steps = task.stepsStatus?.steps;
+    draw(
+      {
+        status: 'done',
+        ...(steps?.length ? {stepsStatus: {steps, currentStepIndex: steps.length}} : {}),
+        // Their word closes the task, which is the verdict a paused one was waiting for.
+        ...(task.pause ? {verified: true} : {}),
+      },
+      { status: task.status, stepsStatus: task.stepsStatus, verified: task.verified },
+      () => finishProjectTaskOnServer(projectId, task.id),
+    );
+  }, [draw, projectId, task.id, task.pause, task.status, task.stepsStatus, task.verified]);
 
   const handleVerifiedClick = useCallback(() => {
     if (!task.pause || task.status !== 'ongoing') return;
@@ -127,11 +192,6 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
               </button>
             </h4>
           )}
-          {running && (
-            <span title={t('web.pages.projects.task.running')} className="flex-shrink-0 mt-0.5">
-              <Loader2 size={16} className="text-cyan-500 animate-spin" />
-            </span>
-          )}
           {/* The pill is the button: a priority is one of four words and picking between them is
               the whole of the edit, so there is nothing for a pencil to open that the pill does
               not open itself. A task that is done keeps the plain pill, having no priority left
@@ -148,6 +208,28 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
             </button>
           ) : (
             <span className={pill}>{t(`web.common.priority.${task.priority}`)}</span>
+          )}
+          {canMoveStatus && (
+            // The word is on the span rather than on the button, which is the only way it is read
+            // when there is most to say: a disabled control gets no mouse events in Chrome, so no
+            // tooltip of its own pops, and why the button is dead is exactly what is written here.
+            <span
+              title={t(`web.pages.projects.task.status.${running ? 'locked' : 'menu'}`)}
+              className="flex-shrink-0"
+            >
+              <button
+                ref={statusRef}
+                type="button"
+                onClick={() => setMovingStatus(v => !v)}
+                disabled={running}
+                aria-label={t('web.pages.projects.task.status.menu')}
+                className="p-1 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-100
+                  disabled:cursor-not-allowed disabled:hover:text-gray-300 disabled:hover:bg-transparent
+                  transition-colors"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+            </span>
           )}
         </div>
 
@@ -193,6 +275,13 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
             </div>
             <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
+          {/* Beside whoever the work is with, that being what it says: a subagent of theirs is on
+              the task at this moment. */}
+          {running && (
+            <span title={t('web.pages.projects.task.running')} className="flex-shrink-0">
+              <Loader2 size={14} className="text-cyan-500 animate-spin" />
+            </span>
+          )}
           {canReassign && (
             <button
               ref={assigneePencilRef}
@@ -270,6 +359,17 @@ export function TaskCard({ task, assignee, blockedByTitles, projectId }: TaskCar
           anchorRef={priorityRef}
           onPick={handlePriorityPick}
           onClose={() => setPickingPriority(false)}
+        />
+      )}
+
+      {movingStatus && (
+        <TaskStatusMenu
+          status={task.status}
+          projectStarted={projectStarted}
+          paused={!!task.pause}
+          anchorRef={statusRef}
+          onPick={handleStatusPick}
+          onClose={() => setMovingStatus(false)}
         />
       )}
     </>

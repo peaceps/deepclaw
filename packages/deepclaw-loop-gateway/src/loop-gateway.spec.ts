@@ -40,12 +40,15 @@ const mocks = vi.hoisted(() => ({
         (id: string) => ({id, archivedAt: '2026-02-02T00:00:00.000Z'})
     ),
     updateTask: vi.fn(),
+    finishTask: vi.fn(),
+    getTask: vi.fn<(projectId: string, taskId: string) => unknown>(() => ({id: 't1', status: 'todo'})),
     getProjectDetail: vi.fn(),
     getProjectList: vi.fn(),
     getSkillList: vi.fn(),
     updateSkillAgents: vi.fn(),
     removeSkill: vi.fn(),
     getRunningTasks: vi.fn<() => unknown[]>(() => []),
+    isRunning: vi.fn<(projectId: string, taskId: string) => boolean>(() => false),
     getAgentRuntimeStatus: vi.fn<(agentId: string) => unknown>(() => ({mood: 'none', emotions: []})),
     updateAgentRuntimeStatus: vi.fn<(agentId: string, mood?: string, emotion?: string) => unknown>(
         () => ({mood: 'none', emotions: []})
@@ -94,6 +97,8 @@ vi.mock('@deepclaw/agent', () => ({
         startProject: mocks.startProject,
         archiveProject: mocks.archiveProject,
         updateTask: mocks.updateTask,
+        finishTask: mocks.finishTask,
+        getTask: mocks.getTask,
         getProjectDetail: mocks.getProjectDetail,
         getProjectList: mocks.getProjectList,
     },
@@ -102,7 +107,7 @@ vi.mock('@deepclaw/agent', () => ({
         updateSkillAgents: mocks.updateSkillAgents,
         removeSkill: mocks.removeSkill,
     },
-    RunningTaskService: {getRunningTasks: mocks.getRunningTasks},
+    RunningTaskService: {getRunningTasks: mocks.getRunningTasks, isRunning: mocks.isRunning},
     ToolUseService: {clearAwayUser: mocks.clearAwayUser},
     AGENTS_DIR: '.agents',
     PROJECT_DIR: '.projects',
@@ -228,6 +233,8 @@ beforeEach(() => {
     vi.clearAllMocks();
     mocks.getLoop.mockImplementation(() => currentLoop);
     mocks.getAgent.mockImplementation(id => ({id, fired: false}));
+    mocks.isRunning.mockReturnValue(false);
+    mocks.getTask.mockReturnValue({id: 't1', status: 'todo'});
     mocks.replaceMessage.mockImplementation((_loopId: string, id: string, content: string) => ({
         id, agentId: 'a1', content, type: 'agent', timestamp: '2026-01-01T00:00:00.000Z'
     }));
@@ -1331,6 +1338,103 @@ describe('data updates', () => {
         expect(() => LoopGateway.updateProjectTask('p1', {id: 't1', assignee: 'a2'}))
             .toThrow('No agent "a2" works here.');
         expect(mocks.updateTask).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A page open for a while shows a task the run has since taken up, and the button on it is a
+     * button the browser never heard was gone.
+     */
+    test('refuses to move the status of a task a subagent is on', () => {
+        mocks.isRunning.mockReturnValue(true);
+        expect(() => LoopGateway.updateProjectTask('p1', {id: 't1', status: 'ongoing'}))
+            .toThrow('A subagent is working on this task.');
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+        expect(mocks.isRunning).toHaveBeenCalledWith('p1', 't1');
+    });
+
+    /**
+     * Work under way is work begun, and the date is what every later task of the project is let
+     * through by. The service stands by the first date, so a project long since started is untouched.
+     */
+    test('sets the project going where a task of it is taken up by hand', () => {
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {t1: {id: 't1'}}});
+        LoopGateway.takeUpProjectTask('p1', 't1');
+        expect(mocks.startProject).toHaveBeenCalledWith('p1');
+        expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', status: 'ongoing'});
+        expect(events.at(-1)).toEqual(expect.objectContaining({
+            content: expect.objectContaining({id: 'p1'}),
+        }));
+    });
+
+    /**
+     * The date has to go down before the status, the service refusing a task that leaves todo
+     * without one, so everything that could refuse the status is asked before it is written: a
+     * project turned "started" by an edit that never happened has no button to take that back.
+     */
+    test('writes no start date for a task that is not there', () => {
+        mocks.getTask.mockReturnValue(undefined);
+        expect(() => LoopGateway.takeUpProjectTask('p1', 't1')).toThrow('Task not found.');
+        expect(mocks.startProject).not.toHaveBeenCalled();
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+    });
+
+    test('writes no start date for a task that is past being taken up', () => {
+        mocks.getTask.mockReturnValue({id: 't1', status: 'done'});
+        expect(() => LoopGateway.takeUpProjectTask('p1', 't1'))
+            .toThrow('Only a task still in todo can be taken up.');
+        expect(mocks.startProject).not.toHaveBeenCalled();
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+    });
+
+    /** Whoever is on a task is on it under the status it has, and todo is nobody's. */
+    test('refuses to take up a task that is already being worked', () => {
+        mocks.getTask.mockReturnValue({id: 't1', status: 'ongoing'});
+        expect(() => LoopGateway.takeUpProjectTask('p1', 't1'))
+            .toThrow('Only a task still in todo can be taken up.');
+    });
+
+    /**
+     * The claim on a task goes in before its status does, so in between the record still says todo
+     * while the work is already out. The status alone would let this click through on a task a
+     * subagent has, and the user would hear they took up work that was never theirs.
+     */
+    test('refuses to take up a task a subagent was claimed for', () => {
+        mocks.isRunning.mockReturnValue(true);
+        expect(() => LoopGateway.takeUpProjectTask('p1', 't1'))
+            .toThrow('A subagent is working on this task.');
+        expect(mocks.startProject).not.toHaveBeenCalled();
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+    });
+
+    test('leaves the project alone for an edit that moves nothing', () => {
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {}});
+        LoopGateway.updateProjectTask('p1', {id: 't1', title: 'renamed'});
+        expect(mocks.startProject).not.toHaveBeenCalled();
+    });
+
+    /** Read by whoever picks the work up, so putting it right while the work runs is the point. */
+    test('takes a rename of a task a subagent is on', () => {
+        mocks.isRunning.mockReturnValue(true);
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {}});
+        LoopGateway.updateProjectTask('p1', {id: 't1', title: 'renamed'});
+        expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', title: 'renamed'});
+    });
+
+    test('closes a task and announces the project it belongs to', () => {
+        const tasks = {t1: {id: 't1', title: 'task', status: 'done'}};
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks});
+        LoopGateway.finishProjectTask('p1', 't1');
+        expect(mocks.finishTask).toHaveBeenCalledWith('p1', 't1');
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1},
+        });
+    });
+
+    test('refuses to close a task a subagent is on', () => {
+        mocks.isRunning.mockReturnValue(true);
+        expect(() => LoopGateway.finishProjectTask('p1', 't1'))
+            .toThrow('A subagent is working on this task.');
+        expect(mocks.finishTask).not.toHaveBeenCalled();
     });
 
     test('collects agents and every project, open and closed', () => {

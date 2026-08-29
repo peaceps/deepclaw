@@ -191,6 +191,16 @@ export const en = {
                             off: 'Not verified',
                         }
                     },
+                    status: {
+                        menu: 'Move this task on',
+                        locked: 'A subagent is working on this task, so where it stands is not yours to move now.',
+                        ongoing: 'Mark it ongoing',
+                        ongoingHint: 'The task becomes ongoing: no handing it on after that, and no way back to todo.',
+                        ongoingHintUnstarted: 'The project starts here and the task becomes ongoing: no handing it on after that, and no way back to todo.',
+                        done: 'Mark it done',
+                        doneHint: 'Every step of it is marked behind it.',
+                        doneHintPaused: 'Every step of it is marked behind it, and closing it yourself counts as the verification its pause was waiting for.',
+                    },
                     running: 'A subagent is working on this task',
                     editTitle: 'Rename this task',
                     editDescription: 'Rewrite what this task asks for',

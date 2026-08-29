@@ -681,10 +681,81 @@ class LoopGatewayImpl {
                 throw new Error(`No agent "${task.assignee}" works here.`);
             }
         }
+        if (task.status) {
+            this.refuseWhileWorked(projectId, task.id);
+        }
         ProjectManager.updateTask(projectId, task);
-        // The whole project rather than its tasks alone: how many there are is read off a row that
-        // holds none of them, and tasks arriving without it would leave that count saying what it
-        // said before the edit.
+        this.announceProject(projectId);
+    }
+
+    /**
+     * The user taking a task up themselves, which the board offers on a card in todo. Two writes --
+     * the project started where it was not, and the task ongoing -- since work under way on a
+     * project with no start date on it is work every later task of that project is refused by.
+     *
+     * The date is written from this side of the wall: asked of the service where the task is written
+     * instead, it would be a date a run could write for itself -- mark a task ongoing, and the gate
+     * the start button holds shut is open. Which leaves the two writes to be ordered by hand, and
+     * the date going first, because the service refuses a task leaving todo until it is there.
+     *
+     * So everything that could refuse this is asked before the date goes down. A task refused after
+     * it was written would leave a project started on the strength of an edit that never happened,
+     * and started is for good. Nothing but the status is sent on, no patch riding along with it,
+     * which is what makes the refusals countable: a task in todo taking ongoing and nothing else,
+     * on a project that is now started, is a call the service has nothing left to turn away.
+     */
+    public static takeUpProjectTask(projectId: string, taskId: string): void {
+        // A task is claimed for a subagent before the status is written -- the claim is what keeps
+        // two calls of one turn off the same task, and building a loop is an await -- so the status
+        // alone would let a click through in that window, on work already handed out. What the user
+        // is owed there is being told a subagent has it, not a status they think they wrote.
+        this.refuseWhileWorked(projectId, taskId);
+        const task = ProjectManager.getTask(projectId, taskId);
+        if (!task) {
+            throw new Error('Task not found.');
+        }
+        if (task.status !== 'todo') {
+            throw new Error('Only a task still in todo can be taken up.');
+        }
+        ProjectManager.startProject(projectId);
+        ProjectManager.updateTask(projectId, {id: taskId, status: 'ongoing'});
+        this.announceProject(projectId);
+    }
+
+    /**
+     * The user closing a task off from the board, which is the steps of it as well as its status and
+     * so is asked for as the one thing it is rather than sent as a patch.
+     */
+    public static finishProjectTask(projectId: string, taskId: string): void {
+        this.refuseWhileWorked(projectId, taskId);
+        ProjectManager.finishTask(projectId, taskId);
+        this.announceProject(projectId);
+    }
+
+    /**
+     * Where a subagent is on the task, its status is nobody else's to move. The run is asked rather
+     * than the record, the record saying only that the task was handed out: a task closed under a
+     * subagent still at work is a task every write of that run is refused by, and it would spend
+     * what turns it has left on a task nothing can be reported about any more.
+     *
+     * Which is the two doors above, those being where a status is written from now. The patch door
+     * asks it of a status all the same, for a caller that sends one there, but the board no longer
+     * has a way to: what a card may write does not include the word. The words of a task are
+     * another matter and are left alone by all of them -- those are read by whoever picks the work
+     * up, and a title put right while the work runs is the point of putting it right.
+     */
+    private static refuseWhileWorked(projectId: string, taskId: string): void {
+        if (RunningTaskService.isRunning(projectId, taskId)) {
+            throw new Error('A subagent is working on this task. Wait for it to report back.');
+        }
+    }
+
+    /**
+     * The whole project rather than its tasks alone: how many there are is read off a row that holds
+     * none of them, and tasks arriving without it would leave that count saying what it said before
+     * the edit.
+     */
+    private static announceProject(projectId: string): void {
         this.fireSSEEvent({
             eventType: 'updateProject',
             content: slimProject(ProjectManager.getProjectDetail(projectId)),

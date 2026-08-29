@@ -14,7 +14,7 @@
 
 ## 安装
 
-需要 Node 21 或更新的版本。Linux、macOS 和 Windows 都能跑。
+需要 Node 22 或更新的版本。Linux、macOS 和 Windows 都能跑。
 
 ```bash
 npm install -g @sacephor/deepclaw

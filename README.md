@@ -16,7 +16,7 @@ configure.
 
 ## Install
 
-Node 21 or newer is required. Deepclaw runs on Linux, macOS, and Windows.
+Node 22 or newer is required. Deepclaw runs on Linux, macOS, and Windows.
 
 ```bash
 npm install -g @sacephor/deepclaw

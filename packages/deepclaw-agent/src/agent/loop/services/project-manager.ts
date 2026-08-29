@@ -422,6 +422,45 @@ export class ProjectManager {
         return {task, stop: !!task.pause && task.verified === false};
     }
 
+    /**
+     * The user closing a task off themselves, which the board offers on a card that is ongoing. Two
+     * writes to whoever reads the record afterwards -- every step of it behind it, and the task done
+     * -- and one save, a task whose steps are all marked and whose status is not being a task the
+     * next run would set about finishing.
+     *
+     * The steps move first because the status is refused while any of them is unmarked, and they are
+     * moved here rather than asked of the caller: how far the work got is the run's to say while it
+     * is running, and this is the user saying the work is over, which leaves nothing half-marked
+     * behind. A task carrying no steps at all is done on the word alone.
+     *
+     * Their click is also the verdict a paused task waits for. A pause holds the work at the gate
+     * until somebody has looked at it, and somebody closing the task by hand has looked at it;
+     * without this the status below would be quietly put back and the click would do nothing.
+     *
+     * Both of those are written on the live task before the status is asked for, which is the shape
+     * updateTask has: what it reads when it decides whether the steps are done is the task and not
+     * the patch. Refused, they would live on unsaved until some later edit of the project carried
+     * them to disk -- a pause satisfied by nothing anybody did. So nothing that can refuse is left
+     * after them: the status is checked above, and the one gate below that could still turn a done
+     * away is a project with no start date, which no project holding an ongoing task has.
+     */
+    public static finishTask(projectId: string, taskId: string): Task {
+        const task = this.getTask(projectId, taskId);
+        if (!task) {
+            throw new Error('Task not found.');
+        }
+        if (task.status !== 'ongoing') {
+            throw new Error('Only a task being worked on can be marked done.');
+        }
+        if (task.stepsStatus?.steps.length) {
+            task.stepsStatus.currentStepIndex = task.stepsStatus.steps.length;
+        }
+        if (task.pause) {
+            task.verified = true;
+        }
+        return this.updateTask(projectId, {id: taskId, status: 'done'}).task;
+    }
+
     public static updateCurrentStep(projectId: string, taskId: string, stepIndex: number): TaskStepsContext {
         const task = this.getTask(projectId, taskId);
         const context = task?.stepsStatus;
