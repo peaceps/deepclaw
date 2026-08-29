@@ -309,6 +309,24 @@ describe('createProject', () => {
         expect(JSON.parse(content).id).toBe(project.id);
     });
 
+    /** The one door a description most often comes through is this one, so it is cut here too. */
+    test('cuts a description to the length a description is read at', () => {
+        const project = manager.createProject(
+            {agentId: 'a1', title: 'Ship it', description: `  ${'long'.repeat(50)}  `, priority: 'high'},
+            [newTask(manager, 'design')],
+        );
+        expect(project.description)
+            .toBe('long'.repeat(50).slice(0, PROJECT_CONFIG.maxProjectDescriptionLength));
+    });
+
+    /** A schema holds a model to nothing: three spaces are three characters to a minLength of one. */
+    test('refuses a project whose description is nothing but spaces', () => {
+        expect(() => manager.createProject(
+            {agentId: 'a1', title: 'Ship it', description: '   ', priority: 'high'},
+            [newTask(manager, 'design')],
+        )).toThrow('A project needs a description.');
+    });
+
     test('wires blocks as the reverse of blockedBy', () => {
         const project = newProject(manager, [
             newTask(manager, 'design'), newTask(manager, 'build', {blockedBy: ['design']}),
@@ -409,6 +427,41 @@ describe('updateProject', () => {
         mocks.writeFile.mockClear();
         manager.updateProject({id, title: 'Renamed'});
         expect(mocks.writeFile).toHaveBeenCalledOnce();
+    });
+
+    test('cuts a description to the length a description is read at', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const written = manager.updateProject({
+            id, description: `  ${'long'.repeat(50)}  `
+        }).description;
+        expect(written).toBe('long'.repeat(50).slice(0, PROJECT_CONFIG.maxProjectDescriptionLength));
+    });
+
+    /**
+     * A blank rewrite is no rewrite, the same as on a task: written through, it would take the
+     * words off the board and out of what the agents are handed, and say nothing of having done it.
+     */
+    test('refuses a description of nothing but spaces and keeps the words it had', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateProject({id, description: '   '}))
+            .toThrow('A project needs a description.');
+        expect(manager.getProjectDetail(id).description).toBe('ship the thing');
+    });
+
+    /** Nulling a field is how the browsers drop one, and a description is not a field to drop. */
+    test('refuses a description of null', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateProject({id, description: null}))
+            .toThrow('A project needs a description.');
+    });
+
+    /** Turned away before anything is written, so the file on disk is left as it was as well. */
+    test('writes nothing when the description is refused', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        mocks.writeFile.mockClear();
+        expect(() => manager.updateProject({id, title: 'Renamed', description: ' '})).toThrow();
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(manager.getProjectDetail(id).title).toBe('Ship it');
     });
 
     test('throws for an unknown project id', () => {

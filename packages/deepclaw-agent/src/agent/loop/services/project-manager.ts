@@ -33,6 +33,24 @@ type TaskInitInfo = {
     assignee?: string;
 };
 
+/**
+ * The words a project is known by, as they are worth writing down: cut to the length they are read
+ * at, and refused where trimming leaves none.
+ *
+ * Neither of the two doors this comes through is a promise. The schema is a suggestion to a model,
+ * which sends what it likes and is held to nothing but a `minLength: 1` three spaces satisfy; the
+ * box on the board is one form of a server action, and the action is an endpoint anybody who
+ * reaches the page can post to. So the rule the description is read under lives here, where both
+ * doors open, and a project turned away keeps the words it had.
+ */
+function writableDescription(description: string | null): string {
+    const words = (description ?? '').trim().slice(0, PROJECT_CONFIG.maxProjectDescriptionLength);
+    if (!words) {
+        throw new Error('A project needs a description.');
+    }
+    return words;
+}
+
 export class ProjectManager {
 
     private static projects: {[id: string]: Project} = {};
@@ -109,7 +127,7 @@ export class ProjectManager {
         const project: Project = {
             id: crypto.randomUUID(),
             title: projectInfo.title,
-            description: projectInfo.description,
+            description: writableDescription(projectInfo.description),
             priority: projectInfo.priority,
             creator: projectInfo.agentId,
             createdAt: new Date().toISOString(),
@@ -139,6 +157,11 @@ export class ProjectManager {
         // it had.
         if (projectInfo.output && !isProjectStarted(project)) {
             throw new Error('Cannot set output when project is in todo state.');
+        }
+        // Read before a word of this is written down, as the refusal in it is only a refusal while
+        // nothing has been written: a project blanked and then turned away is blanked all the same.
+        if (projectInfo.description !== undefined) {
+            projectInfo.description = writableDescription(projectInfo.description);
         }
         if (tasks) {
             project.tasks = this.convertTasks(tasks);

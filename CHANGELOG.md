@@ -5,6 +5,7 @@ an agent now says how the work feels while a subagent is working a task in its n
 a chat now keeps the whole of what a run wrote instead of the line it ended on.
 a project already underway now takes a task the plan left out.
 an agent's llm protocol can now be picked in the settings instead of being guessed from its url.
+a project description can now be rewritten on the board.
 
 v0.0.18
 a chat transcript nobody has read or written in for a while is no longer held in memory either.

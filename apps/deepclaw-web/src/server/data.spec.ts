@@ -7,12 +7,14 @@ import {type UpdateContent} from '@deepclaw/utils';
 import {
     type TaskEdit,
     getActiveAgents, getCronHistories, getSkills, setSkillAgents,
-    updateAgentIdentity, updateCronTaskStatus, updateProjectTags, updateProjectTask,
+    updateAgentIdentity, updateCronTaskStatus, updateProjectDescription, updateProjectTags,
+    updateProjectTask,
 } from './data';
 
 const mocks = vi.hoisted(() => ({
     updateAgentIdentity: vi.fn<(identity: object) => void>(),
     updateProjectTags: vi.fn<(projectId: string, tags: string[]) => void>(),
+    updateProjectDescription: vi.fn<(projectId: string, description: string) => void>(),
     updateProjectTask: vi.fn<(projectId: string, task: object) => void>(),
     getDataInfo: vi.fn<() => {agents: AgentEmployee[]}>(),
     getSkills: vi.fn<() => SkillInfo[]>(),
@@ -26,6 +28,7 @@ vi.mock('@deepclaw/loop-gateway', () => ({
     LoopGateway: {
         updateAgentIdentity: mocks.updateAgentIdentity,
         updateProjectTags: mocks.updateProjectTags,
+        updateProjectDescription: mocks.updateProjectDescription,
         updateProjectTask: mocks.updateProjectTask,
         getDataInfo: mocks.getDataInfo,
         getSkills: mocks.getSkills,
@@ -123,6 +126,31 @@ describe('updateProjectTags', () => {
         });
         await expect(updateProjectTags('p1', ['urgent'])).rejects.toThrow('gateway down');
         expect(console.error).toHaveBeenCalledWith('Error saving project tags:', expect.any(Error));
+    });
+});
+
+describe('updateProjectDescription', () => {
+
+    test('stores the description and revalidates the layout', async () => {
+        await updateProjectDescription('p1', 'a shop that sells hats');
+        expect(mocks.updateProjectDescription).toHaveBeenCalledWith('p1', 'a shop that sells hats');
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    /** The box the user writes in reads an empty save as a cancel, and so does this. */
+    test('refuses a description of nothing at all', async () => {
+        await expect(updateProjectDescription('p1', '   ')).rejects.toThrow('needs a description');
+        expect(mocks.updateProjectDescription).not.toHaveBeenCalled();
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    test('reports a failing gateway', async () => {
+        mocks.updateProjectDescription.mockImplementation(() => {
+            throw new Error('gateway down');
+        });
+        await expect(updateProjectDescription('p1', 'a shop')).rejects.toThrow('gateway down');
+        expect(console.error)
+            .toHaveBeenCalledWith('Error saving project description:', expect.any(Error));
     });
 });
 

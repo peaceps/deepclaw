@@ -194,7 +194,7 @@ so do not call tools updating project/tasks immediately with create_project`,
                     type: 'string',
                     description: 'A short description of the project, will display to the user.',
                     minLength: 1,
-                    maxLength: 100,
+                    maxLength: PROJECT_CONFIG.maxProjectDescriptionLength,
                 },
                 priority: {
                     type: 'string',
@@ -304,7 +304,7 @@ A task that has to join a project already underway goes in with add_task instead
                     type: 'string',
                     description: 'A short description of the project, will display to the user.',
                     minLength: 1,
-                    maxLength: 100,
+                    maxLength: PROJECT_CONFIG.maxProjectDescriptionLength,
                 },
                 priority: {
                     type: 'string',

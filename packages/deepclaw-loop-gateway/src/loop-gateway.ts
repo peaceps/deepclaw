@@ -605,6 +605,15 @@ class LoopGatewayImpl {
         this.fireSSEEvent({ eventType: 'updateProject', content: { id: projectId, tags } });
     }
 
+    public static updateProjectDescription(projectId: string, description: string): void {
+        const project = ProjectManager.updateProject({id: projectId, description});
+        // What was written rather than what came in: a long one is cut where it is written down,
+        // and a browser handed the words it sent would show a description the disk has not got.
+        this.fireSSEEvent({
+            eventType: 'updateProject', content: {id: projectId, description: project.description}
+        });
+    }
+
     /**
      * The user setting the work of a project going, and every browser told the moment it is written:
      * a project starts once and the button for it goes with the start, so a second tab showing that

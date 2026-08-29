@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, Notebook } from 'lucide-react';
-import type { SlimProject } from '@deepclaw/core';
+import { useCallback, useState } from 'react';
+import { ChevronLeft, ChevronRight, Loader2, Notebook, Pencil } from 'lucide-react';
+import { type SlimProject, PROJECT_CONFIG } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
 import { ProjectActions } from './ProjectActions';
 import { useProjectTasks } from '@/lib/use-project-tasks';
 import { useAppStore } from '@/lib/store';
+import { useEditableField } from '@/lib/use-editable-field';
+import { updateProjectDescription } from '@/server/data';
 
 const columns = [
   { id: 'todo', icon: '📋', title: 'web.pages.projects.status.todo', color: 'bg-blue-50' },
@@ -23,11 +25,21 @@ export function ProjectTasks({project}: ProjectTasksProps) {
   const [collapsed, setCollapsed] = useState(false);
   const {t} = useTranslation();
   const agents = useAppStore(s => s.agents);
+  const updateProject = useAppStore(s => s.updateProject);
   // This panel is mounted by the row being opened, so this is the opening asking for the tasks --
   // where they are not in hand already from an earlier opening, which asks for nothing and draws
   // the board at once.
   const {unread} = useProjectTasks([project.id]);
   const tasks = project.tasks;
+
+  /** The strip shows the new words at once and takes them back off if the server refused them. */
+  const description = useEditableField(project.description, useCallback((next: string) => {
+    const previous = project.description;
+    updateProject({id: project.id, description: next});
+    updateProjectDescription(project.id, next).catch(() => {
+      updateProject({id: project.id, description: previous});
+    });
+  }, [project.id, project.description, updateProject]));
 
     // The tasks scroll, the bar under them does not: what can be done with the project as a whole
     // stays where it was put, rather than being something to scroll a long board to reach.
@@ -37,9 +49,34 @@ export function ProjectTasks({project}: ProjectTasksProps) {
             
           <div className={`hidden lg:flex items-center border-b border-gray-200
               bg-gray-50 w-full ${collapsed ? 'flex-col' : 'pl-6 justify-end'} py-3`}>
-            {!collapsed && <p className="flex-1 text-sm text-gray-500 truncate hidden sm:block" title={project.description}>
-                {project.description}
-            </p>}
+            {!collapsed && (description.editing ? (
+              // Enter saves rather than breaking the line, the same as on a task: what is written
+              // here is the one line the strip shows and the agents are handed.
+              <textarea
+                autoFocus
+                rows={2}
+                value={description.draft}
+                maxLength={PROJECT_CONFIG.maxProjectDescriptionLength}
+                onChange={(e) => description.setDraft(e.target.value)}
+                onKeyDown={description.onKeyDown}
+                onBlur={description.commit}
+                className="flex-1 mr-2 px-2 py-1 rounded-md border border-gray-300 bg-white resize-none
+                  text-sm text-gray-600 outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400"
+              />
+            ) : (
+              <p className="flex-1 min-w-0 text-sm text-gray-500 hidden sm:block">
+                <button
+                  type="button"
+                  onClick={description.start}
+                  title={t('web.pages.projects.project.editDescription')}
+                  className="group flex w-full min-w-0 items-center gap-1.5 text-left"
+                >
+                  <span className="truncate" title={project.description}>{project.description}</span>
+                  <Pencil size={12} className="flex-shrink-0 text-gray-300
+                    group-hover:text-gray-600 transition-colors" />
+                </button>
+              </p>
+            ))}
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={`p-1 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors ${collapsed ? '' : 'mr-2'}`}

@@ -150,6 +150,7 @@ export const en = {
                     owner: 'Owner',
                     progress: 'Progress',
                     report: 'Project report',
+                    editDescription: 'Rewrite what this project is about',
                     blockedBy: 'Prerequisites: {{titles}}',
                     labels: {
                         save: 'Press Enter to save',

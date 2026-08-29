@@ -1182,6 +1182,16 @@ describe('data updates', () => {
         expect(events).toContainEqual({eventType: 'updateProject', content: {id: 'p1', tags: ['urgent']}});
     });
 
+    /** What was written and not what came in: a long description is cut where it is written down. */
+    test('announces the project description as it was stored', () => {
+        mocks.updateProject.mockReturnValue({id: 'p1', description: 'a shop'});
+        LoopGateway.updateProjectDescription('p1', '  a shop  ');
+        expect(mocks.updateProject).toHaveBeenCalledWith({id: 'p1', description: '  a shop  '});
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', description: 'a shop'}
+        });
+    });
+
     /** Every browser hears it, so the start button goes from the tabs that were not pressed too. */
     test('announces a project the user started with the date it started on', () => {
         LoopGateway.startProject('p1');

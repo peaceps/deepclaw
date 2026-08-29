@@ -150,6 +150,7 @@ export const zh = {
                     owner: '负责人',
                     progress: '进度',
                     report: '项目报告',
+                    editDescription: '改写这个项目的描述',
                     blockedBy: '前置任务：{{titles}}',
                     labels: {
                         save: '按 Enter 保存',

@@ -8,9 +8,10 @@ export const PROJECT_CONFIG = {
     maxTagTextLength: 15,
     maxTasksCount: 20,
     maxTaskStepsCount: 8,
-    /** Read by the tool schemas and by the boxes the user rewrites a task in, so both cut at once. */
+    /** Read by the tool schemas and by the boxes the user rewrites one in, so both cut at once. */
     maxTaskTitleLength: 50,
     maxTaskDescriptionLength: 100,
+    maxProjectDescriptionLength: 80,
 } as const;
 
 export type Project = {
