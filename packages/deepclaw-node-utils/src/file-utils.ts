@@ -37,6 +37,13 @@ const TAIL_BUDGET_BYTES = 32 * 1024 * 1024;
 
 const LINE_BREAK = 0x0a;
 
+/**
+ * How long a temporary must have lain untouched before it is taken for a leftover rather than a
+ * write going on right now. A write here is a handful of milliseconds; a minute is beyond any of
+ * them and short enough that a leftover is gone by the next time the folder is listed.
+ */
+const LEFTOVER_AFTER_MS = 60_000;
+
 export class FileUtils {
 
     /** A moment as a name a file or a folder can carry, which sorts the way the clock ran. */
@@ -180,7 +187,7 @@ export class FileUtils {
         const name = this.sanitizeFileName(dirPath);
         dirPath = this.getAbsolutePath(name);
         if (fs.existsSync(dirPath)) {
-            for (const subDir of fs.readdirSync(dirPath)) {
+            for (const subDir of this.withoutTemporaries(dirPath, fs.readdirSync(dirPath))) {
                 const filePath = fileToRead ? fileToRead(subDir) : subDir;
                 if (!filePath) continue;
                 try {
@@ -194,12 +201,71 @@ export class FileUtils {
         return files;
     }
 
+    /**
+     * A write that leaves either the whole of the new file or the whole of the old one. The
+     * content goes to a file of its own and is renamed over the target, which the system does in
+     * one step, so however the process ends mid-write — a stop that ran out of patience, a crash,
+     * a taskkill — what is under that name afterwards is one of the two and never half of each.
+     *
+     * The promise is against a process that ends, not against a machine that does. Nothing here
+     * is flushed to the disk, so a power cut can leave the rename recorded with the bytes still
+     * in the cache. Buying that back would cost an fsync on every write, and the history of a
+     * chat is written again at every turn.
+     */
     public static writeFile(filePath: string, content: string | Buffer): string {
         const name = this.sanitizeFileName(filePath);
         const absolutePath = this.getAbsolutePath(name);
         this.ensureFolderExist(absolutePath);
-        fs.writeFileSync(absolutePath, content, 'utf8');
+        this.writeWhole(absolutePath, content);
         return name;
+    }
+
+    /**
+     * The temporary is made beside the file it will become, a rename being one step only within
+     * one filesystem, and it carries the pid of whoever is writing. A name per process and not
+     * one per file: two deepclaws over one home is a thing that happens — a terminal ui runs its
+     * agents in its own process while a server runs behind — and sharing one temporary would have
+     * them writing into the middle of each other's, which is the very half of each this avoids.
+     * With a name apiece, each write is whole and the later rename is the one that stands.
+     *
+     * Nothing is swept here. A name of one's own is what makes the write safe, and clearing away
+     * what an earlier run left is housekeeping — done where the folder is being walked anyway, in
+     * `listFiles`, rather than charging a walk of it to every write.
+     */
+    private static writeWhole(absolutePath: string, content: string | Buffer): void {
+        // a path that leads through a link is written where the link leads: writing to a link has
+        // never meant replacing it with a file of the same name
+        const target = fs.existsSync(absolutePath) ? fs.realpathSync(absolutePath) : absolutePath;
+        const temporary = `${target}.${process.pid}.tmp`;
+        try {
+            fs.writeFileSync(temporary, content, 'utf8');
+        } catch (error) {
+            // the disk was full or the folder was not ours: the file that is there is untouched
+            fs.rmSync(temporary, {force: true});
+            throw error;
+        }
+        try {
+            this.keepReachOf(target, temporary);
+            fs.renameSync(temporary, target);
+        } catch {
+            // Windows turns a rename away for as long as anything else holds the file open, a
+            // scanner or an indexer for a moment. The write still has to happen; the promise is
+            // what is given up, which is where every write stood until now anyway.
+            fs.writeFileSync(target, content, 'utf8');
+            fs.rmSync(temporary, {force: true});
+        }
+    }
+
+    /**
+     * A file the user has narrowed the reach of — the config, which holds their keys — would come
+     * back open to whoever the umask allows if the file replacing it were left as it was made.
+     */
+    private static keepReachOf(target: string, temporary: string): void {
+        try {
+            fs.chmodSync(temporary, fs.statSync(target).mode);
+        } catch {
+            // there is no file there to take after, which is every write of a new one
+        }
     }
 
     public static appendFile(filePath: string, content: string): void {
@@ -227,15 +293,65 @@ export class FileUtils {
     /**
      * The files directly under this one, by name and nothing else. Which is the difference from
      * `readDir`: a folder of files too big to want in memory can still be asked what it holds.
+     *
+     * The temporaries a write goes through are not among them, and the ones lying still are taken
+     * away while the walk is here, as in `readDir`. This is the whole of that housekeeping: those
+     * two read the folder either way, and being in an answer is the only way a leftover from a run
+     * that was killed mid-write is ever in anybody's way.
      */
     public static listFiles(dirPath: string): string[] {
         const absolutePath = this.getAbsolutePath(this.sanitizeFileName(dirPath));
         if (!fs.existsSync(absolutePath)) {
             return [];
         }
-        return fs.readdirSync(absolutePath, {withFileTypes: true})
+        const names = fs.readdirSync(absolutePath, {withFileTypes: true})
             .filter(entry => entry.isFile())
             .map(entry => entry.name);
+        return this.withoutTemporaries(absolutePath, names);
+    }
+
+    /**
+     * Ours are the ones named for a file that is here and a process that was: `note.md.4213.tmp`
+     * beside `note.md`. A file of the user's own making that ends the same way is not named after
+     * anything in the folder, and is theirs to keep.
+     *
+     * One still warm is left where it is. It belongs to a write going on in another process this
+     * moment — a terminal ui alongside the server — and taking it would leave that write nothing
+     * to rename and send it to writing in place, which is the tearing all of this is against.
+     */
+    private static withoutTemporaries(folder: string, names: string[]): string[] {
+        const here = new Set(names);
+        return names.filter(name => {
+            const target = this.targetOfTemporary(name);
+            if (target === null || !here.has(target)) {
+                return true;
+            }
+            this.sweepIfLeftover(path.join(folder, name));
+            return false;
+        });
+    }
+
+    /** The file a temporary of ours is on its way to being, or null for a name that is not one. */
+    private static targetOfTemporary(name: string): string | null {
+        if (!name.endsWith('.tmp')) {
+            return null;
+        }
+        const stem = name.slice(0, -'.tmp'.length);
+        const dot = stem.lastIndexOf('.');
+        if (dot <= 0) {
+            return null;
+        }
+        return /^\d+$/.test(stem.slice(dot + 1)) ? stem.slice(0, dot) : null;
+    }
+
+    private static sweepIfLeftover(temporary: string): void {
+        try {
+            if (Date.now() - fs.statSync(temporary).mtimeMs >= LEFTOVER_AFTER_MS) {
+                fs.rmSync(temporary, {force: true});
+            }
+        } catch {
+            // one that will not be looked at or will not go stays where it is
+        }
     }
 
     /** The folders directly under this one, by name. A path that is not there holds none. */

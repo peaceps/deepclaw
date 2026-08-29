@@ -150,6 +150,150 @@ describe('FileUtils', () => {
         expect(FileUtils.readFile('tmp/sanitize/na_me__x_.md')).toBe('sanitized');
     });
 
+    /**
+     * A write that ends halfway is what killing a process mid-write used to leave behind: a
+     * project or a config truncated in the middle of its json, and nothing able to read it since.
+     */
+    describe('writeFile leaves a whole file or none of it', () => {
+
+        test('leaves nothing of its own behind in the folder it wrote to', () => {
+            FileUtils.writeFile('tmp/whole/note.md', 'first');
+            FileUtils.writeFile('tmp/whole/note.md', 'second');
+            expect(onDisk('tmp/whole')).toEqual(['note.md']);
+            expect(FileUtils.readFile('tmp/whole/note.md')).toBe('second');
+        });
+
+        test('leaves the file as it was when the new one cannot be written', () => {
+            FileUtils.writeFile('tmp/full/note.md', 'as it was');
+            vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {
+                throw new Error('ENOSPC: no space left on device');
+            });
+            expect(() => FileUtils.writeFile('tmp/full/note.md', 'never lands')).toThrow('ENOSPC');
+            vi.restoreAllMocks();
+            expect(FileUtils.readFile('tmp/full/note.md')).toBe('as it was');
+            expect(onDisk('tmp/full')).toEqual(['note.md']);
+        });
+
+        /** Windows turns a rename away while anything else has the file open for a moment. */
+        test('writes the file anyway when the rename is refused', () => {
+            FileUtils.writeFile('tmp/refused/note.md', 'as it was');
+            vi.spyOn(fs, 'renameSync').mockImplementation(() => {
+                throw new Error('EPERM: operation not permitted');
+            });
+            FileUtils.writeFile('tmp/refused/note.md', 'written all the same');
+            vi.restoreAllMocks();
+            expect(FileUtils.readFile('tmp/refused/note.md')).toBe('written all the same');
+            expect(onDisk('tmp/refused')).toEqual(['note.md']);
+        });
+
+        /** Two deepclaws over one home write at once, and neither may land in the other's file. */
+        test('writes through a file of its own, named for the process writing it', () => {
+            const renamed: string[] = [];
+            const renameSync = fs.renameSync;
+            vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+                renamed.push(String(from));
+                renameSync(from, to);
+            });
+
+            FileUtils.writeFile('tmp/apiece/note.md', 'first');
+
+            vi.restoreAllMocks();
+            expect(renamed[0]).toContain(`note.md.${process.pid}.tmp`);
+        });
+
+        /** Clearing away what an older run left is not what a write is for, nor what it pays for. */
+        test('does not read the folder it is writing into', () => {
+            FileUtils.writeFile('tmp/unwalked/note.md', 'first');
+            const readdirSync = vi.spyOn(fs, 'readdirSync');
+
+            FileUtils.writeFile('tmp/unwalked/note.md', 'second');
+
+            vi.restoreAllMocks();
+            expect(readdirSync).not.toHaveBeenCalled();
+        });
+
+        /**
+         * The config holds the user's keys, and a file made fresh is open to whoever the umask
+         * allows. What is asked is that the reach is the one the file had, whatever that was:
+         * windows keeps no such thing beyond a read-only bit, and answers the same either way.
+         */
+        test('keeps the reach of the file it replaces', () => {
+            FileUtils.writeFile('tmp/reach/config.json', '{}');
+            const file = FileUtils.getAbsolutePath('tmp/reach/config.json');
+            fs.chmodSync(file, 0o600);
+            const reach = fs.statSync(file).mode;
+
+            FileUtils.writeFile('tmp/reach/config.json', '{"key": "second"}');
+
+            expect(fs.statSync(file).mode).toBe(reach);
+        });
+
+        /**
+         * Writing to a link has never meant putting a file of that name in the link's place.
+         * Making a link to a file is a privilege on windows that a test cannot ask for, which is
+         * why the links elsewhere in this file are junctions and lead to folders.
+         */
+        test.skipIf(process.platform === 'win32')('writes where a link leads rather than over the link', () => {
+            FileUtils.writeFile('tmp/linked/real/note.md', 'first');
+            const real = FileUtils.getAbsolutePath('tmp/linked/real/note.md');
+            const link = FileUtils.getAbsolutePath('tmp/linked/note.md');
+            fs.symlinkSync(real, link);
+
+            FileUtils.writeFile('tmp/linked/note.md', 'second');
+
+            expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+            expect(fs.readFileSync(real, 'utf8')).toBe('second');
+        });
+
+        /** A skill is installed as a linked folder, and what is written into one lands there. */
+        test('writes into the folder a link leads to, and leaves nothing at the link', () => {
+            FileUtils.writeFile('tmp/junction/real/SKILL.md', 'first');
+            const real = FileUtils.getAbsolutePath('tmp/junction/real');
+            const link = FileUtils.getAbsolutePath('tmp/junction/linked');
+            fs.symlinkSync(real, link, 'junction');
+
+            FileUtils.writeFile('tmp/junction/linked/SKILL.md', 'second');
+
+            expect(fs.readFileSync(path.join(real, 'SKILL.md'), 'utf8')).toBe('second');
+            expect(FileUtils.listFiles('tmp/junction/real')).toEqual(['SKILL.md']);
+        });
+    });
+
+    /** A run killed between the writing and the renaming leaves the file it was writing through. */
+    describe('listFiles is where the temporaries of a write are cleared', () => {
+
+        test('neither names one nor leaves it lying there', () => {
+            FileUtils.writeFile('tmp/left/note.md', 'first');
+            leftLyingFor('tmp/left/note.md.999999.tmp', 5 * 60 * 1000);
+
+            expect(FileUtils.listFiles('tmp/left')).toEqual(['note.md']);
+            expect(onDisk('tmp/left')).toEqual(['note.md']);
+        });
+
+        /** Taking it would leave that write nothing to rename, and send it to writing in place. */
+        test('leaves where it is the one another process is writing this moment', () => {
+            FileUtils.writeFile('tmp/warm/note.md', 'first');
+            leftLyingFor('tmp/warm/note.md.999999.tmp', 0);
+
+            expect(FileUtils.listFiles('tmp/warm')).toEqual(['note.md']);
+            expect(onDisk('tmp/warm')).toEqual(['note.md', 'note.md.999999.tmp']);
+        });
+
+        /**
+         * Ours are named after a file that is here and a process that was. A file of the user's
+         * that merely ends the same way is theirs, and so, for want of any way to tell, is one of
+         * ours whose file was never written at all.
+         */
+        test('passes over what it has no way of telling is its own', () => {
+            FileUtils.writeFile('tmp/mine/note.md', 'first');
+            leftLyingFor('tmp/mine/note.md.backup.tmp', 5 * 60 * 1000);
+            leftLyingFor('tmp/mine/gone.md.999999.tmp', 5 * 60 * 1000);
+
+            expect(FileUtils.listFiles('tmp/mine').sort())
+                .toEqual(['gone.md.999999.tmp', 'note.md', 'note.md.backup.tmp']);
+        });
+    });
+
     test('findLatest returns the most recently modified file', () => {
         const dir = 'tmp/latest';
         FileUtils.writeFile(`${dir}/old.txt`, 'old');
@@ -257,6 +401,19 @@ describe('FileUtils', () => {
             expect(fs.readFileSync(path.join(target, 'SKILL.md'), 'utf8')).toBe('kept');
         });
     });
+
+    /** A file of another run's making, last touched the given while ago. */
+    function leftLyingFor(file: string, millis: number): void {
+        const lying = FileUtils.getAbsolutePath(file);
+        fs.writeFileSync(lying, 'half of a write');
+        const when = new Date(Date.now() - millis);
+        fs.utimesSync(lying, when, when);
+    }
+
+    /** What the folder holds as the system tells it, past whatever `listFiles` chooses to say. */
+    function onDisk(dir: string): string[] {
+        return fs.readdirSync(FileUtils.getAbsolutePath(dir)).sort();
+    }
 
     /** Four files of known ages in a folder of their own, `f1` the oldest, and where they lie. */
     function fourAgedFiles(dir: string): string {

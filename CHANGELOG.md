@@ -7,6 +7,8 @@ a project already underway now takes a task the plan left out.
 an agent's llm protocol can now be picked in the settings instead of being guessed from its url.
 a project description can now be rewritten on the board.
 a todo or ongoing task now takes a new priority picked on its card.
+deepclaw start now leaves the web ui running behind you, and deepclaw stop stops it.
+a file deepclaw writes is now either wholly written or left as it was, never half of each.
 
 v0.0.18
 a chat transcript nobody has read or written in for a while is no longer held in memory either.

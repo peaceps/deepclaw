@@ -26,14 +26,20 @@ npm install -g @sacephor/deepclaw
 
 ```bash
 deepclaw start            # the web UI, on http://localhost:3000
+deepclaw stop             # stops it again
 deepclaw start --tui      # the terminal UI
 ```
 
-| Option   | What it does                                          |
-| -------- | ----------------------------------------------------- |
-| `--tui`  | Opens the terminal UI instead of the web UI            |
-| `--port` | Port of the web UI, 3000 unless another one is named   |
-| `--host` | Address the web UI binds to, `127.0.0.1` by default    |
+The web UI keeps running once your terminal is free again, so `deepclaw start` prints its address
+and gives the prompt back. Whatever the server has to say lands in `console.log` of your deepclaw
+folder, and `deepclaw stop` closes it.
+
+| Option         | What it does                                            |
+| -------------- | ------------------------------------------------------- |
+| `--tui`        | Opens the terminal UI instead of the web UI              |
+| `--foreground` | Keeps the web UI in this terminal, where Ctrl-C ends it  |
+| `--port`       | Port of the web UI, 3000 unless another one is named     |
+| `--host`       | Address the web UI binds to, `127.0.0.1` by default      |
 
 The first start walks you through the settings: which model to talk to, and the key to talk to it
 with.
@@ -280,7 +286,9 @@ Everything lives in `~/.deepclaw`, whatever folder you started from:
 ├── .projects/                # project data and task state
 ├── .cron/                    # cron task definitions and history
 ├── .memory/                  # global memory entries
-└── .logs/                    # runtime logs
+├── .logs/                    # runtime logs
+├── console.log               # what the last background start had to say
+└── deepclaw.pid              # the run `deepclaw stop` stops
 ```
 
 Name another folder with `DEEPCLAW_HOME` to keep more than one of these side by side:

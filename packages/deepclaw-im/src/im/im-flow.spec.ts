@@ -107,7 +107,7 @@ class FakeAgent {
     }
 
     public async finish(text: string): Promise<void> {
-        this.finishRun!({text, runtime: emptyRuntime()});
+        this.finishRun!({text, said: text, runtime: emptyRuntime()});
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(this.loopId)).toBe(false));
     }
 }
