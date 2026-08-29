@@ -1,6 +1,7 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { uptime } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import meow from 'meow';
@@ -96,12 +97,25 @@ const STOP_POLL_MS = 100;
 const SETTLE_MS = 1_000;
 
 /**
- * A deepclaw left running: the pid, and a mark of what was under it when the record was written.
- * The mark is there because a pid says less than it looks — the system hands it out again once
- * the process is done with it, and the only thing worse than failing to stop deepclaw is stopping
- * whatever came after it. What the mark is, `markOf` says.
+ * How far apart two readings of the moment this machine came up may be and still be the one
+ * moment. A reading is the clock now less how long the machine says it has been up, and both ends
+ * of that move a little: uptime is counted in whole seconds, and a clock kept straight against a
+ * time server is nudged by seconds more. A minute is well past both of those, and well short of
+ * the jumps that are worth doubting a reading over.
  */
-type RunningDeepclaw = { pid: number, mark: string };
+const SAME_BOOT_MS = 60_000;
+
+/**
+ * A deepclaw left running: the pid, a mark of what was under it when the record was written, and
+ * the moment the machine came up. Both of those are there because a pid says less than it looks —
+ * the system hands it out again once the process is done with it, and the only thing worse than
+ * failing to stop deepclaw is stopping whatever came after it. What the mark is, `markOf` says.
+ *
+ * The command line is a note and nothing reads it. It is here for whoever opens the file after
+ * being told to look at the pid themselves, which is a thing to be told in front of a record that
+ * says what it was written for rather than one holding a number and a mark of the system's.
+ */
+type RunningDeepclaw = { pid: number, mark: string, booted: number, command: string };
 
 /** How the web ui is run, apart from whether it is run in front of you or behind you. */
 type WebProcess = { args: string[], cwd: string, env: NodeJS.ProcessEnv };
@@ -110,10 +124,12 @@ type WebProcess = { args: string[], cwd: string, env: NodeJS.ProcessEnv };
 type Ending = 'stopped' | 'killed' | undefined;
 
 /**
- * What a record still stands for: the run it names, nothing at all, or a pid this system will not
- * speak about. The third is not the second — it is the answer nobody has.
+ * What a record still stands for: the run it names, nothing at all, or a pid nothing here can
+ * vouch for. The third is not the second — it is the answer nobody has, and it carries what the
+ * doubt is, there being more than one way to arrive at it and a different thing to look at behind
+ * each. The user is being sent to look at a pid; what to look for goes with them.
  */
-type Standing = 'running' | 'gone' | 'unknown';
+type Standing = {of: 'running'} | {of: 'gone'} | {of: 'unknown', doubt: string};
 
 /** Bundled code cannot find the resources it was shipped with, so they are named here. */
 function withResources(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -183,9 +199,12 @@ async function runBehind(web: WebProcess, port: string | undefined, host: string
 		process.exit(1);
 		return;
 	}
+	const mark = markOf(child.pid) ?? '';
 	// written before the waiting rather than after it: a launcher that is itself killed in that
 	// second would otherwise leave a server behind that nothing names
-	writeFileSync(pidFile, JSON.stringify({pid: child.pid, mark: markOf(child.pid) ?? ''}));
+	writeFileSync(pidFile, JSON.stringify({
+		pid: child.pid, mark, booted: bootedAt(), command: web.args.join(' '),
+	}));
 	const fell = await settle(child);
 	child.unref();
 	if (fell !== undefined) {
@@ -196,6 +215,17 @@ async function runBehind(web: WebProcess, port: string | undefined, host: string
 	}
 	console.log(`deepclaw is running on http://${host ?? '127.0.0.1'}:${port ?? DEFAULT_PORT}, pid ${child.pid}.`);
 	console.log(`It says what it has to say in ${consoleLog}, and "deepclaw stop" stops it.`);
+	// Said now rather than left for the stop that will not work. Nothing about the server is wrong
+	// and there is no reason to hold the start up over it, but a run nothing can identify is a run
+	// nothing may signal, and finding that out is better done before it is the thing being asked for.
+	if (!mark) {
+		console.error(`deepclaw: this system would say nothing of pid ${child.pid}, so "deepclaw stop" will not stop this one. Stopping it is yours to do; the record is ${pidFile}.`);
+	}
+}
+
+/** The moment this machine came up, as near as the clock and the uptime together can place it. */
+function bootedAt(): number {
+	return Date.now() - uptime() * 1000;
 }
 
 /**
@@ -209,12 +239,12 @@ function nothingRunning(): boolean {
 		return true;
 	}
 	const standing = standingOf(running);
-	if (standing === 'gone') {
+	if (standing.of === 'gone') {
 		return true;
 	}
-	console.error(standing === 'running'
+	console.error(standing.of === 'running'
 		? `deepclaw: already running, pid ${running.pid}. Stop it with: deepclaw stop`
-		: `deepclaw: pid ${running.pid} is taken and this system will not say by what. Look at it, and take ${pidFile} away if it is not deepclaw.`);
+		: `deepclaw: pid ${running.pid} is taken and ${standing.doubt}. Look at it, and take ${pidFile} away if it is not deepclaw.`);
 	process.exit(1);
 	return false;
 }
@@ -263,13 +293,42 @@ function readRunning(): RunningDeepclaw | undefined {
  */
 function standingOf(running: RunningDeepclaw): Standing {
 	if (!there(running.pid)) {
-		return 'gone';
+		return {of: 'gone'};
+	}
+	if (!running.mark || !running.booted) {
+		return {of: 'unknown', doubt: 'the record does not say what was started under it'};
 	}
 	const mark = markOf(running.pid);
-	if (!mark || !running.mark) {
-		return 'unknown';
+	if (!mark) {
+		return {of: 'unknown', doubt: 'this system will not say what that pid is'};
 	}
-	return mark === running.mark ? 'running' : 'gone';
+	if (mark !== running.mark) {
+		return {of: 'gone'};
+	}
+	if (!sameBoot(running.booted)) {
+		return {of: 'unknown', doubt: 'the record was written before this machine came up'};
+	}
+	return {of: 'running'};
+}
+
+/**
+ * Whether the record was written since this machine came up. A mark that matches across a restart
+ * is a mark that cannot tell: windows says no more than `node.exe` of any pid, so a record from
+ * before a restart matches whatever node holds that number now, and a machine of node processes is
+ * every windows machine deepclaw runs on. A pid does not live through a restart, so a machine that
+ * has been up and down since is a pid that is somebody else's.
+ *
+ * Nobody knows rather than gone, though, which is the other way round from a mark that differs.
+ * The moment a machine came up is not read anywhere, it is the clock less an uptime, and the clock
+ * is the end of that which moves on its own: a time server pulling it a long way at once, a virtual
+ * machine coming back from a snapshot, a dual boot writing local time into the hardware clock. Any
+ * of those reads as another boot with nothing having gone down. The uptime is the steady end, sleep
+ * counted into it on all three of these systems, so an opened lid is not one of them. Doubt leaves
+ * the record alone and hands the pid to the user; gone would clear the record of a server that is
+ * still up, which is the failure this whole scheme is here to avoid.
+ */
+function sameBoot(booted: number): boolean {
+	return Math.abs(bootedAt() - booted) < SAME_BOOT_MS;
 }
 
 /**
@@ -335,12 +394,12 @@ async function stop(): Promise<void> {
 		return;
 	}
 	const standing = standingOf(running);
-	if (standing === 'unknown') {
-		console.error(`deepclaw: pid ${running.pid} is taken and this system will not say by what, so nothing was signalled. Look at it yourself; the record is ${pidFile}.`);
+	if (standing.of === 'unknown') {
+		console.error(`deepclaw: nothing was signalled: pid ${running.pid} is taken and ${standing.doubt}. Look at it yourself; the record is ${pidFile}.`);
 		process.exit(1);
 		return;
 	}
-	if (standing === 'gone') {
+	if (standing.of === 'gone') {
 		rmSync(pidFile, {force: true});
 		console.log(`deepclaw is not running; the record of pid ${running.pid} was left behind.`);
 		return;
@@ -369,11 +428,11 @@ async function signalItDown(running: RunningDeepclaw): Promise<Ending> {
 	// ten seconds is long enough for a pid to have gone and been handed on, and SIGKILL is not a
 	// thing to send on an answer that old
 	const standing = standingOf(running);
-	if (standing === 'gone') {
+	if (standing.of === 'gone') {
 		return 'stopped';
 	}
-	if (standing === 'unknown') {
-		console.error(`deepclaw: pid ${running.pid} is still taken after ten seconds and this system will not say by what, so it was not killed. Look at it yourself; the record is ${pidFile}.`);
+	if (standing.of === 'unknown') {
+		console.error(`deepclaw: pid ${running.pid} is still taken after ten seconds and ${standing.doubt}, so it was not killed. Look at it yourself; the record is ${pidFile}.`);
 		process.exit(1);
 		return undefined;
 	}

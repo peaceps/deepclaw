@@ -8,6 +8,14 @@ const STARTED_AT = '884512';
 /** The same pid begun at another moment, which is a pid handed on to somebody else. */
 const BEGUN_LATER = '1902377';
 
+/** How long the machine these tests pretend to run on says it has been up. */
+const UP_FOR_S = 4 * 60 * 60;
+
+/** Where that puts the moment it came up, which is what a record of this run would carry. */
+function bootedAt(): number {
+    return Date.now() - UP_FOR_S * 1000;
+}
+
 /** The pid the spawned web ui reports, and the one a record read back from disk names. */
 const {CHILD_PID} = vi.hoisted(() => ({CHILD_PID: 4321}));
 
@@ -41,6 +49,7 @@ const mocks = vi.hoisted(() => ({
     writeFileSync: vi.fn<(path: string, contents: string) => void>(),
     rmSync: vi.fn<(path: string, options: Record<string, unknown>) => void>(),
     execFileSync: vi.fn<(file: string, args: string[], options: Record<string, unknown>) => string>(),
+    uptime: vi.fn<() => number>(),
     /** Whether the launcher finds a built web app, a built tui and resources next to itself. */
     installed: false,
     /** What the pid file holds, or nothing when no run left one behind. */
@@ -77,6 +86,11 @@ vi.mock('node:child_process', async (importOriginal) => ({
     ...(await importOriginal<typeof import('node:child_process')>()),
     spawn: mocks.spawn,
     execFileSync: mocks.execFileSync,
+}));
+
+vi.mock('node:os', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('node:os')>()),
+    uptime: mocks.uptime,
 }));
 
 vi.mock('node:module', async (importOriginal) => ({
@@ -155,8 +169,15 @@ function childExit(code: number | null, signal: NodeJS.Signals | null): void {
  * a run while the mark under the pid is the mark that was written down.
  */
 function leftBehind(mark: string = STARTED_AT): void {
-    mocks.record = JSON.stringify({pid: CHILD_PID, mark});
+    mocks.record = JSON.stringify({
+        pid: CHILD_PID, mark, booted: bootedAt(), command: `${NEXT_BIN} dev`,
+    });
     systemSays(mark);
+}
+
+/** The machine has been up this long, which moves where the record says it came up. */
+function upFor(seconds: number): void {
+    mocks.uptime.mockReturnValue(seconds);
 }
 
 /**
@@ -265,6 +286,7 @@ beforeEach(() => {
     // on, and tests that leave that to whoever runs them pass or fail by whose machine it is.
     pretendPlatform('linux');
     kill.mockImplementation(() => true);
+    upFor(UP_FOR_S);
     mocks.execFileSync.mockReturnValue('');
     mocks.resolve.mockReturnValue(NEXT_BIN);
     mocks.createRequire.mockReturnValue({resolve: mocks.resolve});
@@ -496,19 +518,33 @@ describe('the web process behind you', () => {
         expect(mocks.closeSync).toHaveBeenCalledExactlyOnceWith(7);
     });
 
-    test('writes down the pid and the mark the system gives it', async () => {
+    test('writes down the pid, the mark of it and when the machine came up', async () => {
         systemSays(STARTED_AT);
         await loadBackgroundStart();
         const [path, contents] = mocks.writeFileSync.mock.calls[0]!;
         expect(String(path)).toMatch(/deepclaw\.pid$/);
-        expect(JSON.parse(String(contents))).toEqual({pid: CHILD_PID, mark: STARTED_AT});
+        const record = JSON.parse(String(contents)) as {pid: number, mark: string, booted: number};
+        expect(record.pid).toBe(CHILD_PID);
+        expect(record.mark).toBe(STARTED_AT);
+        // the clock of the test moved on under it, this being a start watched on a pushed clock
+        expect(Math.abs(record.booted - bootedAt())).toBeLessThan(5_000);
     });
 
-    /** A record of a pid and nothing else is one no later stop will act on, and it says so then. */
-    test('writes down no mark where the system would give none', async () => {
+    /** Nothing reads it. It is for whoever is told to look at the pid and opens the file to. */
+    test('writes down what it started, for somebody to read', async () => {
+        await loadBackgroundStart();
+        expect(JSON.parse(String(mocks.writeFileSync.mock.calls[0]![1])))
+            .toMatchObject({command: `${NEXT_BIN} dev --hostname 127.0.0.1`});
+    });
+
+    /** Found out at the start rather than at the stop that will not work. */
+    test('says a server it could take no mark of is a server it cannot stop', async () => {
         systemSaysNothing();
         await loadBackgroundStart();
-        expect(JSON.parse(String(mocks.writeFileSync.mock.calls[0]![1]))).toEqual({pid: CHILD_PID, mark: ''});
+        expect(JSON.parse(String(mocks.writeFileSync.mock.calls[0]![1]))).toMatchObject({mark: ''});
+        expect(said()).toContain('running on');
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('deepclaw stop'));
+        expect(exit).not.toHaveBeenCalled();
     });
 
     test('names the address, the pid and the way to stop it', async () => {
@@ -681,12 +717,58 @@ describe('stopping what runs behind you', () => {
 
     /** A record of a start the system would say nothing about is not one to signal on either. */
     test('signals nothing on a record that was written with no mark', async () => {
-        mocks.record = JSON.stringify({pid: CHILD_PID, mark: ''});
+        mocks.record = JSON.stringify({pid: CHILD_PID, mark: '', booted: bootedAt()});
         systemSays(STARTED_AT);
         await loadCli({input: ['stop']});
         expect(killedWith('SIGTERM')).toBe(false);
         expect(mocks.rmSync).not.toHaveBeenCalled();
         expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    test('signals nothing on a record with nothing to date it by', async () => {
+        mocks.record = JSON.stringify({pid: CHILD_PID, mark: STARTED_AT});
+        systemSays(STARTED_AT);
+        await loadCli({input: ['stop']});
+        expect(killedWith('SIGTERM')).toBe(false);
+        expect(mocks.rmSync).not.toHaveBeenCalled();
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('the record does not say'));
+        expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    /**
+     * A pid does not live through a restart, so a mark that still matches after one is a mark that
+     * cannot tell them apart. The record is left where it is and the pid handed to the user: this
+     * is a doubt, the clock this reading rests on being a thing that can be moved under it.
+     */
+    test('signals nothing where the machine came up after the record was written', async () => {
+        leftBehind();
+        upFor(90);
+        await loadCli({input: ['stop']});
+        expect(killedWith('SIGTERM')).toBe(false);
+        expect(mocks.rmSync).not.toHaveBeenCalled();
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('before this machine came up'));
+        expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    /** Whole seconds of uptime and a clock pulled straight are seconds either way, not a restart. */
+    test('reads a clock nudged since the record was written as the same machine', async () => {
+        leftBehind();
+        upFor(UP_FOR_S - 5);
+        goneAfter(1);
+        await loadCli({input: ['stop']});
+        expect(kill).toHaveBeenCalledWith(CHILD_PID, 'SIGTERM');
+        expect(said()).toContain('stopped');
+    });
+
+    /** The mark is the first word: a pid that is somebody else's is gone, restart or no restart. */
+    test('clears a record whose pid began again, whenever the machine came up', async () => {
+        leftBehind();
+        systemSays(BEGUN_LATER);
+        upFor(90);
+        await loadCli({input: ['stop']});
+        expect(killedWith('SIGTERM')).toBe(false);
+        expect(mocks.rmSync).toHaveBeenCalledOnce();
+        expect(said()).toContain('not running');
     });
 
     /**
@@ -809,6 +891,28 @@ describe('on windows', () => {
         mocks.execFileSync.mockReturnValue('INFO: No tasks are running which match the specified criteria.');
         await loadBackgroundStart();
         expect(error).toHaveBeenCalledWith(expect.stringContaining('will not say'));
+        expect(mocks.spawn).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The thin place in what windows will say: every node on the machine answers to the same mark,
+     * so a record left by a crash or a restart matches whatever node took the pid over. Killing a
+     * tree is not a thing to do on that, and the whole tree is what taskkill would have taken.
+     */
+    test('kills nothing where another node may have taken the pid over a restart', async () => {
+        leftBehind(NODE);
+        upFor(90);
+        await loadCli({input: ['stop']});
+        expect(mocks.execFileSync).not.toHaveBeenCalledWith('taskkill', expect.anything(), expect.anything());
+        expect(mocks.rmSync).not.toHaveBeenCalled();
+        expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    test('refuses to start on a record left from before a restart', async () => {
+        leftBehind(NODE);
+        upFor(90);
+        await loadBackgroundStart();
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('before this machine came up'));
         expect(mocks.spawn).not.toHaveBeenCalled();
     });
 
