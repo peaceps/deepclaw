@@ -350,6 +350,10 @@ class LoopGatewayImpl {
         // A new conversation is not the one anything was allowed in, so whatever an eviction set
         // aside for this loop goes with the old one. The rebuild below is given nothing either.
         this.carriedStates.delete(loopId);
+        // A task it had taken on itself goes the same way: the loop starting over remembers no work
+        // of its own, and a card left spinning would be spinning for nobody. The task keeps the
+        // status it was given, which is the board saying the work was taken up and not that it runs.
+        this.dropHandWork(loopId);
         const loopState = this.loops[loopId];
         if (loopState) {
             try {
@@ -509,6 +513,28 @@ class LoopGatewayImpl {
     }
 
     /**
+     * The loop that held the work being no loop that can go on with it.
+     *
+     * The turns of a hold are none of this gateway's business -- a loop knows the start and the end
+     * of its own turn, and turns them into a run and back from in there, where a run started from
+     * anywhere else is covered by the same lines. What is asked here is the other thing, the two
+     * ways a hold ends with nobody left to end it.
+     */
+    private static dropHandWork(loopId: string): void {
+        if (!RunningTaskService.takenByHand(loopId)) {
+            return;
+        }
+        RunningTaskService.dropByHand(loopId);
+        this.fireRunningTasks();
+    }
+
+    private static fireRunningTasks(): void {
+        this.fireSSEEvent({
+            eventType: 'updateRunningTasks', content: RunningTaskService.getRunningTasks(),
+        });
+    }
+
+    /**
      * Handing the answer out and writing it down, in a shape where none of it can fail the run.
      * A chat file may refuse the write and the usage figures may not be there, and neither is
      * worth telling the caller about: the answer itself already went out. Left to throw, any of
@@ -657,6 +683,9 @@ class LoopGatewayImpl {
         UIChatService.forgetProject(projectId);
         for (const loopId of Object.keys(this.loops)) {
             if (splitLoopId(loopId).projectId === projectId) {
+                // Including a task one of them had taken on itself: the board it was held for is
+                // gone, and nothing is left that would ever hand the hold back.
+                this.dropHandWork(loopId);
                 delete this.loops[loopId];
             }
         }
@@ -733,10 +762,12 @@ class LoopGatewayImpl {
     }
 
     /**
-     * Where a subagent is on the task, its status is nobody else's to move. The run is asked rather
-     * than the record, the record saying only that the task was handed out: a task closed under a
-     * subagent still at work is a task every write of that run is refused by, and it would spend
-     * what turns it has left on a task nothing can be reported about any more.
+     * Where the work is running, its status is nobody else's to move. Whose hands it is in is not
+     * asked: a subagent of the agent or the agent itself, either of them is refused the same way
+     * for the same reason. The run is asked rather than the record, the record saying only that the
+     * task was taken up: a task closed under a run still at work is a task every write of that run
+     * is refused by, and it would spend what turns it has left on a task nothing can be reported
+     * about any more.
      *
      * Which is the two doors above, those being where a status is written from now. The patch door
      * asks it of a status all the same, for a caller that sends one there, but the board no longer
@@ -746,7 +777,7 @@ class LoopGatewayImpl {
      */
     private static refuseWhileWorked(projectId: string, taskId: string): void {
         if (RunningTaskService.isRunning(projectId, taskId)) {
-            throw new Error('A subagent is working on this task. Wait for it to report back.');
+            throw new Error('This task is being worked on right now. Wait for the work to come back.');
         }
     }
 

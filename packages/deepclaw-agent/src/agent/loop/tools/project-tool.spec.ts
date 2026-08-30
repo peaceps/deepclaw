@@ -1,9 +1,10 @@
-import {beforeEach, describe, expect, test, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentIdentity, type Project, type Task, type TaskStepsContext} from '@deepclaw/core';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {projectFilesDir} from '../../paths';
 import {AgentIdentityManager} from '../services/agent-identity-manager';
 import {ProjectManager} from '../services/project-manager';
+import {RunningTaskService} from '../services/running-task-service';
 import {
     addTaskTool,
     createProjectTool,
@@ -70,6 +71,11 @@ beforeEach(() => {
     getProjectDetail.mockReturnValue(newProject());
     getAgent.mockImplementation(id => newIdentity(id));
     getAgents.mockReturnValue([newIdentity('a1'), newIdentity('a2'), newIdentity('a3', true)]);
+});
+
+/** Marking a task ongoing takes it on, and the service holding that is one for the whole process. */
+afterEach(() => {
+    ['agent.a1', 'project.a1.pr1'].forEach(loopId => RunningTaskService.dropByHand(loopId));
 });
 
 describe('createProjectTool invoke', () => {
@@ -564,6 +570,123 @@ describe('updateTaskTool invoke', () => {
         }, newTestContext());
         expect(result).toContain('These files were not handed to the user');
         expect(result).toContain('/tmp/secret.pdf');
+    });
+});
+
+/**
+ * A run marking a task ongoing here is a run about to work that task itself: a handover marks it
+ * ongoing behind its own door, so nothing else arrives with that word.
+ */
+describe('a task the run takes on itself', () => {
+
+    const context = () => newTestContext({
+        role: 'project', projectId: 'pr1', loopId: 'project.a1.pr1',
+    });
+
+    function answers(status: Task['status'], stop = false): void {
+        updateTask.mockReturnValue({task: {...newTask('design'), status}, stop});
+    }
+
+    test('is running on the board from the moment it was marked ongoing', async () => {
+        answers('ongoing');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        expect(RunningTaskService.getRunningTasks()).toEqual([{
+            runId: expect.any(String), projectId: 'pr1', taskId: 'design',
+            agentId: 'a1', startedAt: expect.any(String),
+        }]);
+    });
+
+    test('says to the browsers what is running now', async () => {
+        answers('ongoing');
+        const one = context();
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, one);
+        expect(one.actions.agentHandler.onInfoEvent).toHaveBeenCalledWith({
+            eventType: 'updateRunningTasks',
+            content: [expect.objectContaining({projectId: 'pr1', taskId: 'design'})],
+        });
+    });
+
+    /** The work outlasts the turn it began in, and is held on to for the turns after it. */
+    test('is still the loop\'s own once the turn it began in ended', async () => {
+        answers('ongoing');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        RunningTaskService.pauseByHand('project.a1.pr1');
+        expect(RunningTaskService.takenByHand('project.a1.pr1'))
+            .toEqual(expect.objectContaining({projectId: 'pr1', taskId: 'design'}));
+    });
+
+    test('is let go of once the run marks it done', async () => {
+        answers('ongoing');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        answers('done');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'done'}, context());
+        expect(RunningTaskService.takenByHand('project.a1.pr1')).toBeUndefined();
+        expect(RunningTaskService.getRunningTasks()).toEqual([]);
+    });
+
+    /** A pause gate puts the status back, and work still ongoing is work still being worked. */
+    test('is held on to where a pause refused the done', async () => {
+        answers('ongoing');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        answers('ongoing', true);
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'done'}, context());
+        expect(RunningTaskService.getRunningTasks())
+            .toEqual([expect.objectContaining({taskId: 'design'})]);
+    });
+
+    /** Every other write of a task says nothing about who is working it. */
+    test('is not taken on by a rename', async () => {
+        answers('todo');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', title: 'design it'}, context());
+        expect(RunningTaskService.takenByHand('project.a1.pr1')).toBeUndefined();
+    });
+
+    test('stands while the run closes some other task of the project', async () => {
+        answers('ongoing');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        updateTask.mockReturnValue({task: {...newTask('build'), status: 'done'}, stop: false});
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'build', status: 'done'}, context());
+        expect(RunningTaskService.getRunningTasks())
+            .toEqual([expect.objectContaining({taskId: 'design'})]);
+    });
+
+    /**
+     * A task handed to a subagent is ongoing like any other, and a model resending the patch it
+     * sent before would be read as taking that work over. Which is worse than one hold too many:
+     * a hold of its own is what the handover door lets past the check that keeps two subagents off
+     * one task, so this would put a second one on the work of the first.
+     */
+    test('is not taken on where a subagent is already on that task', async () => {
+        const handedOut = RunningTaskService.start({
+            projectId: 'pr1', taskId: 'design', agentId: 'a2', startedAt: '2026-08-30T00:00:00.000Z',
+        });
+        answers('ongoing');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        expect(RunningTaskService.takenByHand('project.a1.pr1')).toBeUndefined();
+        expect(RunningTaskService.getRunningTasks())
+            .toEqual([expect.objectContaining({runId: handedOut, agentId: 'a2'})]);
+        RunningTaskService.finish(handedOut);
+    });
+
+    /** Its own run is what a loop finds on the task while it holds it, and it holds it already. */
+    test('is held on to where the run saying so again is the one working it', async () => {
+        answers('ongoing');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        expect(RunningTaskService.takenByHand('project.a1.pr1'))
+            .toEqual(expect.objectContaining({taskId: 'design'}));
+        expect(RunningTaskService.getRunningTasks())
+            .toEqual([expect.objectContaining({taskId: 'design'})]);
+    });
+
+    test('is taken on where the run on that task is one that already ended', async () => {
+        RunningTaskService.finish(RunningTaskService.start({
+            projectId: 'pr1', taskId: 'design', agentId: 'a2', startedAt: '2026-08-30T00:00:00.000Z',
+        }));
+        answers('ongoing');
+        await updateTaskTool.invoke({projectId: 'pr1', taskId: 'design', status: 'ongoing'}, context());
+        expect(RunningTaskService.takenByHand('project.a1.pr1'))
+            .toEqual(expect.objectContaining({taskId: 'design'}));
     });
 });
 

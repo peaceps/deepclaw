@@ -8,6 +8,7 @@ import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
 import { UpdateContent } from "@deepclaw/utils";
 import { AgentIdentityManager } from "../services/agent-identity-manager";
+import { fireRunningTasksEvent, RunningTaskService } from "../services/running-task-service";
 import { EXT_DESCRIPTION, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, requireReadableOutput, skippedFilesNote } from "../../loop-utils";
 import { projectFilesDir } from "../../paths";
 
@@ -106,8 +107,8 @@ All steps should be done when task is going to be marked as done.`,
         assignee: {
             type: 'string',
             description: `The id of the agent that has to work on this task, pick the one whose role and
-expertises fit it. Leave it out to keep the task yourself. The subagent you hand the task over to
-works as its assignee, with the memory and the skills of that agent.`,
+expertises fit it. The subagent you hand the task over to works as its assignee, with the memory and
+the skills of that agent; left out, the task is yours, and the subagent that works it stands for you.`,
         },
     },
     required: ['id', 'title', 'description', 'priority'],
@@ -138,8 +139,8 @@ short lowercase handle of what it is about for a task being added.`,
         },
         assignee: {
             ...taskItemSchema.properties.assignee,
-            description: `The id of the agent that has to work on this task, left out to keep it
-yourself.`,
+            description: `The id of the agent that has to work on this task, left out for the task to
+stay yours and be worked by a subagent standing for you.`,
         },
     },
 };
@@ -158,6 +159,46 @@ function requireHiredAssignee(assignee: string | undefined): void {
     }
     const hired = AgentIdentityManager.getAgents().filter(one => !one.fired).map(one => one.id);
     throw new Error(`No agent "${assignee}" works here, assign the task to one of: ${hired.join(', ')}.`);
+}
+
+/**
+ * A run marking a task ongoing itself is a run about to work that task with its own hands: handing
+ * one over has a tool of its own and marks it ongoing on the way, so nothing but a loop taking the
+ * work on arrives here. The board is told, and goes on being told for as long as the work lasts:
+ * what is held here becomes a run again at the start of every turn of this loop until the task is
+ * out of ongoing, so the card spins while the loop is answering and rests between.
+ *
+ * The status is read off the task rather than off the patch, a task held at a pause gate having
+ * been put back to where it was. Only the task this loop holds lets go of it: a run closing some
+ * other task of the project says nothing about the one it is working.
+ *
+ * Work somebody else is already on is no work to take on. A task with a subagent on it is ongoing
+ * like any other, and a model resending the whole of a patch it sent before -- which every one of
+ * them does -- would be read as taking that work over. What the hold says is that this loop is
+ * working this task, and everything that reads it believes that: the handover door lets a hold of
+ * its own past the very check that keeps two subagents off one task, so a hold written over
+ * somebody else's run is a second subagent on the work of the first.
+ *
+ * Its own run is what a loop finds there while it holds the task already, so restating a hold is
+ * asked about before the board is.
+ */
+function noteHandWork(input: UpdateTaskInput, task: Task, context: OneLoopContext): void {
+    const held = RunningTaskService.takenByHand(context.loopId);
+    const holdsThis = held?.projectId === input.projectId && held?.taskId === task.id;
+    const free = holdsThis || !RunningTaskService.isRunning(input.projectId, task.id);
+    if (input.status === 'ongoing' && task.status === 'ongoing' && free) {
+        RunningTaskService.takeByHand(context.loopId, {
+            projectId: input.projectId,
+            taskId: task.id,
+            agentId: context.agentId,
+            startedAt: new Date().toISOString(),
+        });
+    } else if (holdsThis && task.status !== 'ongoing') {
+        RunningTaskService.dropByHand(context.loopId);
+    } else {
+        return;
+    }
+    fireRunningTasksEvent(context);
 }
 
 function buildTasks(tasks: ProjectTaskInput[], context: OneLoopContext): Task[] {
@@ -417,7 +458,9 @@ to be something else. Rewriting it is free at any point of the work, the same as
 'done' is the status when the task is completed. You can only update the status to the next status.
 A task leaves todo only once the user has started the project it belongs to, whether you work it
 yourself or hand it to somebody: until they say so, the plan is there to be talked over and nothing
-in it is under way.`,
+in it is under way.
+Handing a task to a subagent marks it ongoing for you. Marking it ongoing here is you saying you are
+working this one yourself, which is what puts you on the board as the one on it.`,
                 },
                 steps: {
                     type: 'array',
@@ -495,6 +538,7 @@ rather than linked under it. Only files, not folders, and only inside the worksp
             taskInfo.output = output;
         }
         const {task, stop} = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
+        noteHandWork(input, task, context);
 
         if (stop) {
             context.runtime.agentBreakReason = 'taskPause';

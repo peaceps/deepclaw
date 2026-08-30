@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Ban, CirclePause, ClipboardCheck, Loader2, MoreHorizontal, Pencil } from 'lucide-react';
 import  {
   type Task, type AgentEmployee, getTaskProgress, type MissionPriority, type MissionStatus,
@@ -110,10 +110,14 @@ export function TaskCard(
   // The menu goes wherever the button under it went. A subagent taking the task over disables the
   // button, and the task reaching done takes it off the card altogether -- and the menu is drawn
   // apart from the card, so it would be left floating there offering a step that is no longer
-  // anybody's to take.
-  useEffect(() => {
-    if (running || !canMoveStatus) setMovingStatus(false);
-  }, [running, canMoveStatus]);
+  // anybody's to take. Put right while rendering rather than after it: this follows what the card
+  // is drawn from, and a second render to catch up would draw the menu once more on the way.
+  const canOpenStatusMenu = canMoveStatus && !running;
+  const [couldOpenStatusMenu, setCouldOpenStatusMenu] = useState(canOpenStatusMenu);
+  if (couldOpenStatusMenu !== canOpenStatusMenu) {
+    setCouldOpenStatusMenu(canOpenStatusMenu);
+    if (!canOpenStatusMenu) setMovingStatus(false);
+  }
 
   /**
    * Each of these is asked for as the one thing it is, the server writing more than the word for
@@ -275,8 +279,8 @@ export function TaskCard(
             </div>
             <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
-          {/* Beside whoever the work is with, that being what it says: a subagent of theirs is on
-              the task at this moment. */}
+          {/* Beside whoever the work is with, that being what it says: the work is running at this
+              moment, whether in a subagent of theirs or in their own hands. */}
           {running && (
             <span title={t('web.pages.projects.task.running')} className="flex-shrink-0">
               <Loader2 size={14} className="text-cyan-500 animate-spin" />

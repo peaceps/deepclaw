@@ -134,15 +134,16 @@ export type Task = {
 };
 
 /**
- * A task a subagent is working on right now. The status of a task says it was handed out, not that
- * anything is running: it is set before the handover and stays until the result was accepted.
+ * A task being worked at this very moment, whether by a subagent it was handed to or by an agent
+ * working it itself. The status of a task says it was taken up, not that anything is running: it
+ * is set before the work begins and stays until the result was accepted.
  */
 export type RunningTask = {
     /** The handle of this one run, the only thing telling two runs of a task apart. */
     runId: string;
     projectId: string;
     taskId: string;
-    /** Whoever the subagent stands for, the assignee of the task or the agent that spawned it. */
+    /** Whoever the run stands for: the assignee of the task, or the agent that is on it itself. */
     agentId: string;
     startedAt: string;
 };

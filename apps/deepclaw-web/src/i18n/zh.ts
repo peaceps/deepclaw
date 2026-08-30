@@ -191,7 +191,7 @@ export const zh = {
                     },
                     status: {
                         menu: '推进这个任务',
-                        locked: '子智能体正在执行这个任务，此时不能改它的状态',
+                        locked: '这个任务正在被执行，此时不能改它的状态',
                         ongoing: '标为进行中',
                         ongoingHint: '任务变成进行中：之后不能改派，也不能改回待办',
                         ongoingHintUnstarted: '项目就此开工，任务变成进行中：之后不能改派，也不能改回待办',
@@ -199,7 +199,7 @@ export const zh = {
                         doneHint: '它的所有步骤会一并标完',
                         doneHintPaused: '它的所有步骤会一并标完，你亲手关掉它也就算作它在等的那次验收',
                     },
-                    running: '子智能体正在执行这个任务',
+                    running: '这个任务正在被执行',
                     editTitle: '重命名这个任务',
                     editDescription: '修改这个任务的描述',
                     editAssignee: '把这个任务交给其他 Agent',

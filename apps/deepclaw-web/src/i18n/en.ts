@@ -193,7 +193,7 @@ export const en = {
                     },
                     status: {
                         menu: 'Move this task on',
-                        locked: 'A subagent is working on this task, so where it stands is not yours to move now.',
+                        locked: 'This task is being worked on right now, so where it stands is not yours to move.',
                         ongoing: 'Mark it ongoing',
                         ongoingHint: 'The task becomes ongoing: no handing it on after that, and no way back to todo.',
                         ongoingHintUnstarted: 'The project starts here and the task becomes ongoing: no handing it on after that, and no way back to todo.',
@@ -201,7 +201,7 @@ export const en = {
                         doneHint: 'Every step of it is marked behind it.',
                         doneHintPaused: 'Every step of it is marked behind it, and closing it yourself counts as the verification its pause was waiting for.',
                     },
-                    running: 'A subagent is working on this task',
+                    running: 'This task is being worked on right now',
                     editTitle: 'Rename this task',
                     editDescription: 'Rewrite what this task asks for',
                     editAssignee: 'Hand this task to another agent',

@@ -521,7 +521,8 @@ ${hired.map(agent => `- ${JSON.stringify({
     expertises: agent.expertises,
 })}${agent.id === agentId ? ' <- you' : ''}`).join('\n')}
 Set the assignee of a task to the id of whoever fits it best, and the subagent that works on that
-task stands for that agent. A task you leave without an assignee stays yours.`;
+task stands for that agent. A task you leave without an assignee stays yours: the subagent it is
+handed to works as you.`;
     }
 
     private static memory(role: FlushAgentRole, agentId: string, projectId: string): string {

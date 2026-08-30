@@ -42,6 +42,10 @@ const mocks = vi.hoisted(() => ({
     updateTask: vi.fn(),
     finishTask: vi.fn(),
     getTask: vi.fn<(projectId: string, taskId: string) => unknown>(() => ({id: 't1', status: 'todo'})),
+    takenByHand: vi.fn<(loopId: string) => unknown>(() => undefined),
+    resumeByHand: vi.fn<(loopId: string) => void>(),
+    pauseByHand: vi.fn<(loopId: string) => void>(),
+    dropByHand: vi.fn<(loopId: string) => void>(),
     getProjectDetail: vi.fn(),
     getProjectList: vi.fn(),
     getSkillList: vi.fn(),
@@ -107,7 +111,14 @@ vi.mock('@deepclaw/agent', () => ({
         updateSkillAgents: mocks.updateSkillAgents,
         removeSkill: mocks.removeSkill,
     },
-    RunningTaskService: {getRunningTasks: mocks.getRunningTasks, isRunning: mocks.isRunning},
+    RunningTaskService: {
+        getRunningTasks: mocks.getRunningTasks,
+        isRunning: mocks.isRunning,
+        takenByHand: mocks.takenByHand,
+        resumeByHand: mocks.resumeByHand,
+        pauseByHand: mocks.pauseByHand,
+        dropByHand: mocks.dropByHand,
+    },
     ToolUseService: {clearAwayUser: mocks.clearAwayUser},
     AGENTS_DIR: '.agents',
     PROJECT_DIR: '.projects',
@@ -235,6 +246,7 @@ beforeEach(() => {
     mocks.getAgent.mockImplementation(id => ({id, fired: false}));
     mocks.isRunning.mockReturnValue(false);
     mocks.getTask.mockReturnValue({id: 't1', status: 'todo'});
+    mocks.takenByHand.mockReturnValue(undefined);
     mocks.replaceMessage.mockImplementation((_loopId: string, id: string, content: string) => ({
         id, agentId: 'a1', content, type: 'agent', timestamp: '2026-01-01T00:00:00.000Z'
     }));
@@ -832,6 +844,48 @@ describe('stop', () => {
     });
 });
 
+/**
+ * A loop that took a task on itself holds it across the turns that follow: it said so once, by
+ * marking the task ongoing, and what a run is is what executes. So the hold becomes a run at the
+ * start of every turn and rests at the end of one, and the board spins while the answer is written.
+ */
+describe('a task a loop is working with its own hands', () => {
+
+    async function ranATurn(status = 'ongoing') {
+        const {loopInfo, loopId, loop} = nextLoop('project', 'p-hand');
+        loop.invoke.mockResolvedValue(answered('done'));
+        mocks.takenByHand.mockReturnValue({projectId: 'p-hand', taskId: 't1', agentId: 'a1'});
+        mocks.getTask.mockReturnValue({id: 't1', status});
+        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
+        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
+        return loopId;
+    }
+
+    /**
+     * The turns of a hold are the loop's own and are tested where they happen. What is left here
+     * is the other thing: the two ways a hold ends with no turn to end it.
+     */
+    test('is not turned into a run and back by the gateway', async () => {
+        await ranATurn();
+        expect(mocks.resumeByHand).not.toHaveBeenCalled();
+        expect(mocks.pauseByHand).not.toHaveBeenCalled();
+    });
+
+    /** The loop starting over remembers no work of its own, and the card would spin for nobody. */
+    test('is let go of when the conversation of that loop is closed', async () => {
+        const loopId = await ranATurn();
+        mocks.resumeByHand.mockClear();
+        LoopGateway.startNewSession(loopId);
+        expect(mocks.dropByHand).toHaveBeenCalledWith(loopId);
+    });
+
+    test('is let go of when the project it belongs to is put away', async () => {
+        const loopId = await ranATurn();
+        LoopGateway.archiveProject('p-hand');
+        expect(mocks.dropByHand).toHaveBeenCalledWith(loopId);
+    });
+});
+
 describe('startNewSession', () => {
 
     async function idleLoop() {
@@ -1347,7 +1401,7 @@ describe('data updates', () => {
     test('refuses to move the status of a task a subagent is on', () => {
         mocks.isRunning.mockReturnValue(true);
         expect(() => LoopGateway.updateProjectTask('p1', {id: 't1', status: 'ongoing'}))
-            .toThrow('A subagent is working on this task.');
+            .toThrow('This task is being worked on right now.');
         expect(mocks.updateTask).not.toHaveBeenCalled();
         expect(mocks.isRunning).toHaveBeenCalledWith('p1', 't1');
     });
@@ -1401,7 +1455,7 @@ describe('data updates', () => {
     test('refuses to take up a task a subagent was claimed for', () => {
         mocks.isRunning.mockReturnValue(true);
         expect(() => LoopGateway.takeUpProjectTask('p1', 't1'))
-            .toThrow('A subagent is working on this task.');
+            .toThrow('This task is being worked on right now.');
         expect(mocks.startProject).not.toHaveBeenCalled();
         expect(mocks.updateTask).not.toHaveBeenCalled();
     });
@@ -1433,7 +1487,7 @@ describe('data updates', () => {
     test('refuses to close a task a subagent is on', () => {
         mocks.isRunning.mockReturnValue(true);
         expect(() => LoopGateway.finishProjectTask('p1', 't1'))
-            .toThrow('A subagent is working on this task.');
+            .toThrow('This task is being worked on right now.');
         expect(mocks.finishTask).not.toHaveBeenCalled();
     });
 

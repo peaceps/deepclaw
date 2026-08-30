@@ -1,6 +1,7 @@
 v0.1.0
 a subagent that stops without an answer now reports what it changed, its own subagents included.
 a card on the board now takes a task up by hand or closes it off, steps and all.
+a task the agent works itself now shows as running on its card, like one handed to a subagent.
 
 v0.0.19
 a project now waits for the start button on the board before any of its tasks is worked.

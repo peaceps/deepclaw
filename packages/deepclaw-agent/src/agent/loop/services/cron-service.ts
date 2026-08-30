@@ -1,6 +1,7 @@
 import { CronJob } from 'cron';
 import {
-    addTokenUsage, MAX_DISPLAY_HISTORIES, type CronTask, type CronJobHistory, type LLMTaskOutput
+    addTokenUsage, getLoopId, MAX_DISPLAY_HISTORIES, type CronTask, type CronJobHistory,
+    type LLMTaskOutput
 } from "@deepclaw/core";
 import { fileAwayOutput, publishGeneratedFiles } from '../../loop-utils';
 import {
@@ -241,6 +242,16 @@ class CronServiceImpl {
             logger.error(`Failed to save cron task ${cronTask.id} history: ${error}`);
         } finally {
             job.running = false;
+            // The conversation this ran in was thrown away above, and a task the run had taken on
+            // itself is no task the next run can go on with: that one starts over knowing none of
+            // it. Said the same way a chat starting over says it -- what a hold outlives is the
+            // turns of a conversation, not the conversation.
+            //
+            // Reached for here rather than named at the top, as the loop is: what holds the runs
+            // reads the board to answer about them, and a service loading the projects of the disk
+            // is no import for a module that is loaded to read a folder of cron tasks.
+            const { RunningTaskService } = await import('./running-task-service');
+            RunningTaskService.dropByHand(getLoopId('cron', cronTask.creator, cronTask.id));
         }
     }
 

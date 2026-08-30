@@ -45,6 +45,8 @@ const mocks = vi.hoisted(() => ({
     observeRefused: vi.fn<(...args: unknown[]) => void>(),
     aTurnPassed: vi.fn<(agentId: string) => void>(),
     getSpawnedLoop: vi.fn<(...args: unknown[]) => unknown>(),
+    resumeHandWork: vi.fn<(context: unknown) => void>(),
+    pauseHandWork: vi.fn<(context: unknown) => void>(),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -61,6 +63,11 @@ vi.mock('@deepclaw/i18n', () => ({
 }));
 
 vi.mock('@deepclaw/config', () => ({loadAgentConfig: mocks.loadAgentConfig}));
+
+vi.mock('../services/running-task-service', () => ({
+    resumeHandWork: mocks.resumeHandWork,
+    pauseHandWork: mocks.pauseHandWork,
+}));
 
 vi.mock('../services/session-service', () => ({
     SessionService: {
@@ -1181,6 +1188,56 @@ describe('what a run leaves behind', () => {
         const stopped = 'halfway through\n\nagent.agentBreak.externalInterrupt.userStopped.user';
         expect(text).toBe(stopped);
         expect(said).toBe(stopped);
+    });
+});
+
+/**
+ * The turn is what a hold is turned into a run for, and the turn is the loop's own: whoever asked
+ * for this run -- a browser through the gateway, a cron task, a test -- the card has to spin from
+ * the same two lines, or one of those ways in leaves a run nothing ever ends.
+ */
+describe('a task the loop is working with its own hands', () => {
+
+    test('puts what it holds up as a run for the turn and rests it at the end', async () => {
+        const {loop, llm} = newLoop({role: 'project'});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.resumeHandWork).toHaveBeenCalledTimes(1);
+        expect(mocks.pauseHandWork).toHaveBeenCalledTimes(1);
+        expect(mocks.resumeHandWork.mock.invocationCallOrder[0]!)
+            .toBeLessThan(loop.fakeLLM().invoke.mock.invocationCallOrder[0]!);
+        expect(mocks.pauseHandWork.mock.invocationCallOrder[0]!)
+            .toBeGreaterThan(loop.fakeLLM().invoke.mock.invocationCallOrder[0]!);
+    });
+
+    /** A run that ended badly ended all the same, and a card spinning for it says it did not. */
+    test('rests it at the end of a turn that fell over', async () => {
+        const {loop, llm} = newLoop({role: 'project'});
+        llm.invoke.mockRejectedValue(new Error('the endpoint refused'));
+        llm.responses = [];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.pauseHandWork).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * A spawned loop answers under the loop id of the one that spawned it, so a turn of one asking
+     * about holds would be asking about the hold of the loop above -- and resting it while that one
+     * is still in the middle of the turn it took the work up in.
+     */
+    test('is no question a spawned loop asks, sharing the loop id it would answer for', async () => {
+        const {loop, llm} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'})});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.resumeHandWork).not.toHaveBeenCalled();
+        expect(mocks.pauseHandWork).not.toHaveBeenCalled();
+    });
+
+    test('is asked of a scheduled run too, that being a way in of its own', async () => {
+        const {loop, llm} = newLoop({role: 'cron'});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.resumeHandWork).toHaveBeenCalledTimes(1);
+        expect(mocks.pauseHandWork).toHaveBeenCalledTimes(1);
     });
 });
 

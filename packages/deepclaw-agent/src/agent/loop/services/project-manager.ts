@@ -664,6 +664,10 @@ task among subagents of its own, so hand over the whole task rather than a piece
 Tasks that block nothing and wait for nothing can go out at the same time, one task_loop call each.
 Handing a task over marks it ongoing; you mark it done once you accepted what came back, the
 subagent itself only moves the step index inside the task.
+Where the user asks you to work a task yourself, that is theirs to ask and you do it. Mark the task
+ongoing with update_task before you begin: that is what puts you on their board as the one working
+it, on that task and no other, and the card shows it running for as long as you are answering. Mark
+it done when the work is over, the same as you would for one you handed out.
 Use sub_loop instead where there is nothing on the board to work on, for a question to look into or
 a piece of work of your own.
 A subagent can put a question to the user where only they can settle something, and it is asked in

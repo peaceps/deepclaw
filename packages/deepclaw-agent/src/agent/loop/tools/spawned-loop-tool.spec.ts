@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
     finishRun: vi.fn<(runId: string) => void>(),
     getRunningTasks: vi.fn<() => unknown[]>(() => []),
     isRunning: vi.fn<(projectId: string, taskId: string) => boolean>(() => false),
+    takenByHand: vi.fn<(loopId: string) => unknown>(() => undefined),
+    dropByHand: vi.fn<(loopId: string) => void>(),
 }));
 
 function todoTask(status = 'todo') {
@@ -39,8 +41,12 @@ vi.mock('../services/project-manager', () => ({ProjectManager: {
 vi.mock('../services/running-task-service', () => ({
     RunningTaskService: {
         start: mocks.startRun, finish: mocks.finishRun, getRunningTasks: mocks.getRunningTasks,
-        isRunning: mocks.isRunning,
+        isRunning: mocks.isRunning, takenByHand: mocks.takenByHand, dropByHand: mocks.dropByHand,
     },
+    // Said the same way the service says it, the list of runs being the mocked one.
+    fireRunningTasksEvent: (context: OneLoopContext) => context.actions.agentHandler.onInfoEvent({
+        eventType: 'updateRunningTasks', content: mocks.getRunningTasks() as never,
+    }),
 }));
 
 vi.mock('@deepclaw/i18n', () => ({
@@ -115,6 +121,7 @@ beforeEach(() => {
     mocks.getProjectDetail.mockReturnValue(startedProject());
     mocks.isRunning.mockReturnValue(false);
     mocks.startRun.mockReturnValue('run1');
+    mocks.takenByHand.mockReturnValue(undefined);
 });
 
 describe('taskLoopTool invoke', () => {
@@ -208,7 +215,7 @@ describe('taskLoopTool invoke', () => {
 
         const first = taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
         await expect(taskLoopTool.invoke({prompt: 'go too', taskId: 'ship-it'}, context))
-            .rejects.toThrow('A subagent is working on "ship it" already');
+            .rejects.toThrow('"ship it" is being worked on already');
 
         building.settle(taskLoop as unknown as FlushAgent);
         await first;
@@ -238,10 +245,43 @@ describe('taskLoopTool invoke', () => {
         mocks.isRunning.mockReturnValue(true);
         const context = contextWithTaskLoop(newSpawnedLoop());
         await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
-            .rejects.toThrow('A subagent is working on "ship it" already');
+            .rejects.toThrow('"ship it" is being worked on already');
         expect(mocks.isRunning).toHaveBeenCalledWith('p1', 'ship-it');
         expect(mocks.updateTask).not.toHaveBeenCalled();
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A run that had taken the task on itself and is handing it over after all. What it holds is on
+     * the same list as the run of a subagent, and would refuse the handover as though somebody else
+     * were there -- but the one it names is the loop asking, which is saying it would rather not.
+     */
+    test('hands over a task it was working itself, and lets go of it', async () => {
+        mocks.takenByHand.mockReturnValue({projectId: 'p1', taskId: 'ship-it', agentId: 'a1'});
+        mocks.isRunning.mockReturnValue(true);
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
+        expect(mocks.dropByHand).toHaveBeenCalledExactlyOnceWith(context.loopId);
+        expect(context.actions.newTaskLoop).toHaveBeenCalled();
+    });
+
+    test('still refuses a task a subagent is on while it works another itself', async () => {
+        mocks.takenByHand.mockReturnValue({projectId: 'p1', taskId: 'write-tests', agentId: 'a1'});
+        mocks.isRunning.mockReturnValue(true);
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
+            .rejects.toThrow('"ship it" is being worked on already');
+        expect(mocks.dropByHand).not.toHaveBeenCalled();
+    });
+
+    /** Nothing was handed over, so the hold that would have been let go of still stands. */
+    test('keeps hold of a task the handover of which was refused', async () => {
+        mocks.takenByHand.mockReturnValue({projectId: 'p1', taskId: 'ship-it', agentId: 'a1'});
+        mocks.getProjectDetail.mockReturnValue(startedProject({startedAt: undefined}));
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
+            .rejects.toThrow('The user has not started this project');
+        expect(mocks.dropByHand).not.toHaveBeenCalled();
     });
 
     /** Only a project run is handed the tool, so this is one that named no project to run. */

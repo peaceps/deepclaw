@@ -5,7 +5,7 @@ import { FootPrint, isSpawnedLoop, OneLoopContext } from '../../definitions/defi
 import { ToolDesc } from '../../definitions/tool-definitions';
 import { LoopAgent } from '../loop/loop';
 import { ProjectManager } from '../services/project-manager';
-import { RunningTaskService } from '../services/running-task-service';
+import { fireRunningTasksEvent, RunningTaskService } from '../services/running-task-service';
 import { SessionService } from '../services/session-service';
 
 const MAX_PARALLEL_TASK_LOOPS = 3;
@@ -189,11 +189,14 @@ function finishRun(runId: string, context: OneLoopContext): void {
     fireRunningTasksEvent(context);
 }
 
-function fireRunningTasksEvent(context: OneLoopContext): void {
-    context.actions.agentHandler.onInfoEvent({
-        eventType: 'updateRunningTasks',
-        content: RunningTaskService.getRunningTasks(),
-    });
+/**
+ * Whether the task about to be handed over is the one this loop had taken on itself. Its own hold
+ * is the one thing on that list that is no reason to refuse a handover: what the hold says is that
+ * this loop is working the task, and this loop is right here saying it would rather not.
+ */
+function holdsItself(context: OneLoopContext, projectId: string, taskId: string): boolean {
+    const held = RunningTaskService.takenByHand(context.loopId);
+    return held?.projectId === projectId && held?.taskId === taskId;
 }
 
 /**
@@ -232,8 +235,8 @@ function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     if (task.status === 'done') {
         throw new Error(`Task "${task.title}" is done, and a done task never goes back to ongoing.`);
     }
-    if (RunningTaskService.isRunning(projectId, task.id)) {
-        throw new Error(`A subagent is working on "${task.title}" already, wait for it to report back.`);
+    if (RunningTaskService.isRunning(projectId, task.id) && !holdsItself(context, projectId, task.id)) {
+        throw new Error(`"${task.title}" is being worked on already, wait for that to come back.`);
     }
     return {
         projectId,
@@ -307,6 +310,12 @@ everything you already know it needs goes in here rather than into a question.`,
     roles: ['project'],
     invoke: async function(input: TaskLoopInput, context: OneLoopContext): Promise<string> {
         const run = planRun(input, context);
+        // A task this loop had taken on itself and is handing over after all. What it held ends
+        // where the handover begins, both of them saying who is working the task and only one of
+        // them being true from here.
+        if (holdsItself(context, run.projectId, run.taskId)) {
+            RunningTaskService.dropByHand(context.loopId);
+        }
         // Claimed before anything is awaited, the plan above being what says the task is free. Calls
         // of one turn run beside each other, and building a loop is an await however it goes, so a
         // claim made after it would leave two calls naming the same task both past a check neither
