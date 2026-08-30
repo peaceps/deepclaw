@@ -1,4 +1,4 @@
-import {AgentRuntimeStatus} from "@deepclaw/core";
+import {AGENT_CONFIG, AgentRuntimeStatus} from "@deepclaw/core";
 import { ToolDesc } from "../../definitions/tool-definitions";
 import { feelerOf } from "../../definitions/definitions";
 import { AgentFeelingService } from "../../loop/services/agent-feeling-service";
@@ -10,23 +10,47 @@ type UpdateAgentRuntimeInput = {
     emotion?: string;
 }
 
+/**
+ * A feeling as the bubble on the card can hold it.
+ *
+ * The length is asked for three times over -- in the section that explains what a feeling is, in
+ * the description read at the moment of the call, and in the schema -- and none of the three is a
+ * promise: a model sends what it likes, and nothing between here and the card reads it. So the cut
+ * is here, at the one door a feeling comes through, and the copy the browsers are handed and the
+ * copy the prompt shows the run back are cut by the same stroke. Two that drifted would have a run
+ * told it already said something the user never saw.
+ *
+ * Nothing left after the trimming is nothing said: a bubble of three spaces pops up on somebody's
+ * card, stands there as the latest of what that agent felt, and says less than an empty list.
+ */
+function wearable(emotion?: string): string | undefined {
+    return emotion?.trim().slice(0, AGENT_CONFIG.maxEmotionLength) || undefined;
+}
+
 export const updateAgentRuntimeTool: ToolDesc<UpdateAgentRuntimeInput> = {
     tool: {
         name: 'update_agent_runtime',
-        description: 'Update your own mood and emotion in the runtime based on current history messages.',
+        // Worded as what it is for, and nowhere as a summary of anything. Asked for a mood
+        // "inferred from the latest history messages", a model hands back the history: task ids,
+        // what closed, what is next. That is the one thing a feeling is not, and this description
+        // is what is read at the moment of the call -- closer to it than the section of the prompt
+        // that explains what a feeling is.
+        description: 'Say how the work feels: your own mood and emotion, never a note of what you did.',
         schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
                 mood: {
                     type: 'string',
-                    description: 'The mood of the agent inferred from latest history messages',
+                    description: 'How you feel while working on this',
                     enum: ['happy', 'focused', 'tired', 'confused', 'none']
                 },
                 emotion: {
                     type: 'string',
-                    description: 'The emotion of the agent inferred from latest history messages, '
-                        + '30 characters at most',
+                    description: 'The feeling itself, in your own voice, '
+                        + `${AGENT_CONFIG.maxEmotionLength} characters at most. `
+                        + 'Never what happened, which task it was, or what comes next',
+                    maxLength: AGENT_CONFIG.maxEmotionLength,
                 },
             },
             required: [],
@@ -41,7 +65,8 @@ export const updateAgentRuntimeTool: ToolDesc<UpdateAgentRuntimeInput> = {
     // on is decided by feelerOf, and the sub loops under it are left out there.
     loopKinds: ['main', 'task'],
     invoke: async function(input, context): Promise<string> {
-        const {mood, emotion} = input;
+        const {mood} = input;
+        const emotion = wearable(input.emotion);
         if (!mood && !emotion) {
             return `Nothing to update: neither mood nor emotion is provided.`;
         }
@@ -70,6 +95,12 @@ export const updateAgentRuntimeTool: ToolDesc<UpdateAgentRuntimeInput> = {
         // what it feels now is news.
         AgentFeelingService.remember(agentId, {mood, emotion});
 
+        // Said rather than done quietly: the run is shown its own feeling back later and would
+        // read the short one as a feeling it never had.
+        if (emotion && emotion !== input.emotion?.trim()) {
+            return `Agent runtime status updated successfully. The feeling was kept to its first `
+                + `${AGENT_CONFIG.maxEmotionLength} characters, which is all the bubble holds.`;
+        }
         return `Agent runtime status updated successfully`;
     },
 }

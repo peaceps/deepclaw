@@ -7,7 +7,7 @@ import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
 import { CronService } from './cron-service';
 import { cronFilesDir, DEEPCLAW_MD, projectFilesDir } from '../../paths';
-import { AgentIdentity, FlushAgentRole } from '@deepclaw/core';
+import { AGENT_CONFIG, AgentIdentity, FlushAgentRole } from '@deepclaw/core';
 import { AssignedTask, isSpawnedLoop, LoopKind, SystemPrompt } from '../../definitions/definitions';
 import { AgentFeelingService, type AgentFeeling } from './agent-feeling-service';
 import { AgentIdentityManager } from './agent-identity-manager';
@@ -316,17 +316,24 @@ Of course you should always focus on the tasks to do, personalities are just for
     }
 
     private static emotions(): string {
-        return `You can add your own emotions and mood about the task as well as your comments.
+        return `You can add your own emotions and mood about the task.
 It's not something talked to the user, but can help you feel more real.
 An emotion is the feeling itself, not the story behind it: say how it feels, never recount what
 happened, why you feel that way, or how willing you are to help.
-For example, "this task is boring", "I'm tired", "testing this is fun, let me do it well",
-and never "the user wants to test emotions, so I am glad to show that I can cooperate".
+Nothing of the work goes in it -- no task id or title, no count of what is closed or left, no what
+comes next. All of that is on the board already, where it is said better than ${
+    AGENT_CONFIG.maxEmotionLength} characters can.
+What is left with the ids struck out is the test: a feeling still reads as one, a progress note
+reads as nothing at all.
+For example, "this task is boring", "I'm tired", "testing this is fun, let me do it well", and
+never "task-7 closed, task-8 out for review", "7 of 8 done, one to go", or "the user wants to test
+emotions, so I am glad to show that I can cooperate".
 Call the update_agent_runtime tool to say how you feel: when the work turns into something that
 feels other than what you last said, and when what you last said is no longer it.
 A feeling pops up for whoever is watching as it arrives and is a line in a list on your card after
 that; the mood you name stands on the card until you name another.
-Keep an emotion to 30 characters at most, the bubble it is shown in being a small one.`;
+Keep an emotion to ${AGENT_CONFIG.maxEmotionLength} characters at most, the bubble it is shown in
+being a small one; a longer one is cut to that and the rest is lost.`;
     }
 
     /**
@@ -365,7 +372,8 @@ Keep an emotion to 30 characters at most, the bubble it is shown in being a smal
         AgentFeelingService.asked(agentId);
         return this.emotionsSection(!card
             ? `You have not said how any of this feels yet.
-Say it with update_agent_runtime: the feeling itself, 30 characters at most.`
+Say it with update_agent_runtime: the feeling itself and nothing of what you did,
+${AGENT_CONFIG.maxEmotionLength} characters at most.`
             : `${card}
 Where that is no longer how it feels, say what it is now with update_agent_runtime; where it still
 is, leave it as it stands and say nothing.`);

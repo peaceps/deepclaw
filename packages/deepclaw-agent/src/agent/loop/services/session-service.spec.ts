@@ -490,7 +490,7 @@ describe('saveHistory status', () => {
     });
 
     test('is paused when the agent stopped itself', () => {
-        expect(statusOf({transitionReason: 'toolUse', agentBreakReason: 'taskPause'})).toBe('paused');
+        expect(statusOf({transitionReason: 'toolUse', agentBreakReason: 'projectCreated'})).toBe('paused');
     });
 
     test('is running while the loop is still calling tools', () => {

@@ -16,10 +16,6 @@ export const zh = {
                     llm: '项目创建好了，计划在项目自己的对话里调整。',
                     user: '项目创建好了，在看板上展开这一行就能过计划、开工。',
                 },
-                taskPause: {
-                    llm: '任务已经完成，等待用户验收。',
-                    user: '任务{{name}}已完成，请验收成果。你可以继续让我修改输出，或者当成果令你满意时，标记任务为已验收。',
-                },
             },
             externalInterrupt: {
                 clientLost: {
@@ -96,6 +92,7 @@ export const zh = {
                 changesCut: '（前面还有 {{count}} 处改动没列出）',
             },
             project: {
+                awaitVerify: '任务{{name}}已完成，请验收成果。你可以继续让我修改输出，或者当成果令你满意时，标记任务为已验收。',
                 taskSteps: {
                     empty: '没有步骤。',
                     current: '\n当前步骤：\n{{steps}}\n',

@@ -24,7 +24,7 @@ function reviewable(overrides: Record<string, unknown> = {}) {
 
 /** What a reading leaves behind, which is the whole of how anybody knows it came to anything. */
 function verdictOn(at: string): Record<string, unknown> {
-    return {review: {by: 'a3', verdict: 'passed', at}};
+    return {review: {verdict: 'passed', at}};
 }
 
 vi.mock('../services/project-manager', () => ({ProjectManager: {

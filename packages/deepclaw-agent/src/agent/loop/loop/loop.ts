@@ -422,11 +422,15 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     /**
      * How the run ends, worded for both of its readers.
      *
-     * The two differ in what the ending is written after, and only there: everything the run said
-     * for the chat that watched it say so, the last thing it said for whoever is handed the answer
-     * alone. A notice is the part neither reader was ever streamed -- a project left for the user
-     * to look at, a stop, a failure the model never got to word -- so it is added to both, and a
-     * run ending on its own words needs nothing added to either.
+     * A run that came to its own end, or that ended in a failure, is read two ways: everything it
+     * said for the chat that watched it say so, the last thing it said for whoever is handed the
+     * answer alone. A run cut short by a break is read one way, both readers given everything it
+     * said, because what a turn ends on under a break is as often a tool result as a sentence, and
+     * a tool result is not the words of the agent to hand anybody.
+     *
+     * A notice is the part neither reader was ever streamed -- a project left for the user to look
+     * at, a stop, a failure the model never got to word -- and it goes after the words of the run
+     * rather than instead of them. A run ending on its own words needs nothing added to either.
      */
     private async endOfRun(state: LoopState<I>): Promise<RunEnding> {
         const runtime = state.oneLoopContext.runtime;
@@ -439,16 +443,20 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             return {text, said: this.saidWith(state.said, text)};
         }
         if (isAgentStopReason(runtime.agentBreakReason)) {
-            // A detail is what whatever stopped the run had to say about it, and it answers for the
-            // whole of the run: nothing of the run is put in front of it, the last message under a
-            // break like this being as often a tool result as a sentence. Only where there is none
-            // does the run end on a line of its own, and then the words are worth reading first.
-            const detail = runtime.agentBreakDetail;
-            const notice = detail || this.agentBreakNotice('agentStop', runtime.agentBreakReason);
-            return {
-                text: detail || this.appended(last, notice),
-                said: this.appended(state.said, notice),
-            };
+            // A detail is what whatever stopped the run had to say about it, and it stands where
+            // the standard wording stands: after the words of the run rather than instead of them.
+            // A tool that ends a run is one of the things the run did, and there may well be an
+            // answer of its own worth reading before it -- another task read over, a question
+            // settled -- which taking the detail for the whole of the ending used to take away.
+            //
+            // Everything the run said, and not the last message of it: what a turn ends on under a
+            // break like this is as often a tool result as a sentence, and a tool result is not the
+            // words of the agent to hand anybody. The stop below is worded the same way and for the
+            // same reason.
+            const notice = runtime.agentBreakDetail
+                || this.agentBreakNotice('agentStop', runtime.agentBreakReason);
+            const ended = this.appended(state.said, notice);
+            return {text: ended, said: ended};
         }
         if (isExternalInterruptReason(runtime.agentBreakReason)) {
             await HookManager.emitVisitor('externalInterrupt', state.oneLoopContext, runtime.agentBreakReason);

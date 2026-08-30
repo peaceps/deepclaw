@@ -1,5 +1,5 @@
 import { DEFAULT_LOOP_KINDS, ToolDesc } from "../../definitions/tool-definitions";
-import { ProjectManager } from "../services/project-manager";
+import { ProjectManager, projectForRun } from "../services/project-manager";
 import {
     type LLMTaskOutput, MISSION_PRIORITIES, type MissionPriority, type MissionStatus,
     PROJECT_CONFIG, type Project, type Task
@@ -22,7 +22,7 @@ function projectAfterWrite(project: Project): string {
         tasks[id] = task.output ? {...task, output: keptOutput(task.output, OUTPUT_KEPT)} : task;
     }
     const output = project.output && keptOutput(project.output, OUTPUT_KEPT);
-    return JSON.stringify({...project, output, tasks});
+    return JSON.stringify({...projectForRun(project), output, tasks});
 }
 
 /**
@@ -279,6 +279,11 @@ leave it to the user.`,
     // user asked for it in, whatever that chat was. Everything after it -- rewriting the plan,
     // putting a task on, moving one along -- belongs to the run of the project, which the project
     // has from the moment this call returns.
+    //
+    // Nothing of that has to stop this run any more. What it could do to the project it just made
+    // is nothing: every tool that writes to a live board is the project run's own, and no task
+    // moves before the user starts it. So the answer is all there is left to get right, and cutting
+    // the run short was taking the words of it away to say one canned line instead.
     invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
         const tasks = buildTasks(input.tasks, context);
         const project = ProjectManager.createProject({
@@ -289,10 +294,12 @@ leave it to the user.`,
         }, tasks);
         
         ProjectManager.fireProjectInfoEvent(project.id, context);
-        context.runtime.agentBreakReason = 'projectCreated';
         return `Project created successfully.
 Here's the project info:
-${projectAfterWrite(project)}`;
+${projectAfterWrite(project)}
+It is gone over and worked in a conversation of its own, on its row of the board, and nothing of it
+is yours from here: the plan is theirs to change there, and no task of it is handed to anybody until
+they start it on that row. Say where it went and that it waits on them.`;
     },
 }
 
@@ -559,8 +566,8 @@ rather than linked under it. Only files, not folders, and only inside the worksp
     },
     agentMode: ['agent'],
     parallelSafe: false,
-    // A task waiting to be verified stops the loop that marks it done, and a sub loop that stops
-    // there reports the pause instead of its work. Its status belongs to whoever assigned it.
+    // The status of a task belongs to whoever assigned it: a subagent moves the step index inside
+    // the task and reports back, and what its work came to is read by the run that handed it over.
     loopKinds: ['main'],
     // The state of a task is the project's own to move, and the run of that project is the only
     // one that knows what else is happening on the board: what is handed out, what is being read
@@ -602,24 +609,23 @@ rather than linked under it. Only files, not folders, and only inside the worksp
             taskInfo.output = output;
         }
         const {task, stop} = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
-        if (stop) {
-            context.runtime.agentBreakReason = 'taskPause';
-            // What the user is told about stands under the title they read, not the id they never see.
-            context.runtime.agentBreakDetail = i18nInstance.t(
-                'agent.agentBreak.agentStop.taskPause.user', {name: task.title}
-            );
-        }
         ProjectManager.fireProjectInfoEvent(input.projectId, context);
 
         const project = ProjectManager.getProjectDetail(input.projectId);
         let res = `Task updated successfully.
 Here's the related info:
 ${projectAfterWrite(project)}`;
+        // Everything of the call but the status went through, the report included: what the user is
+        // being asked to look at is on the task. Saying which of the two happened is the whole of
+        // what this has to get across -- a run told only "not done" writes the report again.
         if (stop) {
             res += `
 
-Task is not set done because the user requires it to be verified before it can be marked done.
-After user set task.verified to true, it can be successfully set done.`;
+The status is the one thing of this call that did not go through. "${task.title}" is set to pause
+and the user has not verified it, so it stays where it was and every later call marking it done
+does the same until they do: there is nothing to write again and nothing to try differently.
+Their word is what comes next, so tell them it is theirs, in these words:
+${i18nInstance.t('agent.tools.project.awaitVerify', {name: task.title})}`;
         }
         return res + reportReminder(project) + skippedFilesNote(skippedFiles);
     },
@@ -804,6 +810,6 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
     // before it, what blocks it, what the project is for. All of that is read here.
     loopKinds: [...DEFAULT_LOOP_KINDS, 'review'],
     invoke: async function(input: GetProjectDetailInput): Promise<string> {
-        return JSON.stringify(ProjectManager.getProjectDetail(input.projectId));
+        return JSON.stringify(projectForRun(ProjectManager.getProjectDetail(input.projectId)));
     },
 }

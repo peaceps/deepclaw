@@ -1,4 +1,10 @@
 v0.1.0
+an agent's emotion now says how the work feels instead of reading back what it just did.
+shift+enter now writes a new line in the chat box, and the box grows with what is written in it.
+a chat that plans a project now says where it went instead of stopping there.
+a task held for the user to verify no longer stops the run that tried to close it.
+a review that rejects the work now sends it back to be fixed and read again.
+a project now works the task the user last asked for and stops there.
 a task can now name another agent to read the work over before it closes.
 a project's plan and tasks are now changed only in that project's own conversation.
 a subagent that stops without an answer now reports what it changed, its own subagents included.

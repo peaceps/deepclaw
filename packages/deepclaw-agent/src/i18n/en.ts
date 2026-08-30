@@ -16,11 +16,6 @@ export const en = {
                     llm: 'Project is created. The plan is adjusted in the conversation of the project itself.',
                     user: 'Project is created. Open its row on the board to go over the plan and start it.',
                 },
-                taskPause: {
-                    llm: 'Task is done, waiting for user verification.',
-                    user: `Task {{name}} has been done, please verify the output.
-You can ask me continue to modify the output or mark the task as verified when you feel ok.`,
-                },
             },
             externalInterrupt: {
                 clientLost: {
@@ -110,6 +105,11 @@ the work is worth having is yours to look at on disk and to finish or hand out a
                 changesCut: '({{count}} earlier changes left out)',
             },
             project: {
+                // Handed to the run on the result of the call that was held, for it to pass on. The
+                // words are the user's language and not the model's, so they can go through as they
+                // are: what the user reads about their own pause is the same sentence either way.
+                awaitVerify: `Task {{name}} has been done, please verify the output.
+You can ask me continue to modify the output or mark the task as verified when you feel ok.`,
                 taskSteps: {
                     empty: 'No steps.',
                     current: '\nCurrent step:\n{{steps}}\n',

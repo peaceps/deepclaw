@@ -46,7 +46,6 @@ describe('break reason guards', () => {
 
     test('isAgentStopReason accepts only planned stops', () => {
         expect(isAgentStopReason('projectCreated')).toBe(true);
-        expect(isAgentStopReason('taskPause')).toBe(true);
         expect(isAgentStopReason('clientLost')).toBe(false);
         expect(isAgentStopReason(undefined)).toBe(false);
     });

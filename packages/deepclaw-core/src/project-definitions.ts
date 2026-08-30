@@ -114,13 +114,14 @@ export type TaskStepsContext = {
     currentStepIndex: number;
 }
 
-/** A verdict on the work of a task and the reading behind it, the latest one there was. */
+/**
+ * A verdict on the work of a task and the reading behind it, the latest one there was.
+ *
+ * Who gave it is not written here: it is the reviewer of the task and can be nobody else. A
+ * reviewer is settled while the task is still todo and refused after that, and a review only ever
+ * lands on a task already under way, so the name on the task is the name that read it.
+ */
 export type TaskReview = {
-    /**
-     * Who gave it, which is the reviewer as it stood when it was asked rather than as it stands.
-     * A waived one names nobody, nobody having given it: who was skipped is on the task.
-     */
-    by?: string;
     verdict: 'passed' | 'rejected' | 'waived';
     /** What the reviewer wrote. A waived review is the user's word and carries none. */
     output?: LLMTaskOutput;

@@ -216,6 +216,7 @@ export const en = {
                         running: 'This task is being read over right now',
                         waived: 'Not reviewed, you closed it',
                         report: 'Review report',
+                        reportShort: 'Report',
                     },
                 }
             },

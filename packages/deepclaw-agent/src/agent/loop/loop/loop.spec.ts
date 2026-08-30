@@ -1172,7 +1172,7 @@ describe('what a run leaves behind', () => {
             return {result: {id: def.id, content: 'created'}, success: true};
         });
         const {text, said} = await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(text).toBe('project p1 is ready');
+        expect(text).toBe('setting it up. \n\nproject p1 is ready');
         expect(said).toBe('setting it up. \n\nproject p1 is ready');
     });
 
@@ -1579,11 +1579,11 @@ describe('interrupts', () => {
         const {loop, llm} = newLoop();
         llm.responses = [{transitionReason: 'toolUse', text: 'created it', toolUses: [toolUse('tu1')]}];
         mocks.executeToolCall.mockImplementationOnce(async (def, context) => {
-            (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'taskPause';
-            return {result: {id: def.id, content: 'paused'}, success: true};
+            (context as {runtime: AgentRuntime}).runtime.agentBreakReason = 'projectCreated';
+            return {result: {id: def.id, content: 'created'}, success: true};
         });
         const {text} = await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(text).toContain('agent.agentBreak.agentStop.taskPause.user');
+        expect(text).toContain('agent.agentBreak.agentStop.projectCreated.user');
     });
 });
 

@@ -36,6 +36,25 @@ type TaskInitInfo = {
 };
 
 /**
+ * A project on its way to a model, which is the project with one field under another name.
+ *
+ * `canStartTasks` is the board's own word for the todo tasks nothing blocks. Read by a run it says
+ * something else: a list of what to start, handed over afresh every turn and again under every
+ * write, which is the one thing the delegation section has to talk it out of. So it goes out as
+ * what it is and nothing more.
+ *
+ * Everything that hands a project to a run comes through here -- the standing prompt and the answer
+ * of every write alike. The two said it differently once, and the answer of a write is the copy
+ * that lands closest to the next decision.
+ */
+export function projectForRun<T extends {canStartTasks: string[]}>(
+    project: T
+): Omit<T, 'canStartTasks'> & {notBlockedTasks: string[]} {
+    const {canStartTasks, ...rest} = project;
+    return {...rest, notBlockedTasks: canStartTasks};
+}
+
+/**
  * The words a project is known by, as they are worth writing down: cut to the length they are read
  * at, and refused where trimming leaves none.
  *
@@ -503,7 +522,8 @@ export class ProjectManager {
      *
      * The reading a reviewer owed it is waived the same way and for the same reason: the board is
      * not stricter than the service, and a person closing a task themselves is the reading. It says
-     * so as it is -- waived, by nobody -- rather than filing a report nobody wrote.
+     * so as it is -- a waiver, which is the note that nobody read the work -- rather than filing a
+     * report nobody wrote.
      *
      * All of those are written on the live task before the status is asked for, which is the shape
      * updateTask has: what it reads when it decides whether the steps are done is the task and not
@@ -547,7 +567,7 @@ export class ProjectManager {
         if (!task) {
             throw new Error('Task not found.');
         }
-        task.review = {by: task.reviewer, verdict, output, at: new Date().toISOString()};
+        task.review = {verdict, output, at: new Date().toISOString()};
         if (output) {
             fileAwayOutput(output, projectOutputDir(projectId), `${FileUtils.hashString(taskId)}-review`);
         }
@@ -766,6 +786,16 @@ opening a task. A project of a single task needs none, the task report is alread
      * is the same string before and after the user presses start. Which of the two a project is
      * stands with the project itself, in `promptCurrentProject`, where everything else that changes
      * under a run is said.
+     *
+     * The last thing the user said is what a run is allowed to work, and this is the whole of what
+     * says so: nothing in the code knows what they asked for. Both halves of it have to be words.
+     * That a task finishing is not a reason to hand out another one, because the tasks nothing
+     * blocks are handed to the run afresh every turn and under every write, and a list of what
+     * could start reads like a list of what to do next -- see `projectForRun`, which is as far as
+     * a name can carry that. And that a word already answered is spent,
+     * because a project's conversation is one long conversation: an agreement twenty turns back to
+     * work the whole project is still sitting in the context, and a run that treats it as standing
+     * will empty the board on the strength of it having once been said.
      */
     public static promptTaskDelegation(): string {
         return `## Run the tasks through subagents
@@ -773,13 +803,25 @@ A project is planned first and worked after, and the word between the two is the
 start on the board, or they tell you to get going. Until one of those, nothing of the plan is handed
 out and no task of it is marked ongoing, and the plan is what there is to work on with them. What
 follows is how a project runs from the moment it is going.
-You run this project, you do not work through its tasks yourself. Hand every task that is ready to
-a subagent: call the task_loop tool with the id of the task, and the subagent works as the agent
-the task is assigned to, with the description and the steps of it in front of it. It can split the
-task among subagents of its own, so hand over the whole task rather than a piece of it.
-Tasks that block nothing and wait for nothing can go out at the same time, one task_loop call each.
+You run this project, you do not work through its tasks yourself. A task goes out to a subagent:
+call the task_loop tool with the id of the task, and the subagent works as the agent the task is
+assigned to, with the description and the steps of it in front of it. It can split the task among
+subagents of its own, so hand over the whole task rather than a piece of it.
 Handing a task over marks it ongoing; you mark it done once you accepted what came back, the
 subagent itself only moves the step index inside the task.
+What goes out is the last thing the user said and nothing besides. Asked for one task, you hand out
+that task; asked to get the project going, you hand out what can start. Tasks that block nothing
+and wait for nothing go out at the same time, one task_loop call each.
+When what they asked for is done, the run ends there: say what came of it, say what is left on the
+board, and wait for their word. Done means closed. A task a review sent back, or one a subagent
+stopped short of the description on, is not finished, and seeing to it is the work you were already
+asked for rather than a new word to wait for: that is yours to carry through before you stop, in
+this run. The rest of the tasks stay where they are -- the ones this work
+freed and the ones that were ready all along alike, since being able to start is not being asked
+for. An older word does not come back into force once you have answered it either: "work the whole
+project", said before they asked you for this one task, is not a reason to go on to the next task
+when this one lands. What they said last is what you are doing, and the task after it goes out when
+they say so.
 Where the user asks you to work a task yourself, that is theirs to ask and you do it. Say so with
 work_on_task before you begin: that marks the task ongoing and puts you on their board as the one
 on it, and the card shows it running while you are answering. Say it again in a later turn that
@@ -839,7 +881,8 @@ what stands and what was said.` : ''}`;
      * only told apart by when it was made -- so the time is in the words, next to a line saying
      * what to do where the work has moved since. It is worth knowing that this is all there is:
      * nothing checks what the verdict was made against, and a second reading happens because a run
-     * asked for one.
+     * asked for one. A rejection seen to and read again is the same thing: it happens because the
+     * words below ask for it, and nothing would notice a run that closed the task instead.
      */
     public static promptTaskVerdict(projectId: string, taskId: string): string {
         const task = this.getTask(projectId, taskId);
@@ -851,15 +894,27 @@ what stands and what was said.` : ''}`;
         // Read back out of the file where a long report lies. What a report says is the whole of
         // what this hands on, and the reports worth reading are the ones long enough to be filed.
         const report = review.output && readOutputContent(review.output);
-        return `"${review.by ?? task.reviewer}" read "${task.title}" over at ${review.at} and ${said}:
+        // What to do about it, which is a different thing on either side of the verdict. A run told
+        // only that a rejection was "yours to see to" reads the leave to close as leave to stop: it
+        // hands the finding to the user, says the report wants fixing, and does nothing about it.
+        const whatToDo = review.verdict === 'rejected' ? `The work is not finished and the task is still ongoing, so what was found is seen to in this run:
+hand the task out again with task_loop, with what came back in the prompt, or take it up yourself
+with work_on_task. Then bring the report of the task up to what the work now says, and
+call review_task once more before you close it: a fix nobody has read is no better than the work
+that was rejected. This is the task you were already asked for and not a new one, so none of it
+waits on the user saying anything. Where you think the reviewer is wrong, say so to the user and say
+what you are doing instead, and close the task with the rejection standing if that is where you
+land -- a verdict is advice and not a gate. What is no answer at all is repeating the finding back
+and stopping.`
+            : `A verdict is advice and not a gate: the task closes from here whichever way it went. What was
+found is yours to see to, or to say to the user where you think the reviewer is wrong.
+A reading is of the work as it stood at that moment. So where the work has changed since -- a
+finding seen to, the task picked up again -- what stands now has been read by nobody: bring the
+report of the task up to what it now says, then call review_task once more before you close it.`;
+        return `"${task.reviewer}" read "${task.title}" over at ${review.at} and ${said}:
 ${report || '(the verdict came with no report)'}
 
-A verdict is advice and not a gate: the task closes either way once one is in. What was found is
-yours to see to, or to say to the user where you think the reviewer is wrong.
-This one is about the work as it stood at that moment, and it is the only reading the task needs to
-close from here. So where the work has changed since -- a rejection seen to, the task picked up
-again -- what stands now has been read by nobody: bring the report of the task up to what it now
-says, then call review_task once more before you close it.`;
+${whatToDo}`;
     }
 
     /**
@@ -901,7 +956,7 @@ user to read.`;
     public static promptCurrentProject(projectId: string): string {
         const project = this.projects[projectId];
         return `${project ? `## You are currently working on the project below:
-${JSON.stringify({
+${JSON.stringify(projectForRun({
     id: project.id,
     title: project.title,
     description: project.description,
@@ -913,7 +968,7 @@ ${JSON.stringify({
     completedTasks: project.completedTasks,
     ongoingTasks: project.ongoingTasks,
     canStartTasks: project.canStartTasks,
-})}${isProjectStarted(project) ? '' : `
+}))}${isProjectStarted(project) ? '' : `
 The user has not started this project yet: nothing of it is handed to anybody or marked ongoing
 until they press start or tell you to begin, and what there is to do with it meanwhile is to go
 through the plan with them.`}

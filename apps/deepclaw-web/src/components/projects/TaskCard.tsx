@@ -435,7 +435,7 @@ export function TaskCard(
                 output={task.review.output}
                 title={`${task.title}-review`}
                 modalTitle={t('web.pages.projects.task.review.report')}
-                label={t('web.pages.projects.task.review.report')}
+                label={t('web.pages.projects.task.review.reportShort')}
                 icon={<FileText size={14} />}
               />
             )}

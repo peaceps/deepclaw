@@ -20,7 +20,9 @@ function getTokenUsageTitle(tokenUsage: TokenUsage, t: ReturnType<typeof useTran
 export function TokenUsageIcon({ tokenUsage }: { tokenUsage?: TokenUsage }) {
     const { t } = useTranslation();
     if (!tokenUsage) return null;
+    // Not a button, so what it would be given is the arrow every page starts with. The numbers are
+    // reachable by hovering and no other way, and an arrow leaves the coin looking like decoration.
     return (
-        <div title={getTokenUsageTitle(tokenUsage, t)}>🪙</div>
+        <div className="cursor-pointer" title={getTokenUsageTitle(tokenUsage, t)}>🪙</div>
     );
 }

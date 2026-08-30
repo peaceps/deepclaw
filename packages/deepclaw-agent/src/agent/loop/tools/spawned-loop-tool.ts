@@ -280,7 +280,8 @@ worked on. The subagent starts with fresh context: it shares the filesystem but 
 It works as the agent the task is assigned to, with the memory and the skills of that agent, and gets
 the description and the steps of the task in its prompt. It can split the task among subagents of its
 own, so hand the whole task over rather than a piece of it.
-Tasks that block nothing and wait for nothing go out at the same time, one call each.
+Tasks that block nothing and wait for nothing go out at the same time, one call each. What goes out
+is what the user last asked for: a task landing is not a reason to hand out another one.
 Nothing the subagent says reaches the user, only what you write down out of what it hands back. The
 one thing of it they do see is a question it puts to them, which is asked in this conversation.`,
         schema: {

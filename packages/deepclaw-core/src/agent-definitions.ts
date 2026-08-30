@@ -21,6 +21,11 @@ export type AgentProjectStats = {
   done: string[];
 }
 
+export const AGENT_CONFIG = {
+  /** Read by the tool schema, by the words that ask for a feeling, and by the cut that holds it. */
+  maxEmotionLength: 30,
+} as const;
+
 export type AgentRuntimeStatus = {
   mood: 'happy' | 'focused' | 'tired' | 'confused' | 'none';
   emotions?: string[];

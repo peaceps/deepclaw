@@ -214,6 +214,7 @@ export const zh = {
                         running: '这个任务正在被评审',
                         waived: '未评审，由你关闭',
                         report: '评审报告',
+                        reportShort: '报告',
                     },
                 }
             },

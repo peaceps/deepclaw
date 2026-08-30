@@ -182,7 +182,12 @@ describe('createProjectTool invoke', () => {
         expect(createProject).not.toHaveBeenCalled();
     });
 
-    test('announces the new project and pauses the loop for a review', async () => {
+    /**
+     * The run is left going. There is nothing it could do to the project from here -- the board
+     * tools belong to the run of the project and no task moves before the user starts it -- so what
+     * this has to get right is that the answer says where the project went.
+     */
+    test('announces the new project and leaves the run going', async () => {
         const context = newTestContext();
         const result = await createProjectTool.invoke({
             title: 'ship it', description: 'ship the thing', priority: 'high', tasks: [],
@@ -192,9 +197,11 @@ describe('createProjectTool invoke', () => {
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
             eventType: 'updateProject', content: {...newProject(), taskCount: 0},
         });
-        expect(context.runtime.agentBreakReason).toBe('projectCreated');
+        expect(context.runtime.agentBreakReason).toBeUndefined();
         expect(result).toContain('Project created successfully.');
         expect(result).toContain(JSON.stringify(newProject()));
+        expect(result).toContain('worked in a conversation of its own, on its row of the board');
+        expect(result).toContain('until\nthey start it on that row');
     });
 });
 
@@ -368,6 +375,21 @@ describe('addTaskTool invoke', () => {
         });
         expect(result).toContain('Task added successfully.');
         expect(result).toContain(JSON.stringify(newProject()));
+    });
+
+    /**
+     * The answer of a write is the copy of the board that lands closest to the next decision, so it
+     * is the one place the old name would have done the most: a list called "tasks that can start",
+     * arriving on the heels of a task just written.
+     */
+    test('reports the tasks nothing blocks under the name the prompt uses', async () => {
+        getProjectDetail.mockReturnValue(newProject({canStartTasks: ['build']}));
+        const result = await addTaskTool.invoke({
+            projectId: 'pr1', id: 'build', title: 'build it',
+            description: 'build the thing', priority: 'high',
+        }, newTestContext());
+        expect(result).toContain('"notBlockedTasks":["build"]');
+        expect(result).not.toContain('canStartTasks');
     });
 
     /** The plan was already agreed on, so the run goes on: only a project of its own stops for one. */
@@ -557,15 +579,22 @@ describe('updateTaskTool invoke', () => {
         );
     });
 
-    test('breaks the loop when the task still waits for a user verification', async () => {
+    /**
+     * The run goes on. Nothing of the hold resumes when the user verifies -- their word starts the
+     * next run like any other -- so the call itself carries all of it: which half of the write went
+     * through, that a second attempt goes the same way, and the words to pass on.
+     */
+    test('leaves the run going when the task still waits for a user verification', async () => {
         updateTask.mockReturnValue({task: newTask('design'), stop: true});
         const context = newTestContext();
         const result = await updateTaskTool.invoke(
             {projectId: 'pr1', taskId: 'design', status: 'done'}, context
         );
-        expect(context.runtime.agentBreakReason).toBe('taskPause');
-        expect(context.runtime.agentBreakDetail).toBe('agent.agentBreak.agentStop.taskPause.user');
-        expect(result).toContain('Task is not set done because the user requires it to be verified');
+        expect(context.runtime.agentBreakReason).toBeUndefined();
+        expect(result).toContain('The status is the one thing of this call that did not go through');
+        expect(result).toContain('every later call marking it done');
+        expect(result).toContain('nothing to try differently');
+        expect(result).toContain('agent.tools.project.awaitVerify');
     });
 
     test('keeps the loop running when the task was accepted', async () => {
@@ -801,6 +830,14 @@ describe('project query tools', () => {
         const result = await getProjectDetailTool.invoke({projectId: 'pr1'}, newTestContext());
         expect(getProjectDetail).toHaveBeenCalledExactlyOnceWith('pr1');
         expect(result).toBe(JSON.stringify(newProject()));
+    });
+
+    /** The standing prompt says notBlockedTasks; a run must not be read the board's name for it. */
+    test('hands the tasks nothing blocks over under the name the prompt uses', async () => {
+        getProjectDetail.mockReturnValue(newProject({canStartTasks: ['design']}));
+        const result = await getProjectDetailTool.invoke({projectId: 'pr1'}, newTestContext());
+        expect(result).toContain('"notBlockedTasks":["design"]');
+        expect(result).not.toContain('canStartTasks');
     });
 });
 

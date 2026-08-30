@@ -1285,7 +1285,7 @@ describe('finishTask', () => {
         const {id} = newProject(manager, [newTask(manager, 'design', {reviewer: 'a3'})]);
         manager.updateTask(id, {id: 'design', status: 'ongoing'});
         manager.submitReview(id, 'design', 'rejected', {type: 'text', content: 'no tests'});
-        expect(manager.finishTask(id, 'design').review).toMatchObject({by: 'a3', verdict: 'rejected'});
+        expect(manager.finishTask(id, 'design').review).toMatchObject({verdict: 'rejected'});
     });
 
     test('writes no review on a task nobody was named to read', () => {
@@ -1415,13 +1415,15 @@ describe('the reading a task is owed', () => {
         expect(manager.updateTask(id, {id: 'design', status: 'done'}).task.status).toBe('done');
     });
 
-    test('writes the verdict under the name of whoever was down to read it', () => {
+    /** Who read it is the reviewer on the task, which cannot have changed since: it names nobody. */
+    test('writes the verdict and the report of it, dated', () => {
         const id = ongoingUnderReview();
         const task = manager.submitReview(id, 'design', 'passed', {type: 'markdown', content: 'fine'});
         expect(task.review).toEqual({
-            by: 'a3', verdict: 'passed', output: {type: 'markdown', content: 'fine'},
+            verdict: 'passed', output: {type: 'markdown', content: 'fine'},
             at: expect.any(String),
         });
+        expect(manager.promptTaskVerdict(id, 'design')).toContain('"a3" read "design" over at');
     });
 
     test('persists the project the verdict landed on', () => {
@@ -1460,7 +1462,32 @@ describe('the reading a task is owed', () => {
         expect(said).toContain('"a3" read "design" over at');
         expect(said).toContain('rejected the work');
         expect(said).toContain('the tests fail');
+    });
+
+    /**
+     * Seen in a real run: told a rejection was "yours to see to", the run handed the finding to the
+     * user, said the report wanted fixing and stopped, having called nothing. Nothing refuses it the
+     * work either -- a rejected task is ongoing, which both task_loop and work_on_task take -- so
+     * the calls are named here, and the leave to close is not the first thing it reads.
+     */
+    test('names the way back into the work a rejection sends it to', () => {
+        const id = ongoingUnderReview();
+        manager.submitReview(id, 'design', 'rejected', {type: 'text', content: 'the tests fail'});
+        const said = manager.promptTaskVerdict(id, 'design');
+        expect(said).toContain('The work is not finished and the task is still ongoing');
+        expect(said).toContain('hand the task out again with task_loop');
+        expect(said).toContain('take it up yourself\nwith work_on_task');
+        expect(said).toContain('the task you were already asked for and not a new one');
+        expect(said).toContain('no answer at all is repeating the finding back');
+    });
+
+    /** A pass can carry findings too, and there the leave to close from here is the whole of it. */
+    test('leaves a task that passed to be closed', () => {
+        const id = ongoingUnderReview();
+        manager.submitReview(id, 'design', 'passed', {type: 'text', content: 'reads well'});
+        const said = manager.promptTaskVerdict(id, 'design');
         expect(said).toContain('A verdict is advice and not a gate');
+        expect(said).not.toContain('The work is not finished');
     });
 
     test('has nothing to hand on about a task nobody read', () => {
@@ -1809,7 +1836,10 @@ describe('prompts', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         const prompt = manager.promptCurrentProject(id);
         expect(prompt).toContain('## You are currently working on the project below:');
-        expect(prompt).toContain('"canStartTasks":["design"]');
+        // The board's own name for the bucket stays canStartTasks; what a run is handed says only
+        // that nothing blocks them, so the list does not read as the work to pick up next.
+        expect(prompt).toContain('"notBlockedTasks":["design"]');
+        expect(prompt).not.toContain('canStartTasks');
     });
 
     test('says nothing about an unknown project', () => {
@@ -1850,6 +1880,22 @@ describe('prompts', () => {
         expect(prompt).toContain('Handing a task over marks it ongoing');
         expect(prompt).toContain('subagent itself only moves the step index');
         expect(prompt).toContain('A subagent can put a question to the user');
+    });
+
+    /**
+     * A run works what it was asked for and stops. Asked for one task it hands out that task, and
+     * the rest of the board waits however ready it is -- so this section may not read as a standing
+     * order to work whatever can start, and a word already answered may not read as still standing.
+     */
+    test('holds a project run to the last thing the user asked for', () => {
+        const prompt = manager.promptTaskDelegation();
+        expect(prompt).toContain('What goes out is the last thing the user said and nothing besides');
+        expect(prompt).toContain('Asked for one task, you hand out');
+        expect(prompt).toContain('When what they asked for is done, the run ends there');
+        expect(prompt).toContain('the ones that were ready all along');
+        expect(prompt).toContain('An older word does not come back into force');
+        // The sentence this replaced, which sent one word through the whole board.
+        expect(prompt).not.toContain('Hand every task that is ready');
     });
 
     test('describes the task a sub loop was assigned to', () => {

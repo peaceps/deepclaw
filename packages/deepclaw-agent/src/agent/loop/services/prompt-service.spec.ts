@@ -309,6 +309,10 @@ describe('personality and emotions', () => {
         expect(cacheable).toContain('You can add your own emotions and mood about the task');
         // Left to itself a model narrates the situation instead of feeling anything about it.
         expect(cacheable).toContain('the feeling itself, not the story behind it');
+        // And where it narrates, it narrates the board: ids, counts, what is next. Said as what may
+        // not go in, next to the one test that tells a feeling from a progress note.
+        expect(cacheable).toContain('Nothing of the work goes in it');
+        expect(cacheable).toContain('What is left with the ids struck out is the test');
         // Asked for on the same terms the card below asks on, rather than offered as a pastime.
         expect(cacheable).toContain('when what you last said is no longer it');
         // The bubble on the agent card is a narrow one, a long feeling would be cut off in it.

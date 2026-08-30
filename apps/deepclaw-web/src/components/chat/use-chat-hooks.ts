@@ -410,15 +410,19 @@ export function useSend(
         });
       };
     
-      const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-        if (e.key === 'Enter') {
-          if (e.nativeEvent.isComposing) {
-            e.preventDefault();
-            e.stopPropagation();
-          } else {
-            handleSend();
-          }
+      const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+        if (e.key !== 'Enter') return;
+        // Shift+Enter belongs to the box: what is written there can run to more than one line, and
+        // this is the key that writes the break. Enter alone sends, and takes the key with it --
+        // left to the box, it would put the break into the empty box the send just left behind.
+        if (e.shiftKey) return;
+        if (e.nativeEvent.isComposing) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
         }
+        e.preventDefault();
+        handleSend();
       };
 
     return {

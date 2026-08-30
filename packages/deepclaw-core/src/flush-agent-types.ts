@@ -55,7 +55,16 @@ export function isStoppedInteractionReason(reason?: string): reason is StoppedIn
     return (STOPPED_INTERACTION_REASONS as readonly string[]).includes(reason ?? '');
 }
 
-const AGENT_STOP_REASONS = ['projectCreated', 'taskPause'] as const;
+/**
+ * A run that has nothing left to do here: the plan it just wrote is gone over in the conversation
+ * of the project itself, and there is no going on in this one.
+ *
+ * A task held for the user to verify is not one of these. Nothing of it resumes when they verify --
+ * their word starts the next run like any other -- and the run that reached the gate has the rest
+ * of its turn to finish and its own answer to give, so it is told on the result of the call and
+ * ends the way any other run does.
+ */
+const AGENT_STOP_REASONS = ['projectCreated'] as const;
 export type AgentStopReason = typeof AGENT_STOP_REASONS[number];
 export function isAgentStopReason(reason?: AgentBreakReason): reason is AgentStopReason {
     return (AGENT_STOP_REASONS as readonly string[]).includes(reason ?? '');

@@ -2,7 +2,7 @@
 
 import { AgentEmployee, getLoopId, TokenUsage, type ImageContent } from "@deepclaw/core";
 import { Send, ImagePlus, X, ArrowLeft, Square } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatHeader } from './ChatHeader';
 import { useAppStore } from '@/lib/store';
@@ -34,6 +34,9 @@ type ChatPanelProps = {
 const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+/** How tall the box may grow before it scrolls instead, leaving the conversation room to be read. */
+const MAX_INPUT_HEIGHT = 160;
+
 function fileToImageContent(file: File): Promise<ImageContent> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -61,7 +64,27 @@ export function ChatPanel({
   const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
   const locked = useAppStore(s => !!s.busyChatKeys[loopId]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const showToast = useToastStore(s => s.show);
+
+  // The box starts one line tall and grows with what is written into it: a message of several
+  // lines is written in front of the user rather than through a slot one line wide. Measured off
+  // what is in it, so it shrinks back as lines are deleted and again when a send empties it.
+  //
+  // Before the paint rather than after, since a height is what is being measured: the draft a
+  // reopened panel restores would otherwise be drawn one line tall and jump to its own height.
+  // Which is also why the session read is a dependency and not only the text -- reading a closed
+  // conversation takes the whole input area off the screen, and the box that comes back is a new
+  // element with no height on it while the draft in it never changed.
+  useLayoutEffect(() => {
+    const box = inputRef.current;
+    if (!box) return;
+    box.style.height = 'auto';
+    // scrollHeight stops at the padding, and a height set on a border-box element has to cover the
+    // border too, or every line sits two pixels short of the room it needs and the box scrolls.
+    const border = box.offsetHeight - box.clientHeight;
+    box.style.height = `${Math.min(box.scrollHeight + border, MAX_INPUT_HEIGHT)}px`;
+  }, [input, viewingSessionId]);
 
   // The live chat is kept listening while one that was closed is read, so that going back to it
   // shows what the agent said in the meantime rather than a transcript that stopped.
@@ -223,7 +246,9 @@ export function ChatPanel({
         </div>
       )}
       {!reading && <div className="p-4 border-t border-gray-100">
-        <div className="flex gap-2">
+        {/* Aligned to the bottom: the box is the only thing here that grows, and the buttons stay
+            where the hand left them rather than riding up the side of it. */}
+        <div className="flex gap-2 items-end">
           <input
             type="file"
             ref={fileInputRef}
@@ -243,14 +268,16 @@ export function ChatPanel({
           </button>
           {/* Dead until the messages already said have arrived, as the two buttons beside it are:
               what is sent into a chat that has not read itself yet lands above its own history. */}
-          <input
-            type="text"
+          <textarea
+            ref={inputRef}
+            rows={1}
             value={input}
             disabled={locked || !chatInited}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('web.pages.chat.send', { name: agent.name })}
             className="flex-1 px-4 py-2 border border-gray-200 rounded-lg disabled:bg-gray-50
+              resize-none overflow-y-auto leading-6
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           {/* While a run is on, the one thing this button is good for is ending it. */}

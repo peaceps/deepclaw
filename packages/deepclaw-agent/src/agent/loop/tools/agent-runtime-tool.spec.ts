@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {type AgentIdentity} from '@deepclaw/core';
+import {AGENT_CONFIG, type AgentIdentity} from '@deepclaw/core';
 import {newTestContext} from '../../../test-support/one-loop-context';
 import {AgentFeelingService} from '../services/agent-feeling-service';
 import {AgentIdentityManager} from '../services/agent-identity-manager';
@@ -149,6 +149,44 @@ describe('updateAgentRuntimeTool invoke', () => {
         expect(remember).toHaveBeenCalledExactlyOnceWith('a1', {mood: 'focused', emotion: undefined});
     });
 
+    /**
+     * The length is asked for in words in three places and promised by none of them. What arrives
+     * longer is cut here rather than on the card, so that both copies of it are the one string.
+     */
+    test('cuts a feeling too long for the bubble to hold', async () => {
+        const context = newTestContext();
+        const long = 'task-7 closed, task-8 is out for review now';
+        const result = await updateAgentRuntimeTool.invoke({emotion: long}, context);
+        const kept = long.slice(0, AGENT_CONFIG.maxEmotionLength);
+        expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
+            eventType: 'updateAgentRuntime',
+            content: {agentId: 'a1', mood: undefined, emotion: kept},
+        });
+        expect(remember).toHaveBeenCalledExactlyOnceWith('a1', {mood: undefined, emotion: kept});
+        expect(result).toContain('kept to its first 30 characters');
+    });
+
+    /** Told, because the prompt shows the feeling back and a run reads a short one as somebody's. */
+    test('says nothing of a cut where the feeling fitted', async () => {
+        const result = await updateAgentRuntimeTool.invoke({emotion: 'this is fun'}, newTestContext());
+        expect(result).toBe('Agent runtime status updated successfully');
+    });
+
+    /** A bubble of three spaces is the latest thing that agent felt until it feels another. */
+    test('reads a feeling of nothing but spaces as no feeling at all', async () => {
+        const context = newTestContext();
+        const result = await updateAgentRuntimeTool.invoke({emotion: '   '}, context);
+        expect(result).toBe('Nothing to update: neither mood nor emotion is provided.');
+        expect(context.actions.agentHandler.onInfoEvent).not.toHaveBeenCalled();
+        expect(remember).not.toHaveBeenCalled();
+    });
+
+    test('trims a feeling that came with room around it', async () => {
+        const context = newTestContext();
+        await updateAgentRuntimeTool.invoke({mood: 'tired', emotion: '  late shift  '}, context);
+        expect(remember).toHaveBeenCalledExactlyOnceWith('a1', {mood: 'tired', emotion: 'late shift'});
+    });
+
     test('says there is nothing to do when the call carries neither mood nor emotion', async () => {
         const context = newTestContext();
         const result = await updateAgentRuntimeTool.invoke({}, context);
@@ -195,6 +233,13 @@ describe('updateAgentRuntimeTool metadata', () => {
         expect(updateAgentRuntimeTool.tool.schema.required).toEqual([]);
         expect(updateAgentRuntimeTool.tool.schema).toMatchObject({
             properties: {mood: {enum: ['happy', 'focused', 'tired', 'confused', 'none']}},
+        });
+    });
+
+    /** Asked for at the same length it is cut at, so a model is not turned down for obeying. */
+    test('asks for a feeling no longer than the one it keeps', () => {
+        expect(updateAgentRuntimeTool.tool.schema).toMatchObject({
+            properties: {emotion: {maxLength: AGENT_CONFIG.maxEmotionLength}},
         });
     });
 });
