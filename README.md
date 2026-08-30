@@ -65,7 +65,8 @@ Every agent is someone: a name, an avatar, a role, personality traits, and the a
 You hire them in the settings and fire them there too.
 
 Pick one and the detail panel tells you what it is doing right now — the tasks it is running and how
-far along they are, the project it belongs to, the scheduled tasks waiting for it. Agents are marked
+far along they are, any task it is reading over for somebody else, the project it belongs to, the
+scheduled tasks waiting for it. Agents are marked
 busy or idle, and they carry a mood: happy, focused, tired, confused, or keeping it to themselves.
 
 ### Chat
@@ -118,6 +119,34 @@ finished instead of rolling on to the next one. When it stops there, the task wa
 want to see before they are built on. A task nobody has picked up yet can also be handed to someone
 else, from the pencil beside its owner — once the work has been taken, it stays with whoever took
 it.
+
+#### Have it read over
+
+A task can be given a **reviewer**: a second agent that reads the work before the task closes. Put
+one on with **+ Reviewer** on a card still in todo, and change or clear it from the pencil beside
+the name. Once the work is under way that name is settled — a reviewer appearing then would be a
+gate in front of a run that had planned its way to done without one, and one taken away then is a
+reading somebody was promised and never got.
+
+The reading is a run of its own: the reviewer's model, their memory, their skills, an empty context,
+and the same files. It knows nothing of the conversation that did the work, so it goes by what is
+really there rather than by what was said about it — it reads files, runs your tests, reads the
+project, and that is the whole of what it can do. While it reads, it spins beside the reviewer's
+name on the card and stands on that agent's own page under Running Now. What it files is a verdict
+and a report, and the report opens from the card.
+
+A verdict is advice and not a gate. The agent that owns the task is still the one that closes it: a
+rejection sends the work back to be fixed and read again, and where the agent thinks the reviewer is
+wrong it says so and closes the task with the rejection standing. What no agent can do is close the
+task on its own word with nobody having read it. You can: close it yourself while a reading was owed
+and the card says exactly that — *Not reviewed, you closed it* — rather than showing a report nobody
+wrote.
+
+<!-- Screenshot: a card with a reviewer on it, the reviewer's row under the owner's
+     with the Report link beside it. One caught mid-reading, with the spinner on that row, is
+     better still. -->
+
+![Task review](https://raw.githubusercontent.com/peaceps/deepclaw/main/docs/images/en/review.png)
 
 Finished tasks carry a report you can read in place or download. A finished project carries one of
 its own, on the project's row: what the whole of the work came to, which no single task report
@@ -186,6 +215,11 @@ own, calls whatever tools it needs, and reports back. Several tasks run at once 
 agents, and the board keeps up in real time. Dependencies are respected: a task waits for the ones
 it is blocked by.
 
+**Check each other's work.** A task can name a second agent to read the finished work before it
+closes. That agent reads it in a run of its own — its own context, your files, your tests — and what
+it finds goes back to whoever did the work, to be fixed and read again. The report stays on the card
+for you.
+
 **Remember what matters.** Agents keep notes as they learn: your preferences, the rules and
 corrections you have given them, and pointers to the documents and dashboards you keep sending them
 to. A note can belong to everyone, to one agent, or to one project.
@@ -241,6 +275,19 @@ its own context window and its own access to tools. It reads the task and its st
 the status and the step progress as it goes, and produces a structured output at the end. The
 orchestrator tracks which tasks are running, which are blocked, and which are ready to start.
 
+### Reviews
+
+A review is a spawned run of the same kind, under the reviewer's own agent and with nothing of the
+conversation that asked for it. It is handed four tools and no others: `read_file`,
+`run_sync_command`, `get_project_detail`, and `submit_review` — no writing files, no moving the
+task, nothing to say anything with but the verdict. One turn asks for two readings at a time at
+most, each of them free to run the tests of the machine they all share.
+
+A verdict lands on the task and is the latest one there was. Nothing checks what it was made
+against, so a task rejected, fixed and closed without a second reading is a thing the prompts ask
+against rather than a thing the board refuses: the age of the verdict is put in front of whoever has
+to act on it.
+
 ### MCP (Model Context Protocol)
 
 Connect external tool servers through MCP. Any MCP-compatible server exposes its tools to your
@@ -264,6 +311,8 @@ alongside the built-in ones. Set the server URL in the advanced settings.
 | `get_project_list` / `get_project_detail` | Read project state |
 | `task_loop` | Hand one task of the project to a subagent that can split it further |
 | `sub_loop` | Spawn a sub-loop for one piece of work |
+| `review_task` | Have the reviewer of a task read the work over before it closes |
+| `submit_review` | File a verdict and a report, which is all a review writes anywhere |
 | `create_cron_task` / `update_cron_task` | Manage scheduled tasks |
 | `update_cron_output` | Report what a cron run produced |
 | `get_cron_histories` | Read back what earlier runs of a cron task produced |
