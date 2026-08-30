@@ -128,11 +128,6 @@ const mocks = vi.hoisted(() => ({
     getLoop: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
     invoke: vi.fn<(prompt: string, options: {browserId: string}) => Promise<LoopResult>>(),
     getSessionDir: vi.fn<() => string>(() => '.agents/a1/session/cron1'),
-    dropByHand: vi.fn<(loopId: string) => void>(),
-}));
-
-vi.mock('./running-task-service', () => ({
-    RunningTaskService: {dropByHand: mocks.dropByHand},
 }));
 
 vi.mock('cron', () => ({
@@ -662,17 +657,6 @@ describe('scheduled run', () => {
         expect(JSON.parse(line)).toMatchObject({start: 1000, status: 'success'});
         expect(line.endsWith('\n')).toBe(true);
         expect(mocks.deleteDir).toHaveBeenCalledWith(SESSION_DIR);
-    });
-
-    /**
-     * The conversation is thrown away with the folder above, so a task this run took on itself is
-     * no task the next run can go on with -- that one starts over knowing none of it, and a card
-     * left spinning would be spinning for a run nobody can end.
-     */
-    test('lets go of a task the run had taken on with its own hands', async () => {
-        const {id} = newTask(service);
-        await runTicks([1000]);
-        expect(mocks.dropByHand).toHaveBeenCalledWith(`cron.a1.${id}`);
     });
 
     test('keeps running further ticks when persisting the history fails', async () => {

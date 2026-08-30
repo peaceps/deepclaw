@@ -45,8 +45,8 @@ const mocks = vi.hoisted(() => ({
     observeRefused: vi.fn<(...args: unknown[]) => void>(),
     aTurnPassed: vi.fn<(agentId: string) => void>(),
     getSpawnedLoop: vi.fn<(...args: unknown[]) => unknown>(),
-    resumeHandWork: vi.fn<(context: unknown) => void>(),
-    pauseHandWork: vi.fn<(context: unknown) => void>(),
+    endMainLoopRun: vi.fn<(loopId: string) => boolean>(),
+    fireRunningTasksEvent: vi.fn<(context: unknown) => void>(),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -65,8 +65,8 @@ vi.mock('@deepclaw/i18n', () => ({
 vi.mock('@deepclaw/config', () => ({loadAgentConfig: mocks.loadAgentConfig}));
 
 vi.mock('../services/running-task-service', () => ({
-    resumeHandWork: mocks.resumeHandWork,
-    pauseHandWork: mocks.pauseHandWork,
+    RunningTaskService: {endMainLoopRun: mocks.endMainLoopRun},
+    fireRunningTasksEvent: mocks.fireRunningTasksEvent,
 }));
 
 vi.mock('../services/session-service', () => ({
@@ -368,6 +368,7 @@ beforeEach(() => {
     mocks.getSessionDir.mockReturnValue('.agents/a1/session/s1');
     mocks.loadSession.mockReturnValue({history: [], outdated: false});
     mocks.provideSystemPrompt.mockReturnValue({cacheable: 'cacheable', dynamic: 'dynamic'});
+    mocks.endMainLoopRun.mockReturnValue(false);
     mocks.taskAssignee.mockReturnValue(undefined);
     mocks.taskAssigneeId.mockReturnValue(undefined);
     mocks.getAgent.mockReturnValue({id: 'a1', name: 'Ada'});
@@ -1192,52 +1193,62 @@ describe('what a run leaves behind', () => {
 });
 
 /**
- * The turn is what a hold is turned into a run for, and the turn is the loop's own: whoever asked
- * for this run -- a browser through the gateway, a cron task, a test -- the card has to spin from
- * the same two lines, or one of those ways in leaves a run nothing ever ends.
+ * A task the run said it is working itself is worked for that turn, and the turn is the loop's own:
+ * whoever asked for the run -- a browser through the gateway, a cron task, a test -- the card has
+ * to stop spinning from the same line, or one of those ways in leaves a run nothing ever ends.
  */
 describe('a task the loop is working with its own hands', () => {
 
-    test('puts what it holds up as a run for the turn and rests it at the end', async () => {
+    test('ends what it took on once the turn is over', async () => {
         const {loop, llm} = newLoop({role: 'project'});
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(mocks.resumeHandWork).toHaveBeenCalledTimes(1);
-        expect(mocks.pauseHandWork).toHaveBeenCalledTimes(1);
-        expect(mocks.resumeHandWork.mock.invocationCallOrder[0]!)
-            .toBeLessThan(loop.fakeLLM().invoke.mock.invocationCallOrder[0]!);
-        expect(mocks.pauseHandWork.mock.invocationCallOrder[0]!)
+        expect(mocks.endMainLoopRun).toHaveBeenCalledTimes(1);
+        expect(mocks.endMainLoopRun.mock.invocationCallOrder[0]!)
             .toBeGreaterThan(loop.fakeLLM().invoke.mock.invocationCallOrder[0]!);
     });
 
     /** A run that ended badly ended all the same, and a card spinning for it says it did not. */
-    test('rests it at the end of a turn that fell over', async () => {
+    test('ends it at the end of a turn that fell over', async () => {
         const {loop, llm} = newLoop({role: 'project'});
         llm.invoke.mockRejectedValue(new Error('the endpoint refused'));
         llm.responses = [];
         await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(mocks.pauseHandWork).toHaveBeenCalledTimes(1);
+        expect(mocks.endMainLoopRun).toHaveBeenCalledTimes(1);
+    });
+
+    test('tells the browsers where a turn ended work of its own', async () => {
+        mocks.endMainLoopRun.mockReturnValue(true);
+        const {loop, llm} = newLoop({role: 'project'});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.fireRunningTasksEvent).toHaveBeenCalledTimes(1);
+    });
+
+    /** Every turn of every conversation would carry the whole running list for nothing. */
+    test('says nothing where the turn took no task on', async () => {
+        const {loop, llm} = newLoop({role: 'project'});
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('hi', {browserId: 'b1'});
+        expect(mocks.fireRunningTasksEvent).not.toHaveBeenCalled();
     });
 
     /**
-     * A spawned loop answers under the loop id of the one that spawned it, so a turn of one asking
-     * about holds would be asking about the hold of the loop above -- and resting it while that one
-     * is still in the middle of the turn it took the work up in.
+     * A spawned loop answers under the loop id of the one that spawned it, so a turn of one ending
+     * would clear what the loop above it took on -- in the middle of the turn it took it on in.
      */
-    test('is no question a spawned loop asks, sharing the loop id it would answer for', async () => {
+    test('is nothing a spawned loop ends, sharing the loop id it would end for', async () => {
         const {loop, llm} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'})});
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(mocks.resumeHandWork).not.toHaveBeenCalled();
-        expect(mocks.pauseHandWork).not.toHaveBeenCalled();
+        expect(mocks.endMainLoopRun).not.toHaveBeenCalled();
     });
 
-    test('is asked of a scheduled run too, that being a way in of its own', async () => {
+    test('is ended for a scheduled run too, that being a way in of its own', async () => {
         const {loop, llm} = newLoop({role: 'cron'});
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('hi', {browserId: 'b1'});
-        expect(mocks.resumeHandWork).toHaveBeenCalledTimes(1);
-        expect(mocks.pauseHandWork).toHaveBeenCalledTimes(1);
+        expect(mocks.endMainLoopRun).toHaveBeenCalledTimes(1);
     });
 });
 

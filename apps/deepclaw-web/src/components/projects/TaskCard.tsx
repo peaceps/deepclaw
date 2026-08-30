@@ -50,7 +50,8 @@ export function TaskCard(
   const progress = getTaskProgress(task);
   const updateProjectTask = useAppStore(s => s.updateProjectTask);
   const activeAgents = useAppStore(s => s.activeAgents);
-  // An ongoing task only says the work was taken up, this says a subagent is on it right now.
+  // An ongoing task only says the work was taken up, this says somebody is on it right now --
+  // a subagent it was handed to, or the agent working it in this very turn of its own.
   const running = useAppStore(s => s.runningTasks)
     .some(run => run.projectId === projectId && run.taskId === task.id);
   // The loop already stopped at the gate, so lifting the pause frees nothing, only a verdict does.

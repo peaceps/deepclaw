@@ -340,16 +340,6 @@ export class ProjectManager {
             throw new Error('Task not found.');
         }
         const project = this.projects[projectId]!;
-        // Work begins at the user's word, and a task leaving todo is work begun: whoever writes it,
-        // and whether they go on to hand it to a subagent or work it themselves. Asked here rather
-        // than only where a task is handed out, because the status is the same claim wherever it is
-        // written -- a run refused a handover could write it itself and hand the task over on the
-        // strength of it, and the board reading a project by its tasks would have taken the button
-        // away in the meantime.
-        if (taskInfo.status && taskInfo.status !== 'todo' && !isProjectStarted(project)) {
-            throw new Error('The user has not started this project. No task of it leaves todo '
-                + 'before they press start on the board: tell them the plan is ready and wait.');
-        }
         // The words on a task are only ever read, so they are free to change at any point of the
         // work. Blank ones are no rewrite though, they leave a task nobody can read off the board.
         for (const field of ['title', 'description'] as const) {
@@ -401,6 +391,19 @@ export class ProjectManager {
                 currentStepIndex: -1
             };
         }
+        // A task leaving todo is the work of the project beginning, so the project is dated with it.
+        // The start button is the user saying so before any of it moves, and every other way work
+        // begins is somebody moving a task: a card taken up on the board, a task handed to a
+        // subagent, a run taking one on itself at the user's asking. All of those come through here,
+        // which is why the date is written here rather than at each of them, and why none of them
+        // has to order two writes to keep the project and its tasks saying the same thing.
+        //
+        // Written after everything that could refuse the patch and before anything is saved: a
+        // project started on the strength of an edit that never landed is started for good, nothing
+        // putting that date back. And only the first one counts, the date being when the work began.
+        if (task.status === 'todo' && taskInfo.status && taskInfo.status !== 'todo') {
+            project.startedAt ??= new Date().toISOString();
+        }
         // The id both found this task and files it in the record, so it is no part of what a patch
         // may write: taken from here it would move the task off its own key, and nothing afterwards
         // would lead back to it.
@@ -441,8 +444,7 @@ export class ProjectManager {
      * updateTask has: what it reads when it decides whether the steps are done is the task and not
      * the patch. Refused, they would live on unsaved until some later edit of the project carried
      * them to disk -- a pause satisfied by nothing anybody did. So nothing that can refuse is left
-     * after them: the status is checked above, and the one gate below that could still turn a done
-     * away is a project with no start date, which no project holding an ongoing task has.
+     * after them, the status having been checked above.
      */
     public static finishTask(projectId: string, taskId: string): Task {
         const task = this.getTask(projectId, taskId);
@@ -653,10 +655,10 @@ opening a task. A project of a single task needs none, the task report is alread
      */
     public static promptTaskDelegation(): string {
         return `## Run the tasks through subagents
-Nothing of a project goes out before the user starts it, which they do with the start button on the
-board: until then the task_loop tool refuses every task and no task may be marked ongoing, and the
-plan is what there is to work on with them. What follows is how a project runs from the moment they
-start it.
+A project is planned first and worked after, and the word between the two is the user's: they press
+start on the board, or they tell you to get going. Until one of those, nothing of the plan is handed
+out and no task of it is marked ongoing, and the plan is what there is to work on with them. What
+follows is how a project runs from the moment it is going.
 You run this project, you do not work through its tasks yourself. Hand every task that is ready to
 a subagent: call the task_loop tool with the id of the task, and the subagent works as the agent
 the task is assigned to, with the description and the steps of it in front of it. It can split the
@@ -664,10 +666,10 @@ task among subagents of its own, so hand over the whole task rather than a piece
 Tasks that block nothing and wait for nothing can go out at the same time, one task_loop call each.
 Handing a task over marks it ongoing; you mark it done once you accepted what came back, the
 subagent itself only moves the step index inside the task.
-Where the user asks you to work a task yourself, that is theirs to ask and you do it. Mark the task
-ongoing with update_task before you begin: that is what puts you on their board as the one working
-it, on that task and no other, and the card shows it running for as long as you are answering. Mark
-it done when the work is over, the same as you would for one you handed out.
+Where the user asks you to work a task yourself, that is theirs to ask and you do it. Say so with
+work_on_task before you begin: that marks the task ongoing and puts you on their board as the one
+on it, and the card shows it running while you are answering. Say it again in a later turn that
+takes the work back up. Mark it done when the work is over, the same as for one you handed out.
 Use sub_loop instead where there is nothing on the board to work on, for a question to look into or
 a piece of work of your own.
 A subagent can put a question to the user where only they can settle something, and it is asked in
@@ -718,8 +720,9 @@ ${JSON.stringify({
     ongoingTasks: project.ongoingTasks,
     canStartTasks: project.canStartTasks,
 })}${isProjectStarted(project) ? '' : `
-The user has not started this project yet: no task of it is handed to anybody or marked ongoing
-before they do, and what there is to do with it meanwhile is to go through the plan with them.`}
+The user has not started this project yet: nothing of it is handed to anybody or marked ongoing
+until they press start or tell you to begin, and what there is to do with it meanwhile is to go
+through the plan with them.`}
 If the user does not specify another project, assume they are talking about this project.` : ''}`
     }
 }

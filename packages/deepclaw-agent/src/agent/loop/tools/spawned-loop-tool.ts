@@ -1,5 +1,5 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { addTokenUsage, type AgentRuntime, isProjectStarted, type RunningTask } from '@deepclaw/core';
+import { addTokenUsage, type AgentRuntime, type RunningTask } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FootPrint, isSpawnedLoop, OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
@@ -179,24 +179,14 @@ function carryChangesUp(loop: LoopAgent<any, any, any>, context: OneLoopContext)
  * and stays on until the result was accepted.
  */
 function startRun(run: PlannedRun, context: OneLoopContext): string {
-    const runId = RunningTaskService.start(run);
+    const runId = RunningTaskService.startTaskLoopRun(run);
     fireRunningTasksEvent(context);
     return runId;
 }
 
 function finishRun(runId: string, context: OneLoopContext): void {
-    RunningTaskService.finish(runId);
+    RunningTaskService.finishTaskLoopRun(runId);
     fireRunningTasksEvent(context);
-}
-
-/**
- * Whether the task about to be handed over is the one this loop had taken on itself. Its own hold
- * is the one thing on that list that is no reason to refuse a handover: what the hold says is that
- * this loop is working the task, and this loop is right here saying it would rather not.
- */
-function holdsItself(context: OneLoopContext, projectId: string, taskId: string): boolean {
-    const held = RunningTaskService.takenByHand(context.loopId);
-    return held?.projectId === projectId && held?.taskId === taskId;
 }
 
 /**
@@ -225,18 +215,13 @@ function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     if (!task) {
         throw new Error(`Task "${input.taskId}" not found in project "${projectId}".`);
     }
-    // The whole project waits on one word from the user, so this is asked of the project rather
-    // than of the task, and asked here rather than left to the prompt: a plan being talked over is
-    // exactly when a model is most sure the work can begin.
-    if (!isProjectStarted(ProjectManager.getProjectDetail(projectId))) {
-        throw new Error('The user has not started this project. No task of it goes to a subagent ' +
-            'before they press start on the board: tell them what is ready to go and wait.');
-    }
     if (task.status === 'done') {
         throw new Error(`Task "${task.title}" is done, and a done task never goes back to ongoing.`);
     }
-    if (RunningTaskService.isRunning(projectId, task.id) && !holdsItself(context, projectId, task.id)) {
-        throw new Error(`"${task.title}" is being worked on already, wait for that to come back.`);
+    // Only a subagent on it stands in the way. A run working the task with its own hands is the run
+    // asking, and what it is asking is to hand the work on instead, which is nothing to refuse.
+    if (RunningTaskService.isTaskLoopRunning(projectId, task.id)) {
+        throw new Error(`A subagent is working on "${task.title}" already, wait for it to report back.`);
     }
     return {
         projectId,
@@ -310,12 +295,11 @@ everything you already know it needs goes in here rather than into a question.`,
     roles: ['project'],
     invoke: async function(input: TaskLoopInput, context: OneLoopContext): Promise<string> {
         const run = planRun(input, context);
-        // A task this loop had taken on itself and is handing over after all. What it held ends
-        // where the handover begins, both of them saying who is working the task and only one of
-        // them being true from here.
-        if (holdsItself(context, run.projectId, run.taskId)) {
-            RunningTaskService.dropByHand(context.loopId);
-        }
+        // A task this run was working itself and is handing over after all: it is not the one on it
+        // from here, and left standing its word would draw a second row of work beside the subagent
+        // for the rest of the turn. Nothing is gated on it -- the door above reads the runs handed
+        // out and only those -- so this is the board being told the truth and nothing more.
+        RunningTaskService.dropMainLoopRun(context.loopId, run.projectId, run.taskId);
         // Claimed before anything is awaited, the plan above being what says the task is free. Calls
         // of one turn run beside each other, and building a loop is an await however it goes, so a
         // claim made after it would leave two calls naming the same task both past a check neither

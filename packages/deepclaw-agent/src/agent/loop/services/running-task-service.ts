@@ -2,95 +2,102 @@ import { randomUUID } from 'node:crypto';
 import { type RunningTask } from '@deepclaw/core';
 import { globalize } from '@deepclaw/utils';
 import { type OneLoopContext } from '../../definitions/definitions';
-import { ProjectManager } from './project-manager';
 
 /**
- * The tasks being worked at this very moment. Nothing of this outlives the process, which is the
- * point: a run that died with it is not running anymore, and the status a task carries cannot tell
- * that apart on its own.
+ * The tasks being worked at this very moment, in two books by who is working them: the task loops
+ * they were handed to, and the main loops working them themselves. Nothing of this outlives the
+ * process, which is the point: a run that died with it is not running anymore, and the status a
+ * task carries cannot tell that apart on its own.
  */
 class RunningTaskServiceImpl {
 
-    private static runs: Map<string, RunningTask> = new Map();
+    /**
+     * The tasks handed out to task loops, by the run each was handed out under. A run is a thing of
+     * its own from its first line to its last, so the entry lasts exactly as long as it does.
+     */
+    private static taskLoopRuns: Map<string, RunningTask> = new Map();
 
     /**
-     * What a loop said it is working with its own hands, by the id of that loop. A subagent is a run
-     * from the first line of it to the last, so the tool that spawns one holds its own run open
-     * across the await; a loop working a task itself is answering the user one turn at a time, and
-     * between those turns nothing of it is executing.
+     * The tasks main loops are working themselves, by the loop working them. A turn is the whole of
+     * what one of these lasts: the loop says it while answering and the answer ending takes it away
+     * again, so nothing here can be left behind by a loop that moved on to something else, and
+     * nothing has to be reconciled against the board.
      *
-     * So the two are kept apart: the hold below stands from the moment the loop says so until the
-     * work is over, and only becomes a run while that loop is running. Said once and it survives
-     * the turns after it, and the eviction of the loop with them -- the id it is filed under is the
-     * same id the loop is rebuilt as.
+     * Filed by the loop, which is the run id these carry as well -- there is nothing else to hold on
+     * to, no subagent having been spawned to stand for the work. One entry per loop falls out of
+     * that key, which is one task at a time, and a turn ending finds its own without looking. What
+     * is asked of this map is whether some task is being worked, and that is a walk over it: one
+     * entry per conversation is the whole of how large it gets.
      */
-    private static byHand: Map<string, Omit<RunningTask, 'runId'>> = new Map();
+    private static mainLoopRuns: Map<string, RunningTask> = new Map();
 
-    /** The run each held task is up as, while the loop holding it is running. */
-    private static handRuns: Map<string, string> = new Map();
+    private static isOn(runs: Iterable<RunningTask>, projectId: string, taskId: string): boolean {
+        return [...runs].some(run => run.projectId === projectId && run.taskId === taskId);
+    }
 
     /** The handle to hand back on the way out, so two runs of one task cannot retire each other. */
-    public static start(task: Omit<RunningTask, 'runId'>): string {
+    public static startTaskLoopRun(task: Omit<RunningTask, 'runId'>): string {
         const runId = randomUUID();
-        this.runs.set(runId, {...task, runId});
+        this.taskLoopRuns.set(runId, {...task, runId});
         return runId;
     }
 
-    public static finish(runId: string): void {
-        this.runs.delete(runId);
+    public static finishTaskLoopRun(runId: string): void {
+        this.taskLoopRuns.delete(runId);
     }
 
     /**
-     * A loop taking a task on itself, which it can only say from inside a turn of its own: the run
-     * of it begins here as well. One task at a time -- the last word is the one that stands.
+     * A main loop taking a task on for the turn it is in. One task at a time, a conversation being
+     * one thing answered at a time, so the last word of a loop is the one that stands for it. Two
+     * loops saying it of one task both stand: each of them is working it, and each goes when its own
+     * turn ends.
+     *
+     * The loop is the handle. Nothing here is ever looked up by one from outside, this being work
+     * nobody hands a receipt back for, but the browsers tell the rows of their list apart by it: a
+     * fresh one every time would draw the same work as another row whenever a run said twice what
+     * it is on.
      */
-    public static takeByHand(loopId: string, task: Omit<RunningTask, 'runId'>): void {
-        this.endRun(loopId);
-        this.byHand.set(loopId, task);
-        this.handRuns.set(loopId, this.start(task));
+    public static startMainLoopRun(loopId: string, task: Omit<RunningTask, 'runId'>): void {
+        this.mainLoopRuns.set(loopId, {...task, runId: loopId});
     }
 
-    /** What that loop is working by hand, whether or not any of it is running at this moment. */
-    public static takenByHand(loopId: string): Omit<RunningTask, 'runId'> | undefined {
-        return this.byHand.get(loopId);
+    /** A turn ending, and with it whatever that loop had said it was working. */
+    public static endMainLoopRun(loopId: string): boolean {
+        return this.mainLoopRuns.delete(loopId);
     }
 
-    /** A turn of that loop beginning, which is what makes what it holds a run again. */
-    public static resumeByHand(loopId: string): void {
-        const task = this.byHand.get(loopId);
-        if (!task || this.handRuns.has(loopId)) {
-            return;
+    /**
+     * A loop handing on the task it was working itself, which it is no longer the one on. Its own
+     * entry and no other: another main loop saying it works this task is another loop's word about
+     * itself, true until its own turn ends and nothing for this one to take back. And its own only
+     * where that is the task it stands on, a loop that took up something else having said nothing
+     * about this one.
+     */
+    public static dropMainLoopRun(loopId: string, projectId: string, taskId: string): boolean {
+        const run = this.mainLoopRuns.get(loopId);
+        if (run?.projectId !== projectId || run.taskId !== taskId) {
+            return false;
         }
-        this.handRuns.set(loopId, this.start(task));
+        return this.mainLoopRuns.delete(loopId);
     }
 
-    /** A turn ending. Nothing of that loop runs until the next one, but the work is still its own. */
-    public static pauseByHand(loopId: string): void {
-        this.endRun(loopId);
-    }
-
-    /** The work being over, or handed to somebody after all. */
-    public static dropByHand(loopId: string): void {
-        this.endRun(loopId);
-        this.byHand.delete(loopId);
-    }
-
-    private static endRun(loopId: string): void {
-        const runId = this.handRuns.get(loopId);
-        if (runId) {
-            this.finish(runId);
-            this.handRuns.delete(loopId);
-        }
-    }
-
-    /** Whether anybody is on that task right now, which is what makes handing it out again a waste. */
+    /** Whether anybody is on that task right now, which is the whole of what the card spins for. */
     public static isRunning(projectId: string, taskId: string): boolean {
-        return this.getRunningTasks()
-            .some(run => run.projectId === projectId && run.taskId === taskId);
+        return this.isOn(this.mainLoopRuns.values(), projectId, taskId)
+            || this.isTaskLoopRunning(projectId, taskId);
+    }
+
+    /**
+     * Whether a task loop has it, which is the narrower question and the one handing a task out has
+     * to ask: a main loop working the task itself is the very loop asking, and no reason to refuse
+     * it.
+     */
+    public static isTaskLoopRunning(projectId: string, taskId: string): boolean {
+        return this.isOn(this.taskLoopRuns.values(), projectId, taskId);
     }
 
     public static getRunningTasks(): RunningTask[] {
-        return [...this.runs.values()];
+        return [...this.taskLoopRuns.values(), ...this.mainLoopRuns.values()];
     }
 }
 
@@ -105,38 +112,4 @@ export function fireRunningTasksEvent(context: OneLoopContext): void {
         eventType: 'updateRunningTasks',
         content: RunningTaskService.getRunningTasks(),
     });
-}
-
-/**
- * A turn of a loop beginning, which is what turns the work it holds into a run again: it said once
- * that the task is its own and the hold has stood since, but what a run is is what is executing,
- * so the card spins for the answer being written and rests while the user reads it.
- *
- * The board is asked whether the work is still there to do, since between two turns anything may
- * have closed the task: the run that closed it, the user closing it off the card, a subagent it
- * was handed to after all. One question here rather than a report from each of them, none of those
- * being a place that knows this hold exists.
- *
- * A loop that took nothing on has nothing to say and nothing to fire.
- */
-export function resumeHandWork(context: OneLoopContext): void {
-    const held = RunningTaskService.takenByHand(context.loopId);
-    if (!held) {
-        return;
-    }
-    if (ProjectManager.getTask(held.projectId, held.taskId)?.status === 'ongoing') {
-        RunningTaskService.resumeByHand(context.loopId);
-    } else {
-        RunningTaskService.dropByHand(context.loopId);
-    }
-    fireRunningTasksEvent(context);
-}
-
-/** The turn over. Nothing of that loop is executing until the next one, the work stays its own. */
-export function pauseHandWork(context: OneLoopContext): void {
-    if (!RunningTaskService.takenByHand(context.loopId)) {
-        return;
-    }
-    RunningTaskService.pauseByHand(context.loopId);
-    fireRunningTasksEvent(context);
 }

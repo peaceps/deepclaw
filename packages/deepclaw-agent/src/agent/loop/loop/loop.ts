@@ -39,7 +39,7 @@ import { agentProtocolOf } from '../../loop-protocol-detector';
 import { MessageCompactor } from '../compactor/messages-compactor';
 import { AgentIdentityManager } from '../services/agent-identity-manager';
 import { SessionService } from '../services/session-service';
-import { pauseHandWork, resumeHandWork } from '../services/running-task-service';
+import { fireRunningTasksEvent, RunningTaskService } from '../services/running-task-service';
 import { LLMWindowService, type WindowBudget } from '../services/llm-window-service';
 import { estimateTokens } from '../../loop-utils';
 
@@ -294,19 +294,16 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
     private async _invokeLoopAndReturn(state: LoopState<I>): Promise<AgentInvokeResponse> {
         const runtime = state.oneLoopContext.runtime;
         let ending: RunEnding = {text: '', said: ''};
-        // A turn of a loop that holds a task of its own begins and ends here rather than wherever
-        // this run was asked for. What starts a loop is more than one thing -- a browser, a cron
-        // task, whatever a test reaches for -- and a hold turned into a run by only one of them is
-        // a card left spinning for a run that ended, which the user can then neither close nor hand
-        // out. The turn is the loop's own to know, and this is where the loop knows it.
+        // A task this loop said it is working itself is worked for the turn it said so in, and this
+        // is where that turn ends. Ended here rather than wherever the run was asked for, because
+        // what starts a loop is more than one thing -- a browser, a cron task, whatever a test
+        // reaches for -- and one of them left out is a card spinning for an answer already read,
+        // on a task the user can then neither close nor hand out.
         //
-        // Only a loop that can hold work is asked. A spawned loop answers under the loop id of the
-        // one that spawned it, so a turn of one would put the hold of the loop above it up and take
-        // it down again in the middle of the turn that is still running up there.
-        const holdsWork = this.loopKind() === 'main';
-        if (holdsWork) {
-            resumeHandWork(state.oneLoopContext);
-        }
+        // Only a loop that can take work on is asked. A spawned loop answers under the loop id of
+        // the one that spawned it, so a turn of one ending would clear what the loop above it said
+        // in the middle of the turn still running up there.
+        const isMainLoop = this.loopKind() === 'main';
         try {
             SessionService.updateSessionRuntime(state.oneLoopContext, {status: 'running'});
             ending = this.trimmed(await this.agentLoop(state));
@@ -328,8 +325,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                     finalText: ending.text, usage: runtime.usage
                 }, true);
                 this.historyPersistIndex = runtime.historyPersistIndex;
-                if (holdsWork) {
-                    pauseHandWork(state.oneLoopContext);
+                if (isMainLoop && RunningTaskService.endMainLoopRun(state.oneLoopContext.loopId)) {
+                    fireRunningTasksEvent(state.oneLoopContext);
                 }
             }
         }

@@ -350,10 +350,6 @@ class LoopGatewayImpl {
         // A new conversation is not the one anything was allowed in, so whatever an eviction set
         // aside for this loop goes with the old one. The rebuild below is given nothing either.
         this.carriedStates.delete(loopId);
-        // A task it had taken on itself goes the same way: the loop starting over remembers no work
-        // of its own, and a card left spinning would be spinning for nobody. The task keeps the
-        // status it was given, which is the board saying the work was taken up and not that it runs.
-        this.dropHandWork(loopId);
         const loopState = this.loops[loopId];
         if (loopState) {
             try {
@@ -513,28 +509,6 @@ class LoopGatewayImpl {
     }
 
     /**
-     * The loop that held the work being no loop that can go on with it.
-     *
-     * The turns of a hold are none of this gateway's business -- a loop knows the start and the end
-     * of its own turn, and turns them into a run and back from in there, where a run started from
-     * anywhere else is covered by the same lines. What is asked here is the other thing, the two
-     * ways a hold ends with nobody left to end it.
-     */
-    private static dropHandWork(loopId: string): void {
-        if (!RunningTaskService.takenByHand(loopId)) {
-            return;
-        }
-        RunningTaskService.dropByHand(loopId);
-        this.fireRunningTasks();
-    }
-
-    private static fireRunningTasks(): void {
-        this.fireSSEEvent({
-            eventType: 'updateRunningTasks', content: RunningTaskService.getRunningTasks(),
-        });
-    }
-
-    /**
      * Handing the answer out and writing it down, in a shape where none of it can fail the run.
      * A chat file may refuse the write and the usage figures may not be there, and neither is
      * worth telling the caller about: the answer itself already went out. Left to throw, any of
@@ -683,9 +657,6 @@ class LoopGatewayImpl {
         UIChatService.forgetProject(projectId);
         for (const loopId of Object.keys(this.loops)) {
             if (splitLoopId(loopId).projectId === projectId) {
-                // Including a task one of them had taken on itself: the board it was held for is
-                // gone, and nothing is left that would ever hand the hold back.
-                this.dropHandWork(loopId);
                 delete this.loops[loopId];
             }
         }
@@ -718,20 +689,9 @@ class LoopGatewayImpl {
     }
 
     /**
-     * The user taking a task up themselves, which the board offers on a card in todo. Two writes --
-     * the project started where it was not, and the task ongoing -- since work under way on a
-     * project with no start date on it is work every later task of that project is refused by.
-     *
-     * The date is written from this side of the wall: asked of the service where the task is written
-     * instead, it would be a date a run could write for itself -- mark a task ongoing, and the gate
-     * the start button holds shut is open. Which leaves the two writes to be ordered by hand, and
-     * the date going first, because the service refuses a task leaving todo until it is there.
-     *
-     * So everything that could refuse this is asked before the date goes down. A task refused after
-     * it was written would leave a project started on the strength of an edit that never happened,
-     * and started is for good. Nothing but the status is sent on, no patch riding along with it,
-     * which is what makes the refusals countable: a task in todo taking ongoing and nothing else,
-     * on a project that is now started, is a call the service has nothing left to turn away.
+     * The user taking a task up themselves, which the board offers on a card in todo. One write: the
+     * task leaving todo is what dates the project as started, wherever that write comes from, so
+     * there is no second one to order against this.
      */
     public static takeUpProjectTask(projectId: string, taskId: string): void {
         // A task is claimed for a subagent before the status is written -- the claim is what keeps
@@ -746,7 +706,6 @@ class LoopGatewayImpl {
         if (task.status !== 'todo') {
             throw new Error('Only a task still in todo can be taken up.');
         }
-        ProjectManager.startProject(projectId);
         ProjectManager.updateTask(projectId, {id: taskId, status: 'ongoing'});
         this.announceProject(projectId);
     }

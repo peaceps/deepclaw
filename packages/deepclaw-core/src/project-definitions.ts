@@ -38,9 +38,11 @@ export type Project = {
      * the word between the two: until it is here, the plan is still being talked over and no task
      * of it goes out to anybody.
      *
-     * Written by the user pressing start, and by nothing an agent can reach: the whole of what this
-     * field is for is to be the one thing in a project that only they can say. A record from before
-     * it existed is dated on the way in, where the loader can see the work already in it.
+     * Written by the user pressing start, and by the first task to leave todo, which is the same
+     * thing said in deeds: a card taken up on the board, a task handed to a subagent, a run taking
+     * one on itself at the user's asking. Nothing else reaches it, a plan being written and rewritten
+     * without any of it beginning. A record from before it existed is dated on the way in, where the
+     * loader can see the work already in it.
      */
     startedAt?: string;
     closedAt?: string;
@@ -149,14 +151,12 @@ export type RunningTask = {
 };
 
 /**
- * Whether the user has set the work of this project going, which is the date and nothing else.
+ * Whether the work of this project has begun, which is the date and nothing else.
  *
- * Deliberately not read off the tasks. Whether one of them is ongoing looks like the same answer,
- * and it is an answer an agent writes: update_task moves a task to ongoing, so a run refused a
- * handover could open this gate by marking the task itself -- and the board, reading the same
- * thing, would take the start button off the row while it was at it, leaving the user with a
- * project started in their name and no way to start it. A record from before this date existed is
- * dated as it is loaded instead, once, where nothing of a run can reach it.
+ * Deliberately not read off the tasks. The two answers agree in the ordinary case, a task leaving
+ * todo being what writes the date, but only the date can be given before anything has moved, which
+ * is the whole of what the start button does, and only the date says when. A record from before it
+ * existed is dated as it is loaded instead, once.
  */
 export function isProjectStarted(project: Omit<Project, 'tasks'>): boolean {
     return !!project.startedAt;

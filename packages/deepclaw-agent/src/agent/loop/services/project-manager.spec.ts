@@ -747,21 +747,41 @@ describe('updateTask status transitions', () => {
     });
 
     /**
-     * A task leaving todo is work begun, and work begins at the user's word. Held to only where a
-     * task is handed to a subagent, this would be a rule a run could walk around: mark the task
-     * ongoing first, and the project reads as one at work to everything that asks it that way.
+     * A task leaving todo is the work of the project beginning, whoever writes it and from wherever:
+     * the button says it before anything moves, and this says it as it moves.
      */
-    test('refuses to move a task out of todo before the user started the project', () => {
+    test('dates a project nobody started from the task that leaves todo', () => {
         const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
-        expect(() => manager.updateTask(id, {id: 'design', status: 'ongoing'}))
-            .toThrow('The user has not started this project.');
-        expect(manager.getProjectDetail(id).tasks['design']!.status).toBe('todo');
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(manager.getProjectDetail(id).startedAt).toEqual(expect.any(String));
     });
 
-    test('refuses to mark a task done before the user started the project', () => {
+    /** The date is when the work began, and that is a thing that already happened. */
+    test('leaves the date of a project the user started themselves', () => {
         const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
-        expect(() => manager.updateTask(id, {id: 'design', status: 'done'}))
-            .toThrow('The user has not started this project.');
+        const startedAt = manager.startProject(id).startedAt;
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(manager.getProjectDetail(id).startedAt).toBe(startedAt);
+    });
+
+    test('dates nothing where the write moves no task out of todo', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', title: 'design it properly'});
+        expect(manager.getProjectDetail(id).startedAt).toBeUndefined();
+    });
+
+    /**
+     * Started is for good, nothing anywhere putting that date back, so a project is dated by work
+     * that began and never by a patch that was turned away. The date stands below every refusal
+     * there is for that reason, and this is what trips where a new one is written under it.
+     */
+    test('dates nothing where the write was refused', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        const steps = newSteps(PROJECT_CONFIG.maxTaskStepsCount + 1);
+        expect(() => manager.updateTask(id, {id: 'design', status: 'ongoing'}, steps))
+            .toThrow('Too much steps for a task.');
+        expect(manager.getProjectDetail(id).startedAt).toBeUndefined();
+        expect(manager.getProjectDetail(id).tasks['design']!.status).toBe('todo');
     });
 
     /** The words on a task are read, not worked, so they are the user's to change while they plan. */
@@ -1472,7 +1492,7 @@ describe('prompts', () => {
     test('tells the project owner to hand its tasks to subagents', () => {
         const prompt = manager.promptTaskDelegation();
         expect(prompt).toContain('## Run the tasks through subagents');
-        expect(prompt).toContain('Nothing of a project goes out before the user starts it');
+        expect(prompt).toContain('start on the board, or they tell you to get going');
         expect(prompt).toContain('call the task_loop tool with the id of the task');
         expect(prompt).toContain('Use sub_loop instead where there is nothing on the board');
         expect(prompt).toContain('Handing a task over marks it ongoing');

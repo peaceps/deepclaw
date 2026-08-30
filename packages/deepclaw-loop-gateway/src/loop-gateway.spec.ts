@@ -42,10 +42,6 @@ const mocks = vi.hoisted(() => ({
     updateTask: vi.fn(),
     finishTask: vi.fn(),
     getTask: vi.fn<(projectId: string, taskId: string) => unknown>(() => ({id: 't1', status: 'todo'})),
-    takenByHand: vi.fn<(loopId: string) => unknown>(() => undefined),
-    resumeByHand: vi.fn<(loopId: string) => void>(),
-    pauseByHand: vi.fn<(loopId: string) => void>(),
-    dropByHand: vi.fn<(loopId: string) => void>(),
     getProjectDetail: vi.fn(),
     getProjectList: vi.fn(),
     getSkillList: vi.fn(),
@@ -114,10 +110,6 @@ vi.mock('@deepclaw/agent', () => ({
     RunningTaskService: {
         getRunningTasks: mocks.getRunningTasks,
         isRunning: mocks.isRunning,
-        takenByHand: mocks.takenByHand,
-        resumeByHand: mocks.resumeByHand,
-        pauseByHand: mocks.pauseByHand,
-        dropByHand: mocks.dropByHand,
     },
     ToolUseService: {clearAwayUser: mocks.clearAwayUser},
     AGENTS_DIR: '.agents',
@@ -246,7 +238,6 @@ beforeEach(() => {
     mocks.getAgent.mockImplementation(id => ({id, fired: false}));
     mocks.isRunning.mockReturnValue(false);
     mocks.getTask.mockReturnValue({id: 't1', status: 'todo'});
-    mocks.takenByHand.mockReturnValue(undefined);
     mocks.replaceMessage.mockImplementation((_loopId: string, id: string, content: string) => ({
         id, agentId: 'a1', content, type: 'agent', timestamp: '2026-01-01T00:00:00.000Z'
     }));
@@ -844,48 +835,6 @@ describe('stop', () => {
     });
 });
 
-/**
- * A loop that took a task on itself holds it across the turns that follow: it said so once, by
- * marking the task ongoing, and what a run is is what executes. So the hold becomes a run at the
- * start of every turn and rests at the end of one, and the board spins while the answer is written.
- */
-describe('a task a loop is working with its own hands', () => {
-
-    async function ranATurn(status = 'ongoing') {
-        const {loopInfo, loopId, loop} = nextLoop('project', 'p-hand');
-        loop.invoke.mockResolvedValue(answered('done'));
-        mocks.takenByHand.mockReturnValue({projectId: 'p-hand', taskId: 't1', agentId: 'a1'});
-        mocks.getTask.mockReturnValue({id: 't1', status});
-        LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
-        await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
-        return loopId;
-    }
-
-    /**
-     * The turns of a hold are the loop's own and are tested where they happen. What is left here
-     * is the other thing: the two ways a hold ends with no turn to end it.
-     */
-    test('is not turned into a run and back by the gateway', async () => {
-        await ranATurn();
-        expect(mocks.resumeByHand).not.toHaveBeenCalled();
-        expect(mocks.pauseByHand).not.toHaveBeenCalled();
-    });
-
-    /** The loop starting over remembers no work of its own, and the card would spin for nobody. */
-    test('is let go of when the conversation of that loop is closed', async () => {
-        const loopId = await ranATurn();
-        mocks.resumeByHand.mockClear();
-        LoopGateway.startNewSession(loopId);
-        expect(mocks.dropByHand).toHaveBeenCalledWith(loopId);
-    });
-
-    test('is let go of when the project it belongs to is put away', async () => {
-        const loopId = await ranATurn();
-        LoopGateway.archiveProject('p-hand');
-        expect(mocks.dropByHand).toHaveBeenCalledWith(loopId);
-    });
-});
-
 describe('startNewSession', () => {
 
     async function idleLoop() {
@@ -1406,37 +1355,27 @@ describe('data updates', () => {
         expect(mocks.isRunning).toHaveBeenCalledWith('p1', 't1');
     });
 
-    /**
-     * Work under way is work begun, and the date is what every later task of the project is let
-     * through by. The service stands by the first date, so a project long since started is untouched.
-     */
-    test('sets the project going where a task of it is taken up by hand', () => {
+    /** One write: the task leaving todo is what dates the project as started. */
+    test('takes a task up by hand', () => {
         mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {t1: {id: 't1'}}});
         LoopGateway.takeUpProjectTask('p1', 't1');
-        expect(mocks.startProject).toHaveBeenCalledWith('p1');
         expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', status: 'ongoing'});
+        expect(mocks.startProject).not.toHaveBeenCalled();
         expect(events.at(-1)).toEqual(expect.objectContaining({
             content: expect.objectContaining({id: 'p1'}),
         }));
     });
 
-    /**
-     * The date has to go down before the status, the service refusing a task that leaves todo
-     * without one, so everything that could refuse the status is asked before it is written: a
-     * project turned "started" by an edit that never happened has no button to take that back.
-     */
-    test('writes no start date for a task that is not there', () => {
+    test('takes up nothing for a task that is not there', () => {
         mocks.getTask.mockReturnValue(undefined);
         expect(() => LoopGateway.takeUpProjectTask('p1', 't1')).toThrow('Task not found.');
-        expect(mocks.startProject).not.toHaveBeenCalled();
         expect(mocks.updateTask).not.toHaveBeenCalled();
     });
 
-    test('writes no start date for a task that is past being taken up', () => {
+    test('takes up nothing for a task that is past being taken up', () => {
         mocks.getTask.mockReturnValue({id: 't1', status: 'done'});
         expect(() => LoopGateway.takeUpProjectTask('p1', 't1'))
             .toThrow('Only a task still in todo can be taken up.');
-        expect(mocks.startProject).not.toHaveBeenCalled();
         expect(mocks.updateTask).not.toHaveBeenCalled();
     });
 
@@ -1456,14 +1395,7 @@ describe('data updates', () => {
         mocks.isRunning.mockReturnValue(true);
         expect(() => LoopGateway.takeUpProjectTask('p1', 't1'))
             .toThrow('This task is being worked on right now.');
-        expect(mocks.startProject).not.toHaveBeenCalled();
         expect(mocks.updateTask).not.toHaveBeenCalled();
-    });
-
-    test('leaves the project alone for an edit that moves nothing', () => {
-        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {}});
-        LoopGateway.updateProjectTask('p1', {id: 't1', title: 'renamed'});
-        expect(mocks.startProject).not.toHaveBeenCalled();
     });
 
     /** Read by whoever picks the work up, so putting it right while the work runs is the point. */

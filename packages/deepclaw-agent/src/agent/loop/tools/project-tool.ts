@@ -161,46 +161,6 @@ function requireHiredAssignee(assignee: string | undefined): void {
     throw new Error(`No agent "${assignee}" works here, assign the task to one of: ${hired.join(', ')}.`);
 }
 
-/**
- * A run marking a task ongoing itself is a run about to work that task with its own hands: handing
- * one over has a tool of its own and marks it ongoing on the way, so nothing but a loop taking the
- * work on arrives here. The board is told, and goes on being told for as long as the work lasts:
- * what is held here becomes a run again at the start of every turn of this loop until the task is
- * out of ongoing, so the card spins while the loop is answering and rests between.
- *
- * The status is read off the task rather than off the patch, a task held at a pause gate having
- * been put back to where it was. Only the task this loop holds lets go of it: a run closing some
- * other task of the project says nothing about the one it is working.
- *
- * Work somebody else is already on is no work to take on. A task with a subagent on it is ongoing
- * like any other, and a model resending the whole of a patch it sent before -- which every one of
- * them does -- would be read as taking that work over. What the hold says is that this loop is
- * working this task, and everything that reads it believes that: the handover door lets a hold of
- * its own past the very check that keeps two subagents off one task, so a hold written over
- * somebody else's run is a second subagent on the work of the first.
- *
- * Its own run is what a loop finds there while it holds the task already, so restating a hold is
- * asked about before the board is.
- */
-function noteHandWork(input: UpdateTaskInput, task: Task, context: OneLoopContext): void {
-    const held = RunningTaskService.takenByHand(context.loopId);
-    const holdsThis = held?.projectId === input.projectId && held?.taskId === task.id;
-    const free = holdsThis || !RunningTaskService.isRunning(input.projectId, task.id);
-    if (input.status === 'ongoing' && task.status === 'ongoing' && free) {
-        RunningTaskService.takeByHand(context.loopId, {
-            projectId: input.projectId,
-            taskId: task.id,
-            agentId: context.agentId,
-            startedAt: new Date().toISOString(),
-        });
-    } else if (holdsThis && task.status !== 'ongoing') {
-        RunningTaskService.dropByHand(context.loopId);
-    } else {
-        return;
-    }
-    fireRunningTasksEvent(context);
-}
-
 function buildTasks(tasks: ProjectTaskInput[], context: OneLoopContext): Task[] {
     return tasks.map(task => {
         requireHiredAssignee(task.assignee);
@@ -459,8 +419,8 @@ to be something else. Rewriting it is free at any point of the work, the same as
 A task leaves todo only once the user has started the project it belongs to, whether you work it
 yourself or hand it to somebody: until they say so, the plan is there to be talked over and nothing
 in it is under way.
-Handing a task to a subagent marks it ongoing for you. Marking it ongoing here is you saying you are
-working this one yourself, which is what puts you on the board as the one on it.`,
+Both ways of starting a task mark it ongoing on their own -- task_loop hands it to a subagent,
+work_on_task takes it on yourself -- so what is left to write here is done.`,
                 },
                 steps: {
                     type: 'array',
@@ -538,8 +498,6 @@ rather than linked under it. Only files, not folders, and only inside the worksp
             taskInfo.output = output;
         }
         const {task, stop} = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);
-        noteHandWork(input, task, context);
-
         if (stop) {
             context.runtime.agentBreakReason = 'taskPause';
             // What the user is told about stands under the title they read, not the id they never see.
@@ -560,6 +518,80 @@ Task is not set done because the user requires it to be verified before it can b
 After user set task.verified to true, it can be successfully set done.`;
         }
         return res + reportReminder(project) + skippedFilesNote(skippedFiles);
+    },
+};
+
+type WorkOnTaskInput = {
+    projectId: string;
+    taskId: string;
+};
+
+/**
+ * The other way a task starts, task_loop being the usual one. Both mark it ongoing and both say who
+ * is on it; the difference is whose hands, and this is the tool for the work the user asked of the
+ * run itself.
+ *
+ * What it writes about the run lasts the turn it was said in and no longer. A subagent is a run from
+ * its first line to its last, and the tool that spawns one holds it open across the await; a loop
+ * working a task itself is answering one turn at a time, and between those turns nothing of it is
+ * executing. So the turn is what this is scoped to, and a turn always ends: nothing said here can
+ * be left behind by a conversation that wandered off, and the board never has to be read back to
+ * find out whether it is still true. Said again next turn, if the run is still on the task.
+ *
+ * A task that is not done is a task this can be called on, and that is the whole of the gate. There
+ * is no claim to be had on a task here, only the fact of who is working it: the two that could ever
+ * reach a task are the run that owns the board and the subagent it handed the task to, and both of
+ * them working it is both of them doing what they are for.
+ *
+ * Taking a task up sets the project going where the user had not started it themselves, work asked
+ * of the run being work begun. That falls out of the write rather than being asked for here: a task
+ * leaving todo is what dates a project, wherever the write comes from. The refusals worth having
+ * are the ones updateTask makes anyway -- a task nobody can find, a done task going back to ongoing
+ * -- so none of them is written twice here.
+ */
+export const workOnTaskTool: ToolDesc<WorkOnTaskInput> = {
+    tool: {
+        name: 'work_on_task',
+        description: `Take one task on yourself, for work you are about to do. It marks the task
+ongoing, the way handing it to a subagent with task_loop does, and puts you on the user's board as
+the one on it while you answer. Say it again whenever you pick the work back up,
+and mark the task done with update_task once it is over.
+This is for a task the user asked you to work yourself. Every other task of a project goes to a
+subagent with task_loop, which is how the board is normally worked.`,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                projectId: {type: 'string', description: 'The ID of the project.'},
+                taskId: {type: 'string', description: 'The id of the task you are working on.'},
+            },
+            required: ['projectId', 'taskId'],
+        },
+    },
+    agentMode: ['agent'],
+    parallelSafe: false,
+    // The board of a project belongs to the loop that runs it, and one conversation works one task.
+    loopKinds: ['main'],
+    // No role kept out, where task_loop keeps all but the project run. That door reads the project
+    // off the session and builds a subagent inside it, so a run whose project id is the id of a
+    // cron task would work a task of nothing; this one is handed the project like every other tool
+    // of the board, and a scheduled run pushing a task of a real project along is a scheduled run
+    // doing its job. Keeping it out would take away the word and not the deed either way, update_task
+    // being open to the same runs.
+    invoke: async function(input: WorkOnTaskInput, context: OneLoopContext): Promise<string> {
+        const {task} = ProjectManager.updateTask(input.projectId, {
+            id: input.taskId, status: 'ongoing',
+        });
+        RunningTaskService.startMainLoopRun(context.loopId, {
+            projectId: input.projectId,
+            taskId: task.id,
+            agentId: context.agentId,
+            startedAt: new Date().toISOString(),
+        });
+        fireRunningTasksEvent(context);
+        ProjectManager.fireProjectInfoEvent(input.projectId, context);
+        return `"${task.title}" is ongoing and yours to work. The user sees it running on the board
+while this answer is being written; mark it done with update_task once the work is over.`;
     },
 };
 
