@@ -105,7 +105,8 @@ export async function archiveProject(projectId: string): Promise<void> {
  */
 export type TaskEdit =
     Pick<Task, 'id'>
-    & Partial<Pick<Task, 'title' | 'description' | 'pause' | 'verified' | 'assignee' | 'priority'>>;
+    & Partial<Pick<Task,
+        'title' | 'description' | 'pause' | 'verified' | 'assignee' | 'reviewer' | 'priority'>>;
 
 /**
  * What this takes is what anyone who reaches the page can send, and the gateway behind it writes
@@ -124,6 +125,9 @@ export async function updateProjectTask(projectId: string, task: TaskEdit): Prom
         if (task.pause !== undefined) patch.pause = task.pause;
         if (task.verified !== undefined) patch.verified = task.verified;
         if (task.assignee !== undefined) patch.assignee = task.assignee;
+        // The empty string among them: it is how a card says the task is to be read over by nobody,
+        // and the service reads it as that. Dropped here, taking a reviewer off would do nothing.
+        if (task.reviewer !== undefined) patch.reviewer = task.reviewer;
         if (task.priority !== undefined) patch.priority = task.priority;
         LoopGateway.updateProjectTask(projectId, patch);
         revalidatePath('/', 'layout');

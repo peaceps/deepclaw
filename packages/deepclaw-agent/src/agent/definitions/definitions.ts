@@ -168,9 +168,11 @@ export type AssignedTask = {
 /**
  * What a loop was started as. A main loop is the one a session belongs to and the only one kept on
  * disk. A task loop works one task of the project it was handed, and hands parts of it on. A sub
- * loop is the end of the chain: it works the prompt it was given and reports back.
+ * loop is the end of the chain: it works the prompt it was given and reports back. A review loop
+ * reads a task somebody else worked and gives a verdict on it, and is the one kind that is there
+ * to change nothing: what it hands back is what it thinks of the work.
  */
-export type LoopKind = 'main' | 'task' | 'sub';
+export type LoopKind = 'main' | 'task' | 'sub' | 'review';
 
 /** Everything a spawned loop has to know before it can even tell which session is its own. */
 export type SpawnedLoop = {
@@ -212,6 +214,12 @@ export type OneLoopContext = {
      * wherever nothing is borrowed, which is every loop working on no task of anybody.
      */
     personaId?: string;
+    /**
+     * The one task a spawned loop was pointed at: the task a task loop works, and the task a review
+     * reads. What a tool of such a run may write it on, so that naming a task is never a thing a
+     * model does -- a review handed a task id of its own could file its report on another task.
+     */
+    assignedTask?: AssignedTask;
     projectId: string;
     loopId: string;
     browserId: string;
@@ -222,6 +230,7 @@ export type OneLoopContext = {
     logger: Logger;
     actions: {
         newTaskLoop: (assignedTask: AssignedTask) => Promise<FlushAgent>;
+        newReviewLoop: (assignedTask: AssignedTask) => Promise<FlushAgent>;
         newSubLoop: () => FlushAgent;
         addFootPrint: (footPrint: FootPrint) => void;
         agentHandler: SealedAgentHandler;
@@ -251,12 +260,14 @@ export function personaOf(context: OneLoopContext): string {
  * hands a task to and watches the card of, and a card that stands still through an afternoon of work
  * done in that name is a card saying the wrong thing.
  *
- * Nobody in the three cases where the run is nobody. A scheduled run feels nothing on anyone's
+ * Nobody in the four cases where the run is nobody. A scheduled run feels nothing on anyone's
  * behalf: nobody asked it for anything and nobody watched it go, and what it left on a card would
  * stand there as the mood of an agent until somebody next opened a chat with them. A sub loop is a
  * piece of a task rather than a task: several of them run under one borrowed name at once, and one
- * card written by all of them is a flicker instead of a feeling. A run working a task nobody owns
- * has no name at all -- its prompt gives it none -- and a mood from it would be a run the user
+ * card written by all of them is a flicker instead of a feeling. A review reads work over and hands
+ * back a judgement; it is offered no feeling in its prompt and has no tool to leave one with, and a
+ * card aged by turns nobody was shown is a card going stale in silence. A run working a task nobody
+ * owns has no name at all -- its prompt gives it none -- and a mood from it would be a run the user
  * never saw speaking as the loop that spawned it.
  *
  * The tool names the scheduled run again before asking this, and that is worth keeping: it answers
@@ -268,7 +279,7 @@ export function personaOf(context: OneLoopContext): string {
  * be refused or refused one it was invited to give.
  */
 export function feelerOf(context: OneLoopContext): string | undefined {
-    if (context.role === 'cron' || context.loopKind === 'sub') {
+    if (context.role === 'cron' || context.loopKind === 'sub' || context.loopKind === 'review') {
         return undefined;
     }
     return isSpawnedLoop(context.loopKind) ? context.personaId : context.agentId;

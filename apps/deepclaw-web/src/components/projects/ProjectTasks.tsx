@@ -54,7 +54,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
               // here is the one line the strip shows and the agents are handed.
               <textarea
                 autoFocus
-                rows={2}
+                rows={1}
                 value={description.draft}
                 maxLength={PROJECT_CONFIG.maxProjectDescriptionLength}
                 onChange={(e) => description.setDraft(e.target.value)}
@@ -116,6 +116,7 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                                     key={task.id} task={task} projectId={project.id}
                                     projectStarted={isProjectStarted(project)}
                                     assignee={task.assignee ? agents.find(a => a.id === task.assignee) : undefined}
+                                    reviewer={task.reviewer ? agents.find(a => a.id === task.reviewer) : undefined}
                                     blockedByTitles={task.blockedBy.flatMap(id => {
                                       const blocker = tasks[id];
                                       return blocker && blocker.status !== 'done' ? [blocker.title] : [];

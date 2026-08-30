@@ -4,10 +4,22 @@ import { globalize } from '@deepclaw/utils';
 import { type OneLoopContext } from '../../definitions/definitions';
 
 /**
- * The tasks being worked at this very moment, in two books by who is working them: the task loops
- * they were handed to, and the main loops working them themselves. Nothing of this outlives the
- * process, which is the point: a run that died with it is not running anymore, and the status a
- * task carries cannot tell that apart on its own.
+ * What a caller has to say about a run beginning. The run id comes back from the book it went into,
+ * and what kind of run it is is the book it went into, so neither is anybody's to pass in.
+ */
+export type StartingTask = Omit<RunningTask, 'runId' | 'kind'>;
+
+/**
+ * The tasks being worked at this very moment, in three books by who is working them: the task loops
+ * they were handed to, the main loops working them themselves, and the readings a reviewer is in
+ * the middle of. Nothing of this outlives the process, which is the point: a run that died with it
+ * is not running anymore, and the status a task carries cannot tell that apart on its own.
+ *
+ * Kept in books rather than in one list with a field to sort it by, because every question asked
+ * here is about one or two of them and never about "a run": handing a task out asks after subagents,
+ * the card spins for work and draws a reading on a line of its own. The field is written all the
+ * same, and written from in here, for the browsers, which are handed the three of them as one list
+ * and have nothing else to tell the rows apart by.
  */
 class RunningTaskServiceImpl {
 
@@ -31,19 +43,38 @@ class RunningTaskServiceImpl {
      */
     private static mainLoopRuns: Map<string, RunningTask> = new Map();
 
+    /**
+     * The readings under way, by the run each is going on under. A reading is a spawned run like a
+     * task loop, and lasts exactly as long as it, but it is a book of its own because it answers a
+     * different question: what a reader is doing is looking at work that already stands, so it is
+     * no reason to refuse anything a run on the work itself would be.
+     */
+    private static reviewRuns: Map<string, RunningTask> = new Map();
+
     private static isOn(runs: Iterable<RunningTask>, projectId: string, taskId: string): boolean {
         return [...runs].some(run => run.projectId === projectId && run.taskId === taskId);
     }
 
     /** The handle to hand back on the way out, so two runs of one task cannot retire each other. */
-    public static startTaskLoopRun(task: Omit<RunningTask, 'runId'>): string {
+    public static startTaskLoopRun(task: StartingTask): string {
         const runId = randomUUID();
-        this.taskLoopRuns.set(runId, {...task, runId});
+        this.taskLoopRuns.set(runId, {...task, runId, kind: 'work'});
         return runId;
     }
 
     public static finishTaskLoopRun(runId: string): void {
         this.taskLoopRuns.delete(runId);
+    }
+
+    /** A task going out to be read over, which is a run of its own beside whatever else is on it. */
+    public static startReviewRun(task: StartingTask): string {
+        const runId = randomUUID();
+        this.reviewRuns.set(runId, {...task, runId, kind: 'review'});
+        return runId;
+    }
+
+    public static finishReviewRun(runId: string): void {
+        this.reviewRuns.delete(runId);
     }
 
     /**
@@ -57,8 +88,8 @@ class RunningTaskServiceImpl {
      * fresh one every time would draw the same work as another row whenever a run said twice what
      * it is on.
      */
-    public static startMainLoopRun(loopId: string, task: Omit<RunningTask, 'runId'>): void {
-        this.mainLoopRuns.set(loopId, {...task, runId: loopId});
+    public static startMainLoopRun(loopId: string, task: StartingTask): void {
+        this.mainLoopRuns.set(loopId, {...task, runId: loopId, kind: 'work'});
     }
 
     /** A turn ending, and with it whatever that loop had said it was working. */
@@ -81,7 +112,14 @@ class RunningTaskServiceImpl {
         return this.mainLoopRuns.delete(loopId);
     }
 
-    /** Whether anybody is on that task right now, which is the whole of what the card spins for. */
+    /**
+     * Whether anybody is working that task right now, which is the whole of what the card spins for.
+     *
+     * A reading is not working it. It is a run on the task and it draws a row of its own, but what
+     * this question stands in front of is work being taken over or closed out from under somebody,
+     * and a reader is doing neither: it reads what already stands there. Asked for by name below
+     * where somebody means to ask about one.
+     */
     public static isRunning(projectId: string, taskId: string): boolean {
         return this.isOn(this.mainLoopRuns.values(), projectId, taskId)
             || this.isTaskLoopRunning(projectId, taskId);
@@ -96,8 +134,15 @@ class RunningTaskServiceImpl {
         return this.isOn(this.taskLoopRuns.values(), projectId, taskId);
     }
 
+    /** Whether the task is being read over at this moment, which no second reading joins. */
+    public static isReviewRunning(projectId: string, taskId: string): boolean {
+        return this.isOn(this.reviewRuns.values(), projectId, taskId);
+    }
+
     public static getRunningTasks(): RunningTask[] {
-        return [...this.taskLoopRuns.values(), ...this.mainLoopRuns.values()];
+        return [
+            ...this.taskLoopRuns.values(), ...this.mainLoopRuns.values(), ...this.reviewRuns.values(),
+        ];
     }
 }
 

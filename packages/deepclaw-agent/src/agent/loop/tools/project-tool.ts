@@ -1,4 +1,4 @@
-import { ToolDesc } from "../../definitions/tool-definitions";
+import { DEFAULT_LOOP_KINDS, ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager } from "../services/project-manager";
 import {
     type LLMTaskOutput, MISSION_PRIORITIES, type MissionPriority, type MissionStatus,
@@ -54,6 +54,7 @@ type ProjectTaskInput = {
     steps?: string[];
     blockedBy?: string[];
     assignee?: string;
+    reviewer?: string;
 };
 
 /** A handle rather than a sentence: lowercase, no spaces, nothing that needs escaping anywhere. */
@@ -67,6 +68,21 @@ The user never sees it and it never changes, which is what makes it safe to hold
 beside it is theirs to rewrite whenever they like.`,
     minLength: 1,
     maxLength: 30,
+};
+
+/**
+ * Worded to be turned down. A reviewer costs a run of its own and a model handed a field will fill
+ * it in, so what this says is mostly the cases where the answer is nobody -- and the two of those
+ * are the ones a plan is full of: work the next task would trip over, and work the user reads.
+ */
+const reviewerSchema = {
+    type: 'string',
+    description: `The id of an agent that reads this task over before it closes. Leave it out for
+almost every task. A review is another agent reading the work with fresh eyes and it costs a run of
+its own, so it earns its place only where nothing else would catch a mistake: work no later task
+would trip over, a change that is hard to take back, an answer that is either right or wrong and can
+be checked against something. Where the user reads the result themselves, or where the next task
+would fail loudly on a bad one, that is the review already and this stays empty.`,
 };
 
 const taskItemSchema = {
@@ -110,6 +126,7 @@ All steps should be done when task is going to be marked as done.`,
 expertises fit it. The subagent you hand the task over to works as its assignee, with the memory and
 the skills of that agent; left out, the task is yours, and the subagent that works it stands for you.`,
         },
+        reviewer: reviewerSchema,
     },
     required: ['id', 'title', 'description', 'priority'],
 };
@@ -161,9 +178,51 @@ function requireHiredAssignee(assignee: string | undefined): void {
     throw new Error(`No agent "${assignee}" works here, assign the task to one of: ${hired.join(', ')}.`);
 }
 
+/**
+ * The same for the other name a task can carry, and turned away here rather than at the gate: a
+ * reviewer nobody can be built for is a task that can never be closed by any run, only waived by
+ * the user's own hand on the board.
+ */
+function requireHiredReviewer(reviewer: string | undefined): void {
+    if (!reviewer) {
+        return;
+    }
+    const agent = AgentIdentityManager.getAgent(reviewer);
+    if (agent && !agent.fired) {
+        return;
+    }
+    const hired = AgentIdentityManager.getAgents().filter(one => !one.fired).map(one => one.id);
+    throw new Error(`No agent "${reviewer}" works here, pick a reviewer from: ${hired.join(', ')}.`);
+}
+
+/**
+ * The other half of `roles: ['project']`, and the half that carries the weight. The role says the
+ * caller is the run of a project; this says it is the run of *this* project. Without it the board
+ * of every project is open to the run of every other one -- get_project_list hands out the ids to
+ * anybody, so "mark t1 of that other project done" is a thing a run can be talked into and has no
+ * way to refuse.
+ *
+ * It is what makes the rest of it true. The runs on a task are kept per project and per task, and
+ * every question asked of them -- is somebody working this, is somebody reading it -- is answered
+ * on the quiet assumption that the runs which could be there are this project's own. A second
+ * project's run writing here would be a hand nothing counted.
+ *
+ * Read off the session rather than taken as an argument, which is the whole point: a run cannot
+ * name a project it is not in, because it never names the one it is in either.
+ */
+function requireOwnProject(projectId: string, context: OneLoopContext): void {
+    if (projectId === context.projectId) {
+        return;
+    }
+    throw new Error(`This conversation is the conversation of project ${context.projectId}, and `
+        + `${projectId} is another project. Its board is worked in its own conversation, on its `
+        + 'own row: tell the user which project the work belongs to and leave it there.');
+}
+
 function buildTasks(tasks: ProjectTaskInput[], context: OneLoopContext): Task[] {
     return tasks.map(task => {
         requireHiredAssignee(task.assignee);
+        requireHiredReviewer(task.reviewer);
         return ProjectManager.createTask({...task, agentId: context.agentId});
     });
 }
@@ -179,8 +238,9 @@ export const createProjectTool: ToolDesc<CreateProjectInput> = {
     tool: {
         name: 'create_project',
         description: `Create a new project with its tasks. project is a long term goal that can be broken down into tasks,
-they will be persisted in file system. After project created, user can review the plan and ask to make changes to the plan, 
-so do not call tools updating project/tasks immediately with create_project`,
+they will be persisted in file system. The project gets a conversation of its own on the board the
+moment it exists, and the plan is reviewed and changed there rather than here: say where it is and
+leave it to the user.`,
         schema: {
             type: 'object',
             additionalProperties: false,
@@ -214,6 +274,11 @@ so do not call tools updating project/tasks immediately with create_project`,
     agentMode: ['agent'],
     parallelSafe: false,
     loopKinds: ['main'],
+    // The one tool of the board open to every role, and it has to be: a project is born here, and
+    // the run of a project is a thing that exists only once there is one. So this is the chat the
+    // user asked for it in, whatever that chat was. Everything after it -- rewriting the plan,
+    // putting a task on, moving one along -- belongs to the run of the project, which the project
+    // has from the moment this call returns.
     invoke: async function(input: CreateProjectInput, context: OneLoopContext): Promise<string> {
         const tasks = buildTasks(input.tasks, context);
         const project = ProjectManager.createProject({
@@ -261,8 +326,15 @@ own instead.`,
     // The board of a project belongs to the loop that runs it: a subagent works a task it was
     // handed, it does not put tasks on the board of the project.
     loopKinds: ['main'],
+    // And the board of a project belongs to the run of that project, which is the other half of
+    // the same sentence. What this one reaches is a live board -- a project still being planned
+    // has its whole task list rewritten with update_project instead -- so it is asked for by a run
+    // that can see what else is on that board.
+    roles: ['project'],
     invoke: async function(input: AddTaskInput, context: OneLoopContext): Promise<string> {
+        requireOwnProject(input.projectId, context);
         requireHiredAssignee(input.assignee);
+        requireHiredReviewer(input.reviewer);
         const {projectId, ...task} = input;
         ProjectManager.addTask(projectId, {...task, agentId: context.agentId});
         ProjectManager.fireProjectInfoEvent(projectId, context);
@@ -351,7 +423,12 @@ the old one away along with everything pointing at it. Leave a task out only to 
     agentMode: ['agent'],
     parallelSafe: true,
     loopKinds: ['main'],
+    // The plan of a project and the report of it, both of them the project's own to write. A chat
+    // that knows the id knows nothing else: not what the tasks came out of, not what the runs on
+    // them found, not what the report is a report of.
+    roles: ['project'],
     invoke: async function(input: UpdateProjectInput, context: OneLoopContext): Promise<string> {
+        requireOwnProject(input.projectId, context);
         // What arrives here is held to the schema above by nothing: additionalProperties is a word
         // only some providers keep, and a call carrying one field more is a call like any other by
         // the time it lands. So what a run may write is copied over one field at a time, the way
@@ -383,6 +460,7 @@ type UpdateTaskInput = {
     status?: MissionStatus;
     steps?: string[];
     assignee?: string;
+    reviewer?: string;
     /** generatedFiles names what to hand over to the user, it is no part of the kept output. */
     output?: LLMTaskOutput & {generatedFiles?: string[]};
 };
@@ -437,6 +515,12 @@ They shoudl be short descriptions of each step, should not be too long for user 
 through a subagent that stands for it. Only a task still in todo can be handed on: work already
 taken up stays with whoever took it.`,
                 },
+                reviewer: {
+                    ...reviewerSchema,
+                    description: `${reviewerSchema.description}
+An empty string takes the reviewer a task has back off it. Only a task still in todo takes one or
+gives one up: once the work is under way, the reading it was promised stands.`,
+                },
                 output: {
                     type: 'object',
                     additionalProperties: false,
@@ -478,10 +562,25 @@ rather than linked under it. Only files, not folders, and only inside the worksp
     // A task waiting to be verified stops the loop that marks it done, and a sub loop that stops
     // there reports the pause instead of its work. Its status belongs to whoever assigned it.
     loopKinds: ['main'],
+    // The state of a task is the project's own to move, and the run of that project is the only
+    // one that knows what else is happening on the board: what is handed out, what is being read
+    // over, what the pause is waiting for. A chat that happens to know the id knows none of it.
+    roles: ['project'],
     invoke: async function(input: UpdateTaskInput, context: OneLoopContext): Promise<string> {
+        requireOwnProject(input.projectId, context);
         const taskInfo: UpdateContent<Task> = {id: input.taskId};
         requireHiredAssignee(input.assignee);
-        if (input.assignee) taskInfo.assignee = input.assignee;
+        requireHiredReviewer(input.reviewer);
+        // Both asked whether the field was sent rather than whether it says anybody, and the two
+        // mean different things by an empty one. A task has to belong to somebody, so a blank
+        // assignee is nothing anybody could have meant and the service turns it away -- passed on
+        // rather than dropped here, a model that sent one is told so instead of watching a call
+        // report success and change nothing. A blank reviewer is how a reviewer is taken off; read
+        // as "nothing was asked for", a model that had named the wrong one on a todo task could
+        // only name a different one, and the task would owe a reading for the rest of its life
+        // that nobody but the user could waive by hand.
+        if (input.assignee !== undefined) taskInfo.assignee = input.assignee;
+        if (input.reviewer !== undefined) taskInfo.reviewer = input.reviewer;
         if (input.title) taskInfo.title = input.title;
         if (input.description) taskInfo.description = input.description;
         if (input.status) taskInfo.status = input.status;
@@ -489,7 +588,12 @@ rather than linked under it. Only files, not folders, and only inside the worksp
         if (input.output) {
             const {generatedFiles, ...output} = input.output;
             requireReadableOutput(output);
-            // The links go in before the output is filed away, so the saved report carries them.
+            // The links go in before the output is filed away, so the saved report carries them,
+            // which puts the files over before the service has said whether it takes the call. A
+            // call it turns away leaves them in the project folder with nothing naming them; the
+            // resend hands the same bytes over under the same names, so nothing is doubled where
+            // the file has not changed since, and the links come back. Only the throw has to keep
+            // to what it says: the task is untouched, the call is not.
             if (generatedFiles?.length) {
                 skippedFiles = publishGeneratedFiles(
                     output, generatedFiles, projectFilesDir(input.projectId)
@@ -543,6 +647,15 @@ type WorkOnTaskInput = {
  * reach a task are the run that owns the board and the subagent it handed the task to, and both of
  * them working it is both of them doing what they are for.
  *
+ * No gate on a reading, where task_loop has one, and the difference is `parallelSafe` rather than
+ * an oversight. There the two calls can leave the same turn -- task_loop and review_task are both
+ * parallel safe, so they share a group and run beside each other, and a subagent set going under a
+ * reading rewrites the very thing being read. This one is not parallel safe: it is planned into a
+ * group of its own, groups run one after another, and a review_task of the same turn has therefore
+ * already returned its verdict before this is called or has not been called yet. Nor can the two
+ * arrive from different conversations any more -- the board of a project is written by the run of
+ * that project alone, and one loop answers one turn at a time.
+ *
  * Taking a task up sets the project going where the user had not started it themselves, work asked
  * of the run being work begun. That falls out of the write rather than being asked for here: a task
  * leaving todo is what dates a project, wherever the write comes from. The refusals worth having
@@ -572,13 +685,14 @@ subagent with task_loop, which is how the board is normally worked.`,
     parallelSafe: false,
     // The board of a project belongs to the loop that runs it, and one conversation works one task.
     loopKinds: ['main'],
-    // No role kept out, where task_loop keeps all but the project run. That door reads the project
-    // off the session and builds a subagent inside it, so a run whose project id is the id of a
-    // cron task would work a task of nothing; this one is handed the project like every other tool
-    // of the board, and a scheduled run pushing a task of a real project along is a scheduled run
-    // doing its job. Keeping it out would take away the word and not the deed either way, update_task
-    // being open to the same runs.
+    // The run of the project and no other, the same as task_loop. Both of them say who is working
+    // a task, and a task worked by somebody outside the board is work the board cannot see: the
+    // run that owns the project is the one that hands tasks out, waits on what comes back and
+    // decides when one is done, and a hand it never knew about is a hand none of that accounts
+    // for. A scheduled run with a project id is not that run, whatever it knows the id of.
+    roles: ['project'],
     invoke: async function(input: WorkOnTaskInput, context: OneLoopContext): Promise<string> {
+        requireOwnProject(input.projectId, context);
         const {task} = ProjectManager.updateTask(input.projectId, {
             id: input.taskId, status: 'ongoing',
         });
@@ -626,7 +740,10 @@ If all steps are done, set stepIndex to the length of steps, and then the task c
     // The step index of a task belongs to the loop that works the task, and a sub loop of that
     // loop works a piece of it: two hands on the same index would only undo each other.
     loopKinds: ['main', 'task'],
+    // Inside the project the task belongs to, like everything else that writes to the board.
+    roles: ['project'],
     invoke: async function(input: UpdateTaskCurrentStepInput, context: OneLoopContext): Promise<string> {
+        requireOwnProject(input.projectId, context);
         const updated = ProjectManager.updateCurrentStep(input.projectId, input.taskId, input.stepIndex);
         context.actions.agentHandler.onStreamText({
             browserId: context.browserId,
@@ -683,6 +800,9 @@ export const getProjectDetailTool: ToolDesc<GetProjectDetailInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
+    // A review is told which task it reads and nothing else of the board it sits on: the task
+    // before it, what blocks it, what the project is for. All of that is read here.
+    loopKinds: [...DEFAULT_LOOP_KINDS, 'review'],
     invoke: async function(input: GetProjectDetailInput): Promise<string> {
         return JSON.stringify(ProjectManager.getProjectDetail(input.projectId));
     },

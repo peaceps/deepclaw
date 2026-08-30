@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Ban, CirclePause, ClipboardCheck, Loader2, MoreHorizontal, Pencil } from 'lucide-react';
+import {
+  Ban, CirclePause, ClipboardCheck, FileText, Loader2, MoreHorizontal, Pencil
+} from 'lucide-react';
 import  {
   type Task, type AgentEmployee, getTaskProgress, type MissionPriority, type MissionStatus,
   PROJECT_CONFIG
@@ -29,6 +31,8 @@ type TaskPatch = Omit<TaskEdit, 'id'>;
 type TaskCardProps = {
   task: Task;
   assignee?: AgentEmployee;
+  /** Whoever reads the task over, and nobody on nearly every task: no reviewer, no row. */
+  reviewer?: AgentEmployee;
   blockedByTitles?: string[];
   projectId: string;
   /** Taking a task up sets an unstarted project going, which the menu says while that is so. */
@@ -36,24 +40,33 @@ type TaskCardProps = {
 }
 
 export function TaskCard(
-  { task, assignee, blockedByTitles, projectId, projectStarted }: TaskCardProps
+  { task, assignee, reviewer, blockedByTitles, projectId, projectStarted }: TaskCardProps
 ) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [pickingAssignee, setPickingAssignee] = useState(false);
+  const [pickingReviewer, setPickingReviewer] = useState(false);
   const [pickingPriority, setPickingPriority] = useState(false);
   const [movingStatus, setMovingStatus] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
   const assigneePencilRef = useRef<HTMLButtonElement>(null);
+  const reviewerPencilRef = useRef<HTMLButtonElement>(null);
   const priorityRef = useRef<HTMLButtonElement>(null);
   const statusRef = useRef<HTMLButtonElement>(null);
   const {t} = useTranslation();
   const progress = getTaskProgress(task);
   const updateProjectTask = useAppStore(s => s.updateProjectTask);
   const activeAgents = useAppStore(s => s.activeAgents);
-  // An ongoing task only says the work was taken up, this says somebody is on it right now --
-  // a subagent it was handed to, or the agent working it in this very turn of its own.
-  const running = useAppStore(s => s.runningTasks)
-    .some(run => run.projectId === projectId && run.taskId === task.id);
+  // An ongoing task only says the work was taken up, these say what is happening on it right now:
+  // the work, by a subagent it was handed to or by the agent working it in this very turn of its
+  // own, and the reading of that work. The two are apart because they mean different things to a
+  // card: work being on is what takes the status out of the user's hands, a reading takes nothing
+  // away from anybody.
+  const runs = useAppStore(s => s.runningTasks);
+  const onTask = (kind: 'work' | 'review') => runs.some(
+    run => run.projectId === projectId && run.taskId === task.id && run.kind === kind
+  );
+  const running = onTask('work');
+  const reviewing = onTask('review');
   // The loop already stopped at the gate, so lifting the pause frees nothing, only a verdict does.
   const awaitingVerify = !!task.pause && task.verified === false;
 
@@ -93,6 +106,13 @@ export function TaskCard(
     if (agentId === task.assignee) return;
     patchTask({ assignee: agentId }, { assignee: task.assignee });
   }, [task.assignee, patchTask]);
+
+  // The empty word is a pick like any other here: it is how the row is taken off the card again.
+  const handleReviewerPick = useCallback((agentId: string) => {
+    setPickingReviewer(false);
+    if (agentId === (task.reviewer ?? '')) return;
+    patchTask({ reviewer: agentId }, { reviewer: task.reviewer });
+  }, [task.reviewer, patchTask]);
 
   // Work still to be done can be reordered; work that is done cannot, and the server says the same.
   const canReprioritize = task.status !== 'done';
@@ -184,16 +204,28 @@ export function TaskCard(
           ) : (
             <h4 className="flex-1 min-w-0">
               {/* The words themselves open the box, so a narrow screen has a way in without the
-                  pencil taking room on a card that is already tight. */}
+                  pencil taking room on a card that is already tight.
+
+                  The word for it hangs on the pencil rather than on the button, though the button
+                  is the whole of what is clickable: put on the button it pops over the title of
+                  the task, which is a line of the user's own text with nothing to explain, and
+                  what pops there is an offer to edit that covers the thing being read. On the
+                  pencil it is where the eye already is when the question comes up. An aria-label
+                  says the same to whoever is not looking at either. */}
               <button
                 type="button"
                 onClick={title.start}
-                title={t('web.pages.projects.task.editTitle')}
+                aria-label={t('web.pages.projects.task.editTitle')}
                 className="group flex w-full min-w-0 items-start gap-1.5 text-left"
               >
                 <span className="font-medium text-gray-900 line-clamp-2">{task.title}</span>
-                <Pencil size={12} className="hidden sm:block flex-shrink-0 mt-1 text-gray-300
-                  group-hover:text-gray-600 transition-colors" />
+                <span
+                  title={t('web.pages.projects.task.editTitle')}
+                  className="hidden sm:block flex-shrink-0 mt-1"
+                >
+                  <Pencil size={12} className="text-gray-300
+                    group-hover:text-gray-600 transition-colors" />
+                </span>
               </button>
             </h4>
           )}
@@ -257,12 +289,17 @@ export function TaskCard(
             <button
               type="button"
               onClick={description.start}
-              title={t('web.pages.projects.task.editDescription')}
+              aria-label={t('web.pages.projects.task.editDescription')}
               className="group flex w-full min-w-0 items-start gap-1.5 text-left"
             >
               <span className="line-clamp-2">{task.description}</span>
-              <Pencil size={12} className="hidden sm:block flex-shrink-0 mt-0.5 text-gray-300
-                group-hover:text-gray-600 transition-colors" />
+              <span
+                title={t('web.pages.projects.task.editDescription')}
+                className="hidden sm:block flex-shrink-0 mt-0.5"
+              >
+                <Pencil size={12} className="text-gray-300
+                  group-hover:text-gray-600 transition-colors" />
+              </span>
             </button>
           </p>
         )}
@@ -281,8 +318,13 @@ export function TaskCard(
             <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
           {/* Beside whoever the work is with, that being what it says: the work is running at this
-              moment, whether in a subagent of theirs or in their own hands. */}
-          {running && (
+              moment, whether in a subagent of theirs or in their own hands.
+
+              Off while the task is being read over. The work is still on -- a reading is of work
+              that has not been handed back, and the run holding it keeps its hold -- but two lines
+              of the card spinning at once read as two things happening, and the one that is really
+              happening is the reading. The reviewer's line carries it, and this one waits. */}
+          {running && !reviewing && (
             <span title={t('web.pages.projects.task.running')} className="flex-shrink-0">
               <Loader2 size={14} className="text-cyan-500 animate-spin" />
             </span>
@@ -298,6 +340,22 @@ export function TaskCard(
                 hover:bg-gray-100 transition-colors"
             >
               <Pencil size={12} />
+            </button>
+          )}
+          {/* The way to a review, on a card that has none. Only while the task is still todo, that
+              being the whole of when a reviewer can be put on or taken off, and gone from a card
+              that never had one the moment the work begins: what is not there to be set is not
+              worth a word on every card of the board. */}
+          {!task.reviewer && canReassign && (
+            <button
+              ref={reviewerPencilRef}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setPickingReviewer(v => !v); }}
+              title={t('web.pages.projects.task.review.addHint')}
+              className="flex-shrink-0 px-1 rounded text-[11px] text-gray-300 hover:text-gray-600
+                hover:bg-gray-100 transition-colors"
+            >
+              + {t('web.pages.projects.task.review.add')}
             </button>
           )}
           <div className='flex-1'></div>
@@ -321,6 +379,68 @@ export function TaskCard(
             </span>
           )}
         </div>
+
+        {/* The reading, under whoever the work is with. Drawn from the name on the task rather than
+            from the agent it was looked up to: an agent that has left the company is still who this
+            task waits for, and a row that vanished with them would leave the gate unexplained. */}
+        {task.reviewer && (
+          <div className="mt-1 flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 p-1 -ml-1">
+              <div className={`w-6 h-6 rounded-full ${avatarBG} flex items-center justify-center text-xs`}>
+                {reviewer?.avatar ?? '👤'}
+              </div>
+              <span className="text-xs text-gray-600">{reviewer?.name ?? task.reviewer}</span>
+              <span className="text-[10px] text-gray-400">
+                {t('web.pages.projects.task.review.role')}
+              </span>
+            </div>
+            {/* Beside the reviewer, the way the work spins beside whoever it is with. Out at the
+                end of the row it reads as something the card is doing rather than something that
+                agent is doing, and this row has a verdict of its own to end with. */}
+            {reviewing && (
+              <span title={t('web.pages.projects.task.review.running')} className="flex-shrink-0">
+                <Loader2 size={14} className="text-cyan-500 animate-spin" />
+              </span>
+            )}
+            {canReassign && (
+              <button
+                ref={reviewerPencilRef}
+                type="button"
+                onClick={() => setPickingReviewer(v => !v)}
+                title={t('web.pages.projects.task.review.edit')}
+                aria-label={t('web.pages.projects.task.review.edit')}
+                className="flex-shrink-0 p-1 -ml-1 rounded text-gray-300 hover:text-gray-600
+                  hover:bg-gray-100 transition-colors"
+              >
+                <Pencil size={12} />
+              </button>
+            )}
+            <div className='flex-1'></div>
+            {/* A waived review is the user's own hand on the task and has no report to open. */}
+            {task.review?.verdict === 'waived' && (
+              <span className="flex-shrink-0 text-[11px] text-gray-400">
+                {t('web.pages.projects.task.review.waived')}
+              </span>
+            )}
+            {/* Named apart from the report of the task itself, which is also what it downloads as:
+                two reports of one task saved under one file name is the same file twice.
+
+                The one word, whichever way the verdict went, and the icon a report gets anywhere on
+                this board. The verdict is in the report and is read where it is explained: a task
+                closes on the first verdict either way, so a rejection on the card would mark work
+                already finished with a fault and offer nothing to be done about it. What the
+                reviewer found is a paragraph, and the paragraph is a click away. */}
+            {task.review?.output && (
+              <TaskOutput
+                output={task.review.output}
+                title={`${task.title}-review`}
+                modalTitle={t('web.pages.projects.task.review.report')}
+                label={t('web.pages.projects.task.review.report')}
+                icon={<FileText size={14} />}
+              />
+            )}
+          </div>
+        )}
 
         {task.stepsStatus?.steps.length && <div className='mt-1'>
            {task.stepsStatus.steps.map((step, i) => {
@@ -355,6 +475,17 @@ export function TaskCard(
           anchorRef={assigneePencilRef}
           onPick={handleAssigneePick}
           onClose={() => setPickingAssignee(false)}
+        />
+      )}
+
+      {pickingReviewer && (
+        <AssigneePicker
+          agents={activeAgents}
+          selectedId={task.reviewer}
+          noneLabel={t('web.pages.projects.task.review.none')}
+          anchorRef={reviewerPencilRef}
+          onPick={handleReviewerPick}
+          onClose={() => setPickingReviewer(false)}
         />
       )}
 

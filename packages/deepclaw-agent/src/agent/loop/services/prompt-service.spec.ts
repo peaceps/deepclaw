@@ -60,6 +60,8 @@ async function loadService(setup: () => void = () => undefined) {
         getTask: vi.spyOn(ProjectManager, 'getTask').mockReturnValue(undefined),
         assignedTaskPrompt: vi.spyOn(ProjectManager, 'promptAssignedTask')
             .mockReturnValue('the assigned task'),
+        reviewedTaskPrompt: vi.spyOn(ProjectManager, 'promptTaskUnderReview')
+            .mockReturnValue('the task under review'),
         getAgent: vi.spyOn(AgentIdentityManager, 'getAgent').mockReturnValue(undefined),
         getAgents: vi.spyOn(AgentIdentityManager, 'getAgents').mockReturnValue([]),
         personalityChanged: vi.spyOn(AgentIdentityManager, 'isPersonalityChanged').mockReturnValue(false),
@@ -69,6 +71,8 @@ async function loadService(setup: () => void = () => undefined) {
             .mockReturnValue('the current project'),
         managementTools: vi.spyOn(ProjectManager, 'promptManagementTools')
             .mockReturnValue('the project tools'),
+        boardTools: vi.spyOn(ProjectManager, 'promptBoardTools')
+            .mockReturnValue('the board tools'),
         taskDelegation: vi.spyOn(ProjectManager, 'promptTaskDelegation')
             .mockReturnValue('hand the tasks over'),
         cronTaskDetail: vi.spyOn(CronService, 'getCronTaskDetail')
@@ -566,75 +570,99 @@ describe('a task loop working on a task', () => {
 
     const TASK = {projectId: 'p1', taskId: 'ship-it'};
 
-    /** Arranges a task owned by "a2", the agent whose identity the run has to borrow. */
-    async function loadServiceWithAssignee() {
-        const service = await loadService();
-        service.getTask.mockReturnValue({title: 'ship it', assignee: 'a2'} as Task);
-        service.getAgent.mockReturnValue(newIdentity({
-            id: 'a2', name: 'Bob', role: 'reviewer', personalities: ['picky'],
-        }));
-        return service;
+    /** The agent whose name a run working this task borrows, as the loop that built it hands it in. */
+    function bob(): AgentIdentity {
+        return newIdentity({id: 'a2', name: 'Bob', role: 'reviewer', personalities: ['picky']});
     }
 
-    test('speaks as the agent the task is assigned to', async () => {
-        const {PromptService, getAgent} = await loadServiceWithAssignee();
-        const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
+    /**
+     * The prompt as a loop working somebody else's task is built: the config, the identity and the
+     * runAs are all of that agent, which is the whole of how the run knows whose name it is under.
+     */
+    function asAssignee(
+        PromptService: typeof import('./prompt-service').PromptService, loopKind: LoopKind = 'task'
+    ) {
+        return PromptService.provideSystemPrompt(
+            newTestAgentConfig({id: 'a2'}), bob(), 'agent', '', loopKind, TASK, 'a2'
         );
-        expect(getAgent).toHaveBeenCalledWith('a2');
+    }
+
+    /**
+     * The same run for a task nobody owns. There is an identity to hand in all the same -- the loop
+     * that handed the task over has one -- and nothing was borrowed, which is what decides it.
+     */
+    function asNobody(
+        PromptService: typeof import('./prompt-service').PromptService, loopKind: LoopKind = 'task'
+    ) {
+        return PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'agent', '', loopKind, TASK
+        );
+    }
+
+    test('speaks as the agent the run was built for', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = asAssignee(PromptService);
         expect(cacheable).toContain('Your name is Bob, your role is reviewer.');
         expect(cacheable).not.toContain('Your name is Ada');
     });
 
-    test('stays anonymous when the task has no assignee', async () => {
-        const {PromptService, getTask, getAgent} = await loadServiceWithAssignee();
-        getTask.mockReturnValue({title: 'ship it'} as Task);
-        const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
-        );
-        expect(getAgent).not.toHaveBeenCalled();
-        expect(cacheable).not.toContain('Your name is');
+    /**
+     * The board is not asked who the run is. It was, and the two answers could part company: a run
+     * is built for whoever the task belonged to at the start, while the board is read again every
+     * turn. What the name is worth is the memory and the skills that come with it, and those are
+     * not things to move out from under a run halfway.
+     */
+    test('takes the name it was built with rather than the one the board holds now', async () => {
+        const {PromptService, getTask} = await loadService();
+        const {cacheable} = asAssignee(PromptService);
+        expect(getTask).not.toHaveBeenCalled();
+        expect(cacheable).toContain('Your name is Bob');
     });
 
-    test('stays anonymous when the assignee is no longer an agent', async () => {
-        const {PromptService, getAgent} = await loadServiceWithAssignee();
-        getAgent.mockReturnValue(undefined);
-        const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
-        );
+    /**
+     * A task nobody owns is worked by a run of the loop that handed it over, so an identity does
+     * arrive here -- that loop's own. Borrowed nothing, it has no name to speak under, and reading
+     * it as one would put the agent's face on a run the user never saw begin.
+     */
+    test('stays anonymous where the run borrowed nobody', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = asNobody(PromptService);
         expect(cacheable).not.toContain('Your name is');
     });
 
     /**
-     * Whose model works the task is read off this and not off the identity above, so the two part
-     * company exactly here: there is no name to borrow from an agent that is gone, but the task is
-     * still theirs, and a loop told otherwise would put it on the model of whoever handed it over.
+     * Whose model works the task is read off this and not off any identity, so the two part company
+     * exactly here: there may be nobody left to borrow a name from, but the task is still theirs,
+     * and a loop told otherwise would put it on the model of whoever handed it over.
      */
     test('names the assignee of a task even where no such agent is left', async () => {
-        const {PromptService, getAgent} = await loadServiceWithAssignee();
+        const {PromptService, getTask, getAgent} = await loadService();
+        getTask.mockReturnValue({title: 'ship it', assignee: 'a2'} as Task);
         getAgent.mockReturnValue(undefined);
         expect(PromptService.taskAssigneeId(TASK)).toBe('a2');
-        expect(PromptService.taskAssignee(TASK)).toBeUndefined();
     });
 
     test('names nobody for a task the board leaves unassigned', async () => {
-        const {PromptService, getTask} = await loadServiceWithAssignee();
+        const {PromptService, getTask} = await loadService();
         getTask.mockReturnValue({title: 'ship it'} as Task);
         expect(PromptService.taskAssigneeId(TASK)).toBeUndefined();
         expect(PromptService.taskAssigneeId()).toBeUndefined();
     });
 
     test('works with the memory and the skills of the agent it stands in for', async () => {
-        const {PromptService, memoryPrompt, skillPrompt} = await loadServiceWithAssignee();
-        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', 'task', TASK);
+        const {PromptService, memoryPrompt, skillPrompt} = await loadService();
+        PromptService.provideSystemPrompt(
+            newTestAgentConfig({id: 'a2'}), bob(), 'project', 'p1', 'task', TASK, 'a2'
+        );
         expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a2', 'p1');
         expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a2', 'agent');
     });
 
     test('keeps its own memory and skills when the task has no assignee', async () => {
-        const {PromptService, getTask, memoryPrompt, skillPrompt} = await loadServiceWithAssignee();
-        getTask.mockReturnValue({title: 'ship it'} as Task);
-        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'project', 'p1', 'task', TASK);
+        const {PromptService, memoryPrompt, skillPrompt} = await loadService();
+        PromptService.provideSystemPrompt(
+            newTestAgentConfig(), newIdentity(), 'project', 'p1', 'task', TASK
+        );
         expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a1', 'p1');
         expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a1', 'agent');
     });
@@ -645,38 +673,29 @@ describe('a task loop working on a task', () => {
      * an afternoon of that says the wrong thing about the agent whose card it is.
      */
     test('feels as the agent it works for', async () => {
-        const {PromptService} = await loadServiceWithAssignee();
-        const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
-        );
+        const {PromptService} = await loadService();
+        const {cacheable} = asAssignee(PromptService);
         expect(cacheable).toContain('You can add your own emotions');
     });
 
     test('says nothing of feelings where it works a task nobody owns', async () => {
-        const {PromptService, getTask} = await loadServiceWithAssignee();
-        getTask.mockReturnValue({title: 'ship it'} as Task);
-        const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
-        );
+        const {PromptService} = await loadService();
+        const {cacheable} = asNobody(PromptService);
         expect(cacheable).not.toContain('You can add your own emotions');
     });
 
     /** A piece of a task, and several of them under that one name at once: one card, all flicker. */
     test('keeps the emotions of the assignee out of a sub loop working under that name', async () => {
-        const {PromptService} = await loadServiceWithAssignee();
-        const {cacheable, dynamic} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'sub', TASK
-        );
+        const {PromptService} = await loadService();
+        const {cacheable, dynamic} = asAssignee(PromptService, 'sub');
         expect(cacheable).toContain('Your name is Bob');
         expect(cacheable).not.toContain('You can add your own emotions');
         expect(dynamic).not.toContain('# Emotions Now');
     });
 
     test('puts the task next to the project it belongs to', async () => {
-        const {PromptService, assignedTaskPrompt} = await loadServiceWithAssignee();
-        const {dynamic} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
-        );
+        const {PromptService, assignedTaskPrompt} = await loadService();
+        const {dynamic} = asAssignee(PromptService);
         expect(assignedTaskPrompt).toHaveBeenCalledWith('p1', 'ship-it');
         expect(dynamic.split('\n').filter(line => line.startsWith('# ')))
             .toEqual(['# Current Project', '# Assigned Task', '# Emotions Now']);
@@ -684,15 +703,15 @@ describe('a task loop working on a task', () => {
     });
 
     test('describes the project the task belongs to, not the one of the session', async () => {
-        const {PromptService, currentProject} = await loadServiceWithAssignee();
-        PromptService.provideSystemPrompt(newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK);
+        const {PromptService, currentProject} = await loadService();
+        asAssignee(PromptService);
         expect(currentProject).toHaveBeenCalledWith('p1');
     });
 
     test('leaves the task section out of a sub loop without a task', async () => {
-        const {PromptService} = await loadServiceWithAssignee();
+        const {PromptService} = await loadService();
         const {dynamic} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'sub'
+            newTestAgentConfig({id: 'a2'}), bob(), 'agent', '', 'sub'
         );
         expect(dynamic).not.toContain('# Assigned Task');
     });
@@ -702,22 +721,88 @@ describe('a task loop working on a task', () => {
      * what of the task it should know is in the prompt the task loop wrote for it.
      */
     test('borrows the assignee for a sub loop of a task loop without describing the task', async () => {
-        const {PromptService, assignedTaskPrompt} = await loadServiceWithAssignee();
-        const {cacheable, dynamic} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'sub', TASK
-        );
+        const {PromptService, assignedTaskPrompt} = await loadService();
+        const {cacheable, dynamic} = asAssignee(PromptService, 'sub');
         expect(cacheable).toContain('Your name is Bob, your role is reviewer.');
         expect(assignedTaskPrompt).not.toHaveBeenCalled();
         expect(dynamic).not.toContain('# Assigned Task');
     });
 
     test('tells a task loop it can spread the pieces of its task over sub loops', async () => {
-        const {PromptService} = await loadServiceWithAssignee();
-        const {cacheable} = PromptService.provideSystemPrompt(
-            newTestAgentConfig(), newIdentity(), 'agent', '', 'task', TASK
-        );
+        const {PromptService} = await loadService();
+        const {cacheable} = asAssignee(PromptService);
         expect(cacheable).toContain('to a subagent of your own with the sub_loop tool');
         expect(cacheable).toContain('never set the status of your own');
+    });
+
+    test('tells a task loop nothing of a review where the task has no reviewer', async () => {
+        const {PromptService, assignedTaskPrompt} = await loadService();
+        assignedTaskPrompt.mockReturnValue('the assigned task');
+        const {dynamic} = asAssignee(PromptService);
+        expect(dynamic).not.toContain('review_task');
+    });
+});
+
+/**
+ * The run that reads a task over. Everything about it is somebody else's: the model, the name, the
+ * memory. What it is told is that it is reading, and the one thing it is asked to produce.
+ */
+describe('a review loop reading a task over', () => {
+
+    const TASK = {projectId: 'p1', taskId: 'ship-it'};
+
+    function asReviewer(PromptService: typeof import('./prompt-service').PromptService) {
+        return PromptService.provideSystemPrompt(
+            newTestAgentConfig({id: 'a3'}),
+            newIdentity({id: 'a3', name: 'Eve', role: 'auditor'}),
+            'project', 'p1', 'review', TASK, 'a3'
+        );
+    }
+
+    test('speaks as the reviewer rather than as whoever did the work', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = asReviewer(PromptService);
+        expect(cacheable).toContain('Your name is Eve, your role is auditor.');
+    });
+
+    test('works with the memory and the skills of the reviewer', async () => {
+        const {PromptService, memoryPrompt, skillPrompt} = await loadService();
+        asReviewer(PromptService);
+        expect(memoryPrompt).toHaveBeenCalledExactlyOnceWith('project', 'a3', 'p1');
+        expect(skillPrompt).toHaveBeenCalledExactlyOnceWith('a3', 'agent');
+    });
+
+    test('is told it is reading and what it has to hand back', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = asReviewer(PromptService);
+        expect(cacheable).toContain('you are reading over one task');
+        expect(cacheable).toContain('submit_review');
+        expect(cacheable).not.toContain('you are a subloop agent');
+    });
+
+    /** It is handed no tool that records one, so an invitation to say how it feels is a trap. */
+    test('is asked for no feelings, having no way to record one', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable, dynamic} = asReviewer(PromptService);
+        expect(cacheable).not.toContain('You can add your own emotions');
+        expect(dynamic).not.toContain('# Emotions Now');
+    });
+
+    /** Told which task, and told it in the terms of a reader: it is not there to finish the work. */
+    test('is shown the task it reads, worded as a reading and not as an assignment', async () => {
+        const {PromptService, reviewedTaskPrompt, assignedTaskPrompt} = await loadService();
+        const {dynamic} = asReviewer(PromptService);
+        expect(reviewedTaskPrompt).toHaveBeenCalledWith('p1', 'ship-it');
+        expect(assignedTaskPrompt).not.toHaveBeenCalled();
+        expect(dynamic).toContain('# Task Under Review');
+        expect(dynamic).not.toContain('# Assigned Task');
+    });
+
+    test('hides the project tools from it, the board being none of its business', async () => {
+        const {PromptService, managementTools} = await loadService();
+        const {cacheable} = asReviewer(PromptService);
+        expect(cacheable).not.toContain('the project tools');
+        expect(managementTools).not.toHaveBeenCalled();
     });
 });
 
@@ -854,6 +939,35 @@ describe('agent mode and project management', () => {
     });
 
     /**
+     * The board of a project is written by the run of that project alone -- every tool that moves a
+     * task says so in the roles it declares -- so the half of the section that names those tools is
+     * said to that run and to no other. A chat still hears how to put a project on the board, which
+     * is the one thing it can do: there is no run of a project before there is a project.
+     */
+    test('names the tools that write to a board only to the run of that board', async () => {
+        const {PromptService, boardTools} = await loadService();
+        const chat = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'agent', '', 'main'
+        );
+        expect(chat.cacheable).toContain('the project tools');
+        expect(chat.cacheable).not.toContain('the board tools');
+        expect(boardTools).not.toHaveBeenCalled();
+        const project = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'project', 'p1', 'main'
+        );
+        expect(project.cacheable).toContain('the board tools');
+    });
+
+    test('says nothing of the board to a scheduled run holding a project id', async () => {
+        const {PromptService, boardTools} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'cron', 'c1', 'main'
+        );
+        expect(cacheable).not.toContain('the board tools');
+        expect(boardTools).not.toHaveBeenCalled();
+    });
+
+    /**
      * A project id under the plain role is a run the board never built, and the tool registry
      * answers it by handing over no task_loop. Naming the tool here would be naming one it has not
      * got, which is the one thing the section must not do.
@@ -951,6 +1065,24 @@ describe('handing work over', () => {
             expect(cacheable).toContain('.projects/p1/files');
             expect(cacheable).not.toContain('generatedFiles');
         }
+    });
+
+    /**
+     * The one spawned loop that hands nothing over. Everything the section otherwise says is a way
+     * of getting work out of the machine, and a review has no work to get out: told to write a
+     * file and name it in a summary, it would file its report where nobody reads and contradict
+     * its own identity, which says submit_review is the whole of what anybody gets from it.
+     */
+    test('tells a review that its verdict is the whole of what it hands over', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'project', 'p1', 'review',
+            {projectId: 'p1', taskId: 'ship-it'}
+        );
+        expect(cacheable).toContain('submit_review, and that call is the whole');
+        expect(cacheable).not.toContain('name them in your\nsummary');
+        expect(cacheable).not.toContain('.projects/p1/files');
+        expect(cacheable).not.toContain('generatedFiles');
     });
 
     /** A sub loop writes into the folder of the project it works for, not of the one it sits in. */

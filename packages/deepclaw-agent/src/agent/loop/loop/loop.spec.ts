@@ -26,8 +26,8 @@ const mocks = vi.hoisted(() => ({
     provideSystemPrompt: vi.fn<(...args: unknown[]) => unknown>(
         () => ({cacheable: 'cacheable', dynamic: 'dynamic'})
     ),
-    taskAssignee: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
     taskAssigneeId: vi.fn<(...args: unknown[]) => string | undefined>(() => undefined),
+    taskReviewerId: vi.fn<(...args: unknown[]) => string | undefined>(() => undefined),
     getAgent: vi.fn<(agentId: string) => unknown>(() => ({id: 'a1', name: 'Ada'})),
     emitVisitor: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
     emitInterceptor: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({result: 'continue'})),
@@ -83,8 +83,8 @@ vi.mock('../services/session-service', () => ({
 vi.mock('../services/prompt-service', () => ({
     PromptService: {
         provideSystemPrompt: mocks.provideSystemPrompt,
-        taskAssignee: mocks.taskAssignee,
         taskAssigneeId: mocks.taskAssigneeId,
+        taskReviewerId: mocks.taskReviewerId,
     },
 }));
 
@@ -280,6 +280,12 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
     ): Promise<TestLoop> {
         return this.createTaskLoop(assignedTask) as Promise<TestLoop>;
     }
+
+    public newTestReviewLoop(
+        assignedTask: AssignedTask = {projectId: 'p1', taskId: 'ship-it'}
+    ): Promise<TestLoop> {
+        return this.createReviewLoop(assignedTask) as Promise<TestLoop>;
+    }
 }
 
 /**
@@ -287,13 +293,23 @@ class TestLoop extends LoopAgent<TestMessage, TestResponse, TestLLM> {
  * under and the model to work on. They part company only where the agent is gone, which is its own
  * test below.
  */
-function assignedTo(id: string, name = 'Bob'): void {
-    mocks.taskAssignee.mockReturnValue({id, name});
+function assignedTo(id: string): void {
     mocks.taskAssigneeId.mockReturnValue(id);
 }
 
-function newSpawned(kind: 'task' | 'sub', assignedTask?: AssignedTask): SpawnedLoop {
-    return {kind, runId: `${kind}1`, assignedTask, permissionWhiteList: new Set()};
+/** Who reads the task over, which the board holds next to who works it and apart from it. */
+function reviewedBy(id: string): void {
+    mocks.taskReviewerId.mockReturnValue(id);
+}
+
+/**
+ * A run of one of the spawned kinds. The name it borrowed is given here rather than looked up:
+ * that is settled when the run is built, and everything of the run downstream reads it off this.
+ */
+function newSpawned(
+    kind: 'task' | 'sub' | 'review', assignedTask?: AssignedTask, runAs?: string
+): SpawnedLoop {
+    return {kind, runId: `${kind}1`, assignedTask, runAs, permissionWhiteList: new Set()};
 }
 
 function newHandler(): AgentHandler {
@@ -369,8 +385,8 @@ beforeEach(() => {
     mocks.loadSession.mockReturnValue({history: [], outdated: false});
     mocks.provideSystemPrompt.mockReturnValue({cacheable: 'cacheable', dynamic: 'dynamic'});
     mocks.endMainLoopRun.mockReturnValue(false);
-    mocks.taskAssignee.mockReturnValue(undefined);
     mocks.taskAssigneeId.mockReturnValue(undefined);
+    mocks.taskReviewerId.mockReturnValue(undefined);
     mocks.getAgent.mockReturnValue({id: 'a1', name: 'Ada'});
     mocks.emitVisitor.mockResolvedValue(undefined);
     mocks.emitInterceptor.mockResolvedValue({result: 'continue'});
@@ -677,8 +693,7 @@ describe('one turn', () => {
     });
 
     test('ages nothing of what a sub loop does, it speaking for nobody', async () => {
-        const {loop, llm} = newLoop({spawned: newSpawned('sub')});
-        assignedTo('a2');
+        const {loop, llm} = newLoop({spawned: newSpawned('sub', undefined, 'a2')});
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('hi', {browserId: 'b1'});
         expect(mocks.aTurnPassed).not.toHaveBeenCalled();
@@ -690,8 +705,9 @@ describe('one turn', () => {
      * their name is exactly what going stale means.
      */
     test('ages what the agent a task is worked as last felt', async () => {
-        const {loop, llm} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'})});
-        assignedTo('a2');
+        const {loop, llm} = newLoop({
+            spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'}, 'a2')
+        });
         llm.responses = [
             {transitionReason: 'toolUse', toolUses: [toolUse('t1')]},
             {transitionReason: 'endLoop', text: 'done'},
@@ -727,7 +743,8 @@ describe('one turn', () => {
         llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
         await loop.runInvoke('hi', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenCalledWith(
-            expect.objectContaining({id: 'a1'}), {id: 'a1', name: 'Ada'}, 'agent', '', 'main', undefined
+            expect.objectContaining({id: 'a1'}), {id: 'a1', name: 'Ada'},
+            'agent', '', 'main', undefined, undefined
         );
         expect(llm.invoke.mock.calls[0]![1]).toEqual({cacheable: 'cacheable', dynamic: 'dynamic'});
     });
@@ -1876,12 +1893,32 @@ describe('spawned loops', () => {
 
     test('builds the prompt of a task loop around its task', async () => {
         const {loop} = newLoop();
+        assignedTo('a2');
         const taskLoop = await loop.newTestTaskLoop();
         taskLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'done'}];
         await taskLoop.runInvoke('go', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
             expect.anything(), expect.anything(), 'agent', '', 'task',
-            {projectId: 'p1', taskId: 'ship-it'}
+            {projectId: 'p1', taskId: 'ship-it'}, 'a2'
+        );
+    });
+
+    /**
+     * The name the run borrowed rather than the name on the board, and the identity that goes with
+     * it. Read off the task instead, a run whose task was handed to somebody else halfway would
+     * change who it says it is mid-conversation, on a model that had not changed at all.
+     */
+    test('tells the prompt whose name the run borrowed', async () => {
+        mocks.getAgent.mockReturnValue({id: 'a2', name: 'Bob'});
+        const {loop, llm} = newLoop({
+            spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'}, 'a2')
+        });
+        llm.responses = [{transitionReason: 'endLoop', text: 'done'}];
+        await loop.runInvoke('go', {browserId: 'b1'});
+        expect(mocks.getAgent).toHaveBeenCalledWith('a2');
+        expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
+            expect.anything(), {id: 'a2', name: 'Bob'}, 'agent', '', 'task',
+            {projectId: 'p1', taskId: 'ship-it'}, 'a2'
         );
     });
 
@@ -1891,7 +1928,7 @@ describe('spawned loops', () => {
         subLoop.fakeLLM().responses = [{transitionReason: 'endLoop', text: 'done'}];
         await subLoop.runInvoke('go', {browserId: 'b1'});
         expect(mocks.provideSystemPrompt).toHaveBeenLastCalledWith(
-            expect.anything(), expect.anything(), 'agent', '', 'sub', undefined
+            expect.anything(), expect.anything(), 'agent', '', 'sub', undefined, undefined
         );
     });
 
@@ -1905,7 +1942,7 @@ describe('spawned loops', () => {
             {transitionReason: 'endLoop', text: 'done'},
         ];
         await taskLoop.runInvoke('go', {browserId: 'b1'});
-        expect(mocks.taskAssignee).toHaveBeenCalledWith({projectId: 'p1', taskId: 'ship-it'});
+        expect(mocks.taskAssigneeId).toHaveBeenCalledWith({projectId: 'p1', taskId: 'ship-it'});
         expect(mocks.executeToolCall).toHaveBeenCalledWith(
             toolUse('tu1'), expect.objectContaining({personaId: 'a2', agentId: 'a1'})
         );
@@ -1913,8 +1950,9 @@ describe('spawned loops', () => {
 
     /** A helper of a task loop works for the same agent, with the memory and the skills of it. */
     test('hands the borrowed agent of a task loop down to its sub loops', async () => {
-        const {loop} = newLoop({spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'})});
-        assignedTo('a2');
+        const {loop} = newLoop({
+            spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'}, 'a2')
+        });
         const subLoop = loop.newTestSubLoop();
         subLoop.fakeLLM().responses = [
             {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
@@ -1985,7 +2023,7 @@ describe('spawned loops', () => {
     /** Nothing to pick where the assignee is the one handing it over, so nothing is asked. */
     test('takes the short way for a task the agent kept for itself', async () => {
         const {loop} = newLoop();
-        assignedTo('a1', 'Ada');
+        assignedTo('a1');
         const taskLoop = await loop.newTestTaskLoop();
         expect(mocks.getSpawnedLoop).not.toHaveBeenCalled();
         expect(TestLoop.spawnedLoops).toEqual([taskLoop]);
@@ -2020,7 +2058,6 @@ describe('spawned loops', () => {
     test('refuses a task left with an agent that was deleted', async () => {
         const {loop} = newLoop();
         mocks.taskAssigneeId.mockReturnValue('ghost');
-        mocks.taskAssignee.mockReturnValue(undefined);
         mocks.getSpawnedLoop.mockImplementation(() => {
             throw new Error('Agent "ghost" not found');
         });
@@ -2052,6 +2089,115 @@ describe('spawned loops', () => {
         ];
         await taskLoop.runInvoke('go', {browserId: 'b1'});
         expect(contextOfFirstTool().loopConfig.mode).toBe('agent');
+    });
+
+    /**
+     * The reviewer's name and the reviewer's model, whoever asked for the reading. A review built
+     * as the class of the loop that called for it would be the work marking its own homework on the
+     * very model that did it.
+     */
+    test('reads a task over as the agent the board named to read it', async () => {
+        const {loop} = newLoop();
+        assignedTo('a2');
+        reviewedBy('a3');
+        await loop.newTestReviewLoop();
+        const [, , , , spawned] = mocks.getSpawnedLoop.mock.calls[0]!;
+        expect(spawned).toEqual({
+            kind: 'review', runId: expect.any(String),
+            assignedTask: {projectId: 'p1', taskId: 'ship-it'},
+            runAs: 'a3', permissionWhiteList: expect.any(Set),
+        });
+        expect(mocks.loadAgentConfig).toHaveBeenLastCalledWith('a3');
+    });
+
+    /**
+     * The short way is against the name this loop is running as and not against its own id. In a
+     * task loop the two differ, and a review whose reviewer happens to be the loop that spawned the
+     * work would take the shortcut into the class of the assignee: the reviewer's name on the
+     * assignee's model, the one outcome the whole feature is against.
+     */
+    test('builds the review afresh even where the reviewer is the loop that spawned the work', async () => {
+        const {loop} = newLoop({
+            spawned: newSpawned('task', {projectId: 'p1', taskId: 'ship-it'}, 'a2')
+        });
+        reviewedBy('a1');
+        await loop.newTestReviewLoop();
+        expect(mocks.getSpawnedLoop).toHaveBeenCalledOnce();
+        expect(mocks.loadAgentConfig).toHaveBeenLastCalledWith('a1');
+    });
+
+    test('takes the short way where the run already stands in the reviewer', async () => {
+        const {loop} = newLoop();
+        reviewedBy('a1');
+        const reviewLoop = await loop.newTestReviewLoop();
+        expect(mocks.getSpawnedLoop).not.toHaveBeenCalled();
+        expect(TestLoop.spawnedLoops).toEqual([reviewLoop]);
+    });
+
+    test('refuses to read over a task the board named nobody to read', async () => {
+        const {loop} = newLoop();
+        await expect(loop.newTestReviewLoop())
+            .rejects.toThrow('This task has no reviewer, there is nobody to read it over.');
+        expect(TestLoop.spawnedLoops).toEqual([]);
+    });
+
+    /** A reviewer nobody can run leaves the user their own hand on the board, and says so. */
+    test('refuses rather than read a task over on a model nobody chose', async () => {
+        const {loop} = newLoop();
+        reviewedBy('a3');
+        mocks.getSpawnedLoop.mockImplementation(() => {
+            throw new Error('Agent "a3" not found');
+        });
+        await expect(loop.newTestReviewLoop()).rejects.toThrow(
+            'This task is read over by "a3", and no run can be built for that agent '
+            + '(Agent "a3" not found). Tell the user: while that agent cannot run, the only way '
+            + 'this task closes is by their own hand on the board.'
+        );
+    });
+
+    test('reads a task over out of a main loop and a task loop and no other', async () => {
+        const task = {projectId: 'p1', taskId: 'ship-it'};
+        reviewedBy('a3');
+        await expect(newLoop({spawned: newSpawned('sub')}).loop.createReviewLoop(task))
+            .rejects.toThrow('A sub loop cannot create a review loop.');
+        await expect(newLoop({spawned: newSpawned('review', task, 'a3')}).loop.createReviewLoop(task))
+            .rejects.toThrow('A review loop cannot create a review loop.');
+    });
+
+    test('lets nothing be spawned out of a review', () => {
+        const task = {projectId: 'p1', taskId: 'ship-it'};
+        const {loop} = newLoop({spawned: newSpawned('review', task, 'a3')});
+        expect(() => loop.createSubLoop()).toThrow('A review loop cannot create a sub loop.');
+    });
+
+    /**
+     * What a reading did to find out is nobody's account to carry. The commands are the reading
+     * itself, and handed up they would be filed as the doing of the loop that asked for it -- an
+     * account cut to its last steps, so a thorough reading pushes out the work being read.
+     */
+    test('hands up no account of what a review ran to read the task', async () => {
+        const task = {projectId: 'p1', taskId: 'ship-it'};
+        const {loop, llm} = newLoop({spawned: newSpawned('review', task, 'a3')});
+        llm.responses = [
+            {transitionReason: 'toolUse', toolUses: [toolUse('tu1')]},
+            {transitionReason: 'endLoop', text: 'passed'},
+        ];
+        mocks.executeToolCall.mockImplementation(async (def, context) => {
+            (context as OneLoopContext).actions.addFootPrint({
+                type: 'run_command', content: 'npm test',
+            });
+            return {result: {id: def.id, content: 'done'}, success: true};
+        });
+        await loop.runInvoke('read it over', {browserId: 'b1'});
+        expect(loop.getChangeTrace()).toEqual([]);
+    });
+
+    test('ages nothing of what a review does, it being shown no feeling to age', async () => {
+        const task = {projectId: 'p1', taskId: 'ship-it'};
+        const {loop, llm} = newLoop({spawned: newSpawned('review', task, 'a3')});
+        llm.responses = [{transitionReason: 'endLoop', text: 'passed'}];
+        await loop.runInvoke('read it over', {browserId: 'b1'});
+        expect(mocks.aTurnPassed).not.toHaveBeenCalled();
     });
 
     /** A helper of a run is that run: it works with the model the run was handed over to. */

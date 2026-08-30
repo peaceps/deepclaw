@@ -77,6 +77,36 @@ export function fileAwayOutput(
 }
 
 /**
+ * The words of an output, read back out of the file where a long one lies.
+ *
+ * What filing away leaves behind is a sentinel and a url, which is everything a browser needs and
+ * nothing at all to a model: it is handed a line saying the content is elsewhere, with no way to go
+ * there. A prompt built straight off an output is therefore blind to exactly the reports worth
+ * reading -- length is what put them in a file, and a review that names files and line numbers is
+ * the long kind. So every prompt built out of an output comes through here.
+ *
+ * It sits beside the filing rather than beside its callers because the sentinel is what says a read
+ * is due, and the sentinel is this module's own: asked anywhere else, the question would need that
+ * constant to travel with it, and a second copy of it is a second thing to keep in step.
+ */
+export function readOutputContent(output: NonNullable<LLMTaskOutput>): string {
+    if (output.content !== FILED_AWAY || !output.path) {
+        return output.content;
+    }
+    const file = FileStore.fileOf(output.path);
+    if (!file) {
+        return output.content;
+    }
+    try {
+        return FileUtils.readFile(file);
+    } catch {
+        // Filed away and since moved, or deleted with the project files. Saying where it was beats
+        // the sentinel alone, which says only that the words are somewhere.
+        return `${output.content} (${file})`;
+    }
+}
+
+/**
  * Bytes written into a tool call stay in the context of the run for as long as it lives, and base64
  * of a file runs a third longer than the file itself. What the work produced is written to disk and
  * handed over from there, so an output that is a file rather than words is turned away.

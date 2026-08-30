@@ -218,8 +218,22 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
      * What it read is no part of this, and the pictures it drew are not either. The files stay out
      * because the account is cut to the last of it and a run looks at ten things for every one it
      * touches; the pictures because they reach the same reader on a path of their own.
+     *
+     * A review changes nothing, and what it did to find that out is no account for anybody to
+     * carry. The commands it ran are its reading -- the tests, the build, a grep -- and they land
+     * in this list like any other; handed up they would be filed as the doing of the run that
+     * called for the review, and the account is cut to the last twenty steps, so a thorough
+     * reading would push out the very files the work had written. The verdict is the whole of
+     * what a review has to hand up.
+     *
+     * Asked of the kind rather than of whoever is reading the list: what carries these up is a
+     * module-level function three call sites reach, and a rule kept there is a rule the fourth
+     * call site is written without.
      */
     public getChangeTrace(): FootPrint[] {
+        if (this.loopKind() === 'review') {
+            return [];
+        }
         return this.footPrints.filter(footPrint => CHANGE_FOOT_PRINTS.includes(footPrint.type));
     }
 
@@ -338,9 +352,12 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             loopId: this.getId(),
             loopKind: this.loopKind(),
             agentId: this.agentId,
-            // Read once, so the whole run works with the memory and the skills it started with even
-            // if the task is handed to somebody else while it is on.
-            personaId: PromptService.taskAssignee(this.assignedTask())?.id,
+            // Whose name this run borrowed, which was settled when the run was built: the same
+            // agent whose model does the work and whose memory and skills the prompt hands it.
+            // Worked out here from the board instead, a task handed on midway would move the
+            // memory the run is writing to out from under it.
+            personaId: this.spawned?.runAs,
+            assignedTask: this.assignedTask(),
             projectId: this.projectId,
             loopConfig: this.agentConfig,
             browserId: options.browserId,
@@ -349,6 +366,7 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
             logger: getLoopLogger(this.getId(), this.spawned?.runId),
             actions: {
                 newTaskLoop: this.createTaskLoop.bind(this),
+                newReviewLoop: this.createReviewLoop.bind(this),
                 newSubLoop: this.createSubLoop.bind(this),
                 addFootPrint: (footPrint: FootPrint) => this.footPrints.push(footPrint),
                 agentHandler: {
@@ -391,8 +409,8 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 return {text: this.appended(last, notice), said};
             }
             state.oneLoopContext.system = PromptService.provideSystemPrompt(
-                this.agentConfig, AgentIdentityManager.getAgent(this.agentId),
-                this.role, this.projectId, this.loopKind(), this.assignedTask()
+                this.agentConfig, AgentIdentityManager.getAgent(this.spawned?.runAs ?? this.agentId),
+                this.role, this.projectId, this.loopKind(), this.assignedTask(), this.spawned?.runAs
             );
             const goAround = await this.runOneTurn(state);
             if (!goAround) {
@@ -914,16 +932,22 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
         if (!runAs || runAs === this.agentId) {
             return this.spawn(spawned);
         }
-        return this.spawnAs(runAs, spawned);
+        return this.spawnAs(spawned, cause =>
+            `This task belongs to "${runAs}", and no run can be built for that agent (${cause}). `
+            + 'Hand the task to somebody else, or have the user look at that agent.');
     }
 
     /**
      * Asked for where it is used rather than named at the top of the file: what knows every kind of
      * loop is what builds this one, so it knows this one too, and a module naming it up there would
      * be asked for a class still being defined. The cron service reaches for it the same way.
+     *
+     * The refusal is written by whoever asked for the run. What cannot be built is the same thing
+     * either way, and what to do about it is not: a task can be handed to somebody else, a review
+     * cannot be taken off a task that is already under way.
      */
     private async spawnAs(
-        runAs: string, spawned: Omit<SpawnedLoop, 'permissionWhiteList'>
+        spawned: Omit<SpawnedLoop, 'permissionWhiteList'>, refusal: (cause: string) => string
     ): Promise<LoopAgent<any, any, any>> {
         const {LoopInitializer} = await import('../../loop-initializer');
         try {
@@ -931,23 +955,51 @@ export abstract class LoopAgent<I, O extends { transitionReason: LLMTransitionRe
                 this.role, this.agentId, this.projectId, this.spawnedHandler(), this.asRun(spawned)
             );
         } catch (error) {
-            // Never quietly on this loop's own model instead. Whoever reads this picked the
-            // assignee, and a task worked by a model they did not choose is worse than one refused.
-            // The cause is held apart rather than run on from a colon: whatever threw ends its
-            // message however it likes, and one that ends in no stop at all would read as a single
-            // sentence with the advice that follows it.
-            throw new Error(
-                `This task belongs to "${runAs}", and no run can be built for that agent `
-                + `(${error instanceof Error ? error.message : 'unknown error'}). `
-                + 'Hand the task to somebody else, or have the user look at that agent.'
-            );
+            // Never quietly on this loop's own model instead. Whoever reads this picked the agent,
+            // and a run on a model they did not choose is worse than one refused. The cause is held
+            // apart rather than run on from a colon: whatever threw ends its message however it
+            // likes, and one that ends in no stop at all would read as a single sentence with the
+            // advice that follows it.
+            throw new Error(refusal(error instanceof Error ? error.message : 'unknown error'));
         }
+    }
+
+    /**
+     * The task read over by somebody who did not work it, which is the whole of the point: it runs
+     * as the reviewer, on the reviewer's model, with the reviewer's memory and skills. A review
+     * built on the model of whoever did the work would be the work marking itself.
+     *
+     * Which is why the shortcut below compares against the agent this loop is *running as* rather
+     * than against `agentId`. In a spawned loop those two differ -- `agentId` stays the loop that
+     * spawned it, the borrowed name lives in `spawned.runAs` -- so a review asked for from a task
+     * loop whose reviewer happens to be the base agent would take the shortcut and be built as the
+     * current class: the reviewer's name on the assignee's model, which is the one outcome this
+     * whole thing exists to rule out.
+     */
+    public async createReviewLoop(assignedTask: AssignedTask): Promise<LoopAgent<any, any, any>> {
+        if (this.loopKind() !== 'main' && this.loopKind() !== 'task') {
+            throw new Error(`A ${this.loopKind()} loop cannot create a review loop.`);
+        }
+        const runAs = PromptService.taskReviewerId(assignedTask);
+        if (!runAs) {
+            throw new Error('This task has no reviewer, there is nobody to read it over.');
+        }
+        const spawned = {kind: 'review' as const, runId: randomUUID(), assignedTask, runAs};
+        if (runAs === (this.spawned?.runAs ?? this.agentId)) {
+            return this.spawn(spawned);
+        }
+        return this.spawnAs(spawned, cause =>
+            `This task is read over by "${runAs}", and no run can be built for that agent `
+            + `(${cause}). Tell the user: while that agent cannot run, the only way this task `
+            + 'closes is by their own hand on the board.');
     }
 
     /** The end of the chain: it works the prompt it was handed and answers with what came of it. */
     public createSubLoop(): LoopAgent<I, O, LLM> {
-        if (this.loopKind() === 'sub') {
-            throw new Error('A sub loop cannot create a sub loop.');
+        // Named rather than counted off: a kind added later starts outside this list, and a run
+        // that has no business spawning helpers is refused here as well as left without the tool.
+        if (this.loopKind() !== 'main' && this.loopKind() !== 'task') {
+            throw new Error(`A ${this.loopKind()} loop cannot create a sub loop.`);
         }
         // A helper of a run is that run: it works with the same config, which this loop was already
         // built to, so there is no class to pick here however the run came about.

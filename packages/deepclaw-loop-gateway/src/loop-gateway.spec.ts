@@ -1344,6 +1344,23 @@ describe('data updates', () => {
     });
 
     /**
+     * Worse than a task nobody works: no run can be built for a name like this, so the gate it
+     * stands in front of done is one only the user's own hand gets the task past.
+     */
+    test('refuses a task left to be read over by nobody who works here', () => {
+        mocks.getAgent.mockReturnValue(undefined);
+        expect(() => LoopGateway.updateProjectTask('p1', {id: 't1', reviewer: 'ghost'}))
+            .toThrow('No agent "ghost" works here.');
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+    });
+
+    test('takes a reviewer who works here', () => {
+        mocks.getAgent.mockReturnValue({id: 'a3', fired: false});
+        LoopGateway.updateProjectTask('p1', {id: 't1', reviewer: 'a3'});
+        expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', reviewer: 'a3'});
+    });
+
+    /**
      * A page open for a while shows a task the run has since taken up, and the button on it is a
      * button the browser never heard was gone.
      */
@@ -1353,6 +1370,17 @@ describe('data updates', () => {
             .toThrow('This task is being worked on right now.');
         expect(mocks.updateTask).not.toHaveBeenCalled();
         expect(mocks.isRunning).toHaveBeenCalledWith('p1', 't1');
+    });
+
+    /**
+     * A reading is not work, and nothing the user does to a task under one is a collision. The
+     * verdict was advice on a task they are closing by hand anyway. Which the question itself
+     * answers, a reading being no run it counts, so there is nothing for this door to leave out.
+     */
+    test('lets the user move a task that is only being read over', () => {
+        mocks.isRunning.mockReturnValue(false);
+        LoopGateway.updateProjectTask('p1', {id: 't1', status: 'done'});
+        expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', status: 'done'});
     });
 
     /** One write: the task leaving todo is what dates the project as started. */

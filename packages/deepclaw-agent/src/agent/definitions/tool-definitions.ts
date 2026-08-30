@@ -37,8 +37,19 @@ export type ToolGuardResult = {
 
 export type ToolCallback<T = unknown> = (input: T, context: OneLoopContext) => Promise<string>;
 
-/** The default visibility of a tool, so nothing may reach in and rewrite what that means. */
-export const ALL_LOOP_KINDS: readonly LoopKind[] = ['main', 'task', 'sub'] as const;
+/** Every kind of loop there is, which is what a table with a row for each of them is built from. */
+export const ALL_LOOP_KINDS: readonly LoopKind[] = ['main', 'task', 'sub', 'review'] as const;
+
+/**
+ * Where a tool goes when it names no kinds, so nothing may reach in and rewrite what that means.
+ *
+ * A review is not among them. A tool that never said which runs it belongs to never said it
+ * belonged in the hands of a run that is only there to read, and there are more tools here that
+ * say nothing than tools that say anything: taking the default to mean "every kind" would hand a
+ * review the whole shelf the day a fourth kind was added, and one more tool every time somebody
+ * writes one without thinking about reviews. What a review gets, it gets by name.
+ */
+export const DEFAULT_LOOP_KINDS: readonly LoopKind[] = ['main', 'task', 'sub'] as const;
 
 /** The same for the role a run was started under, which is the other half of that default. */
 export const ALL_AGENT_ROLES: readonly FlushAgentRole[] = ['agent', 'project', 'cron'] as const;

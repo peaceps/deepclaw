@@ -2,12 +2,13 @@ import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {type LLMTaskOutput} from '@deepclaw/core';
 import {
     estimateTokens, fileAwayOutput, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles,
-    requireReadableOutput
+    readOutputContent, requireReadableOutput
 } from './loop-utils';
 import {cronOutputDir, projectFilesDir, projectOutputDir} from './paths';
 
 const mocks = vi.hoisted(() => ({
     writeFile: vi.fn<(path: string, content: string | Buffer) => string>((path) => path),
+    readFile: vi.fn<(path: string) => string>(path => `content of ${path}`),
     hashString: vi.fn<(text: string) => string>(() => 'hash1234'),
     readBuffer: vi.fn<(path: string) => Buffer>(path => Buffer.from(`bytes of ${path}`)),
     sizeOf: vi.fn<(path: string) => number | null>(),
@@ -21,7 +22,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
     return {
         ...original,
         FileUtils: {
-            writeFile: mocks.writeFile, hashString: mocks.hashString,
+            writeFile: mocks.writeFile, readFile: mocks.readFile, hashString: mocks.hashString,
             readBuffer: mocks.readBuffer, sizeOf: mocks.sizeOf,
             isPathInWorkspace: mocks.isPathInWorkspace, isFile: mocks.isFile,
             // Reading a path is pure, and where a path comes down to is what the test is about.
@@ -141,6 +142,64 @@ describe('fileAwayOutput', () => {
         fileAwayOutput(output, projectOutputDir('pr1'), 'hash1234');
         expect(mocks.writeFile).toHaveBeenCalledOnce();
         expect(output).toEqual(filed);
+    });
+});
+
+/**
+ * The other half of filing away, and the half a model lives on: what a browser follows as a link is
+ * to a model a line saying the content is elsewhere.
+ */
+describe('readOutputContent', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mocks.writeFile.mockImplementation((path) => path);
+        mocks.readFile.mockImplementation(path => `content of ${path}`);
+    });
+
+    /** There and back: whatever was filed away comes out of the file it was put in. */
+    function filedAway(): NonNullable<LLMTaskOutput> {
+        const output = newOutput({type: 'markdown', content: LONG_TEXT});
+        fileAwayOutput(output, projectOutputDir('pr1'), 'hash1234');
+        return output;
+    }
+
+    test('hands back the words of an output that was never filed away', () => {
+        expect(readOutputContent(newOutput())).toBe('short output');
+        expect(mocks.readFile).not.toHaveBeenCalled();
+    });
+
+    test('reads a filed away output back out of the file it lies in', () => {
+        expect(readOutputContent(filedAway())).toBe('content of .projects/pr1/output/hash1234.md');
+        expect(mocks.readFile).toHaveBeenCalledExactlyOnceWith('.projects/pr1/output/hash1234.md');
+    });
+
+    /** The report of a review is filed under a name of its own, and read back under that one. */
+    test('follows the url of the output it is given', () => {
+        const output = newOutput({type: 'markdown', content: LONG_TEXT});
+        fileAwayOutput(output, projectOutputDir('pr1'), 'hash1234-review');
+        expect(readOutputContent(output)).toBe('content of .projects/pr1/output/hash1234-review.md');
+    });
+
+    /** Filed away and since gone: where it was is worth more than "somewhere". */
+    test('names the file of an output that cannot be read', () => {
+        mocks.readFile.mockImplementation(() => { throw new Error('File not found.'); });
+        expect(readOutputContent(filedAway()))
+            .toBe('<Content saved to file> (.projects/pr1/output/hash1234.md)');
+    });
+
+    /** A path is only ever ours to follow: an output carrying somebody else's is left as it is. */
+    test('leaves an output whose path leads outside what we serve alone', () => {
+        const output = newOutput({content: '<Content saved to file>', path: 'https://host/report.md'});
+        expect(readOutputContent(output)).toBe('<Content saved to file>');
+        expect(mocks.readFile).not.toHaveBeenCalled();
+    });
+
+    /** The sentinel is what says a read is due, and an output that says anything else says words. */
+    test('leaves an output that has both its words and a path alone', () => {
+        const output = newOutput({content: 'the short of it', path: URL_OF_FILES + '/report.md'});
+        expect(readOutputContent(output)).toBe('the short of it');
+        expect(mocks.readFile).not.toHaveBeenCalled();
     });
 });
 

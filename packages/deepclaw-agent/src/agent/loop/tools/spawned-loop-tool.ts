@@ -1,11 +1,13 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { addTokenUsage, type AgentRuntime, type RunningTask } from '@deepclaw/core';
+import { addTokenUsage, type AgentRuntime } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FootPrint, isSpawnedLoop, OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
 import { LoopAgent } from '../loop/loop';
 import { ProjectManager } from '../services/project-manager';
-import { fireRunningTasksEvent, RunningTaskService } from '../services/running-task-service';
+import {
+    fireRunningTasksEvent, RunningTaskService, type StartingTask
+} from '../services/running-task-service';
 import { SessionService } from '../services/session-service';
 
 const MAX_PARALLEL_TASK_LOOPS = 3;
@@ -36,7 +38,7 @@ type SubLoopInput = {
 }
 
 /** A run before it was started, the service is the one handing out the handle. */
-type PlannedRun = Omit<RunningTask, 'runId'>;
+type PlannedRun = StartingTask;
 
 /**
  * A picture only reaches the user when it is named in the answer of the loop that spawned the sub
@@ -112,7 +114,7 @@ function oneLine(content: string): string {
  * was never meant to outlive the answer, and its tokens are only ever counted here: nothing of it
  * is written where a session is kept.
  */
-async function runSpawnedLoop(
+export async function runSpawnedLoop(
     loop: LoopAgent<any, any, any>, prompt: string, context: OneLoopContext
 ): Promise<string> {
     try {
@@ -174,6 +176,19 @@ function carryChangesUp(loop: LoopAgent<any, any, any>, context: OneLoopContext)
 }
 
 /**
+ * The verdict a reviewer left on the task, under whatever the subagent had to say for itself.
+ *
+ * A subagent that had its work read over reports back in its own words, and a rejection worded by
+ * the one who was rejected is a rejection that reads like a detail. The task carries what actually
+ * stands, so it is read off there rather than out of the report -- and it is added whoever asked
+ * for the review, this run being the one about to decide whether the task is done.
+ */
+function withVerdict(text: string, run: PlannedRun): string {
+    const verdict = ProjectManager.promptTaskVerdict(run.projectId, run.taskId);
+    return verdict ? `${text}\n\n${verdict}` : text;
+}
+
+/**
  * Only a run on a task is worth keeping: a sub loop without one belongs to nothing a board could
  * show it under. The status of the task cannot stand in for this, it is set before the handover
  * and stays on until the result was accepted.
@@ -222,6 +237,13 @@ function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     // asking, and what it is asking is to hand the work on instead, which is nothing to refuse.
     if (RunningTaskService.isTaskLoopRunning(projectId, task.id)) {
         throw new Error(`A subagent is working on "${task.title}" already, wait for it to report back.`);
+    }
+    // A reading stands in the way of all of them, the asking run included. It is looking at the work
+    // as it stands right now, and a subagent set going under it would be rewriting the very thing
+    // being read -- the two calls can leave the same turn, so this is no hypothetical.
+    if (RunningTaskService.isReviewRunning(projectId, task.id)) {
+        throw new Error(`"${task.title}" is being read over right now, wait for the verdict before `
+            + 'you set anybody to work in it.');
     }
     return {
         projectId,
@@ -310,7 +332,7 @@ everything you already know it needs goes in here rather than into a question.`,
                 projectId: run.projectId, taskId: run.taskId,
             }) as LoopAgent<any, any, any>;
             markOngoing(run, context);
-            return await runSpawnedLoop(taskLoop, input.prompt, context);
+            return withVerdict(await runSpawnedLoop(taskLoop, input.prompt, context), run);
         } finally {
             finishRun(runId, context);
         }

@@ -114,6 +114,19 @@ export type TaskStepsContext = {
     currentStepIndex: number;
 }
 
+/** A verdict on the work of a task and the reading behind it, the latest one there was. */
+export type TaskReview = {
+    /**
+     * Who gave it, which is the reviewer as it stood when it was asked rather than as it stands.
+     * A waived one names nobody, nobody having given it: who was skipped is on the task.
+     */
+    by?: string;
+    verdict: 'passed' | 'rejected' | 'waived';
+    /** What the reviewer wrote. A waived review is the user's word and carries none. */
+    output?: LLMTaskOutput;
+    at: string;
+};
+
 export type Task = {
     /**
      * What a task is referred to by, everywhere and for as long as it lives. The title is what the
@@ -128,6 +141,14 @@ export type Task = {
     blockedBy: string[];
     blocks: string[];
     assignee?: string;
+    /**
+     * The agent that reads this task over before it closes, where the task is worth the reading.
+     * Set on almost none of them: a review is a run of its own and earns its place only where
+     * nothing else would catch a mistake.
+     */
+    reviewer?: string;
+    /** The one review there was, a later one written over it. Absent until the reading happened. */
+    review?: TaskReview;
     closedAt?: string;
     output?: LLMTaskOutput;
     pause?: boolean;
@@ -147,6 +168,13 @@ export type RunningTask = {
     taskId: string;
     /** Whoever the run stands for: the assignee of the task, or the agent that is on it itself. */
     agentId: string;
+    /**
+     * Whether this run is the work or the reading of it. Both can be on one task at once -- a task
+     * loop that called for its review is waiting on it with the work still in its hands -- so the
+     * board draws them on lines of their own, and this is what it tells them apart by. Written where
+     * the run is filed and nowhere else: what kind of run it is is which book it went into.
+     */
+    kind: 'work' | 'review';
     startedAt: string;
 };
 

@@ -66,6 +66,16 @@ function RunningTaskRow({run, task, startedAt}: {
         <span className="flex items-center gap-2 min-w-0">
           <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse flex-shrink-0" />
           <span className="font-medium text-gray-900 truncate">{label}</span>
+          {/* A reading is a run on the task like the work is, and the two would read as one thing
+              on this list: the card of the task keeps them on lines of their own, and here they
+              are one row each with only the task named. Said of the reading rather than of the
+              work, that being the rarer of the two and the one a plain row would misname. */}
+          {run.kind === 'review' && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium
+              bg-cyan-50 text-cyan-700 whitespace-nowrap">
+              {t('web.pages.agents.details.runningTasks.reading')}
+            </span>
+          )}
         </span>
         {task && (
           <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${

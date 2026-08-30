@@ -1,6 +1,6 @@
 import { i18nInstance } from '@deepclaw/i18n';
 import { runCommand, childProcessTimeout} from '@deepclaw/node-utils';
-import { ToolDesc } from '../../definitions/tool-definitions';
+import { DEFAULT_LOOP_KINDS, ToolDesc } from '../../definitions/tool-definitions';
 import { isRunStopped, OneLoopContext, RUN_COMMAND_FOOT_PRINT } from '../../definitions/definitions';
 import { commandGuard } from './command-guard';
 
@@ -22,6 +22,10 @@ Will return the output of the command. This is local function tool, not MCP comp
     },
     agentMode: ['agent'],
     parallelSafe: false,
+    // A review that cannot run the tests can only say the code looks right, which is the kind of
+    // assurance we are afraid of. This is the one tool it is handed that writes, and no guard here
+    // makes it otherwise -- what keeps a review from changing things is what its prompt tells it.
+    loopKinds: [...DEFAULT_LOOP_KINDS, 'review'],
     invoke: execute,
     guard: (input: SyncCommandInput, context: OneLoopContext) => commandGuard(input.command, context),
 }

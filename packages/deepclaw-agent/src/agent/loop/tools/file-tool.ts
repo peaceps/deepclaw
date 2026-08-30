@@ -1,4 +1,4 @@
-import { ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
+import { DEFAULT_LOOP_KINDS, ToolDesc, ToolGuardResult } from '../../definitions/tool-definitions';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FileUtils } from '@deepclaw/node-utils';
 import { PermissionService } from '../services/permission-service';
@@ -29,6 +29,9 @@ export const readFileTool: ToolDesc<ReadFileInput> = {
     },
     agentMode: ['agent'],
     parallelSafe: true,
+    // A review reads, and this is the reading. Named rather than left to the default set, which a
+    // review is kept out of: what it may reach for, it was handed one tool at a time.
+    loopKinds: [...DEFAULT_LOOP_KINDS, 'review'],
     invoke: async function(input: ReadFileInput, context: OneLoopContext): Promise<string> {
         const { filePath, limit } = input;
         if (limit !== undefined && limit < 1) {

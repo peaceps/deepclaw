@@ -181,9 +181,13 @@ describe('file tool guard', () => {
 
 describe('file tool metadata', () => {
 
-    /** A run that works a task has to be able to finish it, which includes writing it out. */
-    test('reading and writing are both allowed in every kind of loop', () => {
-        expect(readFileTool.loopKinds).toBeUndefined();
+    /**
+     * A run that works a task has to be able to finish it, which includes writing it out. A review
+     * is the one run that is handed the reading and neither of the writes -- and it is named rather
+     * than left to the default set, which no longer holds it.
+     */
+    test('reading and writing are both allowed in every kind of loop that works', () => {
+        expect(readFileTool.loopKinds).toEqual(['main', 'task', 'sub', 'review']);
         expect(writeFileTool.loopKinds).toBeUndefined();
         expect(editFileTool.loopKinds).toBeUndefined();
     });

@@ -70,6 +70,7 @@ function newRunningTask(overrides: Partial<RunningTask> = {}): RunningTask {
         projectId: 'p1',
         taskId: 'ship-it',
         agentId: 'a1',
+        kind: 'work',
         startedAt: '2024-01-01T00:00:00.000Z',
         ...overrides,
     };

@@ -123,6 +123,7 @@ export const en = {
                         title: 'Running Now',
                         noTask: 'No task running',
                         startedAt: 'Started {{time}}',
+                        reading: 'Reading over',
                     },
                     crons: {
                         title: 'Scheduled Tasks',
@@ -206,6 +207,16 @@ export const en = {
                     editDescription: 'Rewrite what this task asks for',
                     editAssignee: 'Hand this task to another agent',
                     editPriority: 'Change how soon this task is to be picked up',
+                    review: {
+                        add: 'Reviewer',
+                        addHint: 'Have another agent read this task over before it closes',
+                        edit: 'Change who reads this task over',
+                        none: 'Unset',
+                        role: 'Reviewer',
+                        running: 'This task is being read over right now',
+                        waived: 'Not reviewed, you closed it',
+                        report: 'Review report',
+                    },
                 }
             },
             chat: {

@@ -674,11 +674,16 @@ class LoopGatewayImpl {
 
     public static updateProjectTask(projectId: string, task: UpdateContent<Task>): void {
         // The board hands a task to an agent by id, and an id is anything the request cared to
-        // send: a task assigned to a name nobody works under would never be worked on again.
-        if (task.assignee) {
-            const agent = AgentIdentityManager.getAgent(task.assignee);
+        // send: a task assigned to a name nobody works under would never be worked on again. A
+        // reviewer nobody works under is worse than that -- no run can be built for it, so the gate
+        // it puts in front of done is one only the user's own hand can get the task past.
+        for (const name of [task.assignee, task.reviewer]) {
+            if (!name) {
+                continue;
+            }
+            const agent = AgentIdentityManager.getAgent(name);
             if (!agent || agent.fired) {
-                throw new Error(`No agent "${task.assignee}" works here.`);
+                throw new Error(`No agent "${name}" works here.`);
             }
         }
         if (task.status) {
@@ -733,6 +738,12 @@ class LoopGatewayImpl {
      * has a way to: what a card may write does not include the word. The words of a task are
      * another matter and are left alone by all of them -- those are read by whoever picks the work
      * up, and a title put right while the work runs is the point of putting it right.
+     *
+     * The work and not the reading of it, which is what the question below answers and no doing of
+     * this door's. A review changes nothing and holds nothing up: the user closing a task under one
+     * loses a verdict that was advice anyway. Held off by that too, the moment they most need the
+     * button -- a review that hangs -- would be the moment it is taken away, and the hand it is
+     * taken away by is the stuck run's.
      */
     private static refuseWhileWorked(projectId: string, taskId: string): void {
         if (RunningTaskService.isRunning(projectId, taskId)) {

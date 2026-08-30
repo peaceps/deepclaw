@@ -1,7 +1,7 @@
 import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { ARCHIVED_PROJECT_DIR, PROJECT_DIR, PROJECT_JSON, projectOutputDir } from '../../paths';
-import { type Project, type Task, type TaskStepsContext, isProjectStarted, MISSION_PRIORITIES, MissionPriority, PROJECT_CONFIG, slimProject } from '@deepclaw/core';
-import { fileAwayOutput } from '../../loop-utils';
+import { type LLMTaskOutput, type Project, type Task, type TaskReview, type TaskStepsContext, isProjectStarted, MISSION_PRIORITIES, MissionPriority, PROJECT_CONFIG, slimProject } from '@deepclaw/core';
+import { fileAwayOutput, readOutputContent } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
 
 /** What the report of a project is filed under, beside the reports of its tasks. */
@@ -31,6 +31,8 @@ type TaskInitInfo = {
     blockedBy?: string[];
     /** Whoever has to work on the task, the agent that plans it when nobody else was named. */
     assignee?: string;
+    /** Whoever reads the task over before it closes, and nobody on nearly every task. */
+    reviewer?: string;
 };
 
 /**
@@ -265,6 +267,10 @@ export class ProjectManager {
             priority: writablePriority(taskInfo.priority),
             status: 'todo',
             assignee: taskInfo.assignee || taskInfo.agentId,
+            // Nobody where nobody was named. A task falls back to whoever planned it for an
+            // assignee, work being somebody's by definition, and a review is the other way round:
+            // it is worth a run of its own on few enough tasks that no default could be right.
+            reviewer: taskInfo.reviewer || undefined,
             // The same blocker named twice is the one wait. Left as two it is written twice over,
             // here and again in the blocks of what it waits for, and both are read back to whoever
             // asks for the project.
@@ -352,8 +358,38 @@ export class ProjectManager {
         }
         // Work already taken up stays with whoever took it: a task handed on midway leaves the
         // subagent of the first agent running under a name the board no longer shows for it.
-        if (taskInfo.assignee && taskInfo.assignee !== task.assignee && task.status !== 'todo') {
-            throw new Error('Only a task still in todo can be handed to another agent.');
+        //
+        // Work is somebody's by definition -- a task is created with whoever planned it where it
+        // names nobody -- so a blank name is no handover and there is nothing for it to mean. Read
+        // as "nothing was asked for" it would be worse than meaningless: the gate below opens on
+        // whether a name was sent, and an empty one would walk past it and leave an ongoing task
+        // with nobody on it, which is a task no run can be built for and none of the doors offer.
+        if (taskInfo.assignee !== undefined) {
+            taskInfo.assignee = taskInfo.assignee?.trim() ?? '';
+            if (!taskInfo.assignee) {
+                throw new Error('A task needs an assignee.');
+            }
+            if (taskInfo.assignee !== task.assignee && task.status !== 'todo') {
+                throw new Error('Only a task still in todo can be handed to another agent.');
+            }
+        }
+        // A reviewer is settled before the work rather than during it, the same as the assignee and
+        // for a reason of its own: a reviewer named onto work already under way is a gate appearing
+        // in front of a run that had planned its way to done without one, and one taken off midway
+        // is a reading somebody was promised and never got. An empty word takes the reviewer off,
+        // which is how both doors say "nobody" -- a picker with nothing picked in it, and a model
+        // that has no way to send a field away.
+        //
+        // Both of them are asked whether a name was sent rather than whether it says anybody, and
+        // the two part company on what an empty one means: an assignee cannot be nobody and is
+        // refused above, a reviewer can and is taken off here. What a reviewer cleared off an
+        // ongoing task would be is the gate itself gone -- done written with no verdict and no
+        // waiver, nothing on the board to say the task was ever going to be read.
+        if (taskInfo.reviewer !== undefined) {
+            taskInfo.reviewer = taskInfo.reviewer?.trim() || undefined;
+            if (taskInfo.reviewer !== task.reviewer && task.status !== 'todo') {
+                throw new Error('Only a task still in todo takes a reviewer or gives one up.');
+            }
         }
         if (taskInfo.priority !== undefined) {
             taskInfo.priority = writablePriority(taskInfo.priority);
@@ -374,6 +410,31 @@ export class ProjectManager {
         }
         if (taskInfo.status === 'done' && !this.isStepsCompleted(task)) {
             throw new Error('All steps should be completed before marking the task as done.');
+        }
+        // The gate the reviewer of a task is for. It stands here rather than in the tool that writes
+        // a status, because every door that writes one comes through this service and a gate on one
+        // of them is a gate the others walk around.
+        //
+        // Thrown rather than quietly turned back the way a pause is: a pause is waiting for a person
+        // and there is nothing to tell the run to do about it, while this is a step the run takes
+        // itself, so what it is handed is the name of the tool that takes it.
+        //
+        // The order is spelled out because the obvious call is the wrong one and loses work: a run
+        // marking the task done writes the report in the same call, and this refuses that call
+        // whole -- nothing of it reaches the task, the report included -- so the review that
+        // follows reads a task with no report on it and goes looking for one that was thrown away a
+        // moment ago. Written first and without a status, the report is on the board for the
+        // reading.
+        //
+        // What is said is held to the task rather than to the call, because the call is not all
+        // this service's to speak for: the tool hands the files of an output over before it gets
+        // here, and those are over with by the time this throws.
+        if (taskInfo.status === 'done' && task.reviewer && !task.review) {
+            throw new Error(`This task is read over before it is done, and nothing of this call is `
+                + `on the task. Put the report on the task first, with an update_task carrying the `
+                + `output and no status: what "${task.reviewer}" reads is the task as the board has `
+                + `it. Then call review_task, and mark the task done once the verdict is in, `
+                + `whichever way it went.`);
         }
         if (task.status === 'todo' && !taskInfo.status && taskInfo.output) {
             throw new Error('Cannot set output when task is in todo state.');
@@ -440,11 +501,16 @@ export class ProjectManager {
      * until somebody has looked at it, and somebody closing the task by hand has looked at it;
      * without this the status below would be quietly put back and the click would do nothing.
      *
-     * Both of those are written on the live task before the status is asked for, which is the shape
+     * The reading a reviewer owed it is waived the same way and for the same reason: the board is
+     * not stricter than the service, and a person closing a task themselves is the reading. It says
+     * so as it is -- waived, by nobody -- rather than filing a report nobody wrote.
+     *
+     * All of those are written on the live task before the status is asked for, which is the shape
      * updateTask has: what it reads when it decides whether the steps are done is the task and not
      * the patch. Refused, they would live on unsaved until some later edit of the project carried
      * them to disk -- a pause satisfied by nothing anybody did. So nothing that can refuse is left
-     * after them, the status having been checked above.
+     * after them: the status is checked above, and the two gates that read the task rather than the
+     * patch -- the pause and the reading it owed -- are both satisfied here.
      */
     public static finishTask(projectId: string, taskId: string): Task {
         const task = this.getTask(projectId, taskId);
@@ -460,7 +526,33 @@ export class ProjectManager {
         if (task.pause) {
             task.verified = true;
         }
+        if (task.reviewer && !task.review) {
+            task.review = {verdict: 'waived', at: new Date().toISOString()};
+        }
         return this.updateTask(projectId, {id: taskId, status: 'done'}).task;
+    }
+
+    /**
+     * What the reviewer came back with, which is the one thing a review writes anywhere.
+     *
+     * The report is filed away under a name of its own rather than under the task's: an output over
+     * the archiving threshold is written to a file named after what it belongs to, and a review
+     * filed as the task would overwrite what the task itself produced -- quietly, and only for the
+     * reports long enough to be filed, which is the worst of both.
+     */
+    public static submitReview(
+        projectId: string, taskId: string, verdict: TaskReview['verdict'], output?: LLMTaskOutput
+    ): Task {
+        const task = this.getTask(projectId, taskId);
+        if (!task) {
+            throw new Error('Task not found.');
+        }
+        task.review = {by: task.reviewer, verdict, output, at: new Date().toISOString()};
+        if (output) {
+            fileAwayOutput(output, projectOutputDir(projectId), `${FileUtils.hashString(taskId)}-review`);
+        }
+        this.saveProject(projectId);
+        return task;
     }
 
     public static updateCurrentStep(projectId: string, taskId: string, stepIndex: number): TaskStepsContext {
@@ -611,6 +703,12 @@ export class ProjectManager {
         });
     }
 
+    /**
+     * What every run hears: reading the board, and putting a project on it. Nothing here writes to
+     * a project that exists, which is the line the tools themselves are drawn on -- see the roles
+     * they declare. A project is born in whatever conversation the user asked for it in, and from
+     * the moment it exists it has a run of its own, which is where it is worked and rewritten.
+     */
     public static promptManagementTools(): string {
         return `## Project Management tools
 You can use project related tools to plan, manage projects.
@@ -624,10 +722,22 @@ You can get all projects info with get_project_list tool, and get detailed info 
 ## Create a project
 Use the create_project tool.
 Always create a project if asked to do something, even if the user didn\'t explicitly ask you to create one.
-You can create detailed steps for each task if needed,
-steps info are important for user to get current task execution status, so make sure to update them in a timely manner.
+You can create detailed steps for each task if needed, steps info are what the user watches the work
+by.
+A project has a conversation of its own from the moment it exists, on its row of the board. The
+project you just made is gone over and worked there rather than in the conversation you made it in:
+say where it is, and leave the plan to the user to open and change.`;
+    }
 
-## Add a task to a project underway
+    /**
+     * The rest of it, for the run of the project alone. Every tool named here writes to a board
+     * that is live -- a task added, a status moved, the report of the whole -- and the run of a
+     * project is the only one that can see what else is on it: what has been handed out, what is
+     * being read over, what a pause is waiting for. Said to a run without the tools, this would be
+     * an invitation to call what it has not got.
+     */
+    public static promptBoardTools(): string {
+        return `## Add a task to a project underway
 The work itself finds what the plan left out. Where a project turns out to need another task, add
 it with add_task: it goes on the board beside the ones planned, and waits behind whatever it is
 blocked by. It only ever waits, never the other way round -- a task already on the board cannot be
@@ -640,6 +750,10 @@ Every task carries an id you gave it when it was created, and that id is how eve
 The title beside it is what the user reads: they may rename a task at any time, so read a task by
 its id and never by the words on it.
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
+
+## Rewrite the plan
+The task list of this project can be replaced with update_project while the user has not started it
+yet. Once they press start it is settled, and a task the work turns out to need goes on with add_task.
 
 ## Report a finished project
 A project closes itself once its last task is done. What it produced as a whole is no task report,
@@ -701,7 +815,87 @@ Keep the step index up to date with the update_task_current_step tool as you go 
 Close your run with a summary of what you did and what came out of it, that summary is what the
 agent who assigned the task gets to see. If what the task produced is something to read, put it in
 that summary whole rather than in a file of its own: the agent who assigned it has to hand the result
-on, and it can only hand on what it was given.`;
+on, and it can only hand on what it was given.${task.reviewer ? `
+This task is read over by "${task.reviewer}" before it closes. When every step is marked and the
+work is as done as you can make it, write the summary you mean to close with and pass it whole in
+the prompt of review_task, along with where the work landed. Nothing of it is on the board yet --
+the task carries a report only once you have reported back -- so that prompt is the only place the
+reviewer can read what you did, and a review asked for before you have written it is a review of
+the files alone. Fixing what comes back is yours to do while the work is still in your hands: once
+you report back, a fix is a whole new run in somebody else's context. Call it again when you have
+fixed things, with the summary brought up to date; if the two of you cannot agree, report back with
+what stands and what was said.` : ''}`;
+    }
+
+    /**
+     * The verdict as the run that has to act on it reads it: whoever called for the review, and the
+     * loop that handed the task out, which is told what stands whether or not it was the one that
+     * asked. Nothing where there is nothing to hand on -- a task nobody read, and a task the user
+     * closed themselves, which carries the note that there was no reading rather than a verdict.
+     *
+     * Dated, because the gate is open from the first verdict on: `reviewer && !review` stops
+     * holding the moment one lands, so a task that was rejected, handed out again and fixed closes
+     * without anybody reading the fix. The record is right and the reading is old, and the two are
+     * only told apart by when it was made -- so the time is in the words, next to a line saying
+     * what to do where the work has moved since. It is worth knowing that this is all there is:
+     * nothing checks what the verdict was made against, and a second reading happens because a run
+     * asked for one.
+     */
+    public static promptTaskVerdict(projectId: string, taskId: string): string {
+        const task = this.getTask(projectId, taskId);
+        const review = task?.review;
+        if (!task || !review || review.verdict === 'waived') {
+            return '';
+        }
+        const said = review.verdict === 'passed' ? 'passed the work' : 'rejected the work';
+        // Read back out of the file where a long report lies. What a report says is the whole of
+        // what this hands on, and the reports worth reading are the ones long enough to be filed.
+        const report = review.output && readOutputContent(review.output);
+        return `"${review.by ?? task.reviewer}" read "${task.title}" over at ${review.at} and ${said}:
+${report || '(the verdict came with no report)'}
+
+A verdict is advice and not a gate: the task closes either way once one is in. What was found is
+yours to see to, or to say to the user where you think the reviewer is wrong.
+This one is about the work as it stood at that moment, and it is the only reading the task needs to
+close from here. So where the work has changed since -- a rejection seen to, the task picked up
+again -- what stands now has been read by nobody: bring the report of the task up to what it now
+says, then call review_task once more before you close it.`;
+    }
+
+    /**
+     * The task as the run reading it over is given it, which is the same task worded for somebody
+     * who is not going to work on it. What the work produced is in here where there is any: the
+     * board carries it once the task reports back, and a review called before that reads what is
+     * in the workspace and what the run that called for it said in the prompt.
+     */
+    public static promptTaskUnderReview(projectId: string, taskId: string): string {
+        const task = this.getTask(projectId, taskId);
+        if (!task) {
+            return '';
+        }
+        return `## This is the task you are reading over. You did not work it:
+${JSON.stringify({
+    projectId,
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    steps: task.stepsStatus?.steps,
+    // Read back the same way the verdict is, and for the same reason: a run handed the sentinel
+    // in place of what the work produced is handed a url it cannot follow.
+    output: task.output && {...task.output, content: readOutputContent(task.output)},
+    workedBy: task.assignee,
+})}
+What the task asked for is the whole of what the work is answered against: work that does what the
+description asks for passes, whatever else you would have done differently. Read the rest of the
+project with get_project_detail where the task leans on something outside itself.${task.output ? ''
+: `
+The task carries no output, and that is not something missing: a task is given one when it reports
+back, and this one is still under way. The account of the work is in the prompt you were handed --
+read it as the account and not as the finding, and check it against the workspace. There is nothing
+else of it to look for and nobody to ask for it.`}
+Your verdict goes to whoever asked for this review, and your report is kept on the task for the
+user to read.`;
     }
 
     public static promptCurrentProject(projectId: string): string {

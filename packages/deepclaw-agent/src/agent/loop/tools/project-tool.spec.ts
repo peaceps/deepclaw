@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {type AgentIdentity, type Project, type Task, type TaskStepsContext} from '@deepclaw/core';
-import {newTestContext} from '../../../test-support/one-loop-context';
+import {newTestContext as newLoopContext} from '../../../test-support/one-loop-context';
+import {type OneLoopContext} from '../../definitions/definitions';
 import {projectFilesDir} from '../../paths';
 import {AgentIdentityManager} from '../services/agent-identity-manager';
 import {ProjectManager} from '../services/project-manager';
@@ -61,6 +62,17 @@ function newProject(overrides: Partial<Project> = {}): Project {
     return {
         id: 'pr1', title: 'ship it', description: 'ship the thing', tasks: {}, ...overrides,
     } as Project;
+}
+
+/**
+ * The run of pr1, which is what every project in this file is. The board of a project is written
+ * by the conversation of that project and by no other, so a context that runs no project is not
+ * the caller any of this has: it would be turned away before the thing under test happened.
+ */
+function newTestContext(overrides: Partial<OneLoopContext> = {}): OneLoopContext {
+    return newLoopContext({
+        role: 'project', projectId: 'pr1', loopId: 'project.a1.pr1', ...overrides,
+    });
 }
 
 beforeEach(() => {
@@ -138,6 +150,36 @@ describe('createProjectTool invoke', () => {
             priority: 'high',
             tasks: [{id: 'design', title: 'design', description: 'design it', priority: 'medium', assignee: 'a3'}],
         }, newTestContext())).rejects.toThrow('No agent "a3" works here');
+    });
+
+    test('keeps the agent a task of the plan is read over by', async () => {
+        await createProjectTool.invoke({
+            title: 'ship it',
+            description: 'ship the thing',
+            priority: 'high',
+            tasks: [{
+                id: 'design', title: 'design', description: 'design it',
+                priority: 'medium', reviewer: 'a2',
+            }],
+        }, newTestContext());
+        expect(createTask).toHaveBeenCalledExactlyOnceWith({
+            id: 'design', title: 'design', description: 'design it', priority: 'medium',
+            reviewer: 'a2', agentId: 'a1',
+        });
+    });
+
+    test('refuses a task left to be read over by somebody who does not work here', async () => {
+        getAgent.mockReturnValue(undefined);
+        await expect(createProjectTool.invoke({
+            title: 'ship it',
+            description: 'ship the thing',
+            priority: 'high',
+            tasks: [{
+                id: 'design', title: 'design', description: 'design it',
+                priority: 'medium', reviewer: 'ghost',
+            }],
+        }, newTestContext())).rejects.toThrow('No agent "ghost" works here, pick a reviewer from: a1, a2.');
+        expect(createProject).not.toHaveBeenCalled();
     });
 
     test('announces the new project and pauses the loop for a review', async () => {
@@ -289,6 +331,32 @@ describe('addTaskTool invoke', () => {
         expect(addTask).not.toHaveBeenCalled();
     });
 
+    test('keeps a reviewer that was named', async () => {
+        await addTaskTool.invoke({
+            projectId: 'pr1', id: 'build', title: 'build it',
+            description: 'build the thing', priority: 'high', reviewer: 'a3',
+        }, newTestContext());
+        expect(addTask).toHaveBeenCalledExactlyOnceWith('pr1', {
+            id: 'build', title: 'build it', description: 'build the thing',
+            priority: 'high', reviewer: 'a3', agentId: 'a1',
+        });
+    });
+
+    /**
+     * The way in that a task most often arrives by, and the one where a reviewer nobody can be
+     * built for is worst: a task added to a project under way is ongoing soon after, and from
+     * there the name cannot be changed. Every close would be turned away by a review no run can
+     * do, and the user's own hand would be the only way the task ever finished.
+     */
+    test('refuses a task read over by somebody who does not work here', async () => {
+        getAgent.mockReturnValue(undefined);
+        await expect(addTaskTool.invoke({
+            projectId: 'pr1', id: 'build', title: 'build it',
+            description: 'build the thing', priority: 'high', reviewer: 'ghost',
+        }, newTestContext())).rejects.toThrow('No agent "ghost" works here, pick a reviewer from');
+        expect(addTask).not.toHaveBeenCalled();
+    });
+
     test('announces the board and reports the project back', async () => {
         const context = newTestContext();
         const result = await addTaskTool.invoke({
@@ -427,6 +495,54 @@ describe('updateTaskTool invoke', () => {
         await expect(updateTaskTool.invoke({
             projectId: 'pr1', taskId: 'design', assignee: 'a3',
         }, newTestContext())).rejects.toThrow('No agent "a3" works here');
+        expect(updateTask).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Dropped here, a call that named nobody would report success and change nothing, and the model
+     * would read that as a task it had handed on. The service is where a blank name is turned away,
+     * so it has to reach the service.
+     */
+    test('hands a blank assignee on to the service rather than dropping it', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design', assignee: '',
+        }, newTestContext());
+        expect(updateTask).toHaveBeenCalledExactlyOnceWith(
+            'pr1', {id: 'design', assignee: ''}, undefined
+        );
+    });
+
+    test('names an agent to read the task over', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design', reviewer: 'a2',
+        }, newTestContext());
+        expect(updateTask).toHaveBeenCalledExactlyOnceWith(
+            'pr1', {id: 'design', reviewer: 'a2'}, undefined
+        );
+    });
+
+    /** The empty word is how a reviewer comes off, so it is passed on rather than read as nothing. */
+    test('takes the reviewer off a task on an empty word', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design', reviewer: '',
+        }, newTestContext());
+        expect(updateTask).toHaveBeenCalledExactlyOnceWith(
+            'pr1', {id: 'design', reviewer: ''}, undefined
+        );
+    });
+
+    /**
+     * A reviewer no run can be built for is a task that closes by the user's hand alone, so the
+     * name is turned away here rather than at the gate it would stand in front of.
+     */
+    test('refuses a reviewer who does not work here', async () => {
+        getAgent.mockReturnValue(undefined);
+        await expect(updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design', reviewer: 'ghost',
+        }, newTestContext())).rejects.toThrow('No agent "ghost" works here, pick a reviewer from: a1, a2.');
         expect(updateTask).not.toHaveBeenCalled();
     });
 
@@ -583,9 +699,7 @@ describe('updateTaskTool invoke', () => {
  */
 describe('workOnTaskTool invoke', () => {
 
-    const context = () => newTestContext({
-        role: 'project', projectId: 'pr1', loopId: 'project.a1.pr1',
-    });
+    const context = () => newTestContext();
 
     beforeEach(() => {
         updateTask.mockReturnValue({task: {...newTask('design'), status: 'ongoing'}, stop: false});
@@ -600,7 +714,7 @@ describe('workOnTaskTool invoke', () => {
         await workOnTaskTool.invoke({projectId: 'pr1', taskId: 'design'}, context());
         expect(RunningTaskService.getRunningTasks()).toEqual([{
             runId: expect.any(String), projectId: 'pr1', taskId: 'design',
-            agentId: 'a1', startedAt: expect.any(String),
+            agentId: 'a1', kind: 'work', startedAt: expect.any(String),
         }]);
     });
 
@@ -687,6 +801,49 @@ describe('project query tools', () => {
         const result = await getProjectDetailTool.invoke({projectId: 'pr1'}, newTestContext());
         expect(getProjectDetail).toHaveBeenCalledExactlyOnceWith('pr1');
         expect(result).toBe(JSON.stringify(newProject()));
+    });
+});
+
+/**
+ * The role says the caller is the run of a project, and this says it is the run of *this* project.
+ * Only the second one keeps the board of a project to itself: ids are handed out by
+ * get_project_list to anybody who asks, so without it "mark t1 of that other project done" is a
+ * thing the run of project A can be talked into and has no way to refuse.
+ */
+describe('a project reached from the run of another project', () => {
+
+    /** Named the way the tools take it, since it is the argument that is the hole. */
+    const other = {projectId: 'pr2'};
+
+    test('is turned away by every tool that writes to a board', async () => {
+        const calls: (() => Promise<string>)[] = [
+            () => addTaskTool.invoke({
+                ...other, id: 'build', title: 'build it', description: 'build', priority: 'high',
+            }, newTestContext()),
+            () => updateProjectTool.invoke({...other, title: 'ship it faster'}, newTestContext()),
+            () => updateTaskTool.invoke({...other, taskId: 'design', status: 'done'}, newTestContext()),
+            () => workOnTaskTool.invoke({...other, taskId: 'design'}, newTestContext()),
+            () => updateTaskCurrentStepTool.invoke(
+                {...other, taskId: 'design', stepIndex: 1}, newTestContext()
+            ),
+        ];
+        for (const call of calls) {
+            await expect(call()).rejects.toThrow('pr2 is another project');
+        }
+        expect(addTask).not.toHaveBeenCalled();
+        expect(updateProject).not.toHaveBeenCalled();
+        expect(updateTask).not.toHaveBeenCalled();
+        expect(updateCurrentStep).not.toHaveBeenCalled();
+        expect(RunningTaskService.getRunningTasks()).toEqual([]);
+    });
+
+    /**
+     * Reading is not writing. A run may be asked what became of another project and answer, which
+     * is how a user gets an account of the board without opening every row of it themselves.
+     */
+    test('is read from anywhere all the same', async () => {
+        await expect(getProjectDetailTool.invoke(other, newTestContext())).resolves.toBeTruthy();
+        expect(getProjectDetail).toHaveBeenCalledExactlyOnceWith('pr2');
     });
 });
 

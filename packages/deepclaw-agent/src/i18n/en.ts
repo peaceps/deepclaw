@@ -13,8 +13,8 @@ export const en = {
         agentBreak: {
             agentStop: {
                 projectCreated: {
-                    llm: 'Project is created, waiting for user adjustment.',
-                    user: 'Project is created, you can continue to adjust the plan.',
+                    llm: 'Project is created. The plan is adjusted in the conversation of the project itself.',
+                    user: 'Project is created. Open its row on the board to go over the plan and start it.',
                 },
                 taskPause: {
                     llm: 'Task is done, waiting for user verification.',

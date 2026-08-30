@@ -58,6 +58,7 @@ export function newTestContext(overrides: Partial<OneLoopContext> = {}): OneLoop
         logger: newTestLogger(),
         actions: {
             newTaskLoop: vi.fn(async () => ({} as FlushAgent)),
+            newReviewLoop: vi.fn(async () => ({} as FlushAgent)),
             newSubLoop: vi.fn(() => ({} as FlushAgent)),
             addFootPrint: vi.fn(),
             agentHandler: newTestAgentHandler(),

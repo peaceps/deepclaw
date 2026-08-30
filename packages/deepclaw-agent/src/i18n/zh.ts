@@ -13,8 +13,8 @@ export const zh = {
         agentBreak: {
             agentStop: {
                 projectCreated: {
-                    llm: '项目创建好了，等待用户调整计划。',
-                    user: '项目创建好了，你可以继续让我调整计划。',
+                    llm: '项目创建好了，计划在项目自己的对话里调整。',
+                    user: '项目创建好了，在看板上展开这一行就能过计划、开工。',
                 },
                 taskPause: {
                     llm: '任务已经完成，等待用户验收。',

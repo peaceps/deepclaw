@@ -121,6 +121,7 @@ export const zh = {
                         title: '正在执行',
                         noTask: '当前没有正在执行的任务',
                         startedAt: '{{time}} 开始',
+                        reading: '正在评审',
                     },
                     crons: {
                         title: '定时任务',
@@ -204,6 +205,16 @@ export const zh = {
                     editDescription: '修改这个任务的描述',
                     editAssignee: '把这个任务交给其他 Agent',
                     editPriority: '改这个任务的优先级',
+                    review: {
+                        add: '评审人',
+                        addHint: '让另一个 Agent 在这个任务关掉之前读一遍',
+                        edit: '改这个任务的评审人',
+                        none: '无',
+                        role: '评审',
+                        running: '这个任务正在被评审',
+                        waived: '未评审，由你关闭',
+                        report: '评审报告',
+                    },
                 }
             },
             chat: {

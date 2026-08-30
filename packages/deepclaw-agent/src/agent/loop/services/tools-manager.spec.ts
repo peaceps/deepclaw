@@ -51,6 +51,7 @@ function toolModules(): Promise<Record<string, unknown>[]> {
         import('../tools/file-tool'),
         import('../tools/image-tool'),
         import('../tools/project-tool'),
+        import('../tools/review-tool'),
         import('../tools/save-memory-tool'),
         import('../tools/skill-tool'),
         import('../tools/spawned-loop-tool'),
@@ -70,7 +71,7 @@ async function exportedToolNames(): Promise<string[]> {
         .map(tool => tool.tool.name);
 }
 
-const KINDS: LoopKind[] = ['main', 'task', 'sub'];
+const KINDS: LoopKind[] = ['main', 'task', 'sub', 'review'];
 const ROLES: FlushAgentRole[] = ['agent', 'project', 'cron'];
 const MODES: AgentMode[] = ['agent', 'chat'];
 const RUNS: ToolRun[] = KINDS.flatMap(
@@ -90,9 +91,10 @@ describe('built-in tools', () => {
     });
 
     test('hides a main loop only tool from every spawned loop', () => {
-        expect(ToolsManager.getToolDesc(run('main', 'agent'), 'update_task')?.tool.name).toBe('update_task');
-        expect(ToolsManager.getToolDesc(run('task', 'agent'), 'update_task')).toBeUndefined();
-        expect(ToolsManager.getToolDesc(run('sub', 'agent'), 'update_task')).toBeUndefined();
+        expect(ToolsManager.getToolDesc(run('main', 'agent', 'project'), 'update_task')?.tool.name)
+            .toBe('update_task');
+        expect(ToolsManager.getToolDesc(run('task', 'agent', 'project'), 'update_task')).toBeUndefined();
+        expect(ToolsManager.getToolDesc(run('sub', 'agent', 'project'), 'update_task')).toBeUndefined();
     });
 
     // 项目运行是唯一拿得到这个工具的角色，所以这里只比循环层级这一维
@@ -110,9 +112,46 @@ describe('built-in tools', () => {
     });
 
     test('leaves the step index of a task to whoever works it', () => {
-        expect(ToolsManager.getToolDesc(run('main', 'agent'), 'update_task_current_step')).toBeDefined();
-        expect(ToolsManager.getToolDesc(run('task', 'agent'), 'update_task_current_step')).toBeDefined();
-        expect(ToolsManager.getToolDesc(run('sub', 'agent'), 'update_task_current_step')).toBeUndefined();
+        expect(ToolsManager.getToolDesc(run('main', 'agent', 'project'), 'update_task_current_step'))
+            .toBeDefined();
+        expect(ToolsManager.getToolDesc(run('task', 'agent', 'project'), 'update_task_current_step'))
+            .toBeDefined();
+        expect(ToolsManager.getToolDesc(run('sub', 'agent', 'project'), 'update_task_current_step'))
+            .toBeUndefined();
+    });
+
+    /**
+     * The board of a project is written by the run of that project and by nothing else. A chat or a
+     * scheduled run reaches a project by an id it happens to hold, and a task moved from out there
+     * is a task the run that owns the board never heard about: it hands the work out, waits on what
+     * comes back and decides when a task is done, all of it on a picture this would go behind.
+     */
+    test('leaves every write to the board of a project to the run of that project', () => {
+        const board = [
+            'add_task', 'update_project', 'update_task', 'work_on_task', 'update_task_current_step',
+        ];
+        for (const name of board) {
+            expect(ToolsManager.getToolDesc(run('main', 'agent', 'project'), name)?.tool.name)
+                .toBe(name);
+            for (const role of ['agent', 'cron'] as FlushAgentRole[]) {
+                expect(ToolsManager.getToolDesc(run('main', 'agent', role), name)).toBeUndefined();
+                expect(names(run('main', 'agent', role))).not.toContain(name);
+            }
+        }
+    });
+
+    /**
+     * The one that stays open, and it has to: a project is born in whatever chat the user asked
+     * for it in, there being no run of a project before there is a project. Reading the board is
+     * open for the same reason -- a run may talk about a project it cannot write to.
+     */
+    test('lets a project be asked for in any chat, and read from any chat', () => {
+        for (const role of ALL_AGENT_ROLES) {
+            for (const name of ['create_project', 'get_project_list', 'get_project_detail']) {
+                expect(ToolsManager.getToolDesc(run('main', 'agent', role), name)?.tool.name)
+                    .toBe(name);
+            }
+        }
     });
 
     // 只有定时运行才有自己的产出可写，别的运行拿到它只能去改别人的记录
@@ -195,13 +234,40 @@ describe('built-in tools', () => {
         }
     });
 
+    /**
+     * The whole of what a run that is only there to read may reach for, written down here so that
+     * it cannot grow by accident. A tool that names no loop kinds falls outside a review, so the
+     * only way into this list is to name it -- and naming it turns this test red, which is the
+     * point: whoever hands a review another tool says so twice, once in the tool and once here.
+     */
+    test('hands a review exactly the tools it was named in', () => {
+        expect(names(run('review', 'agent', 'project')).sort()).toEqual([
+            'get_project_detail', 'read_file', 'run_sync_command', 'submit_review',
+        ]);
+    });
+
+    test('keeps the tools that write off a review', () => {
+        for (const name of ['write_file', 'edit_file', 'update_task', 'sub_loop', 'ask_user']) {
+            expect(ToolsManager.getToolDesc(run('review', 'agent', 'project'), name)).toBeUndefined();
+        }
+    });
+
+    /** The default set is where a tool goes when it says nothing, and a review is not in it. */
+    test('keeps an mcp tool that named no kinds away from a review', () => {
+        const mcpName = `${MCP_PREFIX}server_add`;
+        mocks.getTools.mockReturnValue({[mcpName]: newMcpTool(mcpName)});
+        expect(ToolsManager.getToolDesc(run('review', 'agent'), mcpName)).toBeUndefined();
+        expect(names(run('review', 'agent'))).not.toContain(mcpName);
+    });
+
     test('registers exactly the tools the tools folder exports', async () => {
         const registered = new Set(RUNS.flatMap(names));
         expect([...registered].sort()).toEqual([...new Set(await exportedToolNames())].sort());
     });
 
     test('offers the project update to the agent of a main loop', () => {
-        expect(ToolsManager.getToolDesc(run('main', 'agent'), 'update_project')?.tool.name).toBe('update_project');
+        expect(ToolsManager.getToolDesc(run('main', 'agent', 'project'), 'update_project')?.tool.name)
+            .toBe('update_project');
     });
 
     test('gives out a fresh array so callers cannot corrupt the registry', () => {

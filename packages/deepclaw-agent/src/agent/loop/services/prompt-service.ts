@@ -26,18 +26,27 @@ import { AgentIdentityManager } from './agent-identity-manager';
 const STALE_TURNS = 10;
 const STALE_MINUTES = 10;
 
+/** What a run is told it is, one for each kind of run there is to be told. */
+type MainIdentityPrompts = {
+    loop: string;
+    taskloop: string;
+    subloop: string;
+    review: string;
+    cron: string;
+};
+
 export class PromptService {
     private static initialized = false;
     private static mark: {lang: string};
     private static platformPrompt: string;
     private static languagePrompt: string;
     private static emotionsPrompt: string;
-    private static mainIdentityPrompt: {loop: string, taskloop: string, subloop: string, cron: string};
+    private static mainIdentityPrompt: MainIdentityPrompts;
 
     public static provideSystemPrompt(
         agentConfig: AgentConfig, agentIdentity: AgentIdentity | undefined,
         role: FlushAgentRole, projectId: string, loopKind: LoopKind,
-        assignedTask?: AssignedTask
+        assignedTask?: AssignedTask, runAs?: string
     ): SystemPrompt {
         if (!this.initialized) {
             this.init();
@@ -45,14 +54,16 @@ export class PromptService {
         const isCron = role === 'cron';
         const spawned = isSpawnedLoop(loopKind);
         const identityKey = loopKind === 'task' ? 'taskloop'
-            : loopKind === 'sub' ? 'subloop' : isCron ? 'cron' : 'loop';
-        // A spawned loop working on a task speaks as the agent the task belongs to, not as the one
-        // that handed it over, and that is the only case where it has a personality. The memory and
-        // the skills of that agent come along, so that the borrowed name is one the run can work
-        // under: the tools read the same borrowed id off the context.
-        const assignee = this.taskAssignee(assignedTask);
-        const persona = isCron || (spawned && !assignee) ? undefined : assignee ?? agentIdentity;
-        const personaId = assignee?.id ?? agentConfig.id;
+            : loopKind === 'sub' ? 'subloop'
+            : loopKind === 'review' ? 'review' : isCron ? 'cron' : 'loop';
+        // A spawned loop speaks as the agent it borrowed rather than as the one that spawned it,
+        // and a borrowed name is the only way a spawned loop has one. Which name that is is read
+        // off `runAs` and off nothing else: whoever built this run picked the model with it, so the
+        // personality, the memory and the skills that come with it are the ones of the model doing
+        // the work. Worked out here from the task instead, the two could differ -- and a review, of
+        // all runs, would read the work wearing the face of whoever did it.
+        const persona = isCron || (spawned && !runAs) ? undefined : agentIdentity;
+        const personaId = agentConfig.id;
         // The delegation section names task_loop, so it is read off the same two facts that hand
         // the tool over: the main loop of a run whose role is the project one. Asking instead
         // whether this is a run with a project id and not a cron run is a second way of arriving
@@ -68,9 +79,13 @@ export class PromptService {
         // A run working on a task is included by having a persona at all, that being the agent it
         // works as: on their model, with their memory, under their name. A sub loop borrows the
         // same name and is left out all the same -- it is a piece of the task rather than the task,
-        // and several of them run under that one name at once. Which is feelerOf, in the terms the
-        // tools have to ask it in.
-        const feels = !!persona && loopKind !== 'sub' && !isCron && !!persona.emotion;
+        // and several of them run under that one name at once. A review is named here for a reason
+        // of its own: it has a persona and is nobody's piece, and the tool that records a feeling
+        // is one of the tools it was not handed, so a section inviting it to say how the work made
+        // it feel invites it to say a thing it has no way to say. Which is feelerOf, in the terms
+        // the tools have to ask it in.
+        const feels = !!persona && loopKind !== 'sub' && loopKind !== 'review'
+            && !isCron && !!persona.emotion;
         const cacheable = this.sections([
             ['Platform', this.platformPrompt],
             ['Language', this.language()],
@@ -105,7 +120,7 @@ ${this.cronCurrentTask(projectId, spawned)}`
 ${this.projectCurrentProject(assignedTask?.projectId || projectId)}${
     // A sub loop of a task loop is handed the task to work as its assignee, not to work on it:
     // what of the task it should know is in the prompt the task loop wrote for it.
-    this.assignedTask(loopKind === 'task' ? assignedTask : undefined)}`;
+    this.taskSection(loopKind, assignedTask)}`;
 
         return {
             cacheable, learned,
@@ -132,28 +147,26 @@ ${this.projectCurrentProject(assignedTask?.projectId || projectId)}${
             .join('\n');
     }
 
-    private static assignedTask(assignedTask?: AssignedTask): string {
-        if (!assignedTask) {
+    /**
+     * The one task a spawned loop is pointed at, said in the terms of what that loop is there for.
+     * A task loop is given the work to do; a review is given the same task to read, and the two
+     * are worded apart because a review handed "this is the task assigned to you" would be a run
+     * that thinks the work is its own to finish.
+     */
+    private static taskSection(loopKind: LoopKind, assignedTask?: AssignedTask): string {
+        if (!assignedTask || (loopKind !== 'task' && loopKind !== 'review')) {
             return '';
         }
-        return `
+        const {projectId, taskId} = assignedTask;
+        return loopKind === 'review'
+            ? `
+
+# Task Under Review
+${ProjectManager.promptTaskUnderReview(projectId, taskId)}`
+            : `
 
 # Assigned Task
-${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskId)}`;
-    }
-
-    /**
-     * The agent a task belongs to, which is the one a sub loop stands in for while working on it.
-     * The loop asks for it too, to tell the tools of the run which agent they work for.
-     *
-     * Nothing where the board names an agent nobody knows: a name is only worth borrowing where
-     * there is somebody to borrow it from, and the memory, the skills and the personality of a
-     * stranger are all nothing anyway. What that name cannot be dropped from is the choice of whose
-     * model does the work, which is why that is read off the id below and not off this.
-     */
-    public static taskAssignee(assignedTask?: AssignedTask): AgentIdentity | undefined {
-        const assignee = this.taskAssigneeId(assignedTask);
-        return assignee ? AgentIdentityManager.getAgent(assignee) : undefined;
+${ProjectManager.promptAssignedTask(projectId, taskId)}`;
     }
 
     /**
@@ -166,6 +179,19 @@ ${ProjectManager.promptAssignedTask(assignedTask.projectId, assignedTask.taskId)
             return undefined;
         }
         return ProjectManager.getTask(assignedTask.projectId, assignedTask.taskId)?.assignee;
+    }
+
+    /**
+     * The agent a task is read over by, and nobody on a task nobody named one for -- which is most
+     * of them. Read the same way as the assignee above and refused the same way further on: a name
+     * the configuration no longer knows is a review that cannot be run, not a review to run as
+     * whoever asked for it.
+     */
+    public static taskReviewerId(assignedTask?: AssignedTask): string | undefined {
+        if (!assignedTask) {
+            return undefined;
+        }
+        return ProjectManager.getTask(assignedTask.projectId, assignedTask.taskId)?.reviewer;
     }
 
     private static init() {
@@ -201,7 +227,7 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
         return this.languagePrompt;
     }
 
-    private static mainIdentity(): {loop: string, taskloop: string, subloop: string, cron: string} {
+    private static mainIdentity(): MainIdentityPrompts {
         let commonIdentity = `You are a helpful and efficient assistant for the user.
 You can help the user with various tasks, such as answering questions, providing suggestions,
 and completing tasks via tools. Always try your best to help the user and complete the task. 
@@ -225,6 +251,26 @@ you touched and everything that agent needs to carry on.
         return {
             loop: commonIdentity,
             subloop,
+            review: `${commonIdentity}
+What's more you are reading over one task of a project that another agent worked on, and giving a
+verdict on it. You did not do this work and you are not here to finish it: nothing you find is
+yours to put right. A fault you fix quietly is a fault nobody was told about, and work changed by
+the one reading it is work nobody has read.
+You can read files and run commands -- the tests, the build, whatever the work says it did -- and
+apart from the tool that files your verdict you have nothing that writes. Keep it that way: run
+what tells you something and change nothing.
+What you are told the work is is the word of whoever did it. It is where to look, not what you
+found: check it against what is actually there.
+Name what is wrong and where, so whoever picks it up goes straight to it -- a file and a line beat
+a paragraph of impressions. A report that says the work looks fine without saying what was checked
+is worse than no review at all, because it reads as an assurance nobody gave.
+Pass work that does what the task asked for. Reject work that does not, and reject work you could
+not check at all, saying which of the two it was. Something worth mentioning and not worth another
+run of somebody's time belongs in the report of a pass.
+Nobody is there to talk to while you run, so never ask a question and never wait for an answer.
+Close by calling submit_review with your verdict and your report. That call is the whole of what
+anybody gets from you: nothing you say outside it is read by anyone.
+`,
             taskloop: `${subloop}
 The one task you were given is yours whole, and you do not have to work through it alone: hand any
 piece of it that stands on its own to a subagent of your own with the sub_loop tool. Pieces that wait
@@ -432,6 +478,18 @@ where you named it.`;
         if (agentMode === 'chat') {
             return picture;
         }
+        // A review hands over a verdict and has nothing else to hand anybody. Everything below is
+        // a way of getting work out of the machine -- files for the user, a summary for the loop
+        // above -- and told it has one, a run that is only there to read starts writing its report
+        // into the project's files folder and naming it in a summary nobody reads. Which is the
+        // flat contradiction of what its own identity tells it: that submit_review is the whole of
+        // what anybody gets from it. Said here rather than left out, because the question this
+        // section answers is one the run will have either way.
+        if (loopKind === 'review') {
+            return `Your verdict and your report go into submit_review, and that call is the whole
+of what you hand anybody. There is nothing to write to a file and nothing to name in a summary:
+what you say outside that call reaches nobody.`;
+        }
         if (isSpawnedLoop(loopKind)) {
             return `${picture}
 You hand your work to the agent that spawned you, never to the user, and it can only pass on what
@@ -488,8 +546,13 @@ Use the update_cron_output tool with id "${cronId}" to record your final result 
      * The board and the people on it, for the runs that work them. A spawned loop works neither:
      * every tool named below is handed to a main loop alone, and the roster under it is read to
      * pick an assignee, which is a choice made by whoever hands the task out. What a spawned loop
-     * is to do with its task came with the task. Only the loop that owns a project delegates on
-     * top of that: a sub loop is the one being delegated to.
+     * is to do with its task came with the task.
+     *
+     * Split where the tools are split. Reading the board and putting a project on it is any run's,
+     * and a project is put on it from an ordinary chat by necessity -- there is no run of a project
+     * before there is a project. Everything that writes to a project that exists is the run of that
+     * project's alone, tools and prompt together: a run told about add_task and not handed it would
+     * spend a call finding that out, and a run that hears nothing of it never reaches.
      */
     private static projectManagement(
         agentMode: AgentMode, spawned: boolean, runsAProject: boolean, agentId: string
@@ -499,7 +562,7 @@ Use the update_cron_output tool with id "${cronId}" to record your final result 
         }
         const sections = [ProjectManager.promptManagementTools(), this.colleagues(agentId)];
         if (runsAProject) {
-            sections.push(ProjectManager.promptTaskDelegation());
+            sections.push(ProjectManager.promptBoardTools(), ProjectManager.promptTaskDelegation());
         }
         return sections.filter(Boolean).join('\n\n');
     }

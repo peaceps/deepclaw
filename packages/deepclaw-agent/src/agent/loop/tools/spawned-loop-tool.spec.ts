@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
     finishRun: vi.fn<(runId: string) => void>(),
     getRunningTasks: vi.fn<() => unknown[]>(() => []),
     isTaskLoopRunning: vi.fn<(projectId: string, taskId: string) => boolean>(() => false),
+    isReviewRunning: vi.fn<(projectId: string, taskId: string) => boolean>(() => false),
     dropMainLoopRun: vi.fn<(loopId: string, projectId: string, taskId: string) => boolean>(() => false),
+    verdict: vi.fn<(projectId: string, taskId: string) => string>(() => ''),
 }));
 
 function todoTask(status = 'todo') {
@@ -35,13 +37,14 @@ vi.mock('../services/project-manager', () => ({ProjectManager: {
     getProjectDetail: mocks.getProjectDetail,
     updateTask: mocks.updateTask,
     fireProjectInfoEvent: mocks.fireProjectInfoEvent,
+    promptTaskVerdict: mocks.verdict,
 }}));
 
 vi.mock('../services/running-task-service', () => ({
     RunningTaskService: {
         startTaskLoopRun: mocks.startRun, finishTaskLoopRun: mocks.finishRun,
-        getRunningTasks: mocks.getRunningTasks,
-        isTaskLoopRunning: mocks.isTaskLoopRunning, dropMainLoopRun: mocks.dropMainLoopRun,
+        getRunningTasks: mocks.getRunningTasks, isTaskLoopRunning: mocks.isTaskLoopRunning,
+        isReviewRunning: mocks.isReviewRunning, dropMainLoopRun: mocks.dropMainLoopRun,
     },
     // Said the same way the service says it, the list of runs being the mocked one.
     fireRunningTasksEvent: (context: OneLoopContext) => context.actions.agentHandler.onInfoEvent({
@@ -120,6 +123,8 @@ beforeEach(() => {
     mocks.getTask.mockReturnValue(todoTask());
     mocks.getProjectDetail.mockReturnValue(startedProject());
     mocks.isTaskLoopRunning.mockReturnValue(false);
+    mocks.isReviewRunning.mockReturnValue(false);
+    mocks.verdict.mockReturnValue('');
     mocks.startRun.mockReturnValue('run1');
 });
 
@@ -137,6 +142,23 @@ describe('taskLoopTool invoke', () => {
     test('returns the text the task loop produced', async () => {
         const context = contextWithTaskLoop(newSpawnedLoop('done'));
         expect(await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context)).toBe('done');
+    });
+
+    /**
+     * The word of the reviewer rather than the word of the reviewed: a subagent whose work was
+     * turned down writes its own report, and this loop is the one about to call the task finished.
+     */
+    test('says what the reviewer left on the task under what the subagent wrote', async () => {
+        mocks.verdict.mockReturnValue('Review by Eve: rejected. The tests were never run.');
+        const context = contextWithTaskLoop(newSpawnedLoop('shipped it'));
+        const result = await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context);
+        expect(result).toBe('shipped it\n\nReview by Eve: rejected. The tests were never run.');
+        expect(mocks.verdict).toHaveBeenCalledExactlyOnceWith('p1', 'ship-it');
+    });
+
+    test('leaves the answer as it stands where nobody read the task over', async () => {
+        const context = contextWithTaskLoop(newSpawnedLoop('shipped it'));
+        expect(await taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context)).toBe('shipped it');
     });
 
     /** The reference is the only handle on the bytes, and the summary of a run may drop it. */
@@ -248,6 +270,31 @@ describe('taskLoopTool invoke', () => {
         expect(mocks.isTaskLoopRunning).toHaveBeenCalledWith('p1', 'ship-it');
         expect(mocks.updateTask).not.toHaveBeenCalled();
         expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The reader is reading what is there now. Work started under it would move the ground it stands
+     * on, and the verdict it came to would be about a task that no longer looks that way.
+     */
+    test('refuses a task that is being read over right now', async () => {
+        mocks.isReviewRunning.mockReturnValue(true);
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
+            .rejects.toThrow('"ship it" is being read over right now');
+        expect(mocks.updateTask).not.toHaveBeenCalled();
+        expect(context.actions.newTaskLoop).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The asking run is no exception to a reading, where it is to a task loop of its own: what it
+     * would be handing the subagent is the very work somebody is looking at.
+     */
+    test('refuses a task it was working itself while that work is being read over', async () => {
+        mocks.isReviewRunning.mockReturnValue(true);
+        const context = contextWithTaskLoop(newSpawnedLoop());
+        await expect(taskLoopTool.invoke({prompt: 'go', taskId: 'ship-it'}, context))
+            .rejects.toThrow('"ship it" is being read over right now');
+        expect(mocks.dropMainLoopRun).not.toHaveBeenCalled();
     });
 
     /**

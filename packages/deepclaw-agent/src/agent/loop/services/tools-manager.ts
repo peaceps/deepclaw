@@ -1,5 +1,5 @@
 import {
-    ALL_AGENT_MODES, ALL_AGENT_ROLES, ALL_LOOP_KINDS, LLMTool, ToolDesc, ToolRun
+    ALL_AGENT_MODES, ALL_AGENT_ROLES, ALL_LOOP_KINDS, DEFAULT_LOOP_KINDS, LLMTool, ToolDesc, ToolRun
 } from '../../definitions/tool-definitions';
 import {syncCommandTool} from '../tools/sync-command-tool';
 import {subLoopTool, taskLoopTool} from '../tools/spawned-loop-tool';
@@ -19,6 +19,7 @@ import { base64Tool } from '../tools/encode-decode-tool';
 import { generateImageTool, keepImageTool } from '../tools/image-tool';
 import { updateAgentRuntimeTool } from '../tools/agent-runtime-tool';
 import { askUserTool } from '../tools/ask-user-tool';
+import { reviewTaskTool, submitReviewTool } from '../tools/review-tool';
 import { MCP_PREFIX, MCPService } from './mcp-service';
 
 const tools: ToolDesc<any>[] = [
@@ -48,6 +49,8 @@ const tools: ToolDesc<any>[] = [
     updateTaskTool,
     workOnTaskTool,
     updateTaskCurrentStepTool,
+    reviewTaskTool,
+    submitReviewTool,
     getProjectDetailTool,
     getProjectListTool,
     syncCommandTool,
@@ -113,7 +116,7 @@ export class ToolsManager {
 
     private static isAvailable(tool: ToolDesc<any>, run: ToolRun): boolean {
         return tool.agentMode.includes(run.mode)
-            && (tool.loopKinds ?? ALL_LOOP_KINDS).includes(run.loopKind)
+            && (tool.loopKinds ?? DEFAULT_LOOP_KINDS).includes(run.loopKind)
             && (tool.roles ?? ALL_AGENT_ROLES).includes(run.role);
     }
 }

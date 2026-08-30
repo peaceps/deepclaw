@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     exists: vi.fn<(path: string) => boolean>(() => false),
     hashString: vi.fn<(text: string) => string>(() => 'hash'),
     movePath: vi.fn<(from: string, to: string) => boolean>(() => true),
+    readFile: vi.fn<(path: string) => string>(() => ''),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -17,6 +18,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
         exists: mocks.exists,
         hashString: mocks.hashString,
         movePath: mocks.movePath,
+        readFile: mocks.readFile,
     },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
@@ -31,6 +33,7 @@ async function loadManager(files: Record<string, {dir: string; content: string}>
     mocks.writeFile.mockImplementation((path: string) => path);
     mocks.exists.mockReturnValue(false);
     mocks.movePath.mockReturnValue(true);
+    mocks.readFile.mockReturnValue('');
     vi.resetModules();
     return (await import('./project-manager')).ProjectManager;
 }
@@ -41,7 +44,9 @@ await loadManager();
 /** Names a task after its title, so a test that says "design" reaches it either way. */
 function newTask(
     manager: ProjectManagerType, title: string,
-    extra: {id?: string; steps?: string[]; blockedBy?: string[]; assignee?: string} = {}
+    extra: {
+        id?: string; steps?: string[]; blockedBy?: string[]; assignee?: string; reviewer?: string;
+    } = {}
 ): Task {
     return manager.createTask({
         agentId: 'a1', id: title, title, description: `${title} description`, priority: 'low', ...extra
@@ -877,6 +882,26 @@ describe('updateTask status transitions', () => {
             .toThrow('Only a task still in todo can be handed to another agent.');
     });
 
+    /**
+     * Work is somebody's by definition, so a blank name is no handover and there is nothing it
+     * could have meant. Read as "nothing was asked for" it would walk past the gate above and leave
+     * an ongoing task with nobody on it, which is a task no run can be built for.
+     */
+    test('refuses a task handed to nobody', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateTask(id, {id: 'design', assignee: '  '}))
+            .toThrow('A task needs an assignee.');
+        expect(manager.getTask(id, 'design')!.assignee).toBe('a1');
+    });
+
+    test('refuses to take the agent off work already under way', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(() => manager.updateTask(id, {id: 'design', assignee: ''}))
+            .toThrow('A task needs an assignee.');
+        expect(manager.getTask(id, 'design')).toMatchObject({status: 'ongoing', assignee: 'a1'});
+    });
+
     /** Naming the agent already on it asks for nothing, and an update carrying it is no reassignment. */
     test('takes an update that repeats the assignee of an ongoing task', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
@@ -1243,6 +1268,305 @@ describe('finishTask', () => {
         const project = manager.getProjectDetail(id);
         expect(new Date(project.closedAt!).toISOString()).toBe(project.closedAt);
     });
+
+    /**
+     * The board is not stricter than the service, and a person closing a task themselves has read
+     * it. It says so as it is -- waived, by nobody -- rather than filing a report nobody wrote.
+     */
+    test('waives the reading a task was owed when the user closes it themselves', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {reviewer: 'a3'})]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        const task = manager.finishTask(id, 'design');
+        expect(task.status).toBe('done');
+        expect(task.review).toEqual({verdict: 'waived', at: expect.any(String)});
+    });
+
+    test('leaves a verdict that was already in where it is', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {reviewer: 'a3'})]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.submitReview(id, 'design', 'rejected', {type: 'text', content: 'no tests'});
+        expect(manager.finishTask(id, 'design').review).toMatchObject({by: 'a3', verdict: 'rejected'});
+    });
+
+    test('writes no review on a task nobody was named to read', () => {
+        const id = newOngoingProject();
+        expect(manager.finishTask(id, 'design').review).toBeUndefined();
+    });
+});
+
+describe('the reading a task is owed', () => {
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    /** A project with one ongoing task that a3 is down to read over. */
+    function ongoingUnderReview(): string {
+        return ongoing({reviewer: 'a3'});
+    }
+
+    /** The same, with nobody named to read it: what nearly every task on a board looks like. */
+    function ongoingUnread(): string {
+        return ongoing({});
+    }
+
+    function ongoing(extra: {reviewer?: string}): string {
+        const {id} = newProject(manager, [newTask(manager, 'design', extra)]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        return id;
+    }
+
+    test('keeps the reviewer the task was created with', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {reviewer: 'a3'})]);
+        expect(manager.getTask(id, 'design')!.reviewer).toBe('a3');
+    });
+
+    /**
+     * Work is somebody's by definition and falls back to whoever planned it. A reading is worth a
+     * run of its own on few enough tasks that no default could be right.
+     */
+    test('leaves a task nobody was named to read with nobody', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(manager.getTask(id, 'design')!.reviewer).toBeUndefined();
+    });
+
+    test('names a reviewer on a task still in todo', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(manager.updateTask(id, {id: 'design', reviewer: 'a3'}).task.reviewer).toBe('a3');
+    });
+
+    /** Both doors say "nobody" this way: a picker with nothing in it, and a model with no null. */
+    test('takes the reviewer off a todo task on an empty word', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {reviewer: 'a3'})]);
+        expect(manager.updateTask(id, {id: 'design', reviewer: ''}).task.reviewer).toBeUndefined();
+    });
+
+    /**
+     * A reviewer named onto work already under way is a gate appearing in front of a run that had
+     * planned its way to done without one; one taken off midway is a reading somebody was promised.
+     */
+    test('refuses a reviewer named onto work already under way', () => {
+        const id = ongoingUnread();
+        expect(() => manager.updateTask(id, {id: 'design', reviewer: 'a3'}))
+            .toThrow('Only a task still in todo takes a reviewer or gives one up.');
+    });
+
+    test('refuses to take the reviewer off work already under way', () => {
+        const id = ongoingUnderReview();
+        expect(() => manager.updateTask(id, {id: 'design', reviewer: ''}))
+            .toThrow('Only a task still in todo takes a reviewer or gives one up.');
+        expect(manager.getTask(id, 'design')!.reviewer).toBe('a3');
+    });
+
+    /**
+     * The one way there would be to walk past the gate leaving nothing behind. Clear the reviewer
+     * while the work is under way and `reviewer && !review` stops holding, so done goes through
+     * with no verdict and no waiver -- and nothing on the board says the task was ever to be read.
+     * It is refused above; this says what the refusal is worth, which is the gate still standing.
+     */
+    test('keeps the gate up against a task that tried to clear its way through it', () => {
+        const id = ongoingUnderReview();
+        expect(() => manager.updateTask(id, {id: 'design', reviewer: '', status: 'done'})).toThrow();
+        expect(() => manager.updateTask(id, {id: 'design', status: 'done'}))
+            .toThrow('This task is read over before it is done');
+        expect(manager.getTask(id, 'design')).toMatchObject({status: 'ongoing', reviewer: 'a3'});
+    });
+
+    /** Naming whoever is already down to read it asks for nothing, and is no change to refuse. */
+    test('takes an update that repeats the reviewer of an ongoing task', () => {
+        const id = ongoingUnderReview();
+        expect(manager.updateTask(id, {id: 'design', reviewer: 'a3', title: 'design it'}).task)
+            .toMatchObject({reviewer: 'a3', title: 'design it'});
+    });
+
+    /**
+     * The gate, which stands in the service rather than in the tool that writes a status: every
+     * door that writes one comes through here, and a gate on one of them the others walk around.
+     */
+    test('refuses to close a task before the verdict it waits for is in', () => {
+        const id = ongoingUnderReview();
+        expect(() => manager.updateTask(id, {id: 'design', status: 'done'}))
+            .toThrow('This task is read over before it is done');
+        expect(manager.getTask(id, 'design')!.status).toBe('ongoing');
+    });
+
+    /**
+     * The obvious call is done and the report together, and this refuses the whole of it -- the
+     * report included, nothing here being written before the gate. So the review that follows
+     * reads a task with no report on it, having thrown one away a moment earlier. The way out is
+     * an order, and the refusal is the only place it can be said: whoever reads it is mid-call.
+     */
+    test('says to put the report on the task before asking for the reading', () => {
+        const id = ongoingUnderReview();
+        expect(() => manager.updateTask(id, {
+            id: 'design', status: 'done', output: {type: 'text', content: 'what came of it'},
+        })).toThrow('Put the report on the task first');
+        expect(manager.getTask(id, 'design')!.output).toBeUndefined();
+        // And the order really is open: the report goes on without a status, and nothing stops it.
+        manager.updateTask(id, {id: 'design', output: {type: 'text', content: 'what came of it'}});
+        expect(manager.getTask(id, 'design')!.output).toMatchObject({content: 'what came of it'});
+    });
+
+    test('closes the task once a verdict is in, whichever way it went', () => {
+        const id = ongoingUnderReview();
+        manager.submitReview(id, 'design', 'rejected', {type: 'text', content: 'the tests fail'});
+        expect(manager.updateTask(id, {id: 'design', status: 'done'}).task.status).toBe('done');
+    });
+
+    test('writes the verdict under the name of whoever was down to read it', () => {
+        const id = ongoingUnderReview();
+        const task = manager.submitReview(id, 'design', 'passed', {type: 'markdown', content: 'fine'});
+        expect(task.review).toEqual({
+            by: 'a3', verdict: 'passed', output: {type: 'markdown', content: 'fine'},
+            at: expect.any(String),
+        });
+    });
+
+    test('persists the project the verdict landed on', () => {
+        const id = ongoingUnderReview();
+        mocks.writeFile.mockClear();
+        manager.submitReview(id, 'design', 'passed');
+        expect(mocks.writeFile).toHaveBeenCalledOnce();
+    });
+
+    test('refuses a verdict on a task that is not there', () => {
+        const id = ongoingUnderReview();
+        expect(() => manager.submitReview(id, 'ghost', 'passed')).toThrow('Task not found.');
+    });
+
+    /**
+     * A report over the threshold is written to a file named after what it belongs to. Filed as the
+     * task it would overwrite what the task itself produced -- quietly, and only for the reports
+     * long enough to be filed, which is the worst of both.
+     */
+    test('files a long report away beside what the task produced rather than over it', () => {
+        const id = ongoingUnderReview();
+        const long = 'x'.repeat(1501);
+        const task = manager.submitReview(id, 'design', 'passed', {type: 'markdown', content: long});
+        expect(mocks.writeFile)
+            .toHaveBeenCalledWith(`.projects/${id}/output/hash-review.md`, long);
+        expect(task.review!.output).toEqual({
+            type: 'markdown', content: '<Content saved to file>',
+            path: `/api/file/projects/${id}/output/hash-review.md`,
+        });
+    });
+
+    test('hands the verdict on to whoever has to act on it', () => {
+        const id = ongoingUnderReview();
+        manager.submitReview(id, 'design', 'rejected', {type: 'text', content: 'the tests fail'});
+        const said = manager.promptTaskVerdict(id, 'design');
+        expect(said).toContain('"a3" read "design" over at');
+        expect(said).toContain('rejected the work');
+        expect(said).toContain('the tests fail');
+        expect(said).toContain('A verdict is advice and not a gate');
+    });
+
+    test('has nothing to hand on about a task nobody read', () => {
+        expect(manager.promptTaskVerdict(ongoingUnread(), 'design')).toBe('');
+    });
+
+    /** A waiver is the note that there was no reading, which is nothing for a run to act on. */
+    test('has nothing to hand on where the user closed the task themselves', () => {
+        const id = ongoingUnderReview();
+        manager.finishTask(id, 'design');
+        expect(manager.promptTaskVerdict(id, 'design')).toBe('');
+    });
+
+    test('says so where the verdict came with no report at all', () => {
+        const id = ongoingUnderReview();
+        manager.submitReview(id, 'design', 'passed');
+        expect(manager.promptTaskVerdict(id, 'design')).toContain('(the verdict came with no report)');
+    });
+
+    /**
+     * The words and not the sentinel. A report long enough to be filed away leaves `<Content saved
+     * to file>` and a url on the task, which is everything a browser needs and nothing a model can
+     * follow -- and the reports worth handing on are exactly the long ones.
+     */
+    test('reads a filed away report back out of its file', () => {
+        const id = ongoingUnderReview();
+        const long = `${'x'.repeat(1500)}\napi.spec.ts:42 was never run`;
+        manager.submitReview(id, 'design', 'rejected', {type: 'markdown', content: long});
+        mocks.readFile.mockReturnValue(long);
+        const said = manager.promptTaskVerdict(id, 'design');
+        expect(mocks.readFile).toHaveBeenCalledWith(`.projects/${id}/output/hash-review.md`);
+        expect(said).toContain('api.spec.ts:42 was never run');
+        expect(said).not.toContain('<Content saved to file>');
+    });
+
+    /** Filed away and since gone. Where it was beats the sentinel, which says only "elsewhere". */
+    test('names where a filed away report went when it cannot be read', () => {
+        const id = ongoingUnderReview();
+        manager.submitReview(id, 'design', 'passed', {type: 'markdown', content: 'x'.repeat(1501)});
+        mocks.readFile.mockImplementation(() => { throw new Error('File not found.'); });
+        expect(manager.promptTaskVerdict(id, 'design'))
+            .toContain(`<Content saved to file> (.projects/${id}/output/hash-review.md)`);
+    });
+
+    /** The same for the other side: a run reading a task over gets the words the work produced. */
+    test('reads a filed away task output back for the run that has to read it', () => {
+        const id = ongoingUnderReview();
+        manager.updateTask(id, {
+            id: 'design', output: {type: 'markdown', content: 'y'.repeat(1501)},
+        });
+        mocks.readFile.mockReturnValue('the whole of what the work produced');
+        expect(manager.promptTaskUnderReview(id, 'design'))
+            .toContain('the whole of what the work produced');
+    });
+
+    /**
+     * A task under way carries no report, and cannot: the board is given one when the work reports
+     * back, which is after the reading it asked for. Left unsaid, the review reads a task whose
+     * output is empty and goes hunting for the report, there being nowhere it could learn that
+     * there is none. What it has instead is the account in the prompt it was handed.
+     */
+    test('tells a review with no report on the task that the prompt is the account', () => {
+        const said = manager.promptTaskUnderReview(ongoingUnderReview(), 'design');
+        expect(said).toContain('The task carries no output, and that is not something missing');
+        expect(said).toContain('nobody to ask for it');
+    });
+
+    test('says none of that once the work has reported back', () => {
+        const id = ongoingUnderReview();
+        manager.updateTask(id, {id: 'design', output: {type: 'text', content: 'what came of it'}});
+        const said = manager.promptTaskUnderReview(id, 'design');
+        expect(said).toContain('what came of it');
+        expect(said).not.toContain('The task carries no output');
+    });
+
+    /** The report is written before the reading, so a task loop has to have one to hand over. */
+    test('tells the run working the task to write its summary before it asks', () => {
+        const said = manager.promptAssignedTask(ongoingUnderReview(), 'design');
+        expect(said).toContain('write the summary you mean to close with and pass it whole in\nthe prompt of review_task');
+        expect(said).toContain('Nothing of it is on the board yet');
+    });
+
+    /**
+     * The gate is open from the first verdict on, so a task rejected, handed out again and fixed
+     * closes without anybody reading the fix. Nothing here checks what the verdict was made
+     * against; the date and the line under it are the whole of how a run can tell.
+     */
+    test('dates the verdict and says to ask again where the work has moved', () => {
+        const id = ongoingUnderReview();
+        const {review} = manager.submitReview(id, 'design', 'rejected', {type: 'text', content: 'no'});
+        const said = manager.promptTaskVerdict(id, 'design');
+        expect(said).toContain(`read "design" over at ${review!.at}`);
+        expect(said).toContain('call review_task once more before you close it');
+    });
+
+    /** The run working the task is told what is coming, so it asks for it rather than reports back. */
+    test('tells the run working the task who reads it over and when to ask', () => {
+        const id = ongoingUnderReview();
+        const said = manager.promptAssignedTask(id, 'design');
+        expect(said).toContain('This task is read over by "a3" before it closes');
+        expect(said).toContain('the prompt of review_task');
+    });
+
+    test('says nothing of a reading to a run whose task is owed none', () => {
+        expect(manager.promptAssignedTask(ongoingUnread(), 'design')).not.toContain('review_task');
+    });
 });
 
 describe('getProjectList', () => {
@@ -1451,6 +1775,34 @@ describe('prompts', () => {
         const prompt = manager.promptManagementTools();
         expect(prompt).not.toContain('subloop');
         expect(prompt).not.toContain('A subagent cannot');
+    });
+
+    /**
+     * A project run reads this section and then reads the two below it, all three in one prompt.
+     * So a sentence here about what is "not yours" lands on the run that the next two sections
+     * hand exactly that to: the plan is replaced with update_project in promptBoardTools, and
+     * getting going on the user's word is the whole opening of promptTaskDelegation. What is meant
+     * is the project the run just created, which lives elsewhere -- and that has to be said by
+     * naming it, since the run has no way to tell which project a bare "here" points at.
+     */
+    test('sends the plan of a new project elsewhere by naming it, not by naming here', () => {
+        const prompt = manager.promptManagementTools();
+        expect(prompt).toContain('project you just made is gone over and worked there');
+        // The two shapes that made it wrong: a "here" the reader has to guess the referent of, and
+        // a bare negation that lands on the very things the sections below hand it.
+        expect(prompt).not.toContain('from here');
+        expect(prompt).not.toContain('not yours');
+        expect(manager.promptTaskDelegation()).toContain('they tell you to get going');
+    });
+
+    /** The half of the board tools kept to the run of the project, named nowhere but there. */
+    test('names the tools that write to a live board only in the board section', () => {
+        const shared = manager.promptManagementTools();
+        for (const tool of ['update_project', 'add_task', 'update_task']) {
+            expect(shared).not.toContain(tool);
+            expect(manager.promptBoardTools()).toContain(tool);
+        }
+        expect(shared).toContain('create_project');
     });
 
     test('describes the current project with its tasks and buckets', () => {
