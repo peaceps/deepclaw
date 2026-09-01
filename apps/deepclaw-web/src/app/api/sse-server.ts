@@ -2,7 +2,8 @@ import {
     isInfoEvent, isLoopBusyEvent, isLoopCancelInteractionEvent,
     isLoopChatEvent, isLoopInteractionEvent, isLoopStreamEvent,
     LoopGateway, LoopGatewayEvent,
-    isLoopTokenUsageEvent, isLoopSessionResetEvent
+    isLoopTokenUsageEvent, isLoopSessionResetEvent,
+    type AgentLoopBusyEvent,
 } from "@deepclaw/loop-gateway";
 import { globalize } from "@deepclaw/utils";
 import { getLogger } from "@deepclaw/node-utils";
@@ -110,6 +111,35 @@ class SSEServerImpl {
         if (isLoopInteractionEvent(event) && !clients.length) {
             this.handleUnwatchedInteraction(event);
         }
+        if (isLoopBusyEvent(event)) {
+            this.handleRunEnd(event);
+        }
+    }
+
+    /**
+     * A run ended, and the answer is sitting in a conversation the one waiting on it does not have
+     * open: a toast says it is there and is the way to it, the same click that takes them back to a
+     * waiting question.
+     *
+     * Whether they are looking is asked of that browser alone, not of the app: a question needs
+     * anybody at all to answer it, so any tab showing the loop is enough, but an answer is owed to
+     * whoever asked for it, and another tab holding the conversation open is not them seeing it.
+     *
+     * Only a run some browser asked for: one from IM was answered where it was asked, and a run
+     * with no browser behind it has nobody here waiting on it either way. Nothing of this is kept
+     * for a browser that turns up afterwards, unlike a question, which is still going begging when
+     * it is handed over: the answer has been written down and is read wherever the chat is opened.
+     */
+    private static handleRunEnd(event: AgentLoopBusyEvent): void {
+        if (event.busy || !event.endedFor) {
+            return;
+        }
+        // Whoever asked, or everybody if that tab is gone: a browser id dies with its tab, and the
+        // user who pressed send is then whoever is here now.
+        const asked = this.clients.get(event.endedFor);
+        const told = asked ? [asked] : [...this.clients.values()];
+        told.filter(client => !client.loops.has(event.loopId)).forEach(client =>
+            this.sendToast({key: 'runEnded', data: event.loopId}, client.browserId));
     }
 
     /**

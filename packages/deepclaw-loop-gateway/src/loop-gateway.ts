@@ -29,7 +29,7 @@ import { UIChatService } from "./ui-chat-service";
 import { AgentRuntimeService } from "./agent-runtime-service";
 import { storeImages } from "./image-refs";
 import {
-    LoopInfo, InvokeSource, LoopGatewayEvent, InvokeOption,
+    LoopInfo, InvokeSource, LoopGatewayEvent, InvokeOption, AgentLoopBusyEvent,
     isAgentRuntimeStatusInfoEvent, NewSessionResult,
 } from "./loop-gateway-types";
 import { i18nInstance } from "@deepclaw/i18n";
@@ -155,11 +155,15 @@ class LoopGatewayImpl {
         this.fireSSEEvent({eventType: 'chat', loopId, browserId, update, message})
     }
 
-    public static fireBusyEvent(loopId: string, busy?: boolean): void {
+    public static fireBusyEvent(loopId: string, busy?: boolean, endedFor?: string): void {
         if (busy !== undefined && !!this.loops[loopId]) {
             this.loops[loopId]!.running = busy;
         }
-        this.fireSSEEvent({ eventType: 'busy', loopId, busy: this.isLoopBusy(loopId) });
+        const event: AgentLoopBusyEvent = {eventType: 'busy', loopId, busy: this.isLoopBusy(loopId)};
+        if (endedFor) {
+            event.endedFor = endedFor;
+        }
+        this.fireSSEEvent(event);
         // The busy event above only reaches whoever watches that loop, and an agent board watches none.
         this.fireSSEEvent({ eventType: 'updateBusyLoops', content: this.getBusyLoops() });
     }
@@ -503,8 +507,11 @@ class LoopGatewayImpl {
             logger.warn(`invokeAndReturn failed: ${error}`);
             onDone?.(error?.message || error);
         }).finally(() => {
+            // Read before the state that holds it is cleared: whoever asked for the run is who the
+            // news of it ending is for, and this is the last place that knows.
+            const endedFor = loopState.invoke?.browserId;
             this.clearLoopState(loopState);
-            this.fireBusyEvent(loopId);
+            this.fireBusyEvent(loopId, undefined, endedFor);
         });
     }
 

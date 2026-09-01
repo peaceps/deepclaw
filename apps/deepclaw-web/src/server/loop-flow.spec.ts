@@ -581,6 +581,45 @@ describe('a chat that sends a message', () => {
         expect(browser.textOf(loopId)).toBe('cleaned up');
     });
 
+    // run 在人去了别处的时候结束，那条 toast 就是回来的路
+    test('is toasted about a run that ended while it was elsewhere', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'hi');
+
+        await browser.leaveChat();
+        await agent.finish('the whole answer');
+        expect(browser.toasts).toEqual([{key: 'runEnded', data: loopId}]);
+    });
+
+    // 人正看着这个 loop，run 结束就不用再说一遍
+    test('is not toasted about a run that ended in front of it', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const browser = newBrowser().open();
+        await browser.openChat(loopId);
+        await browser.send(loopId, 'hi');
+
+        await agent.finish('the whole answer');
+        expect(browser.toasts).toEqual([]);
+    });
+
+    // 发起 run 的标签页已经关了，就告诉现在还在的页面
+    test('tells whoever is here about a run whose browser closed before it ended', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const first = newBrowser().open();
+        await first.openChat(loopId);
+        await first.send(loopId, 'hi');
+        first.close();
+
+        const second = newBrowser().open();
+        await agent.finish('the whole answer');
+        expect(second.toasts).toEqual([{key: 'runEnded', data: loopId}]);
+    });
+
     /**
      * The reload is what all of this was built for. A tab comes back under the name it left with,
      * so the question it was asked is still its own to answer, and the stream it left behind ends
@@ -729,6 +768,42 @@ describe('two browsers on one loop', () => {
         expect(await onlooker.tryAnswer(loopId, 'no')).toBe(false);
         await sender.answer('yes');
         await expect(asked).resolves.toBe('yes');
+    });
+
+    /**
+     * The answer is owed to whoever asked for it, so whether they are looking is asked of their tab
+     * alone. Another tab holding the conversation open is not them seeing it, which is where this
+     * parts company with a question: any tab at all can answer one of those.
+     */
+    test('toasts the tab that asked even where the other has the chat open', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const sender = newBrowser().open();
+        const onlooker = newBrowser().open();
+        await sender.openChat(loopId);
+        await onlooker.openChat(loopId);
+        await sender.send(loopId, 'hi');
+
+        await sender.leaveChat();
+        await agent.finish('Hello');
+        expect(sender.toasts).toEqual([{key: 'runEnded', data: loopId}]);
+        expect(onlooker.textOf(loopId)).toBe('Hello');
+        expect(onlooker.toasts).toEqual([]);
+    });
+
+    // 一条提示只给要这个答案的那个标签页，另一个页面没在等它
+    test('tells the tab that asked and no other', async () => {
+        const {loopId} = nextLoop();
+        const agent = new FakeAgent(loopId);
+        const sender = newBrowser().open();
+        const bystander = newBrowser().open();
+        await sender.openChat(loopId);
+        await sender.send(loopId, 'hi');
+
+        await sender.leaveChat();
+        await agent.finish('Hello');
+        expect(sender.toasts).toEqual([{key: 'runEnded', data: loopId}]);
+        expect(bystander.toasts).toEqual([]);
     });
 });
 

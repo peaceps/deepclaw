@@ -37,6 +37,15 @@ export type NewSessionResult =
 export type AgentLoopBusyEvent = AgentLoopEvent & {
     eventType: 'busy';
     busy: boolean;
+    /**
+     * The browser whose run this event is the end of, where a browser asked for it at all: a run
+     * from IM has none, and a scheduled one runs its loop without coming through here.
+     *
+     * Set on the event that ends a run and on no other. Nobody needs telling that one started --
+     * whoever pressed send watched it go -- and the ending is the last moment anybody can be told
+     * anything: the loop keeps nothing of a run once it is over, so who asked travels with the news.
+     */
+    endedFor?: string;
 };
 
 export type AgentCancelInteractionEvent = AgentLoopEvent & {

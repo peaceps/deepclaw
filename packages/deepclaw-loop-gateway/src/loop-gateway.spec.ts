@@ -610,7 +610,8 @@ describe('invoke', () => {
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         expect(mocks.replaceMessage).toHaveBeenCalledWith(loopId, msgId, 'final answer');
         expect(onDone).toHaveBeenCalledWith('final answer');
-        expect(busyEvents(events).at(-1)).toEqual({eventType: 'busy', loopId, busy: false});
+        expect(busyEvents(events).at(-1))
+            .toEqual({eventType: 'busy', loopId, busy: false, endedFor: 'b1'});
     });
 
     /**
@@ -640,6 +641,15 @@ describe('invoke', () => {
         await vi.waitFor(() => expect(LoopGateway.isLoopBusy(loopId)).toBe(false));
         expect(mocks.replaceMessage).toHaveBeenCalledWith(loopId, msgId, '📱 final answer');
         expect(onDone).toHaveBeenCalledWith('final answer');
+    });
+
+    /** Nobody in a browser is waiting on it: a run from IM is answered where it was asked. */
+    test('names no browser on the end of a run that came through im', async () => {
+        const {loopInfo, loopId, loop} = nextLoop();
+        loop.invoke.mockResolvedValue(answered('final answer'));
+        LoopGateway.invoke(loopInfo, {source: 'im'}, 'hi');
+        await vi.waitFor(() => expect(busyEvents(events).at(-1))
+            .toEqual({eventType: 'busy', loopId, busy: false}));
     });
 
     test('publishes the token usage of the session when there is one', async () => {
@@ -685,7 +695,7 @@ describe('invoke', () => {
         });
         LoopGateway.invoke(loopInfo, {source: 'web', browserId: 'b1'}, 'hi');
         await vi.waitFor(() => expect(busyEvents(events).at(-1))
-            .toEqual({eventType: 'busy', loopId, busy: false}));
+            .toEqual({eventType: 'busy', loopId, busy: false, endedFor: 'b1'}));
         expect(LoopGateway.stop(loopId)).toBe(false);
     });
 

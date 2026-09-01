@@ -46,6 +46,10 @@ function pauseEvent(loopId: string): SSEToastEvent['content'] {
     return {key: 'interactionPause', data: loopId};
 }
 
+function endedEvent(loopId: string): SSEToastEvent['content'] {
+    return {key: 'runEnded', data: loopId};
+}
+
 function paramsOf(key: string): Record<string, string> | undefined {
     return mocks.t.mock.calls.find(([called]) => called === key)?.[1];
 }
@@ -165,6 +169,35 @@ describe('parseToastEvent', () => {
 
     test('leaves a plain toast nowhere to go', () => {
         expect(ToastService.parseToastEvent({key: 'imConnected', data: 'Ada'}, [], []).link)
+            .toBeUndefined();
+    });
+
+    /** The answer is written down and waiting, so the toast has only to be seen once. */
+    test('lets a run that ended go away on its own', () => {
+        expect(ToastService.parseToastEvent(endedEvent('agent.a1'), [], [newAgent()]).duration)
+            .toBeUndefined();
+    });
+
+    test('names the agent whose run ended', () => {
+        const result = ToastService.parseToastEvent(endedEvent('agent.a1'), [], [newAgent()]);
+        expect(result.title).toBe('web.toast.runEnded.title');
+        expect(paramsOf('web.toast.runEnded.message'))
+            .toEqual({name: 'Ada', role: 'web.toast.runEnded.role.agent'});
+    });
+
+    test('names the project whose run ended', () => {
+        ToastService.parseToastEvent(endedEvent('project.a1.p1'), [newProject()], [newAgent()]);
+        expect(paramsOf('web.toast.runEnded.message'))
+            .toEqual({name: 'Ship it', role: 'web.toast.runEnded.role.project'});
+    });
+
+    test('takes the click of a run that ended to the chat it ended in', () => {
+        expect(ToastService.parseToastEvent(endedEvent('project.a1.p1'), [newProject()], []).link)
+            .toEqual({loopId: 'project.a1.p1', href: '/projects?project=p1'});
+    });
+
+    test('leaves a run that ended in an unknown agent to be read alone', () => {
+        expect(ToastService.parseToastEvent(endedEvent('agent.ghost'), [], [newAgent()]).link)
             .toBeUndefined();
     });
 

@@ -42,6 +42,14 @@ export const en = {
                 title: 'Interaction request',
                 message: '{{role}} ({{name}}) has an interaction request.'
             },
+            runEnded: {
+                role: {
+                    agent: 'Agent',
+                    project: 'Project'
+                },
+                title: 'Answer waiting',
+                message: '{{role}} ({{name}}) finished while you were elsewhere.'
+            },
             imConnected: {
                 title: 'IM connected',
                 message: 'IM of {{data}} connected successfully.'

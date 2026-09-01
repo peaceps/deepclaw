@@ -8,7 +8,7 @@ export type SSEConnectedEvent = AgentEvent & {
     content: string;
 };
 
-export type SSEToastKey = 'interactionPause' | 'imConnected' | 'imConnectFailed';
+export type SSEToastKey = 'interactionPause' | 'runEnded' | 'imConnected' | 'imConnectFailed';
 export type SSEToastEvent = AgentInfoEvent & {
     eventType: 'toast';
     content: {key: SSEToastKey, data: unknown};

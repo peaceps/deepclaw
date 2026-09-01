@@ -40,6 +40,14 @@ export const zh = {
                 title: '互动请求',
                 message: '{{role}}（{{name}}）有一个互动请求'
             },
+            runEnded: {
+                role: {
+                    agent: 'Agent',
+                    project: '项目'
+                },
+                title: '答完了',
+                message: '{{role}}（{{name}}）在你去别处的时候答完了'
+            },
             imConnected: {
                 title: 'IM连接成功',
                 message: '{{data}}的即时通讯连接成功'
