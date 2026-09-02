@@ -25,6 +25,7 @@ npm install -g @sacephor/deepclaw
 ```bash
 deepclaw start            # 网页界面，地址是 http://localhost:3000
 deepclaw stop             # 把它停掉
+deepclaw restart          # 停掉再重新起来
 deepclaw start --tui      # 终端界面
 ```
 
@@ -45,6 +46,10 @@ deepclaw start --tui      # 终端界面
 
 ## 最近的变化
 
+**v0.2.1**
+
+- `deepclaw restart` 现在把服务停下来再起回去。
+
 **v0.2.0**
 
 - 归档掉的项目现在可以还原回看板，也可以从磁盘上彻底删掉。
@@ -53,7 +58,7 @@ deepclaw start --tui      # 终端界面
 - 渲染出来的markdown回答的右上角多了一个按钮，复制完整的markdown内容。
 - 一次运行在你看着别处的时候结束，现在会弹一条提示，点一下就到它的对话里。
 
-再往前的每个版本都在 [changelog](https://github.com/peaceps/deepclaw/blob/main/CHANGELOG.md) 里。
+v0.2.0 之前的每个版本都在 [changelog](https://github.com/peaceps/deepclaw/blob/main/CHANGELOG.md) 里。
 
 ## 界面上有什么
 

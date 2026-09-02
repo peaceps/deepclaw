@@ -10,6 +10,7 @@ const cli = meow(`
 	Usage
 	  $ deepclaw start
 	  $ deepclaw stop
+	  $ deepclaw restart
 
 	Options
 	  --foreground  Keep the web ui in this terminal instead of leaving it running behind
@@ -21,6 +22,7 @@ const cli = meow(`
 	  $ deepclaw start
 	  $ deepclaw stop
 	  $ deepclaw start --tui
+	  $ deepclaw restart --port 4300
 `,
 	{
 		importMeta: import.meta,
@@ -122,6 +124,19 @@ type WebProcess = { args: string[], cwd: string, env: NodeJS.ProcessEnv };
 
 /** How a run ended: of its own accord once asked, or taken down for not going. */
 type Ending = 'stopped' | 'killed' | undefined;
+
+/**
+ * What a stop came to, for whoever has something to do after it.
+ *
+ * Clear is nothing of deepclaw left running, and it carries the run that had to be signalled to
+ * get there: a record standing for a run already over leaves nothing to wait for, and no record at
+ * all leaves less than that. Left is a run still standing — a pid nothing could vouch for, or one
+ * that would not go — reported to the user and let be.
+ *
+ * Told apart because the difference is the whole of what a caller needs and nothing says it
+ * otherwise: both of them printed something and both of them handed back no run.
+ */
+type Stopped = {of: 'clear', ended?: RunningDeepclaw} | {of: 'left'};
 
 /**
  * What a record still stands for: the run it names, nothing at all, or a pid nothing here can
@@ -387,31 +402,38 @@ function programOf(said: string): string | undefined {
 	return /^"([^"]+)"/.exec(said.trim())?.[1]?.toLowerCase();
 }
 
-async function stop(): Promise<void> {
+/**
+ * Whether anything of deepclaw is still running once this has done what it can, and where a run
+ * had to be signalled to end, which one it was. The two that leave a run standing say so in the
+ * answer rather than in the exit alone: the command exits on them, but a caller inside this process
+ * carries on, and what it must not do then is start a second server.
+ */
+async function stop(): Promise<Stopped> {
 	const running = readRunning();
 	if (!running) {
 		console.log('deepclaw is not running.');
-		return;
+		return {of: 'clear'};
 	}
 	const standing = standingOf(running);
 	if (standing.of === 'unknown') {
 		console.error(`deepclaw: nothing was signalled: pid ${running.pid} is taken and ${standing.doubt}. Look at it yourself; the record is ${pidFile}.`);
 		process.exit(1);
-		return;
+		return {of: 'left'};
 	}
 	if (standing.of === 'gone') {
 		rmSync(pidFile, {force: true});
 		console.log(`deepclaw is not running; the record of pid ${running.pid} was left behind.`);
-		return;
+		return {of: 'clear'};
 	}
 	const ending = onWindows ? endTheTree(running) : await signalItDown(running);
 	if (!ending) {
-		return;
+		return {of: 'left'};
 	}
 	rmSync(pidFile, {force: true});
 	console.log(ending === 'killed'
 		? `deepclaw would not close and was killed, pid ${running.pid}.`
 		: `deepclaw stopped, pid ${running.pid}.`);
+	return {of: 'clear', ended: running};
 }
 
 /**
@@ -486,17 +508,52 @@ async function startTui(): Promise<void> {
 	await import(tui);
 }
 
+/** Whichever ui was asked for, where that ui can be run. */
+async function start(): Promise<void> {
+	if (cli.flags.tui) {
+		// a terminal ui has nowhere to go in the background, so it stays here whatever was asked for
+		await startTui();
+	} else if (cli.flags.foreground) {
+		runInFront(webProcess(cli.flags.port, cli.flags.host));
+	} else {
+		await runBehind(webProcess(cli.flags.port, cli.flags.host), cli.flags.port, cli.flags.host);
+	}
+}
+
+/**
+ * Down and up again: the two commands in order, with the one thing between them that doing it by
+ * hand leaves to you. A start that goes out while the old server still holds the port comes
+ * straight back with the port taken, and reads as a restart that failed when early is all it was --
+ * so the pid that was stopped is watched until it is gone. Windows needs that most, where nothing
+ * waits for the tree it took down, and a killed server needs it on any system.
+ *
+ * Nothing running is no failure here. It is a start, which is what was asked for. A run that would
+ * not be stopped is the other way about: it has been said out loud already, and a second server
+ * beside it is worse than no restart at all. Only the start that goes into the background asks
+ * after the record on its own account, so for the two uis that do not, this is the whole of what
+ * stands between them and a server started on top of one that never went.
+ */
+async function restart(): Promise<void> {
+	const stopped = await stop();
+	if (stopped.of === 'left') {
+		return;
+	}
+	if (stopped.ended && !await waitForExit(stopped.ended)) {
+		console.error(`deepclaw: pid ${stopped.ended.pid} is still there ten seconds after being stopped, so nothing was started. Look at it yourself.`);
+		process.exit(1);
+		return;
+	}
+	await start();
+}
+
 const command = cli.input[0] ?? 'start';
-if (command === 'stop') {
+if (command === 'start') {
+	await start();
+} else if (command === 'stop') {
 	await stop();
-} else if (command !== 'start') {
+} else if (command === 'restart') {
+	await restart();
+} else {
 	console.error(`deepclaw: there is no ${command} command.`);
 	cli.showHelp(1);
-} else if (cli.flags.tui) {
-	// a terminal ui has nowhere to go in the background, so it stays here whatever was asked for
-	await startTui();
-} else if (cli.flags.foreground) {
-	runInFront(webProcess(cli.flags.port, cli.flags.host));
-} else {
-	await runBehind(webProcess(cli.flags.port, cli.flags.host), cli.flags.port, cli.flags.host);
 }

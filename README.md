@@ -27,6 +27,7 @@ npm install -g @sacephor/deepclaw
 ```bash
 deepclaw start            # the web UI, on http://localhost:3000
 deepclaw stop             # stops it again
+deepclaw restart          # stops it and starts it back up
 deepclaw start --tui      # the terminal UI
 ```
 
@@ -50,6 +51,10 @@ the network with `--host`.
 
 ## Latest changes
 
+**v0.2.1**
+
+- `deepclaw restart` now stops the server and starts it back up.
+
 **v0.2.0**
 
 - A project you have put away can now be put back on the board, or deleted from the disk for good.
@@ -59,7 +64,7 @@ the network with `--host`.
 - A run that ends while you are looking elsewhere now toasts you, and the click takes you to its
   chat.
 
-Every release before this one is in the
+Everything before v0.2.0 is in the
 [changelog](https://github.com/peaceps/deepclaw/blob/main/CHANGELOG.md).
 
 ## Around the app

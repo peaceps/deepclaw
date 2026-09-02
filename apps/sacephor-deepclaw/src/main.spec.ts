@@ -320,11 +320,12 @@ describe('command line', () => {
         });
     });
 
-    test('documents both uis and both commands in the usage text', async () => {
+    test('documents both uis and every command in the usage text', async () => {
         await loadBackgroundStart();
         const help = mocks.meow.mock.calls[0]![0];
         expect(help).toContain('$ deepclaw start');
         expect(help).toContain('$ deepclaw stop');
+        expect(help).toContain('$ deepclaw restart');
         expect(help).toContain('--tui');
         expect(help).toContain('--foreground');
     });
@@ -820,6 +821,103 @@ describe('stopping what runs behind you', () => {
         await loadCli({input: ['stop']});
         expect(said()).toContain('not running');
         expect(mocks.rmSync).not.toHaveBeenCalled();
+    });
+});
+
+describe('starting it again', () => {
+
+    test('stops the one that was running and starts another', async () => {
+        leftBehind();
+        goneAfter(1);
+        await loadBackgroundStart({input: ['restart']});
+        expect(kill).toHaveBeenCalledWith(CHILD_PID, 'SIGTERM');
+        expect(mocks.spawn).toHaveBeenCalledOnce();
+        expect(said()).toContain('stopped');
+        expect(said()).toContain('running on');
+    });
+
+    /** Nothing running is no failure to restart; it is a start, which is what was asked for. */
+    test('starts one where there was nothing to stop', async () => {
+        await loadBackgroundStart({input: ['restart']});
+        expect(said()).toContain('not running');
+        expect(mocks.spawn).toHaveBeenCalledOnce();
+        expect(said()).toContain('running on');
+    });
+
+    test('starts the ui the flags ask for, as a start would', async () => {
+        leftBehind();
+        goneAfter(1);
+        await loadBackgroundStart({
+            input: ['restart'], flags: {tui: false, foreground: false, port: '4300'},
+        });
+        expect(spawnCall()[1]).toEqual([NEXT_BIN, 'dev', '--port', '4300', '--hostname', '127.0.0.1']);
+        expect(said()).toContain('http://127.0.0.1:4300');
+    });
+
+    test('keeps the new one in this terminal when that was asked for', async () => {
+        leftBehind();
+        goneAfter(1);
+        await loadCli({input: ['restart'], flags: {tui: false, foreground: true}});
+        expect(kill).toHaveBeenCalledWith(CHILD_PID, 'SIGTERM');
+        expect(spawnCall()[2]['stdio']).toBe('inherit');
+    });
+
+    /**
+     * Starting a second server beside one nobody can vouch for is worse than not restarting. A
+     * start into the background would refuse this on its own account as well, having its own look
+     * at the record; the terminal below is where nothing else would.
+     */
+    test('starts nothing where the running one could not be identified', async () => {
+        leftBehind();
+        systemSaysNothing();
+        await loadCli({input: ['restart']});
+        expect(killedWith('SIGTERM')).toBe(false);
+        expect(mocks.spawn).not.toHaveBeenCalled();
+        expect(exit).toHaveBeenCalledWith(1);
+    });
+
+    /** The ui that asks after no record of its own, held by the answer the stop handed back. */
+    test('starts nothing in this terminal either where the one running is a stranger', async () => {
+        leftBehind();
+        systemSaysNothing();
+        await loadCli({input: ['restart'], flags: {tui: false, foreground: true}});
+        expect(mocks.spawn).not.toHaveBeenCalled();
+    });
+
+    /** And the same where the tree would not go, which is a stop that said so and changed nothing. */
+    test('starts nothing in this terminal where the tree would not be taken down', async () => {
+        pretendPlatform('win32');
+        leftBehind('node.exe');
+        mocks.execFileSync.mockImplementation((file) => {
+            if (file === 'taskkill') {
+                throw new Error('access denied');
+            }
+            return `"node.exe","${CHILD_PID}","Console","1","64,000 K"`;
+        });
+        await loadCli({input: ['restart'], flags: {tui: false, foreground: true}});
+        expect(mocks.spawn).not.toHaveBeenCalled();
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('would not be stopped'));
+    });
+
+    /**
+     * The waiting this command adds. Windows takes a tree down without waiting for it to go, so
+     * the port can still be held the moment after, and a start into that comes straight back with
+     * the port taken -- which would read as a restart that failed rather than one that was early.
+     */
+    test('starts nothing while the server it stopped is still there', async () => {
+        pretendPlatform('win32');
+        leftBehind('node.exe');
+        // the clock is faked as the tree is taken down, the last moment before the waiting begins
+        mocks.execFileSync.mockImplementation((file) => {
+            if (file === 'taskkill') {
+                vi.useFakeTimers();
+                return '';
+            }
+            return `"node.exe","${CHILD_PID}","Console","1","64,000 K"`;
+        });
+        await onAPushedClock(loadCli({input: ['restart']}));
+        expect(mocks.spawn).not.toHaveBeenCalled();
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('still there'));
     });
 });
 

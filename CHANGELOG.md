@@ -1,3 +1,6 @@
+v0.2.1
+deepclaw restart now stops the server and starts it back up.
+
 v0.2.0
 a project you have put away can now be put back on the board, or deleted from the disk for good.
 the board now opens a window on the projects you have put away, a page at a time as you scroll.
