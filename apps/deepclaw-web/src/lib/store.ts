@@ -34,10 +34,13 @@ export function useAgentActivity(): AgentActivity {
 export function deriveAgentSummary(
   agent: AgentEmployee | undefined, projects: SlimProject[], activity: AgentActivity
 ): AgentSummary {
-  const stats: AgentProjectStats = { todo: [], ongoing: [], done: [] };
+  const stats: AgentProjectStats = { todo: [], ongoing: [], done: [], archivedDone: 0 };
   if (!agent) {
     return { status: 'fired', stats };
   }
+  // Read off the agent rather than counted here: the finished projects that were cleared away are
+  // not on the board to be found, which is why their number is kept on the agent at all.
+  stats.archivedDone = agent.archivedDoneProjects ?? 0;
   for (const project of projects) {
     if (project.creator === agent.id) {
       stats[getProjectStatus(project)].push(project.title);

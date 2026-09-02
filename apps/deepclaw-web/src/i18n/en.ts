@@ -107,6 +107,7 @@ export const en = {
                 details: {
                     header: {
                         projectsCompleted: 'Projects Completed',
+                        doneArchived: '{{count}} put away',
                         changeAvatar: 'Change avatar',
                         editRole: 'Edit role',
                         emotions: 'Emotions',

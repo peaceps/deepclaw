@@ -113,6 +113,7 @@ describe('getAgents', () => {
             personalities: ['agent.identity.default.personalities'],
             emotion: true,
             expertises: ['agent.identity.default.expertises'],
+            archivedDoneProjects: 0,
         });
     });
 
@@ -193,8 +194,8 @@ describe('newAgentIdentity', () => {
 
 describe('updateAgentIdentity', () => {
 
-    async function loadWithAgent() {
-        const manager = await loadManager();
+    async function loadWithAgent(soul: AgentSoulIdentity = newSoul()) {
+        const manager = await loadManager({a1: {soul, description: 'the first agent'}});
         manager.getAgents();
         mocks.writeFile.mockClear();
         return manager;
@@ -239,8 +240,27 @@ describe('updateAgentIdentity', () => {
                 personalities: ['bold'],
                 emotion: true,
                 expertises: ['typescript'],
+                archivedDoneProjects: 0,
             }, null, 2)
         );
+    });
+
+    /**
+     * The soul file is written whole, so a count left out of that write would be a count the next
+     * change of avatar wipes: the projects it stands for are gone from the disk and this is the only
+     * record that they were ever worked.
+     */
+    test('keeps the projects already counted when another soul field changes', async () => {
+        const manager = await loadWithAgent(newSoul({archivedDoneProjects: 7}));
+        manager.updateAgentIdentity({id: 'a1', avatar: '🐙'});
+        expect(JSON.parse(mocks.writeFile.mock.calls[0]![1]).archivedDoneProjects).toBe(7);
+    });
+
+    test('writes a count that the patch itself carries', async () => {
+        const manager = await loadWithAgent(newSoul({archivedDoneProjects: 2}));
+        manager.updateAgentIdentity({id: 'a1', archivedDoneProjects: 3});
+        expect(manager.getAgent('a1')?.archivedDoneProjects).toBe(3);
+        expect(JSON.parse(mocks.writeFile.mock.calls[0]![1]).archivedDoneProjects).toBe(3);
     });
 
     test('persists the soul file when emotions are switched off', async () => {

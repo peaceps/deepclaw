@@ -118,13 +118,29 @@ describe('deriveAgentSummary', () => {
 
     test('reports a missing agent as fired with an empty count', () => {
         expect(deriveAgentSummary(undefined, [newProject()], idle()))
-            .toEqual({status: 'fired', stats: {todo: [], ongoing: [], done: []}});
+            .toEqual({status: 'fired', stats: {todo: [], ongoing: [], done: [], archivedDone: 0}});
     });
 
     test('lists only the projects the agent created', () => {
         const projects = [newProject(), newProject({id: 'p2', creator: 'a2', title: 'Not mine'})];
         expect(deriveAgentSummary(newAgent(), projects, idle()).stats)
-            .toEqual({todo: ['Ship it'], ongoing: [], done: []});
+            .toEqual({todo: ['Ship it'], ongoing: [], done: [], archivedDone: 0});
+    });
+
+    /**
+     * The projects behind this number are gone from the board with their folders, so it is the one
+     * count that cannot be read off the list: it comes from the agent, and the done column is worth
+     * no more than that number, a project cleared away having been finished all the same.
+     */
+    test('takes the finished projects already put away off the agent', () => {
+        const agent = newAgent({archivedDoneProjects: 4});
+        const projects = [newProject({id: 'p4', title: 'All done', closedAt: '2024-02-01T00:00:00.000Z'})];
+        expect(deriveAgentSummary(agent, projects, idle()).stats)
+            .toEqual({todo: [], ongoing: [], done: ['All done'], archivedDone: 4});
+    });
+
+    test('counts none where the soul file has never had one to count', () => {
+        expect(deriveAgentSummary(newAgent(), [], idle()).stats.archivedDone).toBe(0);
     });
 
     test('sorts the projects into todo, ongoing and done', () => {
@@ -134,8 +150,10 @@ describe('deriveAgentSummary', () => {
             newProject({id: 'p3', title: 'Nearly there', startedAt: STARTED, completedTasks: ['t1']}),
             newProject({id: 'p4', title: 'All done', closedAt: '2024-02-01T00:00:00.000Z'}),
         ];
-        expect(deriveAgentSummary(newAgent(), projects, idle()).stats)
-            .toEqual({todo: ['Ship it'], ongoing: ['Half way', 'Nearly there'], done: ['All done']});
+        expect(deriveAgentSummary(newAgent(), projects, idle()).stats).toEqual({
+            todo: ['Ship it'], ongoing: ['Half way', 'Nearly there'], done: ['All done'],
+            archivedDone: 0
+        });
     });
 
     test('is idle with nothing running', () => {
@@ -172,7 +190,9 @@ describe('deriveAgentSummary', () => {
             newAgent({fired: true}), [newProject({startedAt: STARTED, ongoingTasks: ['t1']})],
             idle({runningTasks: [newRunningTask()]})
         );
-        expect(summary).toEqual({status: 'fired', stats: {todo: [], ongoing: ['Ship it'], done: []}});
+        expect(summary).toEqual({
+            status: 'fired', stats: {todo: [], ongoing: ['Ship it'], done: [], archivedDone: 0}
+        });
     });
 });
 

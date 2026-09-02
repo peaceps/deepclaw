@@ -31,7 +31,9 @@ const mocks = vi.hoisted(() => ({
     newAgentIdentity: vi.fn(),
     updateAgentIdentity: vi.fn(),
     getAgents: vi.fn(),
-    getAgent: vi.fn<(id: string) => {id: string, fired: boolean} | undefined>(),
+    getAgent: vi.fn<
+        (id: string) => {id: string, fired: boolean, archivedDoneProjects?: number} | undefined
+    >(),
     updateProject: vi.fn(),
     startProject: vi.fn<(id: string) => unknown>(
         (id: string) => ({id, startedAt: '2026-02-01T00:00:00.000Z'})
@@ -1183,6 +1185,13 @@ describe('updateConfig', () => {
 
 describe('data updates', () => {
 
+    const CLOSED = '2026-02-01T00:00:00.000Z';
+
+    /** What the project manager hands back once the folder has moved. */
+    function archived(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+        return {id: 'p1', title: 'Ship it', archivedAt: '2026-02-02T00:00:00.000Z', ...overrides};
+    }
+
     test('announces a newly hired agent with a neutral mood', () => {
         mocks.newAgentIdentity.mockReturnValue({id: 'a9', name: 'Ada', fired: false});
         const agent = LoopGateway.newAgentIdentity('a9');
@@ -1228,6 +1237,37 @@ describe('data updates', () => {
         expect(events).toContainEqual({
             eventType: 'updateProject', content: {id: 'p1', archivedAt: '2026-02-02T00:00:00.000Z'}
         });
+    });
+
+    /** The folder goes; that the work was done stays, on the agent that planned it. */
+    test('counts a finished project on the agent that planned it as it is put away', () => {
+        mocks.archiveProject.mockReturnValue(archived({creator: 'a1', closedAt: CLOSED}));
+        mocks.getAgent.mockReturnValue({id: 'a1', fired: false, archivedDoneProjects: 2});
+        LoopGateway.archiveProject('p1');
+        expect(mocks.updateAgentIdentity).toHaveBeenCalledWith({id: 'a1', archivedDoneProjects: 3});
+        expect(events).toContainEqual({
+            eventType: 'updateAgent', content: {id: 'a1', archivedDoneProjects: 3}
+        });
+    });
+
+    test('counts the first one for an agent whose soul file has never had a count', () => {
+        mocks.archiveProject.mockReturnValue(archived({creator: 'a1', closedAt: CLOSED}));
+        LoopGateway.archiveProject('p1');
+        expect(mocks.updateAgentIdentity).toHaveBeenCalledWith({id: 'a1', archivedDoneProjects: 1});
+    });
+
+    /** Cleared away unfinished, which stood in no column anybody is remembered by. */
+    test('counts nothing for a project put away before it was finished', () => {
+        mocks.archiveProject.mockReturnValue(archived({creator: 'a1'}));
+        LoopGateway.archiveProject('p1');
+        expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
+    });
+
+    test('counts nothing for a finished project whose agent no longer works here', () => {
+        mocks.archiveProject.mockReturnValue(archived({creator: 'gone', closedAt: CLOSED}));
+        mocks.getAgent.mockReturnValue(undefined);
+        LoopGateway.archiveProject('p1');
+        expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
     });
 
     /**

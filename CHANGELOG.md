@@ -1,4 +1,5 @@
 v0.2.0
+an agent's done count now keeps the finished projects that have been put away.
 a rendered answer now has a button in its corner that copies the markdown it was written in.
 a run that ends while you are looking elsewhere now toasts you, and the click takes you to its chat.
 

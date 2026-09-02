@@ -60,7 +60,8 @@ export function AgentExpandedCard({
               <div className="text-gray-400 flex justify-between gap-2">
                 <span className="text-gray-400"><AlarmClock size={14} className="inline mr-1 mb-1"/>{projectStats.todo.length}</span>
                 <span className="text-sky-500"><Clock size={14} className="inline mr-1 mb-1"/>{projectStats.ongoing.length}</span>
-                <span className="text-lime-600"><CheckCircle2 size={14} className="inline mr-1 mb-1"/>{projectStats.done.length}</span>
+                {/* The ones put away count here too: work does not stop being done by being cleared away. */}
+                <span className="text-lime-600"><CheckCircle2 size={14} className="inline mr-1 mb-1"/>{projectStats.done.length + projectStats.archivedDone}</span>
               </div>
             </div>
           </div>

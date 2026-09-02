@@ -45,7 +45,8 @@ export class AgentIdentityManager {
                 role: i18nInstance.t('agent.identity.default.role'),
                 personalities: parseArrayI18n('agent.identity.default.personalities'),
                 emotion: true,
-                expertises: parseArrayI18n('agent.identity.default.expertises')
+                expertises: parseArrayI18n('agent.identity.default.expertises'),
+                archivedDoneProjects: 0
             } as AgentSoulIdentity, null, 2)
         );
     }
@@ -87,8 +88,10 @@ export class AgentIdentityManager {
         }
         Object.assign(current, rest);
         this.agentMap.set(id, current);
+        // Written whole every time, so a field left out of this would be a field the next avatar
+        // change wipes off the disk.
         if ('avatar' in rest || 'role' in rest || 'personalities' in rest
-            || 'emotion' in rest || 'expertises' in rest) {
+            || 'emotion' in rest || 'expertises' in rest || 'archivedDoneProjects' in rest) {
             const soul: AgentSoulIdentity = {
                 id: current.id,
                 avatar: current.avatar,
@@ -96,6 +99,7 @@ export class AgentIdentityManager {
                 personalities: current.personalities,
                 emotion: current.emotion,
                 expertises: current.expertises,
+                archivedDoneProjects: current.archivedDoneProjects ?? 0,
             };
             FileUtils.writeFile(`${AGENTS_DIR}/${id}/${AGENT_SOUL_JSON}`, JSON.stringify(soul, null, 2));
         }

@@ -11,6 +11,7 @@ import type {
     FlushAgentRole,
     SealedAgentHandler,
     RunningTask,
+    Project,
     SlimProject,
 } from "@deepclaw/core";
 import {
@@ -674,8 +675,29 @@ class LoopGatewayImpl {
                 this.carriedStates.delete(loopId);
             }
         }
+        this.countDoneProject(project);
         this.fireSSEEvent({
             eventType: 'updateProject', content: {id: projectId, archivedAt: project.archivedAt}
+        });
+    }
+
+    /**
+     * The work of a project outliving the project itself, on the tally of whoever planned it. The
+     * board counts what is on it, so the agent's done column would fall by one as a finished project
+     * was cleared away: what is kept here is that it happened, and it is kept in the soul file
+     * because that is the one thing about a project that is not in the project's own folder.
+     *
+     * Only a project that was finished when it was put away. One the user gave up on and cleared
+     * away leaves nothing to count: it stood in no column but todo or ongoing, and neither of those
+     * is a thing to remember an agent by.
+     */
+    private static countDoneProject(project: Project): void {
+        const agent = AgentIdentityManager.getAgent(project.creator);
+        if (!project.closedAt || !agent) {
+            return;
+        }
+        this.updateAgentIdentity({
+            id: agent.id, archivedDoneProjects: (agent.archivedDoneProjects ?? 0) + 1
         });
     }
 

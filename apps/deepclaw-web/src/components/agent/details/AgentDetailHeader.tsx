@@ -17,6 +17,14 @@ export function AgentHeader({ agent, onUpdate }: {
     const activity = useAgentActivity();
     const { status: agentStatus, stats: projectStats } =
         deriveAgentSummary(agent, projects, activity);
+    // The ones put away are in the number, so they are here too, as a count rather than by name:
+    // their titles went with the folder, and what is left of them is that they happened. Without
+    // this line the number would be larger than the list under it with nothing to say why.
+    const doneTitles = projectStats.archivedDone > 0
+        ? [...projectStats.done, t('web.pages.agents.details.header.doneArchived', {
+            count: projectStats.archivedDone
+          })]
+        : projectStats.done;
     const [editingRole, setEditingRole] = useState(false);
     const [roleDraft, setRoleDraft] = useState(agent.role);
 
@@ -135,11 +143,11 @@ export function AgentHeader({ agent, onUpdate }: {
                   <span>{t('web.pages.projects.status.ongoing')}&nbsp;{projectStats.ongoing.length}</span>
                 </div>
                 <div
-                  title={projectStats.done.length > 0 ? projectStats.done.join(', ') : ''}
+                  title={doneTitles.join(', ')}
                   className="w-8 h-6 sm:w-14 sm:h-8 rounded-lg bg-green-50 text-green-600
                     text-[8px] sm:text-[12px] flex items-center justify-center"
                 >
-                  <span>{t('web.pages.projects.status.done')}&nbsp;{projectStats.done.length}</span>
+                  <span>{t('web.pages.projects.status.done')}&nbsp;{projectStats.done.length + projectStats.archivedDone}</span>
                 </div>
               </div>
             </div>

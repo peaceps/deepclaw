@@ -48,6 +48,18 @@ The web UI asks for no password, so it stays on the machine it runs on. Anyone w
 send your agents to work with your keys, which is worth remembering before handing it an address of
 the network with `--host`.
 
+## Latest changes
+
+**v0.2.0**
+
+- An agent's done count now keeps the finished projects that have been put away.
+- A rendered answer now has a button in its right up corner that copies the markdown it was written in.
+- A run that ends while you are looking elsewhere now toasts you, and the click takes you to its
+  chat.
+
+Every release before this one is in the
+[changelog](https://github.com/peaceps/deepclaw/blob/main/CHANGELOG.md).
+
 ## Around the app
 
 Five places in the sidebar: **Agents**, **Project Board**, **Scheduled Tasks**, **Skills**, and

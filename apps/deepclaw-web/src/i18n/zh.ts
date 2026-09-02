@@ -105,6 +105,7 @@ export const zh = {
                 details: {
                     header: {
                         projectsCompleted: '已完成项目数',
+                        doneArchived: '{{count}} 个已归档',
                         changeAvatar: '更换头像',
                         editRole: '编辑职位',
                         emotions: '情绪记录',

@@ -5,6 +5,16 @@ export type AgentSoulIdentity = {
   personalities: string[];
   emotion: boolean;
   expertises: string[];
+  /**
+   * How many of this agent's projects were finished and then put away, counted here because
+   * nothing else outlives them: an archived project leaves the board and the manager with its
+   * folder, and the work it stands for would leave the agent's tally at the same moment.
+   *
+   * Finished when it was put away, and not merely put away: this number stands in the done column
+   * beside the projects still on the board, and one the user gave up on and cleared away was never
+   * done. Absent in a soul file written before there was anything to count, which reads as none.
+   */
+  archivedDoneProjects?: number;
 }
 
 export type AgentIdentity = AgentSoulIdentity & {
@@ -19,6 +29,11 @@ export type AgentProjectStats = {
   todo: string[];
   ongoing: string[];
   done: string[];
+  /**
+   * The finished ones already put away, which are a number and not a list: their titles went with
+   * the folder, and what is left of them is that they happened.
+   */
+  archivedDone: number;
 }
 
 export const AGENT_CONFIG = {
