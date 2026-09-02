@@ -1,5 +1,8 @@
-v0.1.0
+v0.2.0
+a rendered answer now has a button in its corner that copies the markdown it was written in.
 a run that ends while you are looking elsewhere now toasts you, and the click takes you to its chat.
+
+v0.1.0
 an agent's emotion now says how the work feels instead of reading back what it just did.
 shift+enter now writes a new line in the chat box, and the box grows with what is written in it.
 a chat that plans a project now says where it went instead of stopping there.

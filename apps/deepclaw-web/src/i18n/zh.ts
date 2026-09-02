@@ -30,6 +30,9 @@ export const zh = {
             ok: '确定',
             maximize: '最大化',
             restore: '还原',
+            copy: '复制 markdown 原文',
+            copied: '已复制',
+            copyFailed: '没复制上，可以手动选中这段文字复制',
         },
         toast: {
             interactionPause: {
@@ -46,7 +49,7 @@ export const zh = {
                     project: '项目'
                 },
                 title: '答完了',
-                message: '{{role}}（{{name}}）在你去别处的时候答完了'
+                message: '{{role}}（{{name}}）的工作完成了'
             },
             imConnected: {
                 title: 'IM连接成功',

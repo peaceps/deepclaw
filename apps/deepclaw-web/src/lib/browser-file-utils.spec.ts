@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
-import {fetchFile, getFileNameFromPath, saveToFile} from './browser-file-utils';
+import {copyText, fetchFile, getFileNameFromPath, saveToFile} from './browser-file-utils';
 
 const mocks = vi.hoisted(() => ({
     fetch: vi.fn<(path: string) => Promise<Response>>(),
@@ -8,11 +8,18 @@ const mocks = vi.hoisted(() => ({
     click: vi.fn<() => void>(),
     appendChild: vi.fn<(node: unknown) => void>(),
     removeChild: vi.fn<(node: unknown) => void>(),
+    writeText: vi.fn<(text: string) => Promise<void>>(),
+    select: vi.fn<() => void>(),
+    execCommand: vi.fn<(command: string) => boolean>(),
 }));
 
 type FakeAnchor = {href: string; download: string; click: () => void};
 
+type FakeField = {value: string; style: Record<string, string>; select: () => void};
+
 let anchor: FakeAnchor;
+
+let field: FakeField;
 
 function newResponse(overrides: Partial<Response> = {}): Response {
     return {ok: true, status: 200, text: async () => 'file body', ...overrides} as Response;
@@ -79,6 +86,70 @@ describe('getFileNameFromPath', () => {
 
     test('returns nothing for an empty path', () => {
         expect(getFileNameFromPath('')).toBe('');
+    });
+});
+
+describe('copyText', () => {
+
+    /** A page with no clipboard of its own, which is what http to anywhere but this machine is. */
+    function withoutClipboard(): void {
+        vi.stubGlobal('navigator', {});
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        field = {value: '', style: {}, select: mocks.select};
+        mocks.execCommand.mockReturnValue(true);
+        vi.stubGlobal('navigator', {clipboard: {writeText: mocks.writeText}});
+        vi.stubGlobal('document', {
+            createElement: () => field,
+            execCommand: mocks.execCommand,
+            body: {appendChild: mocks.appendChild, removeChild: mocks.removeChild},
+        });
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    test('hands the text to the clipboard of the browser', async () => {
+        await copyText('# Report');
+        expect(mocks.writeText).toHaveBeenCalledExactlyOnceWith('# Report');
+        expect(mocks.appendChild).not.toHaveBeenCalled();
+    });
+
+    test('lets a refusal of the clipboard through', async () => {
+        mocks.writeText.mockRejectedValue(new Error('denied'));
+        await expect(copyText('# Report')).rejects.toThrow('denied');
+    });
+
+    test('copies a selection nobody sees where there is no clipboard', async () => {
+        withoutClipboard();
+        await copyText('# Report');
+        expect(field.value).toBe('# Report');
+        expect(mocks.select).toHaveBeenCalledOnce();
+        expect(mocks.execCommand).toHaveBeenCalledWith('copy');
+    });
+
+    test('keeps the field it selects off the screen', async () => {
+        withoutClipboard();
+        await copyText('# Report');
+        expect(field.style).toEqual({position: 'fixed', top: '-1000px'});
+    });
+
+    test('takes the field back out of the page', async () => {
+        withoutClipboard();
+        await copyText('# Report');
+        expect(mocks.appendChild).toHaveBeenCalledWith(field);
+        expect(mocks.removeChild).toHaveBeenCalledWith(field);
+    });
+
+    test('says so when the browser would not copy the selection either', async () => {
+        withoutClipboard();
+        mocks.execCommand.mockReturnValue(false);
+        await expect(copyText('# Report')).rejects.toThrow('would not copy');
+        // The page is left as it was found, whether the copy took or not.
+        expect(mocks.removeChild).toHaveBeenCalledWith(field);
     });
 });
 

@@ -193,15 +193,19 @@ export function ChatPanel({
                   </div>
                 )}
                 {/* cursor-auto for the same reason the Markdown below asks for it: these two
-                    carry what was said, before it is settled enough to render. */}
+                    carry what was said, before it is settled enough to render. A message with
+                    nothing in it yet is one of them: the word for waiting is not an answer, and
+                    rendered as one it would be offered to be copied. */}
                 {message.type === 'user' && !!message.content &&
                     <p className="text-sm whitespace-pre-wrap wrap-anywhere cursor-auto">{message.content}</p>}
-                {message.type === 'agent' && (i === agentMessages.length - 1 && writing) &&
+                {message.type === 'agent'
+                        && (!message.content || (i === agentMessages.length - 1 && writing)) &&
                     <p className="text-sm whitespace-pre-wrap wrap-anywhere cursor-auto">
                         {message.content || t('web.pages.chat.loading')}
                     </p>}
-                {message.type === 'agent' && !(i === agentMessages.length - 1 && writing) &&
-                    <Markdown content={message.content || t('web.pages.chat.loading')} />}
+                {message.type === 'agent' && !!message.content
+                        && !(i === agentMessages.length - 1 && writing) &&
+                    <Markdown content={message.content} />}
                 <p className={`text-xs mt-1 ${messageTimeStyles[message.type]}`}>
                   {formatDate(i18n.language, message.timestamp)}
                 </p>

@@ -32,6 +32,9 @@ export const en = {
             ok: 'OK',
             maximize: 'Maximize',
             restore: 'Restore',
+            copy: 'Copy the markdown',
+            copied: 'Copied',
+            copyFailed: 'Nothing was copied. Select the text and copy it by hand.',
         },
         toast: {
             interactionPause: {
@@ -48,7 +51,7 @@ export const en = {
                     project: 'Project'
                 },
                 title: 'Answer waiting',
-                message: '{{role}} ({{name}}) finished while you were elsewhere.'
+                message: '{{role}} ({{name}}) finished its work.'
             },
             imConnected: {
                 title: 'IM connected',
