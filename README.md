@@ -52,6 +52,8 @@ the network with `--host`.
 
 **v0.2.0**
 
+- A project you have put away can now be put back on the board, or deleted from the disk for good.
+- The board now opens a window on the projects you have put away, a page at a time as you scroll.
 - An agent's done count now keeps the finished projects that have been put away.
 - A rendered answer now has a button in its right up corner that copies the markdown it was written in.
 - A run that ends while you are looking elsewhere now toasts you, and the click takes you to its

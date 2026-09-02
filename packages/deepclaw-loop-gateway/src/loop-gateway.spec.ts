@@ -41,6 +41,13 @@ const mocks = vi.hoisted(() => ({
     archiveProject: vi.fn<(id: string) => unknown>(
         (id: string) => ({id, archivedAt: '2026-02-02T00:00:00.000Z'})
     ),
+    listArchivedProjects: vi.fn<(ask: unknown) => unknown>(
+        () => ({projects: [], owners: [], total: 0})
+    ),
+    restoreArchivedProject: vi.fn<(id: string) => unknown>(
+        (id: string) => ({id, title: 'Ship it', tasks: {}})
+    ),
+    deleteArchivedProject: vi.fn<(id: string) => unknown>((id: string) => ({id, creator: 'a1'})),
     updateTask: vi.fn(),
     finishTask: vi.fn(),
     getTask: vi.fn<(projectId: string, taskId: string) => unknown>(() => ({id: 't1', status: 'todo'})),
@@ -98,6 +105,9 @@ vi.mock('@deepclaw/agent', () => ({
         updateProject: mocks.updateProject,
         startProject: mocks.startProject,
         archiveProject: mocks.archiveProject,
+        listArchivedProjects: mocks.listArchivedProjects,
+        restoreArchivedProject: mocks.restoreArchivedProject,
+        deleteArchivedProject: mocks.deleteArchivedProject,
         updateTask: mocks.updateTask,
         finishTask: mocks.finishTask,
         getTask: mocks.getTask,
@@ -1260,6 +1270,118 @@ describe('data updates', () => {
     test('counts nothing for a project put away before it was finished', () => {
         mocks.archiveProject.mockReturnValue(archived({creator: 'a1'}));
         LoopGateway.archiveProject('p1');
+        expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
+    });
+
+    /** Asked for by whoever opened the archive, and pushed to nobody: it is off the board. */
+    test('hands a look through the archive to the manager and answers with what it says', () => {
+        const page = {projects: [{id: 'p1'}], owners: [{id: 'a1', count: 1}], total: 1};
+        mocks.listArchivedProjects.mockReturnValue(page);
+        const ask = {query: 'parser', owner: 'a1', offset: 20};
+        expect(LoopGateway.listArchivedProjects(ask)).toBe(page);
+        expect(mocks.listArchivedProjects).toHaveBeenCalledWith(ask);
+        expect(events).toEqual([]);
+    });
+
+    /**
+     * The whole row rather than a field of it: no page has heard of this project since it was put
+     * away, so there is nothing on any board to patch.
+     */
+    test('announces the whole row of a project taken back out of the archive', () => {
+        mocks.restoreArchivedProject.mockReturnValue({
+            id: 'p1', title: 'Ship it', creator: 'a1', tasks: {t1: {id: 't1'}},
+        });
+        LoopGateway.restoreProject('p1');
+        expect(mocks.restoreArchivedProject).toHaveBeenCalledWith('p1');
+        expect(events).toContainEqual({eventType: 'updateProject', content: {
+            id: 'p1', title: 'Ship it', creator: 'a1', taskCount: 1,
+        }});
+    });
+
+    /** On the board again with its done column and all, and a count holding it would have it twice. */
+    test('takes a project put back on the board off the count of finished ones put away', () => {
+        mocks.restoreArchivedProject.mockReturnValue(
+            {id: 'p1', creator: 'a1', closedAt: CLOSED, tasks: {}}
+        );
+        mocks.getAgent.mockReturnValue({id: 'a1', fired: false, archivedDoneProjects: 3});
+        LoopGateway.restoreProject('p1');
+        expect(mocks.updateAgentIdentity).toHaveBeenCalledWith({id: 'a1', archivedDoneProjects: 2});
+    });
+
+    test('takes nothing off the count for a project that was never finished', () => {
+        mocks.restoreArchivedProject.mockReturnValue({id: 'p1', creator: 'a1', tasks: {}});
+        mocks.getAgent.mockReturnValue({id: 'a1', fired: false, archivedDoneProjects: 3});
+        LoopGateway.restoreProject('p1');
+        expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
+    });
+
+    /** An archive that filled up before anything counted it holds projects no count is holding. */
+    test('keeps the count at none where there was none to take from', () => {
+        mocks.restoreArchivedProject.mockReturnValue(
+            {id: 'p1', creator: 'a1', closedAt: CLOSED, tasks: {}}
+        );
+        mocks.getAgent.mockReturnValue({id: 'a1', fired: false});
+        LoopGateway.restoreProject('p1');
+        expect(mocks.updateAgentIdentity).toHaveBeenCalledWith({id: 'a1', archivedDoneProjects: 0});
+    });
+
+    test('takes nothing off the count of an agent who no longer works here', () => {
+        mocks.restoreArchivedProject.mockReturnValue(
+            {id: 'p1', creator: 'gone', closedAt: CLOSED, tasks: {}}
+        );
+        mocks.getAgent.mockReturnValue(undefined);
+        LoopGateway.restoreProject('p1');
+        expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Two windows on the archive and the other one got there first. The board has had this row
+     * already, and the count it came off is not one to take from twice.
+     */
+    test('says nothing of a project the archive no longer holds', () => {
+        mocks.restoreArchivedProject.mockReturnValue(undefined);
+        mocks.getAgent.mockReturnValue({id: 'a1', fired: false, archivedDoneProjects: 3});
+        LoopGateway.restoreProject('p1');
+        expect(events.filter(event => event.eventType === 'updateProject')).toEqual([]);
+        expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
+    });
+
+    test('says nothing of a project that could not be put back', () => {
+        mocks.restoreArchivedProject.mockImplementationOnce(() => {
+            throw new Error('Project p1 is on the board already.');
+        });
+        expect(() => LoopGateway.restoreProject('p1')).toThrow('is on the board already');
+        expect(events.filter(event => event.eventType === 'updateProject')).toEqual([]);
+        expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
+    });
+
+    /** No board has held this project since it was put away, so no board has anything to hear. */
+    test('hands a project thrown away to the manager and tells no board of it', () => {
+        LoopGateway.deleteArchivedProject('p1');
+        expect(mocks.deleteArchivedProject).toHaveBeenCalledWith('p1');
+        expect(events.filter(event => event.eventType === 'updateProject')).toEqual([]);
+    });
+
+    /** Nothing is left for that count to stand for: no row on a board, no folder on the disk. */
+    test('takes a project thrown away off the count of finished ones put away', () => {
+        mocks.deleteArchivedProject.mockReturnValue({id: 'p1', creator: 'a1', closedAt: CLOSED});
+        mocks.getAgent.mockReturnValue({id: 'a1', fired: false, archivedDoneProjects: 3});
+        LoopGateway.deleteArchivedProject('p1');
+        expect(mocks.updateAgentIdentity).toHaveBeenCalledWith({id: 'a1', archivedDoneProjects: 2});
+    });
+
+    test('takes nothing off the count for an unfinished project thrown away', () => {
+        mocks.deleteArchivedProject.mockReturnValue({id: 'p1', creator: 'a1'});
+        mocks.getAgent.mockReturnValue({id: 'a1', fired: false, archivedDoneProjects: 3});
+        LoopGateway.deleteArchivedProject('p1');
+        expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
+    });
+
+    /** The other window threw it away first, and a count comes down once for one project. */
+    test('takes nothing off the count for a project the archive no longer holds', () => {
+        mocks.deleteArchivedProject.mockReturnValue(undefined);
+        mocks.getAgent.mockReturnValue({id: 'a1', fired: false, archivedDoneProjects: 3});
+        LoopGateway.deleteArchivedProject('p1');
         expect(mocks.updateAgentIdentity).not.toHaveBeenCalled();
     });
 

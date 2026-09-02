@@ -103,6 +103,66 @@ export function slimProject(project: Project): SlimProject {
     return {...project, taskCount: Object.keys(project.tasks).length};
 }
 
+/**
+ * How many put-away projects go out in one answer, which is the server's own business.
+ *
+ * Nothing outside has to agree on it: an answer says how many the whole ask found, and what is left
+ * to read is that count against the rows in hand. A page cut to this is never a page anybody has to
+ * interpret -- a full one says nothing about there being more, and the browser is not left sending
+ * one more ask to be told that there is nothing.
+ */
+export const ARCHIVED_PAGE_SIZE = 20;
+
+/** What a look through the archive asks for. */
+export type ArchivedProjectsAsk = {
+    /** Words to find in a title, a description or a tag. Empty asks for all of them. */
+    query: string;
+    /** Whose projects, by agent id, or `all` for everybody's. */
+    owner: string;
+    /** How many of the answer to step over, the ones before being in hand already. */
+    offset: number;
+};
+
+/** What comes back from a look through the archive. */
+export type ArchivedProjectsPage = {
+    /** The projects asked for, the ones put away most recently first, without their tasks. */
+    projects: SlimProject[];
+    /**
+     * Everyone with a project among the ones the words found, and how many each has. Counted by the
+     * words alone and not by whose projects are being read: a list narrowed to one agent that named
+     * only that agent would be a list with no way back out of them.
+     */
+    owners: {id: string, count: number}[];
+    /**
+     * How many the whole ask found -- words and owner both -- which is how the browser knows whether
+     * anything is left below what it holds.
+     */
+    total: number;
+};
+
+/**
+ * Whether a project is one of those the given words were looking for. Nothing to find finds
+ * everything, a search box nobody has typed in narrowing nothing.
+ *
+ * Out here because the board and the archive search the same projects by the same words, from
+ * either side of the wire: the live rows are all in the browser and are filtered there, while the
+ * put-away ones are on the server and never all in one place, and two spellings of what a word
+ * matches would be a project that a search finds until it is put away, or after.
+ */
+export function projectMatchesWords(
+    project: Pick<Project, 'title' | 'description' | 'tags'>, words: string
+): boolean {
+    const wanted = words.trim().toLowerCase();
+    if (!wanted) {
+        return true;
+    }
+    return [project.title, project.description, ...(project.tags ?? [])]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(wanted);
+}
+
 /** What a row of the board is drawn from, which is all of it but the tasks. */
 export function slimProjectRow(project: Project): SlimProject {
     const {tasks, ...rest} = project;

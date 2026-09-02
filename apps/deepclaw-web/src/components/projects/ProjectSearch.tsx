@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { MissionStatus, SlimProject } from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
-import { getProjectStatus } from '@deepclaw/core';
+import { getProjectStatus, projectMatchesWords } from '@deepclaw/core';
 
 const statusIcon: Record<MissionStatus, {
     icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -39,13 +39,7 @@ export const DEFAULT_PROJECT_FILTERS: Readonly<ProjectFilters> = Object.freeze({
 });
 
 function textSearchProjects(projects: SlimProject[], query: string): SlimProject[] {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return projects;
-    return projects.filter(project => [project.title, project.description, ...(project.tags ?? [])]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(normalized));
+    return projects.filter(project => projectMatchesWords(project, query));
 }
 
 export function filterProjects(

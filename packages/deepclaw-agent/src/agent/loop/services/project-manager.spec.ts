@@ -1,5 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
-import {type MissionPriority, PROJECT_CONFIG, type Project, type Task} from '@deepclaw/core';
+import {
+    ARCHIVED_PAGE_SIZE, type MissionPriority, PROJECT_CONFIG, type Project, type Task
+} from '@deepclaw/core';
 
 const mocks = vi.hoisted(() => ({
     readDir: vi.fn<(dir: string) => Record<string, {dir: string; content: string}>>(() => ({})),
@@ -8,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     hashString: vi.fn<(text: string) => string>(() => 'hash'),
     movePath: vi.fn<(from: string, to: string) => boolean>(() => true),
     readFile: vi.fn<(path: string) => string>(() => ''),
+    deleteDir: vi.fn<(path: string) => void>(),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
@@ -19,6 +22,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
         hashString: mocks.hashString,
         movePath: mocks.movePath,
         readFile: mocks.readFile,
+        deleteDir: mocks.deleteDir,
     },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
@@ -26,14 +30,24 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
 
 type ProjectManagerType = (typeof import('./project-manager'))['ProjectManager'];
 
-/** The manager keeps every project in a static map, so each test gets a freshly imported class. */
-async function loadManager(files: Record<string, {dir: string; content: string}> = {}): Promise<ProjectManagerType> {
+type Folder = Record<string, {dir: string; content: string}>;
+
+/**
+ * The manager keeps every project in a static map, so each test gets a freshly imported class.
+ *
+ * Two folders, told apart by name as the manager tells them apart: the live one is read as the
+ * class loads, and the archive only when somebody looks through it.
+ */
+async function loadManager(files: Folder = {}, archive: Folder = {}): Promise<ProjectManagerType> {
     vi.clearAllMocks();
-    mocks.readDir.mockReturnValue(files);
+    mocks.readDir.mockImplementation(dir => (dir === '.archivedProjects' ? archive : files));
     mocks.writeFile.mockImplementation((path: string) => path);
     mocks.exists.mockReturnValue(false);
     mocks.movePath.mockReturnValue(true);
-    mocks.readFile.mockReturnValue('');
+    // One file asked for by name, out of whichever folder holds it: a project on its way back out
+    // of the archive is read that way, one record rather than a folder of them.
+    mocks.readFile.mockImplementation(path => [...Object.values(files), ...Object.values(archive)]
+        .find(file => `${file.dir}/project.json` === path)?.content ?? '');
     vi.resetModules();
     return (await import('./project-manager')).ProjectManager;
 }
@@ -1725,6 +1739,437 @@ describe('archiveProject', () => {
 
     test('throws for an unknown id', () => {
         expect(() => manager.archiveProject('ghost')).toThrow('Project not found.');
+    });
+});
+
+const WHOLE_ARCHIVE = {query: '', owner: 'all', offset: 0};
+
+/** The archive as it lies on disk, one folder per project, keyed as the reader keys them. */
+function archiveOf(
+    projects: (Partial<Omit<Project, 'tasks'>> & {tasks?: Record<string, unknown>})[]
+): Folder {
+    const folder: Folder = {};
+    for (const project of projects) {
+        folder[`${project.id}/project.json`] = {
+            dir: `.archivedProjects/${project.id}`,
+            content: storedProject({
+                title: `Project ${project.id}`,
+                archivedAt: '2024-02-01T00:00:00.000Z',
+                ...project,
+            }),
+        };
+    }
+    return folder;
+}
+
+function idsOf(page: {projects: {id: string}[]}): string[] {
+    return page.projects.map(project => project.id);
+}
+
+/** Enough of them that a page cannot hold the lot, named for where each one falls in the order. */
+function crowdedArchive(count: number): Folder {
+    return archiveOf([...Array(count).keys()].map(index => ({
+        id: `p${index}`,
+        archivedAt: `2024-02-${String(count - index).padStart(2, '0')}T00:00:00.000Z`,
+    })));
+}
+
+describe('listArchivedProjects', () => {
+
+    test('answers with nothing where nothing has ever been put away', async () => {
+        const manager = await loadManager();
+        expect(manager.listArchivedProjects(WHOLE_ARCHIVE))
+            .toEqual({projects: [], owners: [], total: 0});
+    });
+
+    test('lists them with the most recently put away first', async () => {
+        const manager = await loadManager({}, archiveOf([
+            {id: 'first', archivedAt: '2024-02-01T00:00:00.000Z'},
+            {id: 'last', archivedAt: '2024-03-01T00:00:00.000Z'},
+        ]));
+        expect(idsOf(manager.listArchivedProjects(WHOLE_ARCHIVE))).toEqual(['last', 'first']);
+    });
+
+    /**
+     * A folder in there carrying no date was moved by hand, and the day the project was written is
+     * the nearest thing to an answer for where it belongs. It is not offered as the date it went.
+     */
+    test('orders a folder moved there by hand by the day its project was written', async () => {
+        const manager = await loadManager({}, archiveOf([
+            {id: 'dated', archivedAt: '2024-02-01T00:00:00.000Z'},
+            {id: 'by-hand', archivedAt: undefined, createdAt: '2024-05-01T00:00:00.000Z'},
+        ]));
+        const page = manager.listArchivedProjects(WHOLE_ARCHIVE);
+        expect(idsOf(page)).toEqual(['by-hand', 'dated']);
+        expect(page.projects[0]!.archivedAt).toBeUndefined();
+    });
+
+    /** The rows of a list, so the tasks stay on the disk and only the count of them comes. */
+    test('leaves the tasks where they are and brings the count of them', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1', tasks: {
+            design: {title: 'design', description: 'd', status: 'done', priority: 'low', blockedBy: [], blocks: []},
+            build: {title: 'build', description: 'd', status: 'todo', priority: 'low', blockedBy: [], blocks: []},
+        }}]));
+        const [row] = manager.listArchivedProjects(WHOLE_ARCHIVE).projects;
+        expect(row!.tasks).toBeUndefined();
+        expect(row!.taskCount).toBe(2);
+        expect(row!.completedTasks).toEqual(['design']);
+    });
+
+    test('finds a project by a word of its title', async () => {
+        const manager = await loadManager({}, archiveOf([
+            {id: 'p1', title: 'Ship the parser'},
+            {id: 'p2', title: 'Rewrite the board'},
+        ]));
+        expect(idsOf(manager.listArchivedProjects({...WHOLE_ARCHIVE, query: 'parser'})))
+            .toEqual(['p1']);
+    });
+
+    test('finds a project by a word of its description or a tag', async () => {
+        const manager = await loadManager({}, archiveOf([
+            {id: 'p1', description: 'all about the parser'},
+            {id: 'p2', tags: ['parser']},
+            {id: 'p3'},
+        ]));
+        expect(idsOf(manager.listArchivedProjects({...WHOLE_ARCHIVE, query: 'PARSER'})))
+            .toEqual(['p1', 'p2']);
+    });
+
+    test('reads the projects of one owner where one is named', async () => {
+        const manager = await loadManager({}, archiveOf([
+            {id: 'p1', creator: 'a1'},
+            {id: 'p2', creator: 'a2'},
+        ]));
+        const page = manager.listArchivedProjects({...WHOLE_ARCHIVE, owner: 'a2'});
+        expect(idsOf(page)).toEqual(['p2']);
+        expect(page.total).toBe(1);
+    });
+
+    /**
+     * The owners are the way between them, so they are counted before one of them is picked: read
+     * off the list already narrowed, they would name the agent whose projects are on the screen and
+     * leave no way back out of them.
+     */
+    test('counts every owner the words found, whoever is being read', async () => {
+        const manager = await loadManager({}, archiveOf([
+            {id: 'p1', creator: 'a1'},
+            {id: 'p2', creator: 'a1'},
+            {id: 'p3', creator: 'a2'},
+        ]));
+        expect(manager.listArchivedProjects({...WHOLE_ARCHIVE, owner: 'a2'}).owners)
+            .toEqual([{id: 'a1', count: 2}, {id: 'a2', count: 1}]);
+    });
+
+    test('counts no owner whose projects the words passed over', async () => {
+        const manager = await loadManager({}, archiveOf([
+            {id: 'p1', creator: 'a1', title: 'Ship the parser'},
+            {id: 'p2', creator: 'a2', title: 'Rewrite the board'},
+        ]));
+        expect(manager.listArchivedProjects({...WHOLE_ARCHIVE, query: 'parser'}).owners)
+            .toEqual([{id: 'a1', count: 1}]);
+    });
+
+    test('answers a page at a time and says how many there are in all', async () => {
+        const manager = await loadManager({}, crowdedArchive(ARCHIVED_PAGE_SIZE + 5));
+        const page = manager.listArchivedProjects(WHOLE_ARCHIVE);
+        expect(page.projects).toHaveLength(ARCHIVED_PAGE_SIZE);
+        expect(page.total).toBe(ARCHIVED_PAGE_SIZE + 5);
+        expect(idsOf(page)[0]).toBe('p0');
+    });
+
+    test('steps over the rows the reader already holds', async () => {
+        const manager = await loadManager({}, crowdedArchive(ARCHIVED_PAGE_SIZE + 5));
+        const page = manager.listArchivedProjects({...WHOLE_ARCHIVE, offset: ARCHIVED_PAGE_SIZE});
+        expect(idsOf(page)).toEqual([...Array(5).keys()].map(i => `p${ARCHIVED_PAGE_SIZE + i}`));
+    });
+
+    test('answers an offset past the end of the archive with nothing', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        expect(manager.listArchivedProjects({...WHOLE_ARCHIVE, offset: 50}).projects).toEqual([]);
+    });
+
+    /**
+     * The archive is a file per project in a folder that is never emptied. Read once, by whoever
+     * opens it, rather than again for every page they turn and every word they type.
+     */
+    test('reads the archive folder once however much is asked of it', async () => {
+        const manager = await loadManager({}, crowdedArchive(ARCHIVED_PAGE_SIZE + 5));
+        manager.listArchivedProjects(WHOLE_ARCHIVE);
+        manager.listArchivedProjects({...WHOLE_ARCHIVE, offset: ARCHIVED_PAGE_SIZE});
+        manager.listArchivedProjects({...WHOLE_ARCHIVE, query: 'p1'});
+        expect(mocks.readDir.mock.calls.filter(call => call[0] === '.archivedProjects'))
+            .toHaveLength(1);
+    });
+
+    /** Nothing else keeps this true: the folder was read, and the read is not done again. */
+    test('adds a project put away after the archive had been read', async () => {
+        const manager = await loadManager({}, archiveOf([
+            {id: 'before', archivedAt: '2024-02-01T00:00:00.000Z'},
+        ]));
+        manager.listArchivedProjects(WHOLE_ARCHIVE);
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.archiveProject(id);
+        const page = manager.listArchivedProjects(WHOLE_ARCHIVE);
+        expect(idsOf(page)).toEqual([id, 'before']);
+        expect(page.total).toBe(2);
+        expect(mocks.readDir.mock.calls.filter(call => call[0] === '.archivedProjects'))
+            .toHaveLength(1);
+    });
+
+    test('leaves the archive alone where a project could not be put away', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'before'}]));
+        manager.listArchivedProjects(WHOLE_ARCHIVE);
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        mocks.movePath.mockReturnValue(false);
+        expect(() => manager.archiveProject(id)).toThrow(/went missing/);
+        expect(idsOf(manager.listArchivedProjects(WHOLE_ARCHIVE))).toEqual(['before']);
+    });
+
+    /** One unreadable record is not a reason for the rest of the archive to be missing. */
+    test('passes over a file in the archive that will not parse', async () => {
+        const manager = await loadManager({}, {
+            ...archiveOf([{id: 'p1'}]),
+            'broken/project.json': {dir: '.archivedProjects/broken', content: '{oops'},
+        });
+        expect(idsOf(manager.listArchivedProjects(WHOLE_ARCHIVE))).toEqual(['p1']);
+    });
+});
+
+describe('restoreArchivedProject', () => {
+
+    test('moves the folder back under the id it had', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        manager.restoreArchivedProject('p1');
+        expect(mocks.movePath).toHaveBeenCalledWith('.archivedProjects/p1', '.projects/p1');
+    });
+
+    test('puts the project back on the board with its tasks', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1', tasks: {
+            design: {id: 'design', title: 'design', description: 'd', status: 'done', priority: 'low', blockedBy: [], blocks: []},
+        }}]));
+        const restored = manager.restoreArchivedProject('p1');
+        expect(restored?.title).toBe('Project p1');
+        expect(manager.getProjectDetail('p1').completedTasks).toEqual(['design']);
+        expect(manager.getProjectList(true).projects.open)
+            .toEqual([{id: 'p1', title: 'Project p1', description: 'from disk'}]);
+    });
+
+    /** The folder it lies in says whether a project was put away, and it lies among the live now. */
+    test('drops the date it was put away', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        expect(manager.restoreArchivedProject('p1')?.archivedAt).toBeUndefined();
+        expect(manager.getProjectDetail('p1').archivedAt).toBeUndefined();
+    });
+
+    /** Nothing is written on the way back: the loader drops that date off the live folder anyway. */
+    test('writes nothing to disk', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        manager.restoreArchivedProject('p1');
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+    });
+
+    test('leaves the archive without it', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}, {id: 'p2'}]));
+        manager.restoreArchivedProject('p1');
+        const page = manager.listArchivedProjects(WHOLE_ARCHIVE);
+        expect(idsOf(page)).toEqual(['p2']);
+        expect(page.total).toBe(1);
+    });
+
+    /**
+     * Two windows on one archive, and the row in this one was taken out from the other: what was
+     * asked for is the case already, and the window that asked has a stale row and nothing else.
+     */
+    test('does nothing for a project the archive no longer holds', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        expect(manager.restoreArchivedProject('ghost')).toBeUndefined();
+        expect(mocks.movePath).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The id builds the path the folder is moved from, and it is read out of a record on disk:
+     * nothing in the writing of one says an id may not carry a step out of the folder. The same
+     * names as below, one guard answering for both ways a project leaves the archive.
+     */
+    test.each(['../../elsewhere', '.'])(
+        'refuses an id that is no name for a folder in the archive: %j', async projectId => {
+            const manager = await loadManager({}, {
+                'evil/project.json': {
+                    dir: '.archivedProjects/evil', content: storedProject({id: projectId}),
+                },
+            });
+            expect(() => manager.restoreArchivedProject(projectId))
+                .toThrow(`Project ${projectId} does not name a folder in the archive.`);
+            expect(mocks.movePath).not.toHaveBeenCalled();
+        }
+    );
+
+    /** The move would land on top of the project being worked, which is the one to keep. */
+    test('refuses a project whose id is on the board already', async () => {
+        const manager = await loadManager(
+            {p1: {dir: '.projects/p1', content: storedProject({id: 'p1'})}},
+            archiveOf([{id: 'p1'}])
+        );
+        expect(() => manager.restoreArchivedProject('p1'))
+            .toThrow('Project p1 is on the board already.');
+        expect(mocks.movePath).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A record the reader of the folder could not read is a project no listing offers, so this is an
+     * id nobody could have been shown. Nothing of it moves.
+     */
+    test('leaves a folder whose record will not parse where it lies', async () => {
+        const manager = await loadManager({}, {
+            'p1/project.json': {dir: '.archivedProjects/p1', content: '{oops'},
+            ...archiveOf([{id: 'p2'}]),
+        });
+        expect(manager.restoreArchivedProject('p1')).toBeUndefined();
+        expect(mocks.movePath).not.toHaveBeenCalled();
+    });
+
+    /** Read before the move, so the folder stays where it is and the listing keeps offering it. */
+    test('keeps the project in the archive when its record went unreadable', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        manager.listArchivedProjects(WHOLE_ARCHIVE);
+        mocks.readFile.mockReturnValue('{oops');
+        expect(() => manager.restoreArchivedProject('p1'))
+            .toThrow('The record of project p1 cannot be read.');
+        expect(mocks.movePath).not.toHaveBeenCalled();
+        expect(idsOf(manager.listArchivedProjects(WHOLE_ARCHIVE))).toEqual(['p1']);
+    });
+
+    test('keeps the project in the archive when the folder is nowhere to be moved', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        mocks.movePath.mockReturnValue(false);
+        expect(() => manager.restoreArchivedProject('p1'))
+            .toThrow('The folder of project p1 went missing before it was restored.');
+        expect(idsOf(manager.listArchivedProjects(WHOLE_ARCHIVE))).toEqual(['p1']);
+        expect(() => manager.getProjectDetail('p1')).toThrow('Project not found.');
+    });
+
+    /** A project put away and taken straight back out, without the folder being read again. */
+    test('restores one that was put away since the archive was read', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        manager.listArchivedProjects(WHOLE_ARCHIVE);
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.archiveProject(id);
+        // Where the record now lies, the write having gone to the mock rather than to a disk.
+        mocks.readFile.mockReturnValue(storedProject({id, title: 'Ship it'}));
+        manager.restoreArchivedProject(id);
+        expect(manager.getProjectDetail(id).title).toBe('Ship it');
+        expect(idsOf(manager.listArchivedProjects(WHOLE_ARCHIVE))).toEqual(['p1']);
+    });
+});
+
+describe('deleteArchivedProject', () => {
+
+    test('takes the folder and everything under it', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        manager.deleteArchivedProject('p1');
+        expect(mocks.deleteDir).toHaveBeenCalledWith('.archivedProjects/p1');
+    });
+
+    /** What the project was counted in is kept outside the folder, and has to hear the folder went. */
+    test('hands back the row it took away', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1', closedAt: '2024-01-20T00:00:00.000Z'}]));
+        const gone = manager.deleteArchivedProject('p1');
+        expect(gone).toMatchObject({id: 'p1', creator: 'a1', closedAt: '2024-01-20T00:00:00.000Z'});
+    });
+
+    test('leaves the archive without it', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}, {id: 'p2'}]));
+        manager.deleteArchivedProject('p1');
+        const page = manager.listArchivedProjects(WHOLE_ARCHIVE);
+        expect(idsOf(page)).toEqual(['p2']);
+        expect(page.total).toBe(1);
+    });
+
+    /** Gone is what was asked for, and a window asking after another has had it asks for what is so. */
+    test('takes nothing away for a project the archive no longer holds', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}]));
+        expect(manager.deleteArchivedProject('ghost')).toBeUndefined();
+        expect(mocks.deleteDir).not.toHaveBeenCalled();
+    });
+
+    /** The way off the board is putting it away, which is a word the user says with their own hand. */
+    test('will not reach a project that is on the board', async () => {
+        const manager = await loadManager({p1: {dir: '.projects/p1', content: storedProject({id: 'p1'})}});
+        manager.deleteArchivedProject('p1');
+        expect(mocks.deleteDir).not.toHaveBeenCalled();
+        expect(manager.getProjectDetail('p1').title).toBe('Stored');
+    });
+
+    /**
+     * A whole home would go the first way and the whole archive the second, for an id read out of a
+     * record somebody wrote by hand. What a folder may be named is said, so this is every way out.
+     */
+    test.each(['../..', '.', 'p1/../..'])(
+        'refuses an id that is no name for a folder in the archive: %j', async projectId => {
+            const manager = await loadManager({}, {
+                'evil/project.json': {
+                    dir: '.archivedProjects/evil', content: storedProject({id: projectId}),
+                },
+            });
+            expect(() => manager.deleteArchivedProject(projectId))
+                .toThrow(`Project ${projectId} does not name a folder in the archive.`);
+            expect(mocks.deleteDir).not.toHaveBeenCalled();
+        }
+    );
+
+    test('keeps the rest of the archive readable without reading the folder again', async () => {
+        const manager = await loadManager({}, archiveOf([{id: 'p1'}, {id: 'p2'}]));
+        manager.listArchivedProjects(WHOLE_ARCHIVE);
+        manager.deleteArchivedProject('p2');
+        expect(idsOf(manager.listArchivedProjects(WHOLE_ARCHIVE))).toEqual(['p1']);
+        expect(mocks.readDir.mock.calls.filter(call => call[0] === '.archivedProjects'))
+            .toHaveLength(1);
+    });
+});
+
+/**
+ * The seam between a row leaving the archive and the page that comes after it, which is the one
+ * thing neither side of it can keep true alone.
+ *
+ * A window asks for more by how many rows it has in hand. A row it puts back or throws away leaves
+ * the list on its screen, and the list in here goes one shorter at the same moment: the offset it
+ * asks with next means what it meant only because both of them shortened. Either one alone and the
+ * page after begins a row out of place -- a project nobody is ever shown, or one shown twice.
+ */
+describe('the page after a row has left the archive', () => {
+
+    const WHOLE = ARCHIVED_PAGE_SIZE + 5;
+    const EVERY_ID = [...Array(WHOLE).keys()].map(index => `p${index}`);
+
+    /**
+     * The rows in hand, one of them gone the way the window sends it, and the page asked for the way
+     * the window asks: by how many are left in hand.
+     */
+    function afterOneLeft(manager: ProjectManagerType, gone: string): string[] {
+        const held = idsOf(manager.listArchivedProjects(WHOLE_ARCHIVE)).filter(id => id !== gone);
+        const next = manager.listArchivedProjects({...WHOLE_ARCHIVE, offset: held.length});
+        expect(next.total).toBe(WHOLE - 1);
+        return [...held, ...idsOf(next)];
+    }
+
+    test('reads on from where the rows in hand end after one was thrown away', async () => {
+        const manager = await loadManager({}, crowdedArchive(WHOLE));
+        manager.deleteArchivedProject('p3');
+        expect(afterOneLeft(manager, 'p3')).toEqual(EVERY_ID.filter(id => id !== 'p3'));
+    });
+
+    test('reads on from where the rows in hand end after one was put back', async () => {
+        const manager = await loadManager({}, crowdedArchive(WHOLE));
+        manager.restoreArchivedProject('p3');
+        expect(afterOneLeft(manager, 'p3')).toEqual(EVERY_ID.filter(id => id !== 'p3'));
+    });
+
+    /** The last row of the page in hand is the one a list that shortened on one side only would lose. */
+    test('reads on after the row at the seam itself has left', async () => {
+        const manager = await loadManager({}, crowdedArchive(WHOLE));
+        const seam = `p${ARCHIVED_PAGE_SIZE - 1}`;
+        manager.deleteArchivedProject(seam);
+        expect(afterOneLeft(manager, seam)).toEqual(EVERY_ID.filter(id => id !== seam));
     });
 });
 

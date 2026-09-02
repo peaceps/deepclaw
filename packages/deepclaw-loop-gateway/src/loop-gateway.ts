@@ -13,6 +13,8 @@ import type {
     RunningTask,
     Project,
     SlimProject,
+    ArchivedProjectsAsk,
+    ArchivedProjectsPage,
 } from "@deepclaw/core";
 import {
     getLoopId, INTERACTION_TIMEOUT, newMessage, splitLoopId, slimProject,
@@ -682,10 +684,14 @@ class LoopGatewayImpl {
     }
 
     /**
-     * The work of a project outliving the project itself, on the tally of whoever planned it. The
-     * board counts what is on it, so the agent's done column would fall by one as a finished project
-     * was cleared away: what is kept here is that it happened, and it is kept in the soul file
-     * because that is the one thing about a project that is not in the project's own folder.
+     * A finished project put away, still counted on the tally of whoever planned it. The board counts
+     * what is on it, so the agent's done column would fall by one as a finished project was cleared
+     * away: this is that project counted where the board can no longer see it, and it is counted in
+     * the soul file because the folder it went to is read by nothing that draws a board.
+     *
+     * It stands for as long as the project does, and for no longer: taken back out of the archive the
+     * board has the row again, and deleted there is nothing anywhere for it to stand for. Both of
+     * those take it off again.
      *
      * Only a project that was finished when it was put away. One the user gave up on and cleared
      * away leaves nothing to count: it stood in no column but todo or ongoing, and neither of those
@@ -698,6 +704,70 @@ class LoopGatewayImpl {
         }
         this.updateAgentIdentity({
             id: agent.id, archivedDoneProjects: (agent.archivedDoneProjects ?? 0) + 1
+        });
+    }
+
+    /**
+     * A look through the projects the user has put away, a page at a time.
+     *
+     * Asked for and never pushed. Nothing of the archive is in the data a page starts with or in any
+     * event a browser is sent, because a project put away is a project off the board: the only
+     * reader of it is whoever opens it to look back, and they get what they asked for.
+     */
+    public static listArchivedProjects(ask: ArchivedProjectsAsk): ArchivedProjectsPage {
+        return ProjectManager.listArchivedProjects(ask);
+    }
+
+    /**
+     * The user taking a project back out of the archive, and every browser handed the whole row: it
+     * is a project no page has heard of since it was put away, so there is nothing there to patch
+     * and the board is told the project rather than a field of it. Its tasks are not among them, as
+     * with every other row, and are asked for by whichever row is opened on it.
+     *
+     * A project the archive no longer holds was taken out by somebody else, and the board has had
+     * this row already: there is nothing to say a second time and nothing to take off any count.
+     */
+    public static restoreProject(projectId: string): void {
+        const project = ProjectManager.restoreArchivedProject(projectId);
+        if (!project) {
+            return;
+        }
+        this.discountDoneProject(project);
+        this.fireSSEEvent({eventType: 'updateProject', content: slimProjectRow(project)});
+    }
+
+    /**
+     * The user throwing a project away for good.
+     *
+     * Nothing is announced of the board: the project left every board the day it was put away, and
+     * the one window that reads the archive is the window this was asked from. The count of finished
+     * projects put away does come down, that count standing for a project in the archive and there
+     * being no project left: no row on a board, no folder on the disk, nothing to read it back from.
+     */
+    public static deleteArchivedProject(projectId: string): void {
+        const project = ProjectManager.deleteArchivedProject(projectId);
+        if (project) {
+            this.discountDoneProject(project);
+        }
+    }
+
+    /**
+     * The other half of counting a project that was finished and put away, asked by both of the ways
+     * one leaves the archive: taken back out it is on the board again, done column and all, and a
+     * count still holding it would have it twice; deleted, it is nowhere to be counted at all.
+     *
+     * Asked of the same thing the counting asked of -- whether the work was finished -- so a project
+     * that was never counted is never taken from. Never below none either: an archive that filled up
+     * before there was anything counting it is full of projects no count is holding.
+     */
+    private static discountDoneProject(project: {creator: string; closedAt?: string}): void {
+        const agent = AgentIdentityManager.getAgent(project.creator);
+        if (!project.closedAt || !agent) {
+            return;
+        }
+        this.updateAgentIdentity({
+            id: agent.id,
+            archivedDoneProjects: Math.max((agent.archivedDoneProjects ?? 0) - 1, 0),
         });
     }
 

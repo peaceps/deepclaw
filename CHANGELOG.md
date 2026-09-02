@@ -1,4 +1,6 @@
 v0.2.0
+a project you have put away can now be put back on the board, or deleted from the disk for good.
+the board now opens a window on the projects you have put away, a page at a time as you scroll.
 an agent's done count now keeps the finished projects that have been put away.
 a rendered answer now has a button in its corner that copies the markdown it was written in.
 a run that ends while you are looking elsewhere now toasts you, and the click takes you to its chat.

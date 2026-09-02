@@ -1,6 +1,8 @@
 'use server';
 
-import type { Task, CronJobHistory, AgentSoulIdentity, SlimProject } from "@deepclaw/core";
+import type {
+    Task, CronJobHistory, AgentSoulIdentity, SlimProject, ArchivedProjectsAsk, ArchivedProjectsPage
+} from "@deepclaw/core";
 import { LoopGateway, type DeepclawDataInfo, type SkillInfo } from "@deepclaw/loop-gateway";
 import { UpdateContent } from "@deepclaw/utils";
 import { revalidatePath } from "next/cache";
@@ -92,6 +94,49 @@ export async function archiveProject(projectId: string): Promise<void> {
         revalidatePath('/', 'layout');
     } catch (error) {
         console.error('Error archiving project:', error);
+        throw error;
+    }
+}
+
+/**
+ * A page of the projects the user has put away, for the one window that looks back through them.
+ * The board is handed none of these: they left it, and nothing but this asks after them.
+ */
+export async function getArchivedProjects(ask: ArchivedProjectsAsk): Promise<ArchivedProjectsPage> {
+    try {
+        return LoopGateway.listArchivedProjects(ask);
+    } catch (error) {
+        console.error('Error reading the archived projects:', error);
+        throw error;
+    }
+}
+
+/**
+ * The user taking a project back out of the archive. The board hears of it as an event like any
+ * other, so the page it lands on is every page open, not only the one that asked.
+ */
+export async function restoreProject(projectId: string): Promise<void> {
+    try {
+        LoopGateway.restoreProject(projectId);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error restoring project:', error);
+        throw error;
+    }
+}
+
+/**
+ * The user throwing an archived project away for good.
+ *
+ * Nothing is revalidated. No board held this project -- it left them when it was put away -- and the
+ * one thing that does change, the count of finished projects put away on the agent that planned it,
+ * reaches every page as an event and is already the new number to a page that loads after.
+ */
+export async function deleteArchivedProject(projectId: string): Promise<void> {
+    try {
+        LoopGateway.deleteArchivedProject(projectId);
+    } catch (error) {
+        console.error('Error deleting the archived project:', error);
         throw error;
     }
 }

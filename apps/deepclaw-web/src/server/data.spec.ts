@@ -1,14 +1,15 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {
-    type AgentEmployee, type AgentSoulIdentity, type CronJobHistory,
+    type AgentEmployee, type AgentSoulIdentity, type ArchivedProjectsAsk,
+    type ArchivedProjectsPage, type CronJobHistory,
 } from '@deepclaw/core';
 import {type SkillInfo} from '@deepclaw/loop-gateway';
 import {type UpdateContent} from '@deepclaw/utils';
 import {
     type TaskEdit,
-    finishProjectTask, getActiveAgents, getCronHistories, getSkills, setSkillAgents,
-    takeUpProjectTask, updateAgentIdentity, updateCronTaskStatus, updateProjectDescription,
-    updateProjectTags, updateProjectTask,
+    deleteArchivedProject, finishProjectTask, getActiveAgents, getArchivedProjects, getCronHistories,
+    getSkills, restoreProject, setSkillAgents, takeUpProjectTask, updateAgentIdentity,
+    updateCronTaskStatus, updateProjectDescription, updateProjectTags, updateProjectTask,
 } from './data';
 
 const mocks = vi.hoisted(() => ({
@@ -22,6 +23,9 @@ const mocks = vi.hoisted(() => ({
     getSkills: vi.fn<() => SkillInfo[]>(),
     setSkillAgents: vi.fn<(name: string, agentIds?: string[]) => void>(),
     getCronHistories: vi.fn<(id: string, beforeStart: number, limit?: number) => CronJobHistory[]>(),
+    listArchivedProjects: vi.fn<(ask: ArchivedProjectsAsk) => ArchivedProjectsPage>(),
+    restoreProject: vi.fn<(projectId: string) => void>(),
+    deleteArchivedProject: vi.fn<(projectId: string) => void>(),
     updateCronTaskStatus: vi.fn<(id: string, pause?: boolean, close?: boolean) => void>(),
     revalidatePath: vi.fn<(path: string, type: string) => void>(),
 }));
@@ -38,6 +42,9 @@ vi.mock('@deepclaw/loop-gateway', () => ({
         getSkills: mocks.getSkills,
         setSkillAgents: mocks.setSkillAgents,
         getCronHistories: mocks.getCronHistories,
+        listArchivedProjects: mocks.listArchivedProjects,
+        restoreProject: mocks.restoreProject,
+        deleteArchivedProject: mocks.deleteArchivedProject,
         updateCronTaskStatus: mocks.updateCronTaskStatus,
     },
 }));
@@ -294,6 +301,72 @@ describe('skills', () => {
         });
         await expect(setSkillAgents('search', ['a1'])).rejects.toThrow('gateway down');
         expect(console.error).toHaveBeenCalledWith('Error setting skill agents:', expect.any(Error));
+    });
+});
+
+describe('getArchivedProjects', () => {
+
+    const ask = {query: 'parser', owner: 'a1', offset: 20};
+
+    test('hands the ask to the gateway and answers with the page', async () => {
+        const page = {projects: [], owners: [{id: 'a1', count: 3}], total: 3};
+        mocks.listArchivedProjects.mockReturnValue(page);
+        await expect(getArchivedProjects(ask)).resolves.toBe(page);
+        expect(mocks.listArchivedProjects).toHaveBeenCalledWith(ask);
+    });
+
+    /** Nothing is written by a look through the archive, so there is nothing for a page to revalidate. */
+    test('revalidates nothing', async () => {
+        mocks.listArchivedProjects.mockReturnValue({projects: [], owners: [], total: 0});
+        await getArchivedProjects(ask);
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    test('reports a failing gateway', async () => {
+        mocks.listArchivedProjects.mockImplementation(() => {
+            throw new Error('gateway down');
+        });
+        await expect(getArchivedProjects(ask)).rejects.toThrow('gateway down');
+        expect(console.error)
+            .toHaveBeenCalledWith('Error reading the archived projects:', expect.any(Error));
+    });
+});
+
+describe('restoreProject', () => {
+
+    /** The project is on a board again, so every page reading one has something new to draw. */
+    test('puts the project back and revalidates the layout', async () => {
+        await restoreProject('p1');
+        expect(mocks.restoreProject).toHaveBeenCalledWith('p1');
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    test('reports a failing gateway', async () => {
+        mocks.restoreProject.mockImplementation(() => {
+            throw new Error('gateway down');
+        });
+        await expect(restoreProject('p1')).rejects.toThrow('gateway down');
+        expect(console.error).toHaveBeenCalledWith('Error restoring project:', expect.any(Error));
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+});
+
+describe('deleteArchivedProject', () => {
+
+    /** Nothing a page starts with held this project: it left the board when it was put away. */
+    test('deletes the project and revalidates nothing', async () => {
+        await deleteArchivedProject('p1');
+        expect(mocks.deleteArchivedProject).toHaveBeenCalledWith('p1');
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    test('reports a failing gateway', async () => {
+        mocks.deleteArchivedProject.mockImplementation(() => {
+            throw new Error('gateway down');
+        });
+        await expect(deleteArchivedProject('p1')).rejects.toThrow('gateway down');
+        expect(console.error)
+            .toHaveBeenCalledWith('Error deleting the archived project:', expect.any(Error));
     });
 });
 

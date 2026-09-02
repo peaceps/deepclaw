@@ -1,6 +1,11 @@
 import { FileUtils, UpdateContent } from '@deepclaw/node-utils';
 import { ARCHIVED_PROJECT_DIR, PROJECT_DIR, PROJECT_JSON, projectOutputDir } from '../../paths';
-import { type LLMTaskOutput, type Project, type Task, type TaskReview, type TaskStepsContext, isProjectStarted, MISSION_PRIORITIES, MissionPriority, PROJECT_CONFIG, slimProject } from '@deepclaw/core';
+import {
+    type ArchivedProjectsAsk, type ArchivedProjectsPage, type LLMTaskOutput, type Project,
+    type SlimProject, type Task, type TaskReview, type TaskStepsContext,
+    ARCHIVED_PAGE_SIZE, isProjectStarted, MISSION_PRIORITIES, MissionPriority, PROJECT_CONFIG,
+    projectMatchesWords, slimProject, slimProjectRow,
+} from '@deepclaw/core';
 import { fileAwayOutput, readOutputContent } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
 
@@ -105,6 +110,17 @@ function readablePriority(priority: MissionPriority | undefined): MissionPriorit
     return priority && MISSION_PRIORITIES.includes(priority) ? priority : 'low';
 }
 
+/**
+ * When a project was put away, for ordering the archive by and for nothing else.
+ *
+ * A folder in there whose record carries no date was moved by hand, and the day the project was
+ * written is the nearest thing to an answer for where it belongs in the order. It is not offered as
+ * the date it was put away: what is shown of such a project is the date it does have.
+ */
+function putAwayAt(project: SlimProject): string {
+    return project.archivedAt ?? project.createdAt;
+}
+
 export class ProjectManager {
 
     private static projects: {[id: string]: Project} = {};
@@ -114,29 +130,56 @@ export class ProjectManager {
     }
 
     private static loadProjects(): void {
-        const files = FileUtils.readDir(PROJECT_DIR, dir => `${dir}/${PROJECT_JSON}`);
-        for (const {content} of Object.values(files)) {
-            try {
-                const project = JSON.parse(content) as Project;
-                if (project && project.id && project.title && project.description) {
-                    // Being in this folder is what says a project was not put away, so a date found
-                    // here is one the folder has outlived: a project moved back by hand is a project
-                    // again, and the date left in its file would otherwise take it off the board the
-                    // next time an agent touched it. Same for a folder an interrupted archive left
-                    // behind, where the date reached the file and the move never happened.
-                    delete project.archivedAt;
-                    project.priority = readablePriority(project.priority);
-                    project.tasks = project.tasks || {};
-                    this.ensureTaskIds(project.tasks);
-                    this.ensureTaskPriorities(project.tasks);
-                    Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
-                    this.ensureStartedAt(project);
-                    this.projects[project.id] = project;
-                }
-            } catch {
-                // TODO: Handle error
-                continue;
+        for (const project of this.readProjectsUnder(PROJECT_DIR)) {
+            // Being in this folder is what says a project was not put away, so a date found here is
+            // one the folder has outlived: a project moved back by hand is a project again, and the
+            // date left in its file would otherwise take it off the board the next time an agent
+            // touched it. Same for a folder an interrupted archive left behind, where the date
+            // reached the file and the move never happened.
+            delete project.archivedAt;
+            this.projects[project.id] = project;
+        }
+    }
+
+    /**
+     * Every project written under a folder of them, read as the record has it and filled in as the
+     * board needs it. One reader for the live folder and the archive both: what a project is on
+     * disk is one thing, and where the folder lies is the only difference between the two, which
+     * is a difference each caller makes for itself.
+     *
+     * A file that will not parse, or holds too little to be a project, is passed over rather than
+     * stopping the read: one bad record is not a reason for the rest of somebody's board to be
+     * missing.
+     */
+    private static readProjectsUnder(dir: string): Project[] {
+        const files = FileUtils.readDir(dir, folder => `${folder}/${PROJECT_JSON}`);
+        return Object.values(files)
+            .map(({content}) => this.readProjectRecord(content))
+            .filter((project): project is Project => !!project);
+    }
+
+    /**
+     * One project as its record has it, filled in as the board needs it. Nothing where the record is
+     * not one -- a file that will not parse, or that holds too little to be a project -- rather than
+     * a throw: this is read of a whole folder of them, and one bad file is no reason for the rest of
+     * somebody's board to be missing.
+     */
+    private static readProjectRecord(content: string): Project | undefined {
+        try {
+            const project = JSON.parse(content) as Project;
+            if (!project || !project.id || !project.title || !project.description) {
+                return undefined;
             }
+            project.priority = readablePriority(project.priority);
+            project.tasks = project.tasks || {};
+            this.ensureTaskIds(project.tasks);
+            this.ensureTaskPriorities(project.tasks);
+            Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
+            this.ensureStartedAt(project);
+            return project;
+        } catch {
+            // TODO: Handle error
+            return undefined;
         }
     }
 
@@ -603,6 +646,147 @@ export class ProjectManager {
         return context.currentStepIndex === context.steps.length;
     }
 
+    /**
+     * The projects the user has put away, without their tasks, the most recently put away first.
+     *
+     * Read off the disk the first time anybody looks and kept in hand after that. Kept because the
+     * archive is the one list that only grows: a project put away is put away, so nothing here goes
+     * stale of itself, and the read is a file per project in a folder that is never emptied -- paid
+     * once, by whoever opens the archive, rather than on every page they turn.
+     *
+     * Which leaves one thing to keep true, and `archiveProject` is where it is kept: a project put
+     * away after this was read has to be added, or the list would answer as the archive stood when
+     * somebody first looked at it.
+     */
+    private static archived?: SlimProject[];
+
+    private static archivedProjects(): SlimProject[] {
+        if (!this.archived) {
+            this.archived = this.readProjectsUnder(ARCHIVED_PROJECT_DIR)
+                .map(slimProjectRow)
+                .sort((a, b) => (putAwayAt(a) < putAwayAt(b) ? 1 : putAwayAt(a) > putAwayAt(b) ? -1 : 0));
+        }
+        return this.archived;
+    }
+
+    /**
+     * A look through the archive: the projects whose words match, of one owner or of everybody, from
+     * the offset the reader has got to, a page at a time.
+     *
+     * Words first and owner after, which is why the owners counted here are counted before the owner
+     * is applied: the list of who has projects in there is a way to move between them, and one drawn
+     * from a list already narrowed to one agent would name that agent alone.
+     */
+    public static listArchivedProjects(ask: ArchivedProjectsAsk): ArchivedProjectsPage {
+        const found = this.archivedProjects()
+            .filter(project => projectMatchesWords(project, ask.query));
+        const counts = new Map<string, number>();
+        for (const project of found) {
+            counts.set(project.creator, (counts.get(project.creator) ?? 0) + 1);
+        }
+        const asked = ask.owner === 'all'
+            ? found : found.filter(project => project.creator === ask.owner);
+        return {
+            projects: asked.slice(ask.offset, ask.offset + ARCHIVED_PAGE_SIZE),
+            owners: Array.from(counts, ([id, count]) => ({id, count})),
+            total: asked.length,
+        };
+    }
+
+    /**
+     * Puts a project back where the work happens: the folder moves out of the archive under the id
+     * it had, and the project is on the board again with its tasks, its conversation and its
+     * reports, none of which had to be told.
+     *
+     * The date it was put away goes as it lands, where the folder lies being what says whether a
+     * project was put away. It is not written out: the loader drops that field off anything it finds
+     * among the live projects, so the record catches up with the next write of the project and says
+     * nothing to anybody in the meantime.
+     *
+     * Read before anything moves, so that a record nobody can read is a project still in the archive
+     * rather than one lost between the two folders.
+     *
+     * Nothing, where the archive no longer holds it. Two windows may be open on the archive and the
+     * row in one of them may be one the other has already taken out: what was asked for is the case
+     * already, and the window that asked second has only a stale row to be rid of.
+     */
+    public static restoreArchivedProject(projectId: string): Project | undefined {
+        if (!this.archivedProjects().some(project => project.id === projectId)) {
+            return undefined;
+        }
+        // A live project of that id is a project this would bury: the folder move would land on top
+        // of it, and the one on the board is the one somebody has been working.
+        if (this.projects[projectId]) {
+            throw new Error(`Project ${projectId} is on the board already.`);
+        }
+        const folder = this.archivedFolderOf(projectId);
+        const project = this.readProjectRecord(FileUtils.readFile(`${folder}/${PROJECT_JSON}`));
+        if (!project) {
+            throw new Error(`The record of project ${projectId} cannot be read.`);
+        }
+        if (!FileUtils.movePath(folder, `${PROJECT_DIR}/${projectId}`)) {
+            throw new Error(`The folder of project ${projectId} went missing before it was restored.`);
+        }
+        delete project.archivedAt;
+        this.projects[projectId] = project;
+        this.forgetArchived(projectId);
+        return project;
+    }
+
+    /**
+     * Takes a project off the disk for good: the folder and all of it -- tasks, conversation,
+     * reports -- and the archive listing it was read from.
+     *
+     * Only ever a project in the archive. What is on the board is out of reach of this: a project
+     * somebody is working is not a thing to lose to one request, and the way to here is putting it
+     * away first, which is a word the user gives with their own hand.
+     *
+     * An id the archive does not hold takes nothing away and is no failure: gone is what was asked
+     * for, and a second window asking after the first has already had it is asking for what is so.
+     * Nothing comes back from such a call, where a project that did go hands back the row it was:
+     * what a project was counted in outlives its folder and has to be told the folder has gone.
+     */
+    public static deleteArchivedProject(projectId: string): SlimProject | undefined {
+        const archived = this.archivedProjects().find(project => project.id === projectId);
+        if (!archived) {
+            return undefined;
+        }
+        FileUtils.deleteDir(this.archivedFolderOf(projectId));
+        this.forgetArchived(projectId);
+        return archived;
+    }
+
+    /**
+     * Where a project of the archive lies, named by its id, which is where the two above move a
+     * folder from and delete a folder at.
+     *
+     * An id is checked for being one name and not a path: it is read out of a record on disk, and
+     * nothing in the writing of one says it may not carry a step out of the folder. Sanitizing a
+     * path leaves both `..` and a bare `.` standing, and either would be a folder nobody meant --
+     * `../..` a whole home deleted, `.` the archive itself -- by somebody clearing one row out of
+     * their archive. Ids are made here and are uuids, and no tool an agent holds can name one; this
+     * is for the day one of those two stops being true, so what it allows is said rather than what
+     * it refuses. A list of the ways out is a list to have left something off.
+     */
+    private static archivedFolderOf(projectId: string): string {
+        if (!/^[A-Za-z0-9_-]+$/.test(projectId)) {
+            throw new Error(`Project ${projectId} does not name a folder in the archive.`);
+        }
+        return `${ARCHIVED_PROJECT_DIR}/${projectId}`;
+    }
+
+    /**
+     * Off the archive as it is held, the folder it stood for being somewhere else or nowhere.
+     *
+     * Which is also what keeps the page after it whole. A reader asks the archive by how many rows
+     * it has in hand, and a reader whose row has just left holds one fewer: the list here shortening
+     * with it is what makes those two numbers still meet. Taken off one side and not the other, and
+     * the next page begins a row late or a row early -- one project never shown, or one shown twice.
+     */
+    private static forgetArchived(projectId: string): void {
+        this.archived = this.archived?.filter(project => project.id !== projectId);
+    }
+
     public static getProjectList(includingClosed: boolean): ProjectListInfo {
         const res = {
             projects: {
@@ -662,6 +846,9 @@ export class ProjectManager {
             throw error;
         }
         delete this.projects[projectId];
+        // Onto the archive as it has been read, where it has been read at all: a list left as the
+        // folder stood when somebody first opened it would go on saying this project is on the board.
+        this.archived?.unshift(slimProjectRow(project));
         return project;
     }
 

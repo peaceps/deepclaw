@@ -159,6 +159,28 @@ export const zh = {
                     ongoing: '进行中',
                     done: '已完成',
                 },
+                archived: {
+                    action: '已归档',
+                    hint: '回看已经收起来的项目',
+                    title: '已归档的项目',
+                    empty: '还没有归档过项目',
+                    noResults: '归档里没有匹配的项目',
+                    failed: '读不到归档。关掉再打开试试。',
+                    putAwayOn: '{{date}} 归档',
+                    writtenOn: '{{date}} 创建',
+                    more: '看更多',
+                    restore: {
+                        action: '还原',
+                        hint: '把这个项目放回看板',
+                        failed: '没能还原这个项目，再试一次。',
+                    },
+                    delete: {
+                        action: '删除',
+                        hint: '彻底删除',
+                        confirm: '彻底删除？任务、对话和报告都一起没了。',
+                        failed: '没能删掉这个项目，再试一次。',
+                    },
+                },
                 project: {
                     noTasks: '该项目暂无任务',
                     noTasksAtStatus: '暂无任务',

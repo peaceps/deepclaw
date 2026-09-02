@@ -9,6 +9,7 @@ import {
   ProjectSearch, ALL_PROJECT_FILTERS, DEFAULT_PROJECT_FILTERS, filterProjects
 } from './ProjectSearch';
 import { usePersistentString } from '@/lib/use-persistent-state';
+import { ArchivedProjects } from './ArchivedProjects';
 
 /**
  * What the wrapper of a row is found by, a link asking to be scrolled to one being the only thing
@@ -106,10 +107,13 @@ export function ProjectBoard({ selectedProjectId }: { selectedProjectId?: string
   return (
     <div className="h-full flex flex-col bg-gray-100">
       <div className="px-2 py-1 lg:pb-4 bg-white border-b border-gray-200">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 lg:gap-3">
+        {/* Folded onto two lines on a narrow screen, where what is beside the title has to be let
+            keep its own width: stretched to the line, a word to press reads as the page's own bar. */}
+        <div className="flex flex-col items-start sm:flex-row sm:items-center justify-between gap-2 lg:gap-3">
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-gray-900">{t('web.pages.projects.projectList')}</h1>
           </div>
+          <ArchivedProjects />
         </div>
         <ProjectSearch filters={filters} onChange={setFilters}/>
       </div>

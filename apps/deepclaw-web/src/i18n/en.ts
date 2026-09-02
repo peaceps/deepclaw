@@ -161,6 +161,28 @@ export const en = {
                     ongoing: 'Ongoing',
                     done: 'Done',
                 },
+                archived: {
+                    action: 'Archived',
+                    hint: 'Look back through the projects you have put away',
+                    title: 'Projects you have put away',
+                    empty: 'Nothing has been put away yet',
+                    noResults: 'No matching projects in the archive',
+                    failed: 'The archive could not be read. Close this and open it again.',
+                    putAwayOn: 'Put away {{date}}',
+                    writtenOn: 'Written {{date}}',
+                    more: 'Read more',
+                    restore: {
+                        action: 'Put back',
+                        hint: 'Put this project back on the board',
+                        failed: 'The project could not be put back. Try again.',
+                    },
+                    delete: {
+                        action: 'Delete',
+                        hint: 'Delete project completely',
+                        confirm: 'Delete for good? Tasks, chat and reports go with it.',
+                        failed: 'The project could not be deleted. Try again.',
+                    },
+                },
                 project: {
                     noTasks: 'No tasks in this project',
                     noTasksAtStatus: 'No tasks',

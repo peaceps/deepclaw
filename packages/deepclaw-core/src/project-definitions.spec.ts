@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
-    getProjectProgress, getProjectStatus, getTaskProgress, isProjectStarted, slimProject,
-    slimProjectRow, type Project, type Task
+    getProjectProgress, getProjectStatus, getTaskProgress, isProjectStarted, projectMatchesWords,
+    slimProject, slimProjectRow, type Project, type Task
 } from './project-definitions';
 
 function newTask(overrides: Partial<Task> = {}): Task {
@@ -153,6 +153,42 @@ describe('slimProjectRow', () => {
             id: 'p1', title: 'Ship it', tags: ['urgent'], ongoingTasks: ['t1'],
             completedTasks: ['t2'], taskCount: 0,
         }));
+    });
+});
+
+describe('projectMatchesWords', () => {
+
+    test('finds nothing to narrow in an empty search', () => {
+        expect(projectMatchesWords(newProject({title: 'Ship it'}), '')).toBe(true);
+        expect(projectMatchesWords(newProject({title: 'Ship it'}), '   ')).toBe(true);
+    });
+
+    test('reads the title, the description and the tags alike', () => {
+        expect(projectMatchesWords(newProject({title: 'Ship the parser'}), 'parser')).toBe(true);
+        expect(projectMatchesWords(newProject({description: 'the parser'}), 'parser')).toBe(true);
+        expect(projectMatchesWords(newProject({tags: ['parser']}), 'parser')).toBe(true);
+    });
+
+    test('says no where none of the three holds the words', () => {
+        expect(projectMatchesWords(
+            newProject({title: 'Ship it', description: 'the board', tags: ['ui']}), 'parser'
+        )).toBe(false);
+    });
+
+    test('reads the words however either side was capitalized', () => {
+        expect(projectMatchesWords(newProject({title: 'Ship The Parser'}), ' pARSer ')).toBe(true);
+    });
+
+    /** The fields are read as one line, so a word of one and a word of the next are not a phrase. */
+    test('matches across a field but not across two', () => {
+        const project = newProject({title: 'Ship it', description: 'today'});
+        expect(projectMatchesWords(project, 'hip i')).toBe(true);
+        expect(projectMatchesWords(project, 'it today')).toBe(true);
+        expect(projectMatchesWords(project, 'ittoday')).toBe(false);
+    });
+
+    test('reads a project with no tags at all', () => {
+        expect(projectMatchesWords(newProject({tags: undefined}), 'parser')).toBe(false);
     });
 });
 
