@@ -5,7 +5,8 @@ import { Clock } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/lib/store";
-import { formatDate, translateCron } from "@/components/component-utils";
+import { formatDate } from "@/components/component-utils";
+import { scheduleText } from "@/components/cron/cron-words";
 
 export function AgentDetailCrons({ agent }: { agent: AgentEmployee }) {
   const {t} = useTranslation();
@@ -53,7 +54,7 @@ function CronTaskRow({task}: {task: CronTask}) {
         </span>
       </div>
       <p className="text-sm text-gray-600 truncate">
-        {translateCron(i18n.language as SupportedLanguage, task.cron)}
+        {scheduleText(i18n.language as SupportedLanguage, task.cron)}
       </p>
       <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
         <span>{t('web.pages.cron.lastRun')}: {formatDate(i18n.language, task.lastRun)}</span>

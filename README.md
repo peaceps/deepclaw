@@ -53,6 +53,7 @@ the network with `--host`.
 
 **v0.2.1**
 
+- A scheduled task's title, schedule and prompt can now be edited on the scheduled tasks page.
 - `deepclaw restart` now stops the server and starts it back up.
 
 **v0.2.0**

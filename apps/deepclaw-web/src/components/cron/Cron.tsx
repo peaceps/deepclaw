@@ -10,7 +10,7 @@ import { useTaskOperation } from './use-cron-hooks';
 
 export function Cron({ selectedTaskId }: { selectedTaskId?: string }) {
     const { t } = useTranslation();
-    const { tasks, expandedId, toggle, toggleStatus, deleteTask } = useTaskOperation(selectedTaskId);
+    const { tasks, expandedId, toggle, toggleStatus, deleteTask, editTask } = useTaskOperation(selectedTaskId);
     const selectedTaskRef = useRef<HTMLDivElement | null>(null);
     const scrolledTaskIdRef = useRef<string | undefined>(undefined);
     // A deleted task is gone with its history, so the click only asks and the dialog does the rest.
@@ -57,6 +57,7 @@ export function Cron({ selectedTaskId }: { selectedTaskId?: string }) {
                             onToggle={() => toggle(task.id)}
                             onToggleStatus={() => toggleStatus(task.id)}
                             onDelete={() => setPendingDelete(task.id)}
+                            onEdit={fields => editTask(task.id, fields)}
                         />
                     </div>
                 ))}

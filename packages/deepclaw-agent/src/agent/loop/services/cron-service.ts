@@ -1,4 +1,4 @@
-import { CronJob } from 'cron';
+import { CronJob, CronTime } from 'cron';
 import {
     addTokenUsage, MAX_DISPLAY_HISTORIES, type CronTask, type CronJobHistory, type LLMTaskOutput
 } from "@deepclaw/core";
@@ -246,6 +246,9 @@ class CronServiceImpl {
 
     public static updateCronTask(updateTask: {id: string; title?: string, cron?: string; prompt?: string}): CronTask {
         const task = this.getCronTask(updateTask.id);
+        if (updateTask.cron) {
+            this.requireSchedulable(updateTask.cron);
+        }
         Object.assign(task, Object.fromEntries(
             Object.entries(updateTask).filter(([k, v]) => k !== 'id' && !!v)
         ));
@@ -262,6 +265,22 @@ class CronServiceImpl {
         });
         this.saveTask(task);
         return task;
+    }
+
+    /**
+     * A schedule that schedules nothing, refused before anything has been changed by it.
+     *
+     * Refused here rather than where the job is built, because by then the task is carrying the new
+     * expression and its old job has been stopped: what the throw from there leaves behind is a task
+     * that runs at no time at all, until a restart reads the saved expression back and schedules it
+     * again. Asked of the same clock the job would be built on, so nothing passing this can fail
+     * there.
+     */
+    private static requireSchedulable(cron: string): void {
+        const {valid, error} = CronTime.validateCronExpression(cron);
+        if (!valid) {
+            throw new Error(`Invalid cron expression ${cron}: ${error?.message ?? 'it names no time'}`);
+        }
     }
 
     /**

@@ -951,6 +951,18 @@ class LoopGatewayImpl {
     }
 
     /**
+     * What the user wrote of a task: its name, when it runs, what it runs. The new values reach the
+     * browsers the way every other change of a task does, so nothing is handed back here -- and a
+     * schedule the service will not schedule by throws, which is the whole of the answer a browser
+     * needs to put its own words back.
+     */
+    public static updateCronTask(
+        id: string, fields: {title?: string; cron?: string; prompt?: string}
+    ): void {
+        CronService.updateCronTask({id, ...fields});
+    }
+
+    /**
      * A task on its way to a browser, with what no browser reads left out.
      *
      * Done here rather than where the runs are recorded because `finalText` is not dead weight

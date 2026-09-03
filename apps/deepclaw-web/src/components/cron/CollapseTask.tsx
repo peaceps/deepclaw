@@ -10,9 +10,12 @@ type CollapseTaskProps = {
     onToggle: () => void;
     onToggleStatus: () => void;
     onDelete: () => void;
+    onEdit: (fields: {title?: string; cron?: string; prompt?: string}) => void;
 };
 
-export function CollapseTask({ task, isExpanded, onToggle, onToggleStatus, onDelete }: CollapseTaskProps) {
+export function CollapseTask({
+    task, isExpanded, onToggle, onToggleStatus, onDelete, onEdit,
+}: CollapseTaskProps) {
     const getAgentById = useAppStore(s => s.getAgentById);
     const agent = getAgentById(task.creator);
 
@@ -22,11 +25,22 @@ export function CollapseTask({ task, isExpanded, onToggle, onToggleStatus, onDel
                 onClick={onToggle}
                 className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
             >
-                <Task task={task} agent={agent} isExpanded={isExpanded} />
+                <Task
+                    task={task}
+                    agent={agent}
+                    isExpanded={isExpanded}
+                    onEditTitle={title => onEdit({title})}
+                />
             </div>
             {isExpanded && (
                 <div className="flex flex-col lg:flex-row border-t border-gray-200">
-                    <Detail task={task} onToggleStatus={onToggleStatus} onDelete={onDelete} />
+                    <Detail
+                        task={task}
+                        onToggleStatus={onToggleStatus}
+                        onDelete={onDelete}
+                        onEditCron={cron => onEdit({cron})}
+                        onEditPrompt={prompt => onEdit({prompt})}
+                    />
                     <Histories task={task} />
                 </div>
             )}

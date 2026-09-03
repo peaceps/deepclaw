@@ -1,4 +1,5 @@
 v0.2.1
+a scheduled task's title, schedule and prompt can now be edited on the cron page.
 deepclaw restart now stops the server and starts it back up.
 
 v0.2.0

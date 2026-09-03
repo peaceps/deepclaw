@@ -267,3 +267,21 @@ export async function updateCronTaskStatus(id: string, pause?: boolean, close?: 
         throw error;
     }
 }
+
+/**
+ * A task as the user has just written it. A schedule the server will not schedule by throws, and
+ * the browser that sent it has said in its own words what is wrong with such a schedule before it
+ * ever got here: what a throw from here says is only that the writing did not go through, since a
+ * message thrown out of a server action is not the message the browser is handed.
+ */
+export async function editCronTask(
+    id: string, fields: {title?: string; cron?: string; prompt?: string}
+): Promise<void> {
+    try {
+        LoopGateway.updateCronTask(id, fields);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error editing cron task:', error);
+        throw error;
+    }
+}

@@ -361,6 +361,13 @@ export const en = {
                     title: 'Execution History',
                     empty: 'No executions yet',
                 },
+                edit: {
+                    title: 'Edit task title',
+                    schedule: 'Edit schedule',
+                    prompt: 'Edit prompt',
+                    invalidCron: 'This expression does not name a time the server can schedule by.',
+                    failed: 'The change did not go through.',
+                },
             },
             settings: {
                 title: 'System Settings',

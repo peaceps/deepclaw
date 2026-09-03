@@ -9,7 +9,7 @@ import {
     type TaskEdit,
     deleteArchivedProject, finishProjectTask, getActiveAgents, getArchivedProjects, getCronHistories,
     getSkills, restoreProject, setSkillAgents, takeUpProjectTask, updateAgentIdentity,
-    updateCronTaskStatus, updateProjectDescription, updateProjectTags, updateProjectTask,
+    editCronTask, updateCronTaskStatus, updateProjectDescription, updateProjectTags, updateProjectTask,
 } from './data';
 
 const mocks = vi.hoisted(() => ({
@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
     restoreProject: vi.fn<(projectId: string) => void>(),
     deleteArchivedProject: vi.fn<(projectId: string) => void>(),
     updateCronTaskStatus: vi.fn<(id: string, pause?: boolean, close?: boolean) => void>(),
+    updateCronTask: vi.fn<(id: string, fields: {title?: string; cron?: string; prompt?: string}) => void>(),
     revalidatePath: vi.fn<(path: string, type: string) => void>(),
 }));
 
@@ -46,6 +47,7 @@ vi.mock('@deepclaw/loop-gateway', () => ({
         restoreProject: mocks.restoreProject,
         deleteArchivedProject: mocks.deleteArchivedProject,
         updateCronTaskStatus: mocks.updateCronTaskStatus,
+        updateCronTask: mocks.updateCronTask,
     },
 }));
 
@@ -401,5 +403,19 @@ describe('cron tasks', () => {
         });
         await expect(updateCronTaskStatus('c1', true)).rejects.toThrow('gateway down');
         expect(console.error).toHaveBeenCalledWith('Error updating cron task status:', expect.any(Error));
+    });
+
+    test('edits a task and revalidates the layout', async () => {
+        await editCronTask('c1', {title: 'weekly', cron: '0 0 * * 0'});
+        expect(mocks.updateCronTask).toHaveBeenCalledWith('c1', {title: 'weekly', cron: '0 0 * * 0'});
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    test('reports a failing edit', async () => {
+        mocks.updateCronTask.mockImplementation(() => {
+            throw new Error('bad cron');
+        });
+        await expect(editCronTask('c1', {cron: 'not a cron'})).rejects.toThrow('bad cron');
+        expect(console.error).toHaveBeenCalledWith('Error editing cron task:', expect.any(Error));
     });
 });

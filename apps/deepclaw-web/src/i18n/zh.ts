@@ -177,7 +177,7 @@ export const zh = {
                     delete: {
                         action: '删除',
                         hint: '彻底删除',
-                        confirm: '彻底删除？任务、对话和报告都一起没了。',
+                        confirm: '彻底删除？任务、对话和报告都会从磁盘删除，删除后无法找回。',
                         failed: '没能删掉这个项目，再试一次。',
                     },
                 },
@@ -355,6 +355,13 @@ export const zh = {
                 history: {
                     title: '执行历史',
                     empty: '暂无执行记录',
+                },
+                edit: {
+                    title: '编辑任务标题',
+                    schedule: '编辑执行周期',
+                    prompt: '编辑任务内容',
+                    invalidCron: '这个表达式无法被服务器按计划执行。',
+                    failed: '修改没有保存成功。',
                 },
             },
             settings: {

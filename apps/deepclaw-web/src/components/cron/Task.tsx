@@ -1,19 +1,22 @@
 import { useTranslation } from 'react-i18next';
 import { Clock, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
-import { formatDate, translateCron } from '@/components/component-utils';
+import { formatDate } from '@/components/component-utils';
 import type { AgentEmployee, CronTask } from '@deepclaw/core';
 import { SupportedLanguage } from '@deepclaw/i18n';
 import { TokenUsageIcon } from '@/laf/token-usage';
 import { TaskOwnerTooltip } from '../projects/TaskOwnerTooltip';
+import { EditableField } from './EditableField';
+import { scheduleText } from './cron-words';
 
 type TaskProps = {
     task: CronTask;
     agent?: AgentEmployee;
     isExpanded: boolean;
+    onEditTitle: (title: string) => void;
 };
 
-export function Task({ task, agent, isExpanded }: TaskProps) {
+export function Task({ task, agent, isExpanded, onEditTitle }: TaskProps) {
     const { t, i18n } = useTranslation();
     const [tooltipVisible, setTooltipVisible] = useState(false);
     const creatorRef = useRef<HTMLDivElement>(null);
@@ -35,11 +38,15 @@ export function Task({ task, agent, isExpanded }: TaskProps) {
                     <Clock size={20} />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate">
-                        {task.title}
-                    </h3>
+                    <EditableField
+                        value={task.title}
+                        onSave={onEditTitle}
+                        ariaLabel={t('web.pages.cron.edit.title')}
+                        displayClassName="font-bold text-gray-900 text-base sm:text-lg"
+                        inline
+                    />
                     <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
-                        <span>{translateCron(i18n.language as SupportedLanguage, task.cron)}</span>
+                        <span>{scheduleText(i18n.language as SupportedLanguage, task.cron)}</span>
                     </div>
                 </div>
             </div>

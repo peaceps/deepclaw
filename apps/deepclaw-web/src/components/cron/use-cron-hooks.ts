@@ -2,8 +2,10 @@
 
 import { useAppStore } from "@/lib/store";
 import { useState } from "react";
-import { updateCronTaskStatus } from "@/server/data";
+import { editCronTask, updateCronTaskStatus } from "@/server/data";
 import { usePersistentString } from "@/lib/use-persistent-state";
+import { useToastStore } from "@/lib/toast-store";
+import { useTranslation } from "react-i18next";
 
 /**
  * The task list lives in the store, where the info stream keeps it fresh. This hook only owns the
@@ -11,6 +13,8 @@ import { usePersistentString } from "@/lib/use-persistent-state";
  * behind it fails.
  */
 export function useTaskOperation(selectedTaskId?: string) {
+    const { t } = useTranslation();
+    const showToast = useToastStore(s => s.show);
     const tasks = useAppStore(s => s.cronTasks);
     const setCronTasks = useAppStore(s => s.setCronTasks);
     const updateCronTask = useAppStore(s => s.updateCronTask);
@@ -52,11 +56,38 @@ export function useTaskOperation(selectedTaskId?: string) {
         });
     };
 
+    const editTask = (id: string, fields: {title?: string; cron?: string; prompt?: string}) => {
+        const task = tasks.find(one => one.id === id);
+        if (!task) return;
+        const patch: {id: string; title?: string; cron?: string; prompt?: string} = {id};
+        const rollback: {id: string; title?: string; cron?: string; prompt?: string} = {id};
+        if (fields.title !== undefined && fields.title !== task.title) {
+            patch.title = fields.title;
+            rollback.title = task.title;
+        }
+        if (fields.cron !== undefined && fields.cron !== task.cron) {
+            patch.cron = fields.cron;
+            rollback.cron = task.cron;
+        }
+        if (fields.prompt !== undefined && fields.prompt !== task.prompt) {
+            patch.prompt = fields.prompt;
+            rollback.prompt = task.prompt;
+        }
+        // Nothing beside the id is nothing that changed, and nothing to send.
+        if (Object.keys(patch).length === 1) return;
+        updateCronTask(patch);
+        editCronTask(id, {title: patch.title, cron: patch.cron, prompt: patch.prompt}).catch(() => {
+            updateCronTask(rollback);
+            showToast({type: 'error', message: t('web.pages.cron.edit.failed')});
+        });
+    };
+
     return {
         tasks,
         expandedId,
         toggle,
         toggleStatus,
         deleteTask,
+        editTask,
     };
 }

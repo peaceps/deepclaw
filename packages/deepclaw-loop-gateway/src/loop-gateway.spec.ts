@@ -65,6 +65,7 @@ const mocks = vi.hoisted(() => ({
     getCronTasks: vi.fn<() => unknown[]>(() => []),
     getCronHistories: vi.fn(),
     updateCronTaskStatus: vi.fn(),
+    updateCronTask: vi.fn(),
     clearAwayUser: vi.fn<(loopId: string) => void>(),
     addMessage: vi.fn(),
     replaceMessage: vi.fn(),
@@ -87,6 +88,7 @@ vi.mock('@deepclaw/agent', () => ({
         getCronTasks: mocks.getCronTasks,
         getCronHistories: mocks.getCronHistories,
         updateCronTaskStatus: mocks.updateCronTaskStatus,
+        updateCronTask: mocks.updateCronTask,
     },
     MCPService: {connect: mocks.mcpConnect},
     SessionService: {
@@ -1717,6 +1719,11 @@ describe('delegations', () => {
     test('pauses and closes a cron task through the cron service', () => {
         LoopGateway.updateCronTaskStatus('c1', true, false);
         expect(mocks.updateCronTaskStatus).toHaveBeenCalledWith({id: 'c1', pause: true, close: false});
+    });
+
+    test('edits a cron task through the cron service', () => {
+        LoopGateway.updateCronTask('c1', {title: 'weekly', cron: '0 0 * * 0'});
+        expect(mocks.updateCronTask).toHaveBeenCalledWith({id: 'c1', title: 'weekly', cron: '0 0 * * 0'});
     });
 
     /**

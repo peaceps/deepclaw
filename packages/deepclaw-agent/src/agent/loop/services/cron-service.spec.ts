@@ -143,6 +143,11 @@ vi.mock('cron', () => ({
             mocks.jobs.push({cron, tick, started, timeZone, stop: this.stop});
         }
     },
+    // The same reading of an expression the job is built on, which is the point of asking it first.
+    CronTime: {
+        validateCronExpression: (cron: string): {valid: boolean; error?: Error} => mocks.isValidCron(cron)
+            ? {valid: true} : {valid: false, error: new Error('it names no time')},
+    },
 }));
 
 vi.mock('../../loop-initializer', () => ({LoopInitializer: {getLoop: mocks.getLoop}}));
@@ -530,6 +535,41 @@ describe('updateCronTask', () => {
 
     test('throws for an unknown id', () => {
         expect(() => service.updateCronTask({id: 'ghost'})).toThrow('Cron task not found.');
+    });
+
+    /**
+     * The whole of the point of reading the expression before anything is done with it. Refused
+     * from where the job is built, the task would be carrying the new expression with its old job
+     * already stopped, and a task that runs at no time is worse than one that would not be changed.
+     */
+    test('refuses a schedule that names no time and leaves the task running as it was', () => {
+        const {id} = newTask(service);
+        mocks.isValidCron.mockReturnValue(false);
+        expect(() => service.updateCronTask({id, cron: 'not a cron', title: 'weekly'}))
+            .toThrow('Invalid cron expression not a cron');
+        expect(service.getCronTaskDetail(id)).toMatchObject({cron: '0 0 * * *', title: 'nightly'});
+        expect(mocks.jobs).toHaveLength(1);
+        expect(mocks.jobs[0]!.stop).not.toHaveBeenCalled();
+    });
+
+    /** A paused task has no job to lose, and the expression it would run by is read all the same. */
+    test('refuses a schedule that names no time for a paused task as well', () => {
+        const {id} = newTask(service);
+        service.updateCronTaskStatus({id, pause: true});
+        mocks.isValidCron.mockReturnValue(false);
+        expect(() => service.updateCronTask({id, cron: 'not a cron'})).toThrow('Invalid cron expression');
+        expect(service.getCronTaskDetail(id).cron).toBe('0 0 * * *');
+    });
+
+    test('says nothing and writes nothing where the schedule was refused', () => {
+        const {id} = newTask(service);
+        const updates: {id: string}[] = [];
+        const unsubscribe = service.subscribe(update => updates.push(update));
+        mocks.isValidCron.mockReturnValue(false);
+        expect(() => service.updateCronTask({id, cron: 'not a cron'})).toThrow();
+        unsubscribe();
+        expect(updates).toEqual([]);
+        expect(mocks.writeFile).toHaveBeenCalledOnce();
     });
 
     test('reports a closed task as missing because closing forgets it', () => {
