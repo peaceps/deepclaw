@@ -51,6 +51,11 @@ the network with `--host`.
 
 ## Latest changes
 
+**v0.2.2**
+
+- An agent's feeling can now be about how the work it handed out is going, not only its own turn at
+  it.
+
 **v0.2.1**
 
 - The report of a task or of a project can now be rewritten in the panel it is read in.

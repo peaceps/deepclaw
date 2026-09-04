@@ -1,3 +1,6 @@
+v0.2.2
+an agent's feeling can now be about how the work it handed out is going.
+
 v0.2.1
 the report of a task or of a project can now be rewritten where it is read.
 a scheduled task's title, schedule and prompt can now be edited on the cron page.

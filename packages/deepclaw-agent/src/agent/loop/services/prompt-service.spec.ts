@@ -313,6 +313,10 @@ describe('personality and emotions', () => {
         // not go in, next to the one test that tells a feeling from a progress note.
         expect(cacheable).toContain('Nothing of the work goes in it');
         expect(cacheable).toContain('What is left with the ids struck out is the test');
+        // The work of whoever it handed a piece to is as much a thing to feel about as its own
+        // turn at it, and the account of that work is still the board's to give.
+        expect(cacheable).toContain('How the work under you goes is yours to feel about');
+        expect(cacheable).toContain('never the account of it');
         // Asked for on the same terms the card below asks on, rather than offered as a pastime.
         expect(cacheable).toContain('when what you last said is no longer it');
         // The bubble on the agent card is a narrow one, a long feeling would be cut off in it.
