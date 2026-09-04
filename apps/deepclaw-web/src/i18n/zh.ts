@@ -24,6 +24,7 @@ export const zh = {
             notReady: '功能开发中...',
             edit: '编辑',
             add: '添加',
+            save: '保存',
             cancel: '取消',
             confirm: '确认',
             send: '发送',
@@ -333,6 +334,8 @@ export const zh = {
                 download: '下载报告',
                 view: '查看报告',
                 fetchFailed: '文件获取失败。',
+                saveFailed: '报告没保存上，写的内容还在框里。',
+                busy: '这个任务正在被执行，跑完会写一份自己的报告盖上来，等它回来再保存。',
             },
             cron: {
                 tip: '提示：可以直接和 Agent 聊天来创建定时任务，告诉它要执行什么以及执行周期即可。',

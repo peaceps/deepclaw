@@ -19,6 +19,19 @@ const SIZES: Record<ModalSize, string> = {
 type ModalProps = {
     title: string;
     size?: ModalSize;
+    /**
+     * What the caller offers in the corner, beside the two buttons every panel has. It sits with
+     * them rather than in the footer because what belongs here is done to the thing being read --
+     * a report edited, a list filtered -- and the footer is where the panel is finished with.
+     */
+    actions?: React.ReactNode;
+    /**
+     * Whether a click on the dark behind the panel is a way out of it, which it is unless what the
+     * panel holds would be missed. A box being written in is minutes of the user's work and the
+     * backdrop is the easiest of the three ways out to hit by accident, so a caller with one open
+     * takes it off and leaves the two that are aimed at.
+     */
+    closeOnBackdrop?: boolean;
     footer?: React.ReactNode;
     onClose: () => void;
     children: React.ReactNode;
@@ -33,7 +46,11 @@ type ModalProps = {
  * whole, while a list has a bar across the top that stays put while the rows under it move, and
  * only the caller knows which it is. What it gets is the room left over, and no more than that.
  */
-export function Modal({ title, size = 'half', footer, onClose, children }: ModalProps) {
+export function Modal(
+    {
+        title, size = 'half', actions, closeOnBackdrop = true, footer, onClose, children
+    }: ModalProps
+) {
     const [maximized, setMaximized] = useState(false);
     const { t } = useTranslation();
 
@@ -57,7 +74,7 @@ export function Modal({ title, size = 'half', footer, onClose, children }: Modal
             aria-modal="true"
             aria-label={title}
             className="fixed inset-0 z-[105] flex items-center justify-center bg-black/50 cursor-default"
-            onClick={onClose}
+            onClick={closeOnBackdrop ? onClose : undefined}
         >
             <div
                 className={`relative bg-white rounded-lg shadow-xl flex flex-col
@@ -67,6 +84,7 @@ export function Modal({ title, size = 'half', footer, onClose, children }: Modal
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
                     <span className="text-base font-semibold text-gray-900 truncate pr-2">{title}</span>
                     <div className="flex items-center gap-3 text-gray-400">
+                        {actions}
                         <button
                             onClick={() => setMaximized(!maximized)}
                             title={t(`web.common.${maximized ? 'restore' : 'maximize'}`)}

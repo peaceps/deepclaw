@@ -3,7 +3,9 @@
 import type {
     Task, CronJobHistory, AgentSoulIdentity, SlimProject, ArchivedProjectsAsk, ArchivedProjectsPage
 } from "@deepclaw/core";
-import { LoopGateway, type DeepclawDataInfo, type SkillInfo } from "@deepclaw/loop-gateway";
+import {
+    LoopGateway, type DeepclawDataInfo, type ReportRefusal, type SkillInfo
+} from "@deepclaw/loop-gateway";
 import { UpdateContent } from "@deepclaw/utils";
 import { revalidatePath } from "next/cache";
 
@@ -207,6 +209,40 @@ export async function finishProjectTask(projectId: string, taskId: string): Prom
         revalidatePath('/', 'layout');
     } catch (error) {
         console.error('Error finishing project task:', error);
+        throw error;
+    }
+}
+
+/**
+ * A report of a task as the user has just written it, the whole of it rather than a patch: a report
+ * is one piece of writing, and what comes back from the box it was edited in is all of it.
+ *
+ * What is answered is what turned the writing away, and nothing when it went in. A throw from here
+ * reaches the browser as a digest with none of the words in it, so a reason the user could act on
+ * would arrive as the general apology: the one there is comes back as itself instead.
+ */
+export async function editTaskReport(
+    projectId: string, taskId: string, content: string
+): Promise<ReportRefusal | undefined> {
+    try {
+        const refusal = LoopGateway.editTaskReport(projectId, taskId, content);
+        if (!refusal) {
+            revalidatePath('/', 'layout');
+        }
+        return refusal;
+    } catch (error) {
+        console.error('Error saving task report:', error);
+        throw error;
+    }
+}
+
+/** The same for the report of the whole project. */
+export async function editProjectReport(projectId: string, content: string): Promise<void> {
+    try {
+        LoopGateway.editProjectReport(projectId, content);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error saving project report:', error);
         throw error;
     }
 }

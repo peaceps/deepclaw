@@ -87,6 +87,12 @@ type LoopState = {
 };
 
 type LoopStore = Record<string, LoopState>;
+/**
+ * What turned an edit of a report away, for the browser to say in its own words. Only the reasons
+ * the user can do something about are worth a word of their own; the rest are thrown.
+ */
+export type ReportRefusal = 'working';
+
 export type DeepclawDataInfo = {
     agents: AgentEmployee[], projects: SlimProject[], runningTasks: RunningTask[],
     busyLoops: string[], cronTasks: CronTask[]
@@ -825,29 +831,76 @@ class LoopGatewayImpl {
     }
 
     /**
-     * Where the work is running, its status is nobody else's to move. Whose hands it is in is not
-     * asked: a subagent of the agent or the agent itself, either of them is refused the same way
-     * for the same reason. The run is asked rather than the record, the record saying only that the
-     * task was taken up: a task closed under a run still at work is a task every write of that run
-     * is refused by, and it would spend what turns it has left on a task nothing can be reported
-     * about any more.
+     * Whether the work of a task is in somebody's hands right now, which is what puts the task out
+     * of the user's for as long as it lasts. Whose hands they are is not asked: a subagent of the
+     * agent, or the agent working the task in a turn of its own, either of them holds it the same
+     * way and for the same reason. The run is asked rather than the record, the record saying only
+     * that the task was taken up.
      *
-     * Which is the two doors above, those being where a status is written from now. The patch door
+     * The work and not the reading of it. A review changes nothing and holds nothing up: the user
+     * closing a task under one loses a verdict that was advice anyway, and were they held off by
+     * that too, the moment they most need the button -- a review that hangs -- would be the moment
+     * it is taken away, by the stuck run's own hand.
+     *
+     * Asked here for both of the doors below, the one that throws the question back and the one
+     * that answers it, so what counts as being worked on is written down once.
+     */
+    private static isWorked(projectId: string, taskId: string): boolean {
+        return RunningTaskService.isRunning(projectId, taskId);
+    }
+
+    /**
+     * Where the work is running, the status of a task is nobody else's to move: a task closed under
+     * a run still at work is a task every write of that run is refused by, and it would spend what
+     * turns it has left on a task nothing can be reported about any more.
+     *
+     * Which is the three doors above, those being where a status is written from now. The patch door
      * asks it of a status all the same, for a caller that sends one there, but the board no longer
-     * has a way to: what a card may write does not include the word. The words of a task are
-     * another matter and are left alone by all of them -- those are read by whoever picks the work
-     * up, and a title put right while the work runs is the point of putting it right.
+     * has a way to: what a card may write does not include the word. The words a task is described
+     * by are another matter and are left alone by all of them -- those are read by whoever picks the
+     * work up, and a title put right while the work runs is the point of putting it right.
      *
-     * The work and not the reading of it, which is what the question below answers and no doing of
-     * this door's. A review changes nothing and holds nothing up: the user closing a task under one
-     * loses a verdict that was advice anyway. Held off by that too, the moment they most need the
-     * button -- a review that hangs -- would be the moment it is taken away, and the hand it is
-     * taken away by is the stuck run's.
+     * The report of a task is held off as well, and by the door below rather than by this one: it
+     * has a reason of its own to wait and something to say about waiting, so it asks the question
+     * above and answers rather than throwing.
      */
     private static refuseWhileWorked(projectId: string, taskId: string): void {
-        if (RunningTaskService.isRunning(projectId, taskId)) {
+        if (this.isWorked(projectId, taskId)) {
             throw new Error('This task is being worked on right now. Wait for the work to come back.');
         }
+    }
+
+    /**
+     * The user rewriting the report of a task, which they read on the board and can put right there.
+     *
+     * Held off while the work is on, for a plainer reason than the status has: a run comes back with
+     * the report of what it did and writes it over the task, so an edit made under one is an edit
+     * thrown away without a word about it.
+     *
+     * The one door of these that answers rather than throwing. What it has to say is something the
+     * user can do -- the work comes back, and the report is theirs to write then -- and a message
+     * thrown out of a server action does not reach the browser: what arrives there is a digest, and
+     * all the browser can say for itself is that the writing did not go through. So what turned it
+     * away comes back as itself, and the browser has its own sentence for it.
+     */
+    public static editTaskReport(
+        projectId: string, taskId: string, content: string
+    ): ReportRefusal | undefined {
+        if (this.isWorked(projectId, taskId)) {
+            return 'working';
+        }
+        ProjectManager.editTaskReport(projectId, taskId, content);
+        this.announceProject(projectId);
+        return undefined;
+    }
+
+    /**
+     * The same on the report of the whole project, which no one task's run is at work on: a project
+     * report is written when the work of it is over, so there is nothing here to wait for.
+     */
+    public static editProjectReport(projectId: string, content: string): void {
+        ProjectManager.editProjectReport(projectId, content);
+        this.announceProject(projectId);
     }
 
     /**

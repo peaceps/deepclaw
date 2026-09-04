@@ -26,6 +26,7 @@ export const en = {
             notReady: 'Coming soon...',
             edit: 'Edit',
             add: 'Add',
+            save: 'Save',
             cancel: 'Cancel',
             confirm: 'Confirm',
             send: 'Send',
@@ -323,6 +324,9 @@ export const en = {
                 download: 'Download report',
                 view: 'View report',
                 fetchFailed: 'File fetch failed.',
+                saveFailed: 'The report was not saved. What you wrote is still in the box.',
+                busy: 'The task is being worked on right now, and the run will write its own report'
+                    + ' over this one. Save it once the work is back.',
             },
             skills: {
                 columns: {

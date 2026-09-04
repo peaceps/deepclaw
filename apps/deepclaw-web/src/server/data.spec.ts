@@ -9,7 +9,8 @@ import {
     type TaskEdit,
     deleteArchivedProject, finishProjectTask, getActiveAgents, getArchivedProjects, getCronHistories,
     getSkills, restoreProject, setSkillAgents, takeUpProjectTask, updateAgentIdentity,
-    editCronTask, updateCronTaskStatus, updateProjectDescription, updateProjectTags, updateProjectTask,
+    editCronTask, editProjectReport, editTaskReport, updateCronTaskStatus,
+    updateProjectDescription, updateProjectTags, updateProjectTask,
 } from './data';
 
 const mocks = vi.hoisted(() => ({
@@ -19,6 +20,10 @@ const mocks = vi.hoisted(() => ({
     updateProjectTask: vi.fn<(projectId: string, task: object) => void>(),
     takeUpProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
     finishProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
+    editTaskReport: vi.fn<
+        (projectId: string, taskId: string, content: string) => 'working' | undefined
+    >(),
+    editProjectReport: vi.fn<(projectId: string, content: string) => void>(),
     getDataInfo: vi.fn<() => {agents: AgentEmployee[]}>(),
     getSkills: vi.fn<() => SkillInfo[]>(),
     setSkillAgents: vi.fn<(name: string, agentIds?: string[]) => void>(),
@@ -39,6 +44,8 @@ vi.mock('@deepclaw/loop-gateway', () => ({
         updateProjectTask: mocks.updateProjectTask,
         takeUpProjectTask: mocks.takeUpProjectTask,
         finishProjectTask: mocks.finishProjectTask,
+        editTaskReport: mocks.editTaskReport,
+        editProjectReport: mocks.editProjectReport,
         getDataInfo: mocks.getDataInfo,
         getSkills: mocks.getSkills,
         setSkillAgents: mocks.setSkillAgents,
@@ -254,6 +261,46 @@ describe('finishProjectTask', () => {
         await expect(finishProjectTask('p1', 'ship-it')).rejects.toThrow('a subagent is working');
         expect(console.error)
             .toHaveBeenCalledWith('Error finishing project task:', expect.any(Error));
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+});
+
+describe('reports the user rewrote', () => {
+
+    test('sends the whole of a task report and revalidates the layout', async () => {
+        expect(await editTaskReport('p1', 'ship-it', '# it went well')).toBeUndefined();
+        expect(mocks.editTaskReport).toHaveBeenCalledWith('p1', 'ship-it', '# it went well');
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    /** The browser has a sentence of its own for this one, which a thrown message would not reach. */
+    test('hands back what turned a task report away, and revalidates nothing', async () => {
+        mocks.editTaskReport.mockReturnValue('working');
+        expect(await editTaskReport('p1', 'ship-it', 'words')).toBe('working');
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    test('reports a task report the gateway threw over and does not revalidate', async () => {
+        mocks.editTaskReport.mockImplementation(() => {
+            throw new Error('the project folder is read only');
+        });
+        await expect(editTaskReport('p1', 'ship-it', 'words')).rejects.toThrow('read only');
+        expect(console.error).toHaveBeenCalledWith('Error saving task report:', expect.any(Error));
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    test('sends the whole of a project report and revalidates the layout', async () => {
+        await editProjectReport('p1', '# it all went well');
+        expect(mocks.editProjectReport).toHaveBeenCalledWith('p1', '# it all went well');
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    test('reports a project report the gateway refused and does not revalidate', async () => {
+        mocks.editProjectReport.mockImplementation(() => {
+            throw new Error('this project has no report to rewrite');
+        });
+        await expect(editProjectReport('p1', 'words')).rejects.toThrow('no report to rewrite');
+        expect(console.error).toHaveBeenCalledWith('Error saving project report:', expect.any(Error));
         expect(mocks.revalidatePath).not.toHaveBeenCalled();
     });
 });

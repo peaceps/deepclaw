@@ -8,6 +8,7 @@ import  {
   type Task, type AgentEmployee, getTaskProgress, type MissionPriority, type MissionStatus,
   PROJECT_CONFIG
 } from '@deepclaw/core';
+import type { ReportRefusal } from '@deepclaw/loop-gateway';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { AssigneePicker } from './AssigneePicker'
 import { PriorityPicker } from './PriorityPicker'
@@ -16,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
 import { ProgressBar } from '@/laf/progress-bar';
 import {
+  editTaskReport as editTaskReportOnServer,
   finishProjectTask as finishProjectTaskOnServer,
   takeUpProjectTask as takeUpProjectTaskOnServer,
   updateProjectTask as updateProjectTaskToServer,
@@ -27,6 +29,15 @@ import { TaskOutput } from '../../laf/task-output';
 
 /** What a card may ask the server to write, the id of the task being the card's own to fill in. */
 type TaskPatch = Omit<TaskEdit, 'id'>;
+
+/**
+ * What each way of turning a report away reads as. A table rather than the one word it holds today:
+ * a reason added to the union arrives here as a missing key, which is the compiler asking for the
+ * sentence, and not as the one sentence there was said about something else.
+ */
+const REPORT_REFUSALS: Record<ReportRefusal, string> = {
+  working: 'web.pages.output.busy',
+};
 
 type TaskCardProps = {
   task: Task;
@@ -90,6 +101,18 @@ export function TaskCard(
   const patchTask = useCallback((patch: TaskPatch, rollback: Partial<Task>) => {
     draw(patch, rollback, () => updateProjectTaskToServer(projectId, { id: task.id, ...patch }));
   }, [draw, projectId, task.id]);
+
+  // The report is the one write here the card does not draw ahead of the server: the panel it is
+  // written in waits on the answer and says so if it did not go through, and what comes back on the
+  // stream is the report as the disk has it, filed away or not.
+  //
+  // A task a subagent is on is the one thing that turns the writing away, and the reason is said
+  // here because it is the card that knows what a task is: the run comes back with a report of its
+  // own and writes it over this one, so the words are worth keeping until the work is in.
+  const saveReport = useCallback(async (content: string) => {
+    const refusal = await editTaskReportOnServer(projectId, task.id, content);
+    return refusal ? t(REPORT_REFUSALS[refusal]) : undefined;
+  }, [projectId, task.id, t]);
 
   const handlePauseClick = useCallback(() => {
     if (awaitingVerify) return;
@@ -458,7 +481,7 @@ export function TaskCard(
           <ProgressBar value={progress} size="sm" className="mt-2" />
         )}
 
-        {task.output && <TaskOutput output={task.output} title={task.title}/>}
+        {task.output && <TaskOutput output={task.output} title={task.title} onSave={saveReport}/>}
       </div>
 
       <TaskOwnerTooltip

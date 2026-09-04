@@ -618,6 +618,68 @@ export class ProjectManager {
         return task;
     }
 
+    /**
+     * The user rewriting the report of a task, which the board offers wherever a report can be read.
+     *
+     * The words are all this touches. A report was written by whoever did the work and is filed
+     * under the task it is of, and an edit of it is the same report said better: nothing about its
+     * status, its reading, or what it is filed under is the user's business here, and none of it
+     * moves.
+     */
+    public static editTaskReport(projectId: string, taskId: string, content: string): Task {
+        const task = this.getTask(projectId, taskId);
+        if (!task?.output) {
+            throw new Error('This task has no report to rewrite.');
+        }
+        task.output = this.rewrittenReport(
+            task.output, content, projectOutputDir(projectId), FileUtils.hashString(taskId)
+        );
+        this.saveProject(projectId);
+        return task;
+    }
+
+    /** The same by the user's hand, on the report of the project as a whole. */
+    public static editProjectReport(projectId: string, content: string): Project {
+        const project = this.projects[projectId];
+        if (!project?.output) {
+            throw new Error('This project has no report to rewrite.');
+        }
+        project.output = this.rewrittenReport(
+            project.output, content, projectOutputDir(projectId), PROJECT_REPORT
+        );
+        this.saveProject(projectId);
+        return project;
+    }
+
+    /**
+     * A report with the user's words in it, filed away again where the length of them calls for it.
+     *
+     * Written through the same filing every report comes in by, so a short one grown long under the
+     * user's hand goes into a file like any other and a long one cut short comes back out of one.
+     * The file is named as it was named before, so the edit lands on the file the report already
+     * had; the path is dropped first, that being the record of a filing this content has not had
+     * yet, and a short edit left holding it would send every reader to the words it replaced.
+     *
+     * A report edited down under the threshold leaves its file behind with nothing pointing at it,
+     * which the next long edit of the same report writes over.
+     */
+    private static rewrittenReport(
+        report: LLMTaskOutput, content: string, folder: string, name: string
+    ): LLMTaskOutput {
+        if (!content.trim()) {
+            throw new Error('A report rewritten to nothing is not a report.');
+        }
+        // Nothing a task can produce any more, and nothing anybody reads here either: what a
+        // browser is shown of one is a link to the file, so there is no text of it to have edited.
+        if (report.type === 'binary') {
+            throw new Error('A report handed over as a file is not one to rewrite.');
+        }
+        const rewritten: LLMTaskOutput = {...report, content};
+        delete rewritten.path;
+        fileAwayOutput(rewritten, folder, name);
+        return rewritten;
+    }
+
     public static updateCurrentStep(projectId: string, taskId: string, stepIndex: number): TaskStepsContext {
         const task = this.getTask(projectId, taskId);
         const context = task?.stepsStatus;

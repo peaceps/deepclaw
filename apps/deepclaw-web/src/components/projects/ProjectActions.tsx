@@ -8,7 +8,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/lib/store';
 import { useToastStore } from '@/lib/toast-store';
-import { archiveProject, startProject } from '@/server/data';
+import { archiveProject, editProjectReport, startProject } from '@/server/data';
 import { invoke, pushChatMessage } from '@/server/loop-agent';
 import { getLogger } from '@/lib/logger';
 import { ConfirmModal } from '@/laf/confirm-modal';
@@ -63,6 +63,12 @@ export function ProjectActions({project}: {project: SlimProject}) {
         updateProject({id: project.id, archivedAt: new Date().toISOString()});
         archiveProject(project.id).catch(() => setProjects(previousProjects));
     }, [getProjects, project.id, setProjects, updateProject]);
+
+    // The report as the user has put it right, which the panel waits on rather than drawing ahead
+    // of: what the row shows afterwards is what came back on the stream, filed away or not.
+    const saveReport = useCallback(
+        (content: string) => editProjectReport(project.id, content), [project.id]
+    );
 
     /**
      * The date first and the run after, in that order and never together: the run reads the board
@@ -126,6 +132,7 @@ export function ProjectActions({project}: {project: SlimProject}) {
                 modalTitle={t('web.pages.projects.project.report')}
                 label={t('web.pages.projects.project.report')}
                 icon={<FileText size={14} />}
+                onSave={saveReport}
             />}
             {/* Gone for good once the work is on: it is the one word the user gives a project, and
                 a project already under way has nothing to do with it. */}

@@ -1143,6 +1143,117 @@ describe('updateTask steps', () => {
     });
 });
 
+describe('the user rewriting a report', () => {
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    /** A task with a report on it, which is the only kind there is anything here to do to. */
+    function reported(content: string, type: 'markdown' | 'text' = 'markdown'): string {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(manager.getProjectDetail(id).id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', output: {type, content}});
+        return id;
+    }
+
+    test('puts the words of the task report as the user wrote them', () => {
+        const id = reported('what came of it');
+        const task = manager.editTaskReport(id, 'design', 'what really came of it');
+        expect(task.output).toEqual({type: 'markdown', content: 'what really came of it'});
+        expect(manager.getTask(id, 'design')!.output?.content).toBe('what really came of it');
+    });
+
+    test('files an edit away when the user wrote more than a record holds', () => {
+        const id = reported('short enough');
+        const long = 'x'.repeat(1501);
+        const task = manager.editTaskReport(id, 'design', long);
+        expect(mocks.writeFile).toHaveBeenCalledWith(`.projects/${id}/output/hash.md`, long);
+        expect(task.output).toEqual({
+            type: 'markdown',
+            content: '<Content saved to file>',
+            path: `/api/file/projects/${id}/output/hash.md`,
+        });
+    });
+
+    /**
+     * The file the report already had, so an edit of it is read where the report was read before.
+     */
+    test('writes a filed away report over the file it was filed in', () => {
+        const id = reported('x'.repeat(1501));
+        mocks.writeFile.mockClear();
+        manager.editTaskReport(id, 'design', 'y'.repeat(1501));
+        expect(mocks.writeFile).toHaveBeenCalledWith(`.projects/${id}/output/hash.md`, 'y'.repeat(1501));
+    });
+
+    /** Left holding the path, the record would send every reader to the words it replaced. */
+    test('brings a report cut short back into the record', () => {
+        const id = reported('x'.repeat(1501));
+        const task = manager.editTaskReport(id, 'design', 'said in a line');
+        expect(task.output).toEqual({type: 'markdown', content: 'said in a line'});
+    });
+
+    test('keeps the kind of report it was', () => {
+        const id = reported('plain words', 'text');
+        expect(manager.editTaskReport(id, 'design', 'other words').output?.type).toBe('text');
+    });
+
+    test('refuses a report rewritten to nothing', () => {
+        const id = reported('what came of it');
+        expect(() => manager.editTaskReport(id, 'design', '   '))
+            .toThrow('A report rewritten to nothing is not a report.');
+        expect(manager.getTask(id, 'design')!.output?.content).toBe('what came of it');
+    });
+
+    test('refuses a report handed over as a file', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', output: {type: 'binary', content: '', path: '/api/file/x.zip'}});
+        expect(() => manager.editTaskReport(id, 'design', 'words'))
+            .toThrow('A report handed over as a file is not one to rewrite.');
+    });
+
+    test('has nothing to rewrite on a task that reported nothing', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.editTaskReport(id, 'design', 'words'))
+            .toThrow('This task has no report to rewrite.');
+    });
+
+    test('has nothing to rewrite on a task or a project nobody has', () => {
+        const id = reported('what came of it');
+        expect(() => manager.editTaskReport(id, 'ghost', 'words'))
+            .toThrow('This task has no report to rewrite.');
+        expect(() => manager.editTaskReport('ghost', 'design', 'words'))
+            .toThrow('This task has no report to rewrite.');
+        expect(() => manager.editProjectReport('ghost', 'words'))
+            .toThrow('This project has no report to rewrite.');
+    });
+
+    test('puts the words of the project report as the user wrote them', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateProject({id, output: {type: 'markdown', content: '# done'}});
+        const project = manager.editProjectReport(id, '# really done');
+        expect(project.output).toEqual({type: 'markdown', content: '# really done'});
+    });
+
+    /** Beside the reports of its tasks and under its own name, the same as the run files it. */
+    test('files a long project report where the project files one', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateProject({id, output: {type: 'markdown', content: '# done'}});
+        const long = 'x'.repeat(1501);
+        expect(manager.editProjectReport(id, long).output?.path)
+            .toBe(`/api/file/projects/${id}/output/report.md`);
+        expect(mocks.writeFile).toHaveBeenCalledWith(`.projects/${id}/output/report.md`, long);
+    });
+
+    test('has nothing to rewrite on a project that reported nothing', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.editProjectReport(id, 'words'))
+            .toThrow('This project has no report to rewrite.');
+    });
+});
+
 describe('updateCurrentStep', () => {
 
     let manager: ProjectManagerType;

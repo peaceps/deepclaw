@@ -53,6 +53,7 @@ the network with `--host`.
 
 **v0.2.1**
 
+- The report of a task or of a project can now be rewritten in the panel it is read in.
 - A scheduled task's title, schedule and prompt can now be edited on the scheduled tasks page.
 - `deepclaw restart` now stops the server and starts it back up.
 

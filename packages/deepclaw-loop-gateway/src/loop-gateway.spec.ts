@@ -50,6 +50,8 @@ const mocks = vi.hoisted(() => ({
     deleteArchivedProject: vi.fn<(id: string) => unknown>((id: string) => ({id, creator: 'a1'})),
     updateTask: vi.fn(),
     finishTask: vi.fn(),
+    editTaskReport: vi.fn(),
+    editProjectReport: vi.fn(),
     getTask: vi.fn<(projectId: string, taskId: string) => unknown>(() => ({id: 't1', status: 'todo'})),
     getProjectDetail: vi.fn(),
     getProjectList: vi.fn(),
@@ -112,6 +114,8 @@ vi.mock('@deepclaw/agent', () => ({
         deleteArchivedProject: mocks.deleteArchivedProject,
         updateTask: mocks.updateTask,
         finishTask: mocks.finishTask,
+        editTaskReport: mocks.editTaskReport,
+        editProjectReport: mocks.editProjectReport,
         getTask: mocks.getTask,
         getProjectDetail: mocks.getProjectDetail,
         getProjectList: mocks.getProjectList,
@@ -1623,6 +1627,38 @@ describe('data updates', () => {
         expect(() => LoopGateway.finishProjectTask('p1', 't1'))
             .toThrow('This task is being worked on right now.');
         expect(mocks.finishTask).not.toHaveBeenCalled();
+    });
+
+    test('writes a task report the user put right and announces the project', () => {
+        const tasks = {t1: {id: 't1', title: 'task', output: {type: 'markdown', content: 'better'}}};
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks});
+        expect(LoopGateway.editTaskReport('p1', 't1', 'better')).toBeUndefined();
+        expect(mocks.editTaskReport).toHaveBeenCalledWith('p1', 't1', 'better');
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1},
+        });
+    });
+
+    /**
+     * The run comes back with a report of its own and writes it over whatever the user wrote. Said
+     * rather than thrown: the words of a throw do not survive the trip to the browser, and this is
+     * a reason worth arriving -- the work comes back and the report is theirs to write then.
+     */
+    test('turns away a report edited on a task a subagent is on, and says why', () => {
+        mocks.isRunning.mockReturnValue(true);
+        expect(LoopGateway.editTaskReport('p1', 't1', 'better')).toBe('working');
+        expect(mocks.editTaskReport).not.toHaveBeenCalled();
+        expect(events.filter(event => event.eventType === 'updateProject')).toEqual([]);
+        expect(mocks.isRunning).toHaveBeenCalledWith('p1', 't1');
+    });
+
+    test('writes a project report the user put right and announces the project', () => {
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {}});
+        LoopGateway.editProjectReport('p1', '# better');
+        expect(mocks.editProjectReport).toHaveBeenCalledWith('p1', '# better');
+        expect(events.at(-1)).toEqual(expect.objectContaining({
+            eventType: 'updateProject', content: expect.objectContaining({id: 'p1'}),
+        }));
     });
 
     test('collects agents and every project, open and closed', () => {
