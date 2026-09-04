@@ -189,6 +189,19 @@ export const zh = {
                     progress: '进度',
                     report: '项目报告',
                     editDescription: '改写这个项目的描述',
+                    workingDir: {
+                        label: '编辑工作目录',
+                        unset: '使用deepclaw的数据目录',
+                        placeholder: '工作目录，如 C:/Users/foo/bar，按回车确认。项目开始后无法修改。',
+                        edit: '指定这个项目在哪个文件夹里工作。命令从那里起跑，写出来的文件也落在那里。',
+                        settled: '这个项目的工作目录，开工前就定下了',
+                        clear: '改回deepclaw的数据目录',
+                        failed: '工作目录保存失败',
+                        make: {
+                            action: '创建文件夹',
+                            confirm: '「{{path}}」还不存在。是否新建？新建请确保路径无误。',
+                        },
+                    },
                     blockedBy: '前置任务：{{titles}}',
                     labels: {
                         save: '按 Enter 保存',

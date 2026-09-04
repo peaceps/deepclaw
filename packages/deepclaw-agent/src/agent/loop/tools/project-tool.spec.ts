@@ -34,7 +34,10 @@ vi.mock('../../loop-utils', async (importOriginal) => ({
 }));
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
-    FileUtils: {readDir: vi.fn(() => ({})), writeFile: vi.fn(), exists: vi.fn(() => false)},
+    FileUtils: {
+        readDir: vi.fn(() => ({})), writeFile: vi.fn(), exists: vi.fn(() => false),
+        getWorkingDir: () => '/home/someone/.deepclaw',
+    },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
 }));
 
@@ -47,6 +50,8 @@ const getTask = vi.spyOn(ProjectManager, 'getTask');
 const updateCurrentStep = vi.spyOn(ProjectManager, 'updateCurrentStep');
 const getProjectList = vi.spyOn(ProjectManager, 'getProjectList');
 const getProjectDetail = vi.spyOn(ProjectManager, 'getProjectDetail');
+const setWorkingDir = vi.spyOn(ProjectManager, 'setWorkingDir');
+const workingDirOf = vi.spyOn(ProjectManager, 'workingDirOf');
 const getAgent = vi.spyOn(AgentIdentityManager, 'getAgent');
 const getAgents = vi.spyOn(AgentIdentityManager, 'getAgents');
 
@@ -62,6 +67,15 @@ function newProject(overrides: Partial<Project> = {}): Project {
     return {
         id: 'pr1', title: 'ship it', description: 'ship the thing', tasks: {}, ...overrides,
     } as Project;
+}
+
+/**
+ * The project as a browser is handed it: the tasks counted rather than carried, and the folder
+ * named either way. A browser folds what it is handed into the project it holds, so a field left
+ * out of the fold is a field nothing was said about rather than a field that is gone.
+ */
+function announcedProject(): Record<string, unknown> {
+    return {...newProject(), taskCount: 0, workingDir: null};
 }
 
 /**
@@ -87,6 +101,8 @@ beforeEach(() => {
     getProjectDetail.mockReturnValue(newProject());
     getAgent.mockImplementation(id => newIdentity(id));
     getAgents.mockReturnValue([newIdentity('a1'), newIdentity('a2'), newIdentity('a3', true)]);
+    setWorkingDir.mockReturnValue(undefined);
+    workingDirOf.mockReturnValue(undefined);
 });
 
 /** A turn is what ends the work a run took on, and the service holding it is one per process. */
@@ -195,7 +211,7 @@ describe('createProjectTool invoke', () => {
         // A project reaches a browser with the count of its tasks, which a row that never opened
         // holds in place of them.
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
-            eventType: 'updateProject', content: {...newProject(), taskCount: 0},
+            eventType: 'updateProject', content: announcedProject(),
         });
         expect(context.runtime.agentBreakReason).toBeUndefined();
         expect(result).toContain('Project created successfully.');
@@ -226,6 +242,49 @@ describe('updateProjectTool invoke', () => {
         } as Parameters<typeof updateProjectTool.invoke>[0], newTestContext());
         expect(updateProject)
             .toHaveBeenCalledExactlyOnceWith({id: 'pr1', title: 'ship it faster'}, undefined);
+    });
+
+    /**
+     * The folder the work of the project happens in, which a run may name once the user has told it
+     * which one that is. Written through the door that asks after the folder rather than swept into
+     * the patch: what is on the record has to be a folder that is there.
+     */
+    test('sets the folder the project works in', async () => {
+        const result = await updateProjectTool.invoke(
+            {projectId: 'pr1', workingDir: '/home/someone/code/app'}, newTestContext()
+        );
+        expect(setWorkingDir).toHaveBeenCalledExactlyOnceWith('pr1', '/home/someone/code/app');
+        expect(result).toContain('Project updated successfully.');
+    });
+
+    /**
+     * A folder is made on the user's word and no model's, so the refusal is worded as the thing to
+     * do about it. Nothing else of the call is written either: the run comes back with the folder
+     * made and sends the whole call again, which is why this cannot half go through.
+     */
+    test('asks the user about a folder that is not there and writes nothing', async () => {
+        setWorkingDir.mockReturnValue({reason: 'missing', dir: '/home/someone/typo'});
+        const result = await updateProjectTool.invoke(
+            {projectId: 'pr1', title: 'ship it faster', workingDir: '~/typo'},
+            newTestContext()
+        );
+        expect(result).toContain('Nothing of this call was written');
+        // The folder as it came out, not as it was sent: the run has to put the question to the
+        // user about the folder that would be made, which their own words are not yet.
+        expect(result).toContain('/home/someone/typo');
+        expect(result).not.toContain('~/typo');
+        expect(updateProject).not.toHaveBeenCalled();
+    });
+
+    /** The empty word is meant: the project goes back to working where the data is. */
+    test('takes the folder off the project when the word is empty', async () => {
+        await updateProjectTool.invoke({projectId: 'pr1', workingDir: ''}, newTestContext());
+        expect(setWorkingDir).toHaveBeenCalledExactlyOnceWith('pr1', '');
+    });
+
+    test('says nothing about the folder when the call names none', async () => {
+        await updateProjectTool.invoke({projectId: 'pr1', title: 'ship it faster'}, newTestContext());
+        expect(setWorkingDir).not.toHaveBeenCalled();
     });
 
     test('rebuilds the task list when new tasks are given', async () => {
@@ -260,7 +319,7 @@ describe('updateProjectTool invoke', () => {
         const context = newTestContext();
         const result = await updateProjectTool.invoke({projectId: 'pr1'}, context);
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
-            eventType: 'updateProject', content: {...newProject(), taskCount: 0},
+            eventType: 'updateProject', content: announcedProject(),
         });
         expect(result).toContain('Project updated successfully.');
         expect(context.runtime.agentBreakReason).toBeUndefined();
@@ -371,7 +430,7 @@ describe('addTaskTool invoke', () => {
             description: 'build the thing', priority: 'high',
         }, context);
         expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith({
-            eventType: 'updateProject', content: {...newProject(), taskCount: 0},
+            eventType: 'updateProject', content: announcedProject(),
         });
         expect(result).toContain('Task added successfully.');
         expect(result).toContain(JSON.stringify(newProject()));
@@ -618,8 +677,10 @@ describe('updateTaskTool invoke', () => {
             projectId: 'pr1', taskId: 'design', status: 'done',
             output: {type: 'markdown', content: '# done', generatedFiles: ['out/sheet.csv']},
         }, newTestContext());
+        // The folder the run worked in travels with the files: a run names them from where its
+        // own commands started, which is the folder they have to be read against.
         expect(mocks.publishGeneratedFiles).toHaveBeenCalledExactlyOnceWith(
-            expect.anything(), ['out/sheet.csv'], projectFilesDir('pr1')
+            expect.anything(), ['out/sheet.csv'], projectFilesDir('pr1'), '/home/someone/.deepclaw'
         );
         expect(updateTask).toHaveBeenCalledExactlyOnceWith('pr1', {
             id: 'design',

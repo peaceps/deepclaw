@@ -3,8 +3,9 @@ import { ARCHIVED_PROJECT_DIR, PROJECT_DIR, PROJECT_JSON, projectOutputDir } fro
 import {
     type ArchivedProjectsAsk, type ArchivedProjectsPage, type LLMTaskOutput, type Project,
     type SlimProject, type Task, type TaskReview, type TaskStepsContext,
+    type WorkingDirRefusal,
     ARCHIVED_PAGE_SIZE, isProjectStarted, MISSION_PRIORITIES, MissionPriority, PROJECT_CONFIG,
-    projectMatchesWords, slimProject, slimProjectRow,
+    projectForBrowser, projectMatchesWords, slimProjectRow,
 } from '@deepclaw/core';
 import { fileAwayOutput, readOutputContent } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
@@ -293,6 +294,72 @@ export class ProjectManager {
         Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
         this.saveProject(project.id);
         return project;
+    }
+
+    /**
+     * The folder the work of a project happens in, as the user or the agent has just named it. What
+     * is written down is the path resolved, a name given while the process sat somewhere else being
+     * a name that leads elsewhere tomorrow. The empty word takes the folder off the project again,
+     * which is the work going back to where every project without one works.
+     *
+     * Only while the plan is: the work of a project writes into the folder it was working in, and a
+     * project moved halfway leaves half of what it did behind with nothing saying where it went.
+     *
+     * A folder that is not there is answered rather than thrown, and made only when somebody says
+     * so. Making one unasked is how a typo becomes a folder tree beside the one that was meant, so
+     * the making waits for a person, and whoever asked is the one who can put the question to them:
+     * the board with a box in front of them, a run with the tool that asks. Told yes, they come
+     * back saying so, and it is made here. The answer names the folder as it was worked out here,
+     * that being what the question is about: what they wrote is not yet a path.
+     */
+    public static setWorkingDir(
+        projectId: string, dir: string, create: boolean = false
+    ): WorkingDirRefusal | undefined {
+        const project = this.projects[projectId];
+        if (!project) {
+            throw new Error(`Project ${projectId} not found.`);
+        }
+        if (isProjectStarted(project)) {
+            throw new Error('The working dir of a project is settled before the work of it starts.');
+        }
+        const named = dir.trim();
+        if (!named) {
+            delete project.workingDir;
+            this.saveProject(projectId);
+            return undefined;
+        }
+        // A path a person wrote rather than one a program produced, so a leading ~ is their home
+        // folder: it is how a path is written down everywhere else, and taken as it stands it is a
+        // folder called ~ beside the data, made and reported as the folder they asked for.
+        const folder = FileUtils.getAbsolutePath(FileUtils.expandHome(named));
+        // Said apart from the folder that is not there, and not made on any word: a file standing
+        // where the folder was meant is a name that is wrong rather than a folder still to make.
+        if (FileUtils.isFile(folder)) {
+            throw new Error(`${folder} is a file. A project works in a folder.`);
+        }
+        if (!FileUtils.isDir(folder)) {
+            if (!create) {
+                return {reason: 'missing', dir: folder};
+            }
+            FileUtils.createDir(folder);
+        }
+        project.workingDir = folder;
+        this.saveProject(projectId);
+        return undefined;
+    }
+
+    /**
+     * Where the work of this project happens, and nothing at all where that is the data root.
+     *
+     * Asked afresh of the disk every time rather than read off the record. A folder written down
+     * last week can have been moved or deleted since, and a run whose commands start in a folder
+     * that is not there is a run where every command fails at once, saying that the machine is
+     * broken rather than that a folder is gone. Answered with nothing, the run works where every
+     * run without a folder of its own works, which is the thing that still goes.
+     */
+    public static workingDirOf(projectId: string): string | undefined {
+        const dir = this.projects[projectId]?.workingDir;
+        return dir && FileUtils.isDir(dir) ? dir : undefined;
     }
 
     private static convertTasks(tasks: Task[]): Record<string, Task> {
@@ -968,7 +1035,7 @@ export class ProjectManager {
     public static fireProjectInfoEvent(projectId: string, context: OneLoopContext): void {
         context.actions.agentHandler.onInfoEvent({
             eventType: 'updateProject',
-            content: slimProject(this.getProjectDetail(projectId)),
+            content: projectForBrowser(this.getProjectDetail(projectId)),
         });
     }
 

@@ -140,6 +140,47 @@ describe('FileUtils', () => {
             .toBe(FileUtils.getAbsolutePath('tmp/note.md'));
     });
 
+    /**
+     * A project the user gave a folder of its own reads its names against that folder, its commands
+     * having started there. A name that says where it is in full says the same thing either way.
+     */
+    test('getAbsolutePath reads a relative name against the folder it was given', () => {
+        const base = path.join(tempDir, 'repo').replaceAll('\\', '/');
+        expect(FileUtils.getAbsolutePath('src/index.ts', base)).toBe(`${base}/src/index.ts`);
+        expect(FileUtils.getAbsolutePath(`${base}/src/index.ts`, base))
+            .toBe(`${base}/src/index.ts`);
+        expect(FileUtils.getAbsolutePath('src\\index.ts', base)).toBe(`${base}/src/index.ts`);
+    });
+
+    describe('isDir', () => {
+
+        test('answers true for a folder that is there', () => {
+            FileUtils.writeFile('tmp/folders/deep/note.md', 'x');
+            expect(FileUtils.isDir('tmp/folders/deep')).toBe(true);
+        });
+
+        /** Existing is not enough where a folder is what a path has to be. */
+        test('answers false for a file and for what is not there at all', () => {
+            FileUtils.writeFile('tmp/folders/note.md', 'x');
+            expect(FileUtils.isDir('tmp/folders/note.md')).toBe(false);
+            expect(FileUtils.isDir('tmp/folders/nowhere')).toBe(false);
+        });
+    });
+
+    describe('createDir', () => {
+
+        test('makes the folder and every folder above it', () => {
+            FileUtils.createDir('tmp/made/deeper/still');
+            expect(FileUtils.isDir('tmp/made/deeper/still')).toBe(true);
+        });
+
+        test('leaves a folder that is already there as it is', () => {
+            FileUtils.writeFile('tmp/standing/note.md', 'x');
+            FileUtils.createDir('tmp/standing');
+            expect(FileUtils.readFile('tmp/standing/note.md')).toBe('x');
+        });
+    });
+
     test('isPathInWorkspace returns true for deepclaw temp path', () => {
         const tmpPath = path.join(os.tmpdir(), '.deepclaw', 'subloop', 'sid', 'messages.json');
         expect(FileUtils.isPathInWorkspace(tmpPath)).toBe(true);
@@ -148,6 +189,49 @@ describe('FileUtils', () => {
     test('writeFile sanitizes illegal characters in file name while keeping folders', () => {
         FileUtils.writeFile('tmp/sanitize/na?me*<x>.md', 'sanitized');
         expect(FileUtils.readFile('tmp/sanitize/na_me__x_.md')).toBe('sanitized');
+    });
+
+    /**
+     * The folders a name lies in are usually not the caller's at all: a path read against the data
+     * root, or against the folder a project works in, arrives here with that folder in front of it.
+     * Every one of these characters is legal in a folder somewhere -- a checkout under ~/code/@acme,
+     * a home whose user name carries a quote -- and rewriting them names a folder tree standing
+     * beside the real one, which a write lands in silently and the read after it finds nothing of.
+     */
+    test('sanitizeFileName leaves the folders a name lies in alone', () => {
+        expect(FileUtils.sanitizeFileName('/home/o\'brien/code/@acme/app & co/src/a.ts'))
+            .toBe('/home/o\'brien/code/@acme/app & co/src/a.ts');
+        expect(FileUtils.sanitizeFileName('C:/Users/~o\'b/git/repo/note?.md'))
+            .toBe('C:/Users/~o\'b/git/repo/note_.md');
+    });
+
+    /** Written and read under the one name, whatever the folders above it are called. */
+    test('writes into a folder whose own name would have been rewritten', () => {
+        FileUtils.writeFile('tmp/@acme/a & b/src/na?me.md', 'kept');
+        expect(FileUtils.readFile('tmp/@acme/a & b/src/na_me.md')).toBe('kept');
+        expect(onDisk('tmp/@acme/a & b/src')).toEqual(['na_me.md']);
+    });
+
+    /**
+     * What a person means by a ~, since nothing between here and the disk reads one that way and
+     * the character is a legal name for a folder: a path taken as it stands makes a folder called
+     * ~ beside the data and reports the folder they asked for as made.
+     */
+    describe('expandHome', () => {
+
+        test('reads a leading ~ as the home folder', () => {
+            const home = os.homedir().replaceAll('\\', '/');
+            expect(FileUtils.expandHome('~/work/repo')).toBe(`${home}/work/repo`);
+            expect(FileUtils.expandHome('~\\work\\repo')).toBe(`${home}/work/repo`);
+            expect(FileUtils.expandHome('  ~  ')).toBe(home);
+        });
+
+        /** A tilde anywhere else is a character of a name, and another's home is not ours to find. */
+        test('leaves every other tilde where it stands', () => {
+            expect(FileUtils.expandHome('~other/work')).toBe('~other/work');
+            expect(FileUtils.expandHome('/home/someone/PROGRA~1')).toBe('/home/someone/PROGRA~1');
+            expect(FileUtils.expandHome('work/~/repo')).toBe('work/~/repo');
+        });
     });
 
     /**

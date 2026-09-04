@@ -17,8 +17,10 @@ const trunkcateThreshold = 20000;
  * nothing filed and nothing saying anything was lost. A caller that wants a preview wants a path
  * beside it, which is what runCommandAsync gives the background commands.
  */
-export async function runCommand(command: string, signal?: AbortSignal): Promise<{output: string}> {
-    const {output} = await runCommandAsync(command, signal);
+export async function runCommand(
+    command: string, signal?: AbortSignal, cwd?: string
+): Promise<{output: string}> {
+    const {output} = await runCommandAsync(command, signal, cwd);
     return {output};
 }
 
@@ -30,7 +32,7 @@ export async function runCommand(command: string, signal?: AbortSignal): Promise
  * stopped is the waiting rather than always the work.
  */
 export function runCommandAsync(
-    command: string, signal?: AbortSignal
+    command: string, signal?: AbortSignal, cwd?: string
 ): Promise<{output: string, preview: string}> {
     const options = {
         timeout: childProcessTimeout * 1000,
@@ -38,7 +40,13 @@ export function runCommandAsync(
         // A relative path in a command means what it means everywhere else, the data root. The web
         // ui is a server started from wherever it was installed, and a run of it that wrote its
         // work beside that installation would have written it out of reach of the whole app.
-        cwd: FileUtils.getWorkingDir(),
+        //
+        // A caller with a folder of its own names it: the work of a project given one happens
+        // there, and a command of that work starting anywhere else is a command run beside the
+        // files it is about. Whoever names it has asked whether it is still a folder that is
+        // there -- a cwd that is not is a command that never starts, and the answer to that says
+        // the machine broke rather than that a folder was moved.
+        cwd: cwd || FileUtils.getWorkingDir(),
         shell,
         windowsHide: true,
         encoding: 'buffer',

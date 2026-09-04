@@ -246,6 +246,12 @@ describe('keptOutput', () => {
 describe('publishGeneratedFiles', () => {
 
     const HEADLINE = 'agent.tools.project.output.generatedFiles';
+    /**
+     * A folder of a project's own, written the way this system writes one: a rooted path with no
+     * drive on it is a path on whatever drive the test happens to run from, and the resolving would
+     * put it there while the folder it is compared against stayed as it was written.
+     */
+    const REPO = `${process.cwd().replaceAll('\\', '/')}/repo/app`;
 
     function publish(output: NonNullable<LLMTaskOutput>, files: string[]) {
         return publishGeneratedFiles(output, files, FILES);
@@ -498,5 +504,33 @@ ${HEADLINE}:
         const output = newOutput({type: 'markdown', content: 'the report'});
         publish(output, ['/etc/passwd']);
         expect(output.content).toBe('the report');
+    });
+
+    /**
+     * A run whose project works in a folder of its own names its files from in there, its commands
+     * having started there. Read against the data root instead, every one of them is a file that is
+     * not there and the whole of the work goes unhanded.
+     */
+    test('reads a name against the folder the run worked in', () => {
+        const output = newOutput({type: 'markdown'});
+        const {published} = publishGeneratedFiles(output, ['dist/app.zip'], FILES, REPO);
+        expect(published).toEqual(['dist/app.zip']);
+        expect(mocks.writeFile).toHaveBeenCalledWith(
+            `${FILES}/app.zip`, Buffer.from(`bytes of ${REPO}/dist/app.zip`)
+        );
+    });
+
+    /**
+     * The folder the user named for the project is as much inside the workspace as the data root
+     * is: they said the work belongs in there, and a file of that work is the work getting out.
+     */
+    test('hands over a file lying in that folder though it is outside the data root', () => {
+        mocks.isPathInWorkspace.mockReturnValue(false);
+        const output = newOutput({type: 'markdown'});
+        const {published, skipped} = publishGeneratedFiles(
+            output, [`${REPO}/dist/app.zip`, '/etc/passwd'], FILES, REPO
+        );
+        expect(published).toEqual([`${REPO}/dist/app.zip`]);
+        expect(skipped).toEqual(['/etc/passwd']);
     });
 });

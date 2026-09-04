@@ -6,6 +6,7 @@ import { type SlimProject, isProjectStarted, PROJECT_CONFIG } from '@deepclaw/co
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
 import { ProjectActions } from './ProjectActions';
+import { ProjectWorkingDir } from './ProjectWorkingDir';
 import { useProjectTasks } from '@/lib/use-project-tasks';
 import { useAppStore } from '@/lib/store';
 import { useEditableField } from '@/lib/use-editable-field';
@@ -91,6 +92,9 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                 </div>
             ) : (
                 <div className="flex-1 min-h-0 lg:overflow-y-auto p-4 bg-gray-50/50 w-full">
+                    {/* Above the tasks and not among them: it says where the work of all of them
+                        happens, and it is settled before any of them goes out. */}
+                    <ProjectWorkingDir project={project} />
                     {/* No tasks held is a project not read yet rather than a project with none:
                         which of the two it is, only the answer coming back can say. */}
                     {!tasks ? (

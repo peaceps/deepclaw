@@ -11,6 +11,7 @@ import { SEEDREAM_MODELS, SeedreamImageGenerator } from '../../image/seedream-im
 import { IMAGE_FOOT_PRINT, OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
 import { fileGuard } from './file-tool';
+import { runPath } from '../run-dir';
 
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 
@@ -127,10 +128,13 @@ front of the user; nothing of it is sent to the model.`,
     agentMode: ['agent'],
     parallelSafe: true,
     invoke: async function(input: KeepImageInput, context: OneLoopContext): Promise<string> {
-        const filePath = input.filePath?.trim();
+        // Read against the folder this run works in, the same as the command that wrote the picture
+        // named it: a screenshot taken in a project's own folder is named from there.
+        const named = input.filePath?.trim();
+        const filePath = named ? runPath(context, named) : '';
         const extension = filePath ? imageExtensionOf(filePath) : null;
         if (!extension) {
-            throw new Error(i18nInstance.t('agent.tools.image.notAPicture', {path: filePath}));
+            throw new Error(i18nInstance.t('agent.tools.image.notAPicture', {path: named}));
         }
         // Asked of the file rather than of its bytes: a picture too big to keep is too big to read
         // into memory first. What is no file at all answers nothing and is left to the read below,

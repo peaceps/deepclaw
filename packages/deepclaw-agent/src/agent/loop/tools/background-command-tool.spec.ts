@@ -17,6 +17,8 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     runCommandAsync: vi.fn(),
 }));
 
+vi.mock('../run-dir', () => ({runWorkingDir: () => '/workspace/repo'}));
+
 const runCommand = vi.spyOn(BackgroundCommandManager, 'runCommand');
 const getCommandStatus = vi.spyOn(BackgroundCommandManager, 'getCommandStatus');
 const getAllCommandsStatus = vi.spyOn(BackgroundCommandManager, 'getAllCommandsStatus');
@@ -82,6 +84,14 @@ describe('runBackgroundCommandTool invoke', () => {
         const [command, sessionDir] = runCommand.mock.calls[0]!;
         expect(sessionDir).toBe('.agents/a1/session');
         expect(command.creator).toBe('agent.a1');
+    });
+
+    /** The same folder a command waited on starts in: one shell, one machine, one meaning. */
+    test('starts the command in the folder the run works in', async () => {
+        await runBackgroundCommandTool.invoke(
+            {title: 'build', command: 'npm run build'}, newTestContext()
+        );
+        expect(runCommand.mock.calls[0]![3]).toBe('/workspace/repo');
     });
 
     test('leaves the command under the signal of the run that started it', async () => {

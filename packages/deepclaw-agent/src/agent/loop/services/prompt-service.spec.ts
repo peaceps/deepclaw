@@ -22,6 +22,10 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     FileUtils: {
         readFile: mocks.readFile, readDir: mocks.readDir, exists: mocks.exists,
         getWorkingDir: mocks.getWorkingDir,
+        // The prompt names a folder in full where it names one at all, so a run working somewhere
+        // of its own can find it: a path told to such a run relatively leads somewhere else.
+        getAbsolutePath: (path: string, base?: string) =>
+            path.startsWith('/') ? path : `${base || mocks.getWorkingDir()}/${path}`,
     },
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
@@ -73,6 +77,7 @@ async function loadService(setup: () => void = () => undefined) {
             .mockReturnValue('the project tools'),
         boardTools: vi.spyOn(ProjectManager, 'promptBoardTools')
             .mockReturnValue('the board tools'),
+        workingDirOf: vi.spyOn(ProjectManager, 'workingDirOf').mockReturnValue(undefined),
         taskDelegation: vi.spyOn(ProjectManager, 'promptTaskDelegation')
             .mockReturnValue('hand the tasks over'),
         cronTaskDetail: vi.spyOn(CronService, 'getCronTaskDetail')
@@ -113,6 +118,56 @@ describe('platform and language', () => {
         const {PromptService} = await loadService();
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain('give it a folder of its own in that directory');
+    });
+
+    /**
+     * What the run is told it works in has to be the folder its commands really start in. Told the
+     * data root while the shell starts in a repository, every relative path it writes down lands
+     * somewhere else than where it looked.
+     */
+    test('names the folder of a project that works in one of its own', async () => {
+        const {PromptService, workingDirOf} = await loadService();
+        workingDirOf.mockReturnValue('/home/someone/code/deepclaw');
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'project', 'p1', 'main'
+        );
+        expect(workingDirOf).toHaveBeenCalledWith('p1');
+        expect(cacheable).toContain('working in "/home/someone/code/deepclaw".');
+        expect(cacheable).toContain('The work of the\nproject belongs in there');
+        expect(cacheable).not.toContain('give it a folder of its own in that directory');
+    });
+
+    /** A run works on the project it was pointed at, not the one whose chat it was started for. */
+    test('names the folder of the project a spawned loop was handed a task of', async () => {
+        const {PromptService, workingDirOf} = await loadService();
+        workingDirOf.mockReturnValue('/home/someone/code/deepclaw');
+        PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'agent', '', 'sub', {projectId: 'p9', taskId: 'design'}
+        );
+        expect(workingDirOf).toHaveBeenCalledWith('p9');
+    });
+
+    /** A cron task carries its own id in that field and is no project to ask the board about. */
+    test('leaves a scheduled run working where the data is', async () => {
+        const {PromptService, workingDirOf} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'cron', 'c1', 'main'
+        );
+        expect(workingDirOf).not.toHaveBeenCalled();
+        expect(cacheable).toContain(`working in "${WORKING_DIR}".`);
+    });
+
+    /**
+     * A run working in a folder of its own reads a relative name from in there, so the shelf it
+     * hands files over on is named in full: a project folder with our own `.projects` invented
+     * inside it is a shelf the browser serves nothing off.
+     */
+    test('names the hand over folder in full', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(
+            newTestAgentConfig(), undefined, 'project', 'p1', 'main'
+        );
+        expect(cacheable).toContain(`${WORKING_DIR}/.projects/p1/files`);
     });
 
     test('asks the model to answer in the configured language', async () => {

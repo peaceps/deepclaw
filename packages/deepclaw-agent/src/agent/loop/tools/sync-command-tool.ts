@@ -3,6 +3,7 @@ import { runCommand, childProcessTimeout} from '@deepclaw/node-utils';
 import { DEFAULT_LOOP_KINDS, ToolDesc } from '../../definitions/tool-definitions';
 import { isRunStopped, OneLoopContext, RUN_COMMAND_FOOT_PRINT } from '../../definitions/definitions';
 import { commandGuard } from './command-guard';
+import { runWorkingDir } from '../run-dir';
 
 type SyncCommandInput = {
     command: string;
@@ -42,7 +43,7 @@ async function execute(input: SyncCommandInput, context: OneLoopContext): Promis
         // away and comes back as a path, and a preview is cut to that very limit, so handing one
         // over lands just under the line every time: nothing is filed, nothing says a cut happened,
         // and the tail of a long output is gone with no way left to ask for it.
-        const { output } = await runCommand(command, context.abortSignal);
+        const { output } = await runCommand(command, context.abortSignal, runWorkingDir(context));
         return !output ? i18nInstance.t('agent.tools.syncCommand.empty'): output;
     } catch (error: any) {
         // A stopped command is killed with the very signal a command out of time is killed with,

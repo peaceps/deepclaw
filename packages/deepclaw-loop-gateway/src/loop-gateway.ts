@@ -15,9 +15,10 @@ import type {
     SlimProject,
     ArchivedProjectsAsk,
     ArchivedProjectsPage,
+    WorkingDirRefusal,
 } from "@deepclaw/core";
 import {
-    getLoopId, INTERACTION_TIMEOUT, newMessage, splitLoopId, slimProject,
+    getLoopId, INTERACTION_TIMEOUT, newMessage, projectForBrowser, splitLoopId, slimProject,
     slimProjectRow, type CronTask, type CronJobHistory
 } from "@deepclaw/core";
 import { globalize, UpdateContent } from "@deepclaw/utils";
@@ -631,6 +632,32 @@ class LoopGatewayImpl {
     }
 
     /**
+     * The user saying where the work of a project should happen, from the box on the board.
+     *
+     * Answered rather than thrown where the folder is only missing, the way an edit of a report is:
+     * making a folder is a thing to put to the user first -- a path with a letter wrong in it makes
+     * a folder tree beside the one they meant, and nothing afterwards would look wrong. The browser
+     * asks them, and comes back here with `create` when they said yes. Everything else about the
+     * ask is thrown, having nothing the user could do about it.
+     */
+    public static setProjectWorkingDir(
+        projectId: string, workingDir: string, create: boolean = false
+    ): WorkingDirRefusal | undefined {
+        const refused = ProjectManager.setWorkingDir(projectId, workingDir, create);
+        if (refused) {
+            return refused;
+        }
+        // The one field rather than the whole project, this being the user writing in a box and
+        // the folder the whole of what the other tabs have to hear. Null where it was taken off:
+        // a browser folds what it is handed in, and an absent field is one nothing was said about.
+        this.fireSSEEvent({
+            eventType: 'updateProject',
+            content: {id: projectId, workingDir: ProjectManager.workingDirOf(projectId) ?? null},
+        });
+        return undefined;
+    }
+
+    /**
      * The user setting the work of a project going, and every browser told the moment it is written:
      * a project starts once and the button for it goes with the start, so a second tab showing that
      * button on a project already under way is the one thing that has to be put right at once.
@@ -911,7 +938,7 @@ class LoopGatewayImpl {
     private static announceProject(projectId: string): void {
         this.fireSSEEvent({
             eventType: 'updateProject',
-            content: slimProject(ProjectManager.getProjectDetail(projectId)),
+            content: projectForBrowser(ProjectManager.getProjectDetail(projectId)),
         });
     }
 

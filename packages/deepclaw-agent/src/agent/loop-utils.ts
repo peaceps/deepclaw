@@ -136,9 +136,14 @@ export function keptOutput(
  * A file a task produced lies where only the agent can reach it, so a path to it in the output is
  * a dead end for the user. Linked from the folder the work of that project is handed over in, the
  * file becomes something they can just click, and a picture is shown in the output instead.
+ *
+ * `base` is the folder the run named the files from, for the project that works in one of its own:
+ * the names come out of the same run whose commands started there, so they are read from there and
+ * a file lying there is as much inside the workspace as one beside the data. Nothing for a run
+ * working where the data is, which is the folder a name is read against anyway.
  */
 export function publishGeneratedFiles(
-    output: NonNullable<LLMTaskOutput>, files: string[], folder: string
+    output: NonNullable<LLMTaskOutput>, files: string[], folder: string, base?: string
 ): {published: string[], skipped: string[]} {
     const published: string[] = [];
     // The schema of the tool asks for the cap, only a well behaved model keeps to what it asks.
@@ -147,13 +152,19 @@ export function publishGeneratedFiles(
     const lines: string[] = [];
     const names = new Set<string>();
     for (const file of wanted.slice(0, MAX_GENERATED_FILES)) {
-        // Everything the agent can read is not what the browser may be handed: only the workspace.
-        if (!FileUtils.isPathInWorkspace(file)) {
+        // Read against the folder the run named it from, and left as it was written where that is
+        // the data root, which is what a name is read against anyway.
+        const named = base ? FileUtils.getAbsolutePath(file, base) : file;
+        // Everything the agent can read is not what the browser may be handed: only the workspace,
+        // and the folder this run works in where that lies somewhere else.
+        const inside = FileUtils.isPathInWorkspace(named)
+            || (!!base && FileUtils.isPathInside(base, named));
+        if (!inside) {
             skipped.push(file);
             continue;
         }
         try {
-            lines.push(handOver(output.type, file, folder, names));
+            lines.push(handOver(output.type, named, folder, names));
             published.push(file);
         } catch {
             // A folder, a file that is not there, a file that cannot be read: none to hand over.

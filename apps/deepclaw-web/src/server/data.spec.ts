@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {
     type AgentEmployee, type AgentSoulIdentity, type ArchivedProjectsAsk,
-    type ArchivedProjectsPage, type CronJobHistory,
+    type ArchivedProjectsPage, type CronJobHistory, type WorkingDirRefusal,
 } from '@deepclaw/core';
 import {type SkillInfo} from '@deepclaw/loop-gateway';
 import {type UpdateContent} from '@deepclaw/utils';
@@ -10,13 +10,16 @@ import {
     deleteArchivedProject, finishProjectTask, getActiveAgents, getArchivedProjects, getCronHistories,
     getSkills, restoreProject, setSkillAgents, takeUpProjectTask, updateAgentIdentity,
     editCronTask, editProjectReport, editTaskReport, updateCronTaskStatus,
-    updateProjectDescription, updateProjectTags, updateProjectTask,
+    setProjectWorkingDir, updateProjectDescription, updateProjectTags, updateProjectTask,
 } from './data';
 
 const mocks = vi.hoisted(() => ({
     updateAgentIdentity: vi.fn<(identity: object) => void>(),
     updateProjectTags: vi.fn<(projectId: string, tags: string[]) => void>(),
     updateProjectDescription: vi.fn<(projectId: string, description: string) => void>(),
+    setProjectWorkingDir: vi.fn<
+        (projectId: string, workingDir: string, create?: boolean) => WorkingDirRefusal | undefined
+    >(),
     updateProjectTask: vi.fn<(projectId: string, task: object) => void>(),
     takeUpProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
     finishProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
@@ -41,6 +44,7 @@ vi.mock('@deepclaw/loop-gateway', () => ({
         updateAgentIdentity: mocks.updateAgentIdentity,
         updateProjectTags: mocks.updateProjectTags,
         updateProjectDescription: mocks.updateProjectDescription,
+        setProjectWorkingDir: mocks.setProjectWorkingDir,
         updateProjectTask: mocks.updateProjectTask,
         takeUpProjectTask: mocks.takeUpProjectTask,
         finishProjectTask: mocks.finishProjectTask,
@@ -171,6 +175,51 @@ describe('updateProjectDescription', () => {
         await expect(updateProjectDescription('p1', 'a shop')).rejects.toThrow('gateway down');
         expect(console.error)
             .toHaveBeenCalledWith('Error saving project description:', expect.any(Error));
+    });
+});
+
+describe('setProjectWorkingDir', () => {
+
+    test('stores the folder and revalidates the layout', async () => {
+        expect(await setProjectWorkingDir('p1', '/home/someone/code/app')).toBeUndefined();
+        expect(mocks.setProjectWorkingDir)
+            .toHaveBeenCalledWith('p1', '/home/someone/code/app', false);
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    /** Emptying the box is meant here: the project goes back to working beside the data. */
+    test('takes the folder off the project for an empty word', async () => {
+        await setProjectWorkingDir('p1', '');
+        expect(mocks.setProjectWorkingDir).toHaveBeenCalledWith('p1', '', false);
+    });
+
+    /**
+     * A folder that is not there comes back as itself, the browser having a question to put to the
+     * user about it, and it comes back naming the folder: what they typed is not a path yet, and a
+     * question about their words is a yes to a folder nobody showed them. A throw would reach them
+     * as a digest with none of the words in it.
+     */
+    test('answers with what turned the folder away and revalidates nothing', async () => {
+        mocks.setProjectWorkingDir.mockReturnValue({reason: 'missing', dir: '/home/someone/typo'});
+        expect(await setProjectWorkingDir('p1', '~/typo'))
+            .toEqual({reason: 'missing', dir: '/home/someone/typo'});
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    test('passes the word to make the folder along', async () => {
+        await setProjectWorkingDir('p1', '/home/someone/code/app', true);
+        expect(mocks.setProjectWorkingDir)
+            .toHaveBeenCalledWith('p1', '/home/someone/code/app', true);
+    });
+
+    test('reports a failing gateway', async () => {
+        mocks.setProjectWorkingDir.mockImplementation(() => {
+            throw new Error('gateway down');
+        });
+        await expect(setProjectWorkingDir('p1', '/home/someone/code/app'))
+            .rejects.toThrow('gateway down');
+        expect(console.error)
+            .toHaveBeenCalledWith('Error saving project working dir:', expect.any(Error));
     });
 });
 

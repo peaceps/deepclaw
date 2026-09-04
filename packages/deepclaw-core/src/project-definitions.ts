@@ -1,3 +1,4 @@
+import type { UpdateContent } from "@deepclaw/utils";
 import type { LLMTaskOutput } from "./flush-agent-types";
 
 export type MissionStatus = 'todo' | 'ongoing' | 'done';
@@ -27,6 +28,24 @@ export const PROJECT_CONFIG = {
     maxTaskDescriptionLength: 100,
     maxProjectDescriptionLength: 80,
 } as const;
+
+/**
+ * What turned an ask to work in a folder away. Only an answer the person who asked can do something
+ * about is worth a word of its own -- `missing` is a folder to make, and they are the ones to say
+ * whether it should be -- and everything else about such an ask throws.
+ */
+export type WorkingDirRefusal = {
+    reason: 'missing';
+    /**
+     * The folder as it was worked out here, which is the one that would be made.
+     *
+     * Carried because the question is put to whoever asked, and a question has to name what it is
+     * about: a path is read against the data root and a leading `~` is their home folder, so the
+     * words they typed are not the folder they would get. Asked about those words they would be
+     * agreeing to a path nobody had shown them.
+     */
+    dir: string;
+};
 
 export type Project = {
     id: string;
@@ -63,6 +82,25 @@ export type Project = {
     creator: string;
     priority: MissionPriority;
     tags?: string[];
+    /**
+     * The folder the work of this project happens in, absent for the projects that want none.
+     *
+     * Absent is the ordinary case and means the data root, which is where everything a run reads or
+     * writes lies by default. A project given one instead works there: commands start in it, a
+     * relative path names a file in it, and reaching for a path under it is not the run reaching
+     * outside the workspace. Which is what a project of code wants -- the repository is where the
+     * work is, and a checkout copied under `.projects` to be worked on is a checkout nobody can
+     * build from.
+     *
+     * Settled while the project is still being planned and closed to rewriting after that: the work
+     * of a project writes into the folder it was working in, and a project moved halfway leaves
+     * half of what it did behind with nothing saying where.
+     *
+     * What is here is a path and no promise about it. A folder can be deleted or renamed at any
+     * moment after it was written down, so every run reads it through the manager, which answers
+     * with it only while it is still a folder that is there.
+     */
+    workingDir?: string;
     /**
      * What the whole of the work came to, as opposed to what each task of it produced. The tasks
      * are handed out one by one and read back the same way, so nothing of a project says how it
@@ -101,6 +139,19 @@ export type SlimProject = Omit<Project, 'tasks'> & {
 /** The whole project, tasks and all. The count travels with them, never apart. */
 export function slimProject(project: Project): SlimProject {
     return {...project, taskCount: Object.keys(project.tasks).length};
+}
+
+/**
+ * The whole project on its way to a browser, which folds what it is handed into the project it
+ * holds already.
+ *
+ * A field left out of that fold is a field nothing was said about rather than a field that is
+ * gone, so the fields a write can take off a project are named as null. The working dir is the one
+ * of them: sent whole and silent about it, a project whose folder was just taken off is a project
+ * whose folder every board goes on showing until the page is loaded again.
+ */
+export function projectForBrowser(project: Project): UpdateContent<SlimProject> {
+    return {...slimProject(project), workingDir: project.workingDir ?? null};
 }
 
 /**

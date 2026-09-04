@@ -25,6 +25,26 @@ describe('runCommandAsync', () => {
         }
     });
 
+    /**
+     * A project the user gave a folder of its own is worked in that folder, so the commands of it
+     * start there: told it is working in a repository and then run beside the data instead, a run
+     * reads none of the files it was pointed at.
+     */
+    test('starts the command in the folder the caller named', async () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'deepclaw-cwd-'));
+        const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'deepclaw-repo-'));
+        vi.stubEnv('DEEPCLAW_HOME', home);
+        try {
+            const {output} = await runCommandAsync(
+                `node -e "process.stdout.write(process.cwd())"`, undefined, repo
+            );
+            expect(fs.realpathSync(output)).toBe(fs.realpathSync(repo));
+        } finally {
+            fs.rmSync(home, {recursive: true, force: true});
+            fs.rmSync(repo, {recursive: true, force: true});
+        }
+    });
+
     test('returns the trimmed stdout of the command', async () => {
         const {output} = await runCommandAsync('echo deepclaw');
         expect(output).toBe('deepclaw');
@@ -73,6 +93,18 @@ describe('runCommand', () => {
      */
     test('offers no preview, having no path to offer beside one', async () => {
         expect(await runCommand('echo deepclaw')).not.toHaveProperty('preview');
+    });
+
+    test('starts the command in the folder the caller named', async () => {
+        const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'deepclaw-repo-'));
+        try {
+            const {output} = await runCommand(
+                `node -e "process.stdout.write(process.cwd())"`, undefined, repo
+            );
+            expect(fs.realpathSync(output)).toBe(fs.realpathSync(repo));
+        } finally {
+            fs.rmSync(repo, {recursive: true, force: true});
+        }
     });
 });
 

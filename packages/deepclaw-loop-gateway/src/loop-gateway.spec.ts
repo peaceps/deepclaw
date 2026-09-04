@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {
     type AgentHandler, type AgentInvokeOptions, type AgentInvokeResponse, type AgentRuntime,
-    type CronTask
+    type CronTask, type WorkingDirRefusal
 } from '@deepclaw/core';
 import {type AgentConfig, type DeepclawConfig} from '@deepclaw/config';
 import type {CarriedLoopState} from '@deepclaw/agent';
@@ -52,6 +52,10 @@ const mocks = vi.hoisted(() => ({
     finishTask: vi.fn(),
     editTaskReport: vi.fn(),
     editProjectReport: vi.fn(),
+    setWorkingDir: vi.fn<
+        (id: string, dir: string, create?: boolean) => WorkingDirRefusal | undefined
+    >(),
+    workingDirOf: vi.fn<(id: string) => string | undefined>(),
     getTask: vi.fn<(projectId: string, taskId: string) => unknown>(() => ({id: 't1', status: 'todo'})),
     getProjectDetail: vi.fn(),
     getProjectList: vi.fn(),
@@ -116,6 +120,8 @@ vi.mock('@deepclaw/agent', () => ({
         finishTask: mocks.finishTask,
         editTaskReport: mocks.editTaskReport,
         editProjectReport: mocks.editProjectReport,
+        setWorkingDir: mocks.setWorkingDir,
+        workingDirOf: mocks.workingDirOf,
         getTask: mocks.getTask,
         getProjectDetail: mocks.getProjectDetail,
         getProjectList: mocks.getProjectList,
@@ -1237,6 +1243,51 @@ describe('data updates', () => {
         });
     });
 
+    /**
+     * The one field rather than the whole project: a browser merges what it is handed, and a
+     * project sent whole with no folder on it any more is a project whose folder every other tab
+     * would go on showing.
+     */
+    test('announces the folder a project was given', () => {
+        mocks.workingDirOf.mockReturnValue('/home/someone/code/app');
+        expect(LoopGateway.setProjectWorkingDir('p1', '/home/someone/code/app')).toBeUndefined();
+        expect(mocks.setWorkingDir)
+            .toHaveBeenCalledWith('p1', '/home/someone/code/app', false);
+        expect(events).toContainEqual({
+            eventType: 'updateProject',
+            content: {id: 'p1', workingDir: '/home/someone/code/app'},
+        });
+    });
+
+    /** Null is how a browser is told a field is gone, absent leaving it as it was. */
+    test('announces a folder taken off as nothing at all', () => {
+        mocks.workingDirOf.mockReturnValue(undefined);
+        LoopGateway.setProjectWorkingDir('p1', '');
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', workingDir: null}
+        });
+    });
+
+    /**
+     * A folder is made once the user has said so, and the browser is the one that can ask them.
+     * Nothing is announced meanwhile: a path on the board under a question nobody has answered is
+     * a path the project has not got.
+     */
+    test('says the folder is not there and announces nothing', () => {
+        const refusal: WorkingDirRefusal = {reason: 'missing', dir: '/home/someone/typo'};
+        mocks.setWorkingDir.mockReturnValue(refusal);
+        expect(LoopGateway.setProjectWorkingDir('p1', '~/typo')).toBe(refusal);
+        expect(events).not.toContainEqual(expect.objectContaining({
+            content: expect.objectContaining({workingDir: expect.anything()}),
+        }));
+    });
+
+    test('makes the folder for a browser that comes back with a yes', () => {
+        mocks.workingDirOf.mockReturnValue('/home/someone/code/app');
+        LoopGateway.setProjectWorkingDir('p1', '/home/someone/code/app', true);
+        expect(mocks.setWorkingDir).toHaveBeenCalledWith('p1', '/home/someone/code/app', true);
+    });
+
     /** Every browser hears it, so the start button goes from the tabs that were not pressed too. */
     test('announces a project the user started with the date it started on', () => {
         LoopGateway.startProject('p1');
@@ -1476,13 +1527,18 @@ describe('data updates', () => {
         expect(mocks.archiveProject).toHaveBeenCalledWith('p-idle');
     });
 
+    /**
+     * The folder is named even where this write has nothing to do with it: a browser folds a whole
+     * project into the one it holds, and a field left out of the fold is a field nothing was said
+     * about rather than one that is gone.
+     */
     test('announces the refreshed task list of a project', () => {
         const tasks = {t1: {id: 't1', title: 'task', status: 'done'}};
         mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks});
         LoopGateway.updateProjectTask('p1', {id: 't1', status: 'done'});
         expect(mocks.updateTask).toHaveBeenCalledWith('p1', {id: 't1', status: 'done'});
         expect(events).toContainEqual({
-            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1},
+            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1, workingDir: null},
         });
     });
 
@@ -1618,7 +1674,7 @@ describe('data updates', () => {
         LoopGateway.finishProjectTask('p1', 't1');
         expect(mocks.finishTask).toHaveBeenCalledWith('p1', 't1');
         expect(events).toContainEqual({
-            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1},
+            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1, workingDir: null},
         });
     });
 
@@ -1635,7 +1691,7 @@ describe('data updates', () => {
         expect(LoopGateway.editTaskReport('p1', 't1', 'better')).toBeUndefined();
         expect(mocks.editTaskReport).toHaveBeenCalledWith('p1', 't1', 'better');
         expect(events).toContainEqual({
-            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1},
+            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1, workingDir: null},
         });
     });
 

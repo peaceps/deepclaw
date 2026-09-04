@@ -1,4 +1,5 @@
 v0.2.2
+a project can now be given a folder of its own to work in, and every run on it works there.
 an agent's feeling can now be about how the work it handed out is going.
 
 v0.2.1

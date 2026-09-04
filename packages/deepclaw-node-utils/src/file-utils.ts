@@ -159,6 +159,24 @@ export class FileUtils {
     }
 
     /**
+     * Whether a path is a folder that is there. Asked wherever a folder is what a path has to be --
+     * somewhere to work in, somewhere to write into -- since existing is not enough for those and
+     * a file standing where a folder was expected fails much later and says nothing about why.
+     *
+     * The name is read as it lies rather than cleaned up for writing: this is a question about a
+     * folder that already exists, and the answer has to be about the path that was asked after.
+     */
+    public static isDir(filePath: string): boolean {
+        const absolutePath = this.getAbsolutePath(filePath);
+        return fs.existsSync(absolutePath) && fs.statSync(absolutePath).isDirectory();
+    }
+
+    /** A folder and every folder above it, made where they are not there already. */
+    public static createDir(filePath: string): void {
+        fs.mkdirSync(this.getAbsolutePath(filePath), {recursive: true});
+    }
+
+    /**
      * The size of a file, or null for what is no file to read. Two files that differ in it differ,
      * and that is an answer without holding either of them in memory.
      */
@@ -573,10 +591,33 @@ export class FileUtils {
      * backslash in it is a separator before anything is resolved rather than after: written the
      * other way round, a step out of a folder would survive the resolving as two dots of a name
      * and become a step again on the way to disk, where whoever allowed the name never saw it.
+     *
+     * A caller working somewhere of its own reads its names against that instead, which is what a
+     * project given a working dir does: the commands of it start in that folder, so a name written
+     * beside them means a file in there and not one beside the data.
      */
-    public static getAbsolutePath(relativePath: string): string {
+    public static getAbsolutePath(relativePath: string, base?: string): string {
         const named = this.formatSlash(relativePath);
-        return this.formatSlash(path.isAbsolute(named) ? named : path.resolve(this.getWorkingDir(), named));
+        const from = base ? this.formatSlash(base) : this.getWorkingDir();
+        return this.formatSlash(path.isAbsolute(named) ? named : path.resolve(from, named));
+    }
+
+    /**
+     * A path with a leading `~` read as the home folder it stands for, which is what a person means
+     * by writing one. Only for a path a person typed: `~` is a character a folder can be named with
+     * and nothing on the way to the disk resolves it, so a path taken as it stands makes a folder
+     * called `~` beside the data and reports the folder they asked for as made.
+     *
+     * The leading one alone, and only where the whole path is it or a step under it. A tilde
+     * anywhere else is a character of a name -- a windows short name ends in one -- and `~other`,
+     * whoever's home that is, is not ours to look up.
+     */
+    public static expandHome(pathStr: string): string {
+        const named = this.formatSlash(pathStr.trim());
+        if (named !== '~' && !named.startsWith('~/')) {
+            return named;
+        }
+        return this.formatSlash(`${os.homedir()}${named.slice(1)}`);
     }
 
     public static ensureFileExist(filePath: string, content: string = ''): void {
@@ -601,13 +642,25 @@ export class FileUtils {
     /**
      * The name a path really lands under. Whoever names a file to the user has to name the same one
      * it was written as, so the answer to that is public rather than a secret of writing a file.
+     *
+     * The last name of a path and not the folders it lies in. What comes before that name is
+     * usually ours rather than anybody's to write -- the data root, the folder a project works in --
+     * and every one of these characters is legal in a folder somewhere: a checkout under ~/code/@acme,
+     * a windows home whose user name carries a quote, a folder with an & in it. Rewritten, they name
+     * a folder tree standing beside the real one, where a write lands with nothing to say it went
+     * wrong and the read after it finds no file. The name at the end is the one thing a caller was
+     * handed, and it is the one thing cleaned.
      */
     public static sanitizeFileName(fileName: string, allowFolder: boolean = true): string {
-        const index = fileName.indexOf(':');
-        const prefix = index !== -1 ? fileName.slice(0, index + 1) : '';
-        const suffix = index !== -1 ? fileName.slice(index + 1) : fileName;
+        const named = this.formatSlash(fileName);
+        const cut = allowFolder ? named.lastIndexOf('/') : -1;
+        const folders = named.slice(0, cut + 1);
+        const name = named.slice(cut + 1);
+        const index = name.indexOf(':');
+        const prefix = index !== -1 ? name.slice(0, index + 1) : '';
+        const suffix = index !== -1 ? name.slice(index + 1) : name;
         const reg = allowFolder ? /[\*?<>&|:'"%^@`~]/g : /[\*?<>&|:'"%^@`~/\.]/g;
-        return prefix + this.formatSlash(suffix).replace(reg, '_');
+        return folders + prefix + suffix.replace(reg, '_');
     }
 
     /** Everything an agent reads or writes lives here, whatever the process was started from. */

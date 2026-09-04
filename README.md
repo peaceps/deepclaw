@@ -372,6 +372,20 @@ Name another folder with `DEEPCLAW_HOME` to keep more than one of these side by 
 DEEPCLAW_HOME=~/work/deepclaw deepclaw start
 ```
 
+### A project that works somewhere else
+
+Work that is about files you already have does not belong beside deepclaw's own data. Open a project
+on the board while it is still in todo and name the folder it should work in — a repository, a folder
+of documents — and every run on that project works in there: its commands start in that folder, a
+relative path it writes names a file in that folder, and it reaches the files in there without
+asking you for each one. What the runs hand you still arrives on the project's own row, so the
+folder keeps the shape you know it by.
+
+The folder is settled before the work starts and cannot be moved after: a project moved halfway
+would leave half of what it did behind. A leading `~` is read as your home folder. Named a folder
+that does not exist, the board asks you first — naming the folder as it read your path, which is
+the one it would make — and makes it only once you have said so.
+
 ## Development
 
 Working on deepclaw itself rather than running it:

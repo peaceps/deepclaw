@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
     readFile: vi.fn<(path: string) => string>(() => ''),
     writeFile: vi.fn<(path: string, content: string) => string>((path) => path),
     isPathInWorkspace: vi.fn<(path: string) => boolean>(() => true),
+    runPath: vi.fn<(context: unknown, filePath: string) => string>((_context, filePath) => filePath),
+    inRunWorkspace: vi.fn<(context: unknown, filePath: string) => boolean>(),
 }));
 
 vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
@@ -20,12 +22,26 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
 }));
 
+// Where a run works is a question of its own, answered in run-dir and asked after there: a tool
+// reading a file has no business loading the board to find out whose project it is working for.
+// What the guard makes of the answer is the whole of what these tests are about, so the answer is
+// the workspace as it stands and the paths arrive as they were written.
+vi.mock('../run-dir', () => ({runPath: mocks.runPath, inRunWorkspace: mocks.inRunWorkspace}));
+
 const askPermissionGuard = vi.spyOn(PermissionService, 'askPermissionGuard');
+
+/** The folder answers as the data root does, which is what the paths of these tests are read as. */
+function arrangeRunDir() {
+    mocks.runPath.mockImplementation((_context, filePath) => filePath);
+    mocks.inRunWorkspace.mockImplementation((_context, filePath) =>
+        mocks.isPathInWorkspace(filePath));
+}
 
 describe('readFileTool invoke', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        arrangeRunDir();
     });
 
     test('returns the whole file content', async () => {
@@ -84,6 +100,7 @@ describe('writeFileTool invoke', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        arrangeRunDir();
     });
 
     test('writes the content and reports the write back', async () => {
@@ -123,6 +140,7 @@ describe('editFileTool invoke', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        arrangeRunDir();
     });
 
     test('replaces every occurrence of the old text', async () => {
@@ -150,10 +168,57 @@ describe('editFileTool invoke', () => {
     });
 });
 
+/**
+ * A name arrives from a run that has a folder of its own to read it against, and where that folder
+ * lies is answered in run-dir. What matters here is that the tools ask, and that the one path the
+ * answer names is the one they reach for: an edit that read one file and wrote another would be
+ * an edit that dropped the work of whoever wrote the file it never read.
+ */
+describe('the folder a name is read against', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        arrangeRunDir();
+        mocks.runPath.mockReturnValue('/home/someone/code/app/src/a.ts');
+    });
+
+    test('reads the file the run has been told it means', async () => {
+        const context = newTestContext();
+        await readFileTool.invoke({filePath: 'src/a.ts'}, context);
+        expect(mocks.runPath).toHaveBeenCalledExactlyOnceWith(context, 'src/a.ts');
+        expect(mocks.readFile).toHaveBeenCalledExactlyOnceWith('/home/someone/code/app/src/a.ts');
+    });
+
+    test('writes the file the run has been told it means', async () => {
+        await writeFileTool.invoke({filePath: 'src/a.ts', content: 'body'}, newTestContext());
+        expect(mocks.writeFile)
+            .toHaveBeenCalledExactlyOnceWith('/home/someone/code/app/src/a.ts', 'body');
+    });
+
+    test('edits the one file it read', async () => {
+        mocks.readFile.mockReturnValue('foo');
+        await editFileTool.invoke(
+            {filePath: 'src/a.ts', oldText: 'foo', newText: 'baz'}, newTestContext()
+        );
+        expect(mocks.readFile).toHaveBeenCalledExactlyOnceWith('/home/someone/code/app/src/a.ts');
+        expect(mocks.writeFile)
+            .toHaveBeenCalledExactlyOnceWith('/home/someone/code/app/src/a.ts', 'baz');
+    });
+
+    /** The footprint is the name as the run wrote it, which is what it will read back. */
+    test('files the name the run gave', async () => {
+        const context = newTestContext();
+        await readFileTool.invoke({filePath: 'src/a.ts'}, context);
+        expect(context.actions.addFootPrint)
+            .toHaveBeenCalledExactlyOnceWith({type: 'read_file', content: 'src/a.ts'});
+    });
+});
+
 describe('file tool guard', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        arrangeRunDir();
         askPermissionGuard.mockReturnValue({result: 'allowed'});
     });
 
@@ -171,6 +236,19 @@ describe('file tool guard', () => {
         expect(askPermissionGuard).toHaveBeenCalledExactlyOnceWith(
             'agent.tools.file.guard', 'file', context.permissionWhiteList
         );
+    });
+
+    /**
+     * The folder the user named for the project is inside this run's workspace, whatever it lies
+     * beside. Asking them for every file in a folder they chose themselves is asking after what
+     * they already said, and a run that has to answer a question per file gets nothing done.
+     */
+    test('allows a path in the folder the project works in', () => {
+        mocks.isPathInWorkspace.mockReturnValue(false);
+        mocks.inRunWorkspace.mockReturnValue(true);
+        expect(readFileTool.guard!({filePath: '/home/someone/code/app/src/a.ts'}, newTestContext()))
+            .toEqual({result: 'allowed'});
+        expect(askPermissionGuard).not.toHaveBeenCalled();
     });
 
     test('is shared by all three file tools', () => {

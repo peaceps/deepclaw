@@ -191,6 +191,19 @@ export const en = {
                     progress: 'Progress',
                     report: 'Project report',
                     editDescription: 'Rewrite what this project is about',
+                    workingDir: {
+                        label: 'Edit working dir',
+                        unset: 'Use deepclaw\'s data directory',
+                        placeholder: 'A folder the work happens in, e.g. C:/Users/foo/bar, press Enter to confirm. Cannot be changed after the project started.',
+                        edit: 'Say which folder the work of this project happens in. Commands start there, and the files it writes go there.',
+                        settled: 'The folder this project works in. Settled before the work started.',
+                        clear: 'Work beside the deepclaw data again',
+                        failed: 'The working dir could not be saved',
+                        make: {
+                            action: 'Make the folder',
+                            confirm: 'There is nothing at "{{path}}". Make the folder and have this project work in it? Check the path first.',
+                        },
+                    },
                     blockedBy: 'Prerequisites: {{titles}}',
                     labels: {
                         save: 'Press Enter to save',

@@ -11,6 +11,7 @@ import { AGENT_CONFIG, AgentIdentity, FlushAgentRole } from '@deepclaw/core';
 import { AssignedTask, isSpawnedLoop, LoopKind, SystemPrompt } from '../../definitions/definitions';
 import { AgentFeelingService, type AgentFeeling } from './agent-feeling-service';
 import { AgentIdentityManager } from './agent-identity-manager';
+import { projectWorkDir } from '../run-dir';
 
 /**
  * How old a thing has to be before it is worth another word, in turns of this agent and in minutes
@@ -38,7 +39,6 @@ type MainIdentityPrompts = {
 export class PromptService {
     private static initialized = false;
     private static mark: {lang: string};
-    private static platformPrompt: string;
     private static languagePrompt: string;
     private static emotionsPrompt: string;
     private static mainIdentityPrompt: MainIdentityPrompts;
@@ -86,8 +86,12 @@ export class PromptService {
         // the tools have to ask it in.
         const feels = !!persona && loopKind !== 'sub' && loopKind !== 'review'
             && !isCron && !!persona.emotion;
+        // Where the work of this run happens, which the run is told twice over: the folder itself,
+        // and every path named to it read against that folder. Asked once here so the two cannot
+        // disagree, and asked of the same ids the run itself will ask of.
+        const workDir = projectWorkDir(role, projectId, assignedTask);
         const cacheable = this.sections([
-            ['Platform', this.platformPrompt],
+            ['Platform', this.platform(workDir)],
             ['Language', this.language()],
             ['Main Identity', this.mainIdentityPrompt[identityKey]],
             ['Personality', persona ? this.personality(persona) : ''],
@@ -197,7 +201,6 @@ ${ProjectManager.promptAssignedTask(projectId, taskId)}`;
     private static init() {
         this.initialized = true;
         this.mark = {lang: ''};
-        this.platformPrompt = this.platform();
         this.languagePrompt = this.language();
         this.emotionsPrompt = this.emotions();
         this.mainIdentityPrompt = this.mainIdentity();
@@ -207,13 +210,20 @@ ${ProjectManager.promptAssignedTask(projectId, taskId)}`;
      * The folder a relative path is read against, which is the data root rather than wherever the
      * process was started: a web server chdirs into its own installation, and an agent told that
      * folder would name a path back that leads somewhere else entirely.
+     *
+     * A project the user gave a folder of its own is worked in that one instead, and this is where
+     * the run is told so. What it is told has to be the folder its commands will really start in,
+     * which is why the folder is worked out once for the whole prompt and handed in here.
      */
-    private static platform(): string {
+    private static platform(workDir?: string): string {
         const PLATFORM = process.platform.includes('win32') ? 'Windows' : 'Linux';
-        const CWD = FileUtils.getWorkingDir();
+        const CWD = workDir || FileUtils.getWorkingDir();
         return `You are a worker on ${PLATFORM} platform working in "${CWD}".
-When a job really has to leave files behind, give it a folder of its own in that directory and keep
-everything it creates inside, instead of dropping the files loose beside what already lives there.`;
+${workDir ? `That folder is the one this project works in, named for it by the user. The work of the
+project belongs in there, laid out the way the folder is laid out already -- a repository is worked
+in the shape it has, and a folder of our own inside somebody's checkout is a folder in their way.`
+: `When a job really has to leave files behind, give it a folder of its own in that directory and keep
+everything it creates inside, instead of dropping the files loose beside what already lives there.`}`;
     }
 
     private static language(): string {
@@ -471,11 +481,13 @@ But you can call tools to write files owned by the agent program itself, such as
      * over from. A chat about nothing in particular has no such folder, and nowhere to hand over.
      */
     private static filesDir(isCron: boolean, projectId: string, assignedTask?: AssignedTask): string {
-        if (isCron) {
-            return projectId ? cronFilesDir(projectId) : '';
-        }
         const project = assignedTask?.projectId || projectId;
-        return project ? projectFilesDir(project) : '';
+        const folder = isCron ? (projectId ? cronFilesDir(projectId) : '')
+            : (project ? projectFilesDir(project) : '');
+        // Named in full, since a run working in a folder of its own reads a relative name from
+        // there: the shelf lies beside the data and a name pointing at it from anywhere else has
+        // to say so. Whoever hands a file over names it back to us the same way.
+        return folder ? FileUtils.getAbsolutePath(folder) : '';
     }
 
     /**

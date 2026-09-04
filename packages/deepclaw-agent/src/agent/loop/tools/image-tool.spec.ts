@@ -29,6 +29,13 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
 }));
 
+// A picture is named to this tool the way the command that wrote it named the file, so the folder
+// that name is read against is run-dir's answer and is asked after there.
+vi.mock('../run-dir', () => ({
+    runPath: (_context: unknown, filePath: string) => filePath,
+    inRunWorkspace: (_context: unknown, filePath: string) => mocks.isPathInWorkspace(filePath),
+}));
+
 const fetchMock = vi.fn();
 
 function generated(imageUrl = 'https://oss.example.com/generated.png') {

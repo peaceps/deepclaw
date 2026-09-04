@@ -62,7 +62,8 @@ describe('runCommand', () => {
     test('starts the shell command without waiting for it', async () => {
         const manager = await loadManager();
         manager.runCommand(newCommand({command: 'sleep 1'}), '.agents/a1/session');
-        expect(mocks.runCommandAsync).toHaveBeenCalledExactlyOnceWith('sleep 1', undefined);
+        expect(mocks.runCommandAsync)
+            .toHaveBeenCalledExactlyOnceWith('sleep 1', undefined, undefined);
         expect(mocks.writeFile).not.toHaveBeenCalled();
     });
 
@@ -70,7 +71,16 @@ describe('runCommand', () => {
         const manager = await loadManager();
         const controller = new AbortController();
         manager.runCommand(newCommand(), '.agents/a1/session', controller.signal);
-        expect(mocks.runCommandAsync).toHaveBeenCalledWith('npm run build', controller.signal);
+        expect(mocks.runCommandAsync)
+            .toHaveBeenCalledWith('npm run build', controller.signal, undefined);
+    });
+
+    /** The folder the run that asked for it works in, a background command being that run's own. */
+    test('starts the command in the folder it was given', async () => {
+        const manager = await loadManager();
+        manager.runCommand(newCommand(), '.agents/a1/session', undefined, '/home/someone/code/app');
+        expect(mocks.runCommandAsync)
+            .toHaveBeenCalledWith('npm run build', undefined, '/home/someone/code/app');
     });
 
     test('reads back as stopped rather than as broken when the run was stopped', async () => {

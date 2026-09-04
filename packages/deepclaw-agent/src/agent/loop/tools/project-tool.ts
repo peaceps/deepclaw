@@ -11,6 +11,7 @@ import { AgentIdentityManager } from "../services/agent-identity-manager";
 import { fireRunningTasksEvent, RunningTaskService } from "../services/running-task-service";
 import { EXT_DESCRIPTION, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, requireReadableOutput, skippedFilesNote } from "../../loop-utils";
 import { projectFilesDir } from "../../paths";
+import { runWorkingDir } from "../run-dir";
 
 /** Where the report of a task stood in an answer that is not the one to ask for it. */
 const OUTPUT_KEPT = '<Output kept, read it with get_project_detail>';
@@ -356,6 +357,7 @@ ${projectAfterWrite(project)}`;
 
 type UpdateProjectInput = {
     projectId: string;
+    workingDir?: string;
     title?: string;
     description?: string;
     priority?: MissionPriority;
@@ -414,6 +416,15 @@ Large content is filed away for you, so there is no size to work around.`
                     },
                     required: ['type', 'content'],
                 },
+                workingDir: {
+                    type: 'string',
+                    description: `The folder the work of this project happens in, for the project
+that wants one: a repository to change, a folder of files to work through. Commands of every run on
+this project start there and a relative path names a file in there, so the work happens where the
+work already is instead of beside our own data. Only while the project is still in todo, and the
+folder has to be one that exists -- ask the user which it is rather than guessing at a path, and ask
+before making one. The empty string takes the folder off the project again.`,
+                },
                 tasks: {
                     type: 'array',
                     description: `The full task list of the project, it replaces the one there is.
@@ -449,6 +460,21 @@ the old one away along with everything pointing at it. Leave a task out only to 
         if (input.output) {
             requireReadableOutput(input.output);
             projectInfo.output = input.output;
+        }
+        // Before anything is written, and answered rather than thrown where the folder is only
+        // missing: a folder is made on the user's word alone, and the run has the tool to ask them
+        // for it. Nothing else of the call goes through in that case, which the answer says, so a
+        // run that comes back with the folder made comes back with the whole call.
+        if (input.workingDir !== undefined) {
+            const refused = ProjectManager.setWorkingDir(input.projectId, input.workingDir);
+            if (refused) {
+                // Named as it came out here rather than as it was sent: a relative path was read
+                // against the data root and a leading ~ against the home folder, so this is the
+                // folder that would be made, and the user is being asked about that one.
+                return `Nothing of this call was written. There is no folder at
+"${refused.dir}". Ask the user whether that is where the work of this project should happen and
+whether the folder should be made; make it if they say so, then send this call again.`;
+            }
         }
         const projectTasks = input.tasks && buildTasks(input.tasks, context);
         const project = ProjectManager.updateProject(projectInfo, projectTasks);
@@ -603,7 +629,7 @@ rather than linked under it. Only files, not folders, and only inside the worksp
             // to what it says: the task is untouched, the call is not.
             if (generatedFiles?.length) {
                 skippedFiles = publishGeneratedFiles(
-                    output, generatedFiles, projectFilesDir(input.projectId)
+                    output, generatedFiles, projectFilesDir(input.projectId), runWorkingDir(context)
                 ).skipped;
             }
             taskInfo.output = output;

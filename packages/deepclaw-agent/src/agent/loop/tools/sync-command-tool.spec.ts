@@ -6,7 +6,9 @@ import {PermissionService} from '../services/permission-service';
 import {syncCommandTool} from './sync-command-tool';
 
 const mocks = vi.hoisted(() => ({
-    runCommand: vi.fn<(command: string, signal?: AbortSignal) => Promise<{output: string}>>(),
+    runCommand: vi.fn<
+        (command: string, signal?: AbortSignal, cwd?: string) => Promise<{output: string}>
+    >(),
 }));
 
 vi.mock('@deepclaw/i18n', () => ({i18nInstance: {t: (key: string) => key}}));
@@ -15,6 +17,8 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
     runCommand: mocks.runCommand,
 }));
+
+vi.mock('../run-dir', () => ({runWorkingDir: () => '/workspace/repo'}));
 
 const askPermissionGuard = vi.spyOn(PermissionService, 'askPermissionGuard');
 
@@ -67,7 +71,7 @@ describe('syncCommandTool invoke', () => {
     test('returns the whole output, leaving the caller to file away what is too long', async () => {
         vi.mocked(runCommand).mockResolvedValue({output: 'full output'});
         const result = await syncCommandTool.invoke({command: 'echo hi'}, newTestContext());
-        expect(runCommand).toHaveBeenCalledExactlyOnceWith('echo hi', undefined);
+        expect(runCommand).toHaveBeenCalledExactlyOnceWith('echo hi', undefined, '/workspace/repo');
         expect(result).toBe('full output');
     });
 
@@ -75,7 +79,22 @@ describe('syncCommandTool invoke', () => {
         const abortSignal = new AbortController().signal;
         vi.mocked(runCommand).mockResolvedValue({output: 'full output'});
         await syncCommandTool.invoke({command: 'sleep 999'}, newTestContext({abortSignal}));
-        expect(runCommand).toHaveBeenCalledExactlyOnceWith('sleep 999', abortSignal);
+        expect(runCommand).toHaveBeenCalledExactlyOnceWith(
+            'sleep 999', abortSignal, '/workspace/repo'
+        );
+    });
+
+    /**
+     * A relative path in a command means what the run was told it means. The prompt names the
+     * folder this run works in, so a command of it starts there rather than beside our data: told
+     * it is working in a repository and then run somewhere else, every path it wrote is wrong.
+     */
+    test('starts the command in the folder the run works in', async () => {
+        vi.mocked(runCommand).mockResolvedValue({output: 'full output'});
+        await syncCommandTool.invoke({command: 'git status'}, newTestContext());
+        expect(runCommand).toHaveBeenCalledExactlyOnceWith(
+            'git status', undefined, '/workspace/repo'
+        );
     });
 
     /**

@@ -4,6 +4,7 @@ import { BackgroundCommand, BackgroundCommandManager } from '../services/backgro
 import { SessionService } from '../services/session-service';
 import { BACKGROUND_COMMAND_FOOT_PRINT, OneLoopContext } from '../../definitions/definitions';
 import { commandGuard } from './command-guard';
+import { runWorkingDir } from '../run-dir';
 
 type RunBackgroundCommandInput = {
     title: string;
@@ -55,7 +56,7 @@ and the agent can check the result of the background command later.`,
         // returns, while the command keeps running and still has to write its output somewhere.
         BackgroundCommandManager.runCommand(backgroundCommand, SessionService.getSessionDir(
             context.role, context.agentId, context.projectId
-        ), context.abortSignal);
+        ), context.abortSignal, runWorkingDir(context));
         // Filed apart from a command run in the foreground: this one may well outlive the loop that
         // started it, and whoever reads that in a trace can still look in on it -- the record is
         // under a loop id a spawned loop shares with the loop above it.

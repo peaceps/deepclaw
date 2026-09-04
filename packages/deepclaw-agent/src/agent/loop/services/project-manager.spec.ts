@@ -1,7 +1,9 @@
+import os from 'os';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {
     ARCHIVED_PAGE_SIZE, type MissionPriority, PROJECT_CONFIG, type Project, type Task
 } from '@deepclaw/core';
+import {newTestContext} from '../../../test-support/one-loop-context';
 
 const mocks = vi.hoisted(() => ({
     readDir: vi.fn<(dir: string) => Record<string, {dir: string; content: string}>>(() => ({})),
@@ -11,22 +13,35 @@ const mocks = vi.hoisted(() => ({
     movePath: vi.fn<(from: string, to: string) => boolean>(() => true),
     readFile: vi.fn<(path: string) => string>(() => ''),
     deleteDir: vi.fn<(path: string) => void>(),
+    isDir: vi.fn<(path: string) => boolean>(() => false),
+    isFile: vi.fn<(path: string) => boolean>(() => false),
+    createDir: vi.fn<(path: string) => void>(),
 }));
 
-vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
-    FileUtils: {
-        readDir: mocks.readDir,
-        writeFile: mocks.writeFile,
-        exists: mocks.exists,
-        hashString: mocks.hashString,
-        movePath: mocks.movePath,
-        readFile: mocks.readFile,
-        deleteDir: mocks.deleteDir,
-    },
-    getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
-    getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
-}));
+vi.mock('@deepclaw/node-utils', async (importOriginal) => {
+    const original = await importOriginal<typeof import('@deepclaw/node-utils')>();
+    return {
+        ...original,
+        FileUtils: {
+            readDir: mocks.readDir,
+            writeFile: mocks.writeFile,
+            exists: mocks.exists,
+            hashString: mocks.hashString,
+            movePath: mocks.movePath,
+            readFile: mocks.readFile,
+            deleteDir: mocks.deleteDir,
+            isDir: mocks.isDir,
+            isFile: mocks.isFile,
+            createDir: mocks.createDir,
+            getAbsolutePath: (path: string) => path,
+            // Reading a ~ touches no disk, and what a path written with one comes to is exactly
+            // what a test of the folder a project is given is about.
+            expandHome: original.FileUtils.expandHome.bind(original.FileUtils),
+        },
+        getLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+        getLoopLogger: () => ({debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn()}),
+    };
+});
 
 type ProjectManagerType = (typeof import('./project-manager'))['ProjectManager'];
 
@@ -44,6 +59,8 @@ async function loadManager(files: Folder = {}, archive: Folder = {}): Promise<Pr
     mocks.writeFile.mockImplementation((path: string) => path);
     mocks.exists.mockReturnValue(false);
     mocks.movePath.mockReturnValue(true);
+    mocks.isDir.mockReturnValue(false);
+    mocks.isFile.mockReturnValue(false);
     // One file asked for by name, out of whichever folder holds it: a project on its way back out
     // of the archive is read that way, one record rather than a folder of them.
     mocks.readFile.mockImplementation(path => [...Object.values(files), ...Object.values(archive)]
@@ -608,6 +625,161 @@ describe('updateProject', () => {
         expect(manager.getProjectDetail(id).closedAt).toBeTruthy();
         expect(manager.updateProject({id, output: {type: 'text', content: 'it went well'}}).output)
             .toEqual({type: 'text', content: 'it went well'});
+    });
+});
+
+describe('the folder a project works in', () => {
+
+    const REPO = '/home/someone/code/app';
+    /** Whoever is running the test, since a ~ comes out as their own home folder and no other. */
+    const HOME = os.homedir().replaceAll('\\', '/');
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    test('writes down a folder that is there', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        mocks.isDir.mockReturnValue(true);
+        expect(manager.setWorkingDir(id, REPO)).toBeUndefined();
+        expect(manager.getProjectDetail(id).workingDir).toBe(REPO);
+        expect(mocks.createDir).not.toHaveBeenCalled();
+    });
+
+    test('keeps the folder on the record it saves', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        mocks.isDir.mockReturnValue(true);
+        manager.setWorkingDir(id, REPO);
+        const written = mocks.writeFile.mock.calls.at(-1)!;
+        expect(written[0]).toBe(`.projects/${id}/project.json`);
+        expect(JSON.parse(written[1]).workingDir).toBe(REPO);
+    });
+
+    /**
+     * A folder is made once somebody has said so and not before. Whoever asked is the one who can
+     * put the question to a person, so the answer to a folder that is not there is the asking
+     * rather than the making: a path with a letter wrong in it would otherwise become a folder
+     * tree beside the one that was meant, with nothing afterwards looking wrong.
+     */
+    test('answers that the folder is not there instead of making it', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        expect(manager.setWorkingDir(id, REPO)).toEqual({reason: 'missing', dir: REPO});
+        expect(mocks.createDir).not.toHaveBeenCalled();
+        expect(manager.getProjectDetail(id).workingDir).toBeUndefined();
+    });
+
+    /**
+     * A person writes ~ for their home folder, nothing on the way to the disk reads it that way,
+     * and ~ is a character a folder can be named with: taken as it stands it is a folder called ~
+     * beside the data, made without a word and reported as the folder they asked for.
+     */
+    test('reads a leading ~ as the home folder', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        mocks.isDir.mockReturnValue(true);
+        expect(manager.setWorkingDir(id, '~/code/app')).toBeUndefined();
+        expect(manager.getProjectDetail(id).workingDir).toBe(`${HOME}/code/app`);
+    });
+
+    /**
+     * The one thing the user is asked about is the folder, so the answer carries the folder rather
+     * than the words that were typed: asked about those, they would be agreeing to a path nobody
+     * had shown them, and what came of the yes would be somewhere else.
+     */
+    test('names the folder it worked out in what it answers', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        expect(manager.setWorkingDir(id, '~/code/app'))
+            .toEqual({reason: 'missing', dir: `${HOME}/code/app`});
+    });
+
+    test('makes the folder for whoever comes back saying so', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        expect(manager.setWorkingDir(id, REPO, true)).toBeUndefined();
+        expect(mocks.createDir).toHaveBeenCalledExactlyOnceWith(REPO);
+        expect(manager.getProjectDetail(id).workingDir).toBe(REPO);
+    });
+
+    /** Not a folder still to make: the name is wrong, and no word of anybody's puts that right. */
+    test('refuses a path that a file stands at', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        mocks.isFile.mockReturnValue(true);
+        expect(() => manager.setWorkingDir(id, `${REPO}/readme.md`, true))
+            .toThrow('A project works in a folder');
+        expect(mocks.createDir).not.toHaveBeenCalled();
+    });
+
+    test('takes the folder off the project for an empty word', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        mocks.isDir.mockReturnValue(true);
+        manager.setWorkingDir(id, REPO);
+        expect(manager.setWorkingDir(id, '   ')).toBeUndefined();
+        expect(manager.getProjectDetail(id).workingDir).toBeUndefined();
+    });
+
+    /**
+     * The work of a project writes into the folder it was working in. Moved halfway, the project
+     * leaves half of what it did behind with nothing left saying where any of it went.
+     */
+    test('refuses to move a project whose work has started', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        mocks.isDir.mockReturnValue(true);
+        expect(() => manager.setWorkingDir(id, REPO))
+            .toThrow('settled before the work of it starts');
+        expect(manager.getProjectDetail(id).workingDir).toBeUndefined();
+    });
+
+    test('refuses a project it has never heard of', () => {
+        expect(() => manager.setWorkingDir('p-nobody', REPO)).toThrow('not found');
+    });
+
+    /**
+     * Asked of the disk every time. A folder written down last week can have been moved since, and
+     * a run whose commands start in a folder that is gone is a run where everything fails saying
+     * the machine is broken rather than that a folder is missing.
+     */
+    test('answers with the folder only while it is still there', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        mocks.isDir.mockReturnValue(true);
+        manager.setWorkingDir(id, REPO);
+        expect(manager.workingDirOf(id)).toBe(REPO);
+        mocks.isDir.mockReturnValue(false);
+        expect(manager.workingDirOf(id)).toBeUndefined();
+    });
+
+    test('answers with nothing for a project that named no folder', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        expect(manager.workingDirOf(id)).toBeUndefined();
+        expect(manager.workingDirOf('p-nobody')).toBeUndefined();
+    });
+
+    test('tells the browsers the folder a project was given', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        mocks.isDir.mockReturnValue(true);
+        manager.setWorkingDir(id, REPO);
+        const context = newTestContext();
+        manager.fireProjectInfoEvent(id, context);
+        expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({content: expect.objectContaining({workingDir: REPO})})
+        );
+    });
+
+    /**
+     * A browser folds a project into the one it holds, so a field left out of the fold is a field
+     * nothing was said about rather than a field that is gone. The folder is the one a write can
+     * take off a project, and sent whole it would go on standing on every board until the page was
+     * loaded again.
+     */
+    test('tells them a folder taken off is gone rather than leaving it out', () => {
+        const {id} = newPlannedProject(manager, [newTask(manager, 'design')]);
+        mocks.isDir.mockReturnValue(true);
+        manager.setWorkingDir(id, REPO);
+        manager.setWorkingDir(id, '');
+        const context = newTestContext();
+        manager.fireProjectInfoEvent(id, context);
+        expect(context.actions.agentHandler.onInfoEvent).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({content: expect.objectContaining({workingDir: null})})
+        );
     });
 });
 

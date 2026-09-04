@@ -34,12 +34,15 @@ export class BackgroundCommandManager {
      * runs before this one keep going, theirs belonging to a run that is already over.
      */
     public static runCommand(
-        command: BackgroundCommand, sessionDir: string, signal?: AbortSignal
+        command: BackgroundCommand, sessionDir: string, signal?: AbortSignal, cwd?: string
     ): void {
         const id = command.id;
         command.outputPath = `${sessionDir}/${BACKGROUND_COMMANDS_DIR}/${id}.bgout`;
         this.commands.set(id, command);
-        runCommandAsync(command.command, signal).then(({ output, preview }) => {
+        // Started where the run that asked for it works, the same as one run in the foreground: the
+        // two are the same shell on the same machine, and a command that means one folder when it
+        // is waited on and another when it is not is the worst of both.
+        runCommandAsync(command.command, signal, cwd).then(({ output, preview }) => {
             command.output = output;
             command.preview = preview;
         }).catch((e) => {

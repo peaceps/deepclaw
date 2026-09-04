@@ -1,7 +1,8 @@
 'use server';
 
 import type {
-    Task, CronJobHistory, AgentSoulIdentity, SlimProject, ArchivedProjectsAsk, ArchivedProjectsPage
+    Task, CronJobHistory, AgentSoulIdentity, SlimProject, ArchivedProjectsAsk, ArchivedProjectsPage,
+    WorkingDirRefusal
 } from "@deepclaw/core";
 import {
     LoopGateway, type DeepclawDataInfo, type ReportRefusal, type SkillInfo
@@ -43,6 +44,30 @@ export async function updateProjectDescription(projectId: string, description: s
         revalidatePath('/', 'layout');
     } catch (error) {
         console.error('Error saving project description:', error);
+        throw error;
+    }
+}
+
+/**
+ * Where the work of a project should happen, as the user has just written it in the box. Emptying
+ * the box is meant and takes the folder off the project again, which is the work going back to
+ * happening beside the data.
+ *
+ * A folder that is not there comes back as itself rather than as a throw, the way a refused report
+ * does: the browser has a question to put to the user about it, and comes back with `create` once
+ * they have answered it. Everything else is thrown, being nothing they could answer.
+ */
+export async function setProjectWorkingDir(
+    projectId: string, workingDir: string, create: boolean = false
+): Promise<WorkingDirRefusal | undefined> {
+    try {
+        const refusal = LoopGateway.setProjectWorkingDir(projectId, workingDir, create);
+        if (!refusal) {
+            revalidatePath('/', 'layout');
+        }
+        return refusal;
+    } catch (error) {
+        console.error('Error saving project working dir:', error);
         throw error;
     }
 }
