@@ -12,6 +12,7 @@ import { fireRunningTasksEvent, RunningTaskService } from "../services/running-t
 import { EXT_DESCRIPTION, keptOutput, MAX_GENERATED_FILES, publishGeneratedFiles, requireReadableOutput, skippedFilesNote } from "../../loop-utils";
 import { projectFilesDir } from "../../paths";
 import { runWorkingDir } from "../run-dir";
+import { type TaskWorktree, WorktreeService } from "../services/worktree-service";
 
 /** Where the report of a task stood in an answer that is not the one to ask for it. */
 const OUTPUT_KEPT = '<Output kept, read it with get_project_detail>';
@@ -45,6 +46,24 @@ function reportReminder(project: Project): string {
 Every task of this project is done, so the project is closed and nothing further will be asked of
 it. What is missing is the report of the project itself: write it now with update_project, in
 output. The user reads it off the project without opening a task.`;
+}
+
+/**
+ * Where the work of a task that took a checkout of its own is, written into the report the user
+ * reads off the board.
+ *
+ * The branch is the whole of what they have of such a task: nothing was merged, and the folder they
+ * named for the project is untouched, so a report that leaves it out is a report of work they have
+ * to go looking for. Written here rather than asked of the run, because the run reports in its own
+ * words and this is the one line of the report that has to be right.
+ */
+function noteWorktree(output: NonNullable<LLMTaskOutput>, worktree?: TaskWorktree): void {
+    if (!worktree) {
+        return;
+    }
+    output.content = `${output.content}
+
+${i18nInstance.t('agent.tools.project.output.worktree', {branch: worktree.branch, dir: worktree.dir})}`;
 }
 
 type ProjectTaskInput = {
@@ -627,11 +646,20 @@ rather than linked under it. Only files, not folders, and only inside the worksp
             // resend hands the same bytes over under the same names, so nothing is doubled where
             // the file has not changed since, and the links come back. Only the throw has to keep
             // to what it says: the task is untouched, the call is not.
+            // The files of a task are named by the run that worked it, and a task that took a
+            // checkout of its own worked in there rather than where this loop stands: read against
+            // the folder of this run, every name it wrote would point into the folder the task
+            // never touched. The task, again, and not the run: the report comes back up here.
+            const worktree = WorktreeService.worktreeOf({
+                projectId: input.projectId, taskId: input.taskId,
+            });
             if (generatedFiles?.length) {
                 skippedFiles = publishGeneratedFiles(
-                    output, generatedFiles, projectFilesDir(input.projectId), runWorkingDir(context)
+                    output, generatedFiles, projectFilesDir(input.projectId),
+                    worktree?.dir ?? runWorkingDir(context)
                 ).skipped;
             }
+            noteWorktree(output, worktree);
             taskInfo.output = output;
         }
         const {task, stop} = ProjectManager.updateTask(input.projectId, taskInfo, input.steps);

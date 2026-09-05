@@ -20,6 +20,7 @@ import { generateImageTool, keepImageTool } from '../tools/image-tool';
 import { updateAgentRuntimeTool } from '../tools/agent-runtime-tool';
 import { askUserTool } from '../tools/ask-user-tool';
 import { reviewTaskTool, submitReviewTool } from '../tools/review-tool';
+import { worktreeTool } from '../tools/worktree-tool';
 import { MCP_PREFIX, MCPService } from './mcp-service';
 
 const tools: ToolDesc<any>[] = [
@@ -53,6 +54,7 @@ const tools: ToolDesc<any>[] = [
     submitReviewTool,
     getProjectDetailTool,
     getProjectListTool,
+    worktreeTool,
     syncCommandTool,
     runBackgroundCommandTool,
     removeBackgroundCommand,

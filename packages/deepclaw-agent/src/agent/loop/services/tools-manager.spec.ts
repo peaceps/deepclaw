@@ -56,6 +56,7 @@ function toolModules(): Promise<Record<string, unknown>[]> {
         import('../tools/skill-tool'),
         import('../tools/spawned-loop-tool'),
         import('../tools/sync-command-tool'),
+        import('../tools/worktree-tool'),
     ]);
 }
 

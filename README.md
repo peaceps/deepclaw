@@ -53,6 +53,10 @@ the network with `--host`.
 
 **v0.2.2**
 
+- A project can now be given a folder of its own to work in, a repository or a folder of documents,
+  and every run on it works in there.
+- A task can now take a git worktree of its own, so tasks worked at the same time never share a
+  checkout.
 - An agent's feeling can now be about how the work it handed out is going, not only its own turn at
   it.
 
@@ -337,6 +341,7 @@ alongside the built-in ones. Set the server URL in the advanced settings.
 | `get_project_list` / `get_project_detail` | Read project state |
 | `task_loop` | Hand one task of the project to a subagent that can split it further |
 | `sub_loop` | Spawn a sub-loop for one piece of work |
+| `work_in_worktree` | Take a checkout of the project's repository for this task and work in it |
 | `review_task` | Have the reviewer of a task read the work over before it closes |
 | `submit_review` | File a verdict and a report, which is all a review writes anywhere |
 | `create_cron_task` / `update_cron_task` | Manage scheduled tasks |
@@ -359,6 +364,7 @@ Everything lives in `~/.deepclaw`, whatever folder you started from:
 ├── .agents/                  # per-agent session files and memory
 │   └── skills/               # installed skills
 ├── .projects/                # project data and task state
+│   └── <id>/worktrees/       # a checkout of its own for a task that took one
 ├── .cron/                    # cron task definitions and history
 ├── .memory/                  # global memory entries
 ├── .logs/                    # runtime logs
@@ -385,6 +391,24 @@ The folder is settled before the work starts and cannot be moved after: a projec
 would leave half of what it did behind. A leading `~` is read as your home folder. Named a folder
 that does not exist, the board asks you first — naming the folder as it read your path, which is
 the one it would make — and makes it only once you have said so.
+
+### A task that works in a checkout of its own
+
+Tasks of one project that wait for nothing go out at the same time, one subagent each, and all of
+them work in the folder the project named. Where that folder is a repository, this is a problem of
+its own: subagents editing the same files land on top of each other and interleave their commits,
+and no amount of care inside one task prevents it. A subagent about to change code can ask for a
+git worktree instead — a checkout of that repository of its own, on a branch of its own — and
+everything of that task then happens in there: its commands, the relative paths it writes, the
+files it reaches without asking you, and the reading its reviewer gives the work afterwards.
+
+The checkouts are kept under deepclaw's own data rather than beside your repository, one folder per
+task, and the branch is named for the task: `deepclaw/<what the task is called>-<the tail of its
+id>`, so you can see at a glance which of the branches in your repository are ours. Nothing is
+merged and nothing is cleared away when the task ends — the branch and the checkout stay as they
+are, the report of the task names both, and whether that work is merged or thrown out is yours to
+say. Taking a worktree needs git 2.31 or newer; a task refused one works where the project does and
+says so in its report.
 
 ## Development
 

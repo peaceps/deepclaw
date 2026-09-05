@@ -2,6 +2,7 @@ import process from 'node:process';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {newTestContext} from '../../test-support/one-loop-context';
 import {ProjectManager} from './services/project-manager';
+import {WorktreeService} from './services/worktree-service';
 import {inRunWorkspace, projectWorkDir, runPath, runWorkingDir} from './run-dir';
 
 /**
@@ -13,9 +14,11 @@ import {inRunWorkspace, projectWorkDir, runPath, runWorkingDir} from './run-dir'
 const HOME = process.cwd().replaceAll('\\', '/');
 const DATA_ROOT = `${HOME}/home/.deepclaw`;
 const REPO = `${HOME}/home/code/app`;
+const WORKTREE = `${DATA_ROOT}/.projects/p1/worktrees/t1`;
 
 const mocks = vi.hoisted(() => ({
     isPathInWorkspace: vi.fn<(path: string) => boolean>(),
+    isDir: vi.fn<(path: string) => boolean>(),
 }));
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => {
@@ -30,6 +33,7 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
             getAbsolutePath: real.getAbsolutePath.bind(real),
             isPathInside: real.isPathInside.bind(real),
             isPathInWorkspace: mocks.isPathInWorkspace,
+            isDir: mocks.isDir,
             getWorkingDir: () => DATA_ROOT,
             readDir: () => ({}),
         },
@@ -39,10 +43,13 @@ vi.mock('@deepclaw/node-utils', async (importOriginal) => {
 });
 
 const workingDirOf = vi.spyOn(ProjectManager, 'workingDirOf');
+const worktreeOf = vi.spyOn(WorktreeService, 'worktreeOf');
 
 beforeEach(() => {
     vi.clearAllMocks();
     workingDirOf.mockReturnValue(undefined);
+    worktreeOf.mockReturnValue(undefined);
+    mocks.isDir.mockReturnValue(false);
     mocks.isPathInWorkspace.mockImplementation(path => path.startsWith(DATA_ROOT));
 });
 
@@ -63,6 +70,34 @@ describe('projectWorkDir', () => {
         workingDirOf.mockReturnValue(REPO);
         expect(projectWorkDir('agent', '', {projectId: 'p9', taskId: 'design'})).toBe(REPO);
         expect(workingDirOf).toHaveBeenCalledExactlyOnceWith('p9');
+    });
+
+    /**
+     * A task that took a checkout of its own works in it and not where the project works, which is
+     * the whole of what a checkout is for: the other tasks of that project are in the folder below
+     * at the same moment.
+     */
+    test('answers with the checkout of the task ahead of the folder of the project', () => {
+        workingDirOf.mockReturnValue(REPO);
+        worktreeOf.mockReturnValue({dir: WORKTREE, branch: 'deepclaw/parser-t1'});
+        mocks.isDir.mockReturnValue(true);
+        expect(projectWorkDir('project', 'p1', {projectId: 'p1', taskId: 't1'})).toBe(WORKTREE);
+        expect(worktreeOf).toHaveBeenCalledExactlyOnceWith({projectId: 'p1', taskId: 't1'});
+    });
+
+    /** Taken away by the user since: the task works where it worked before it ever asked for one. */
+    test('falls back to the project folder when the checkout is no longer there', () => {
+        workingDirOf.mockReturnValue(REPO);
+        worktreeOf.mockReturnValue({dir: WORKTREE, branch: 'deepclaw/parser-t1'});
+        mocks.isDir.mockReturnValue(false);
+        expect(projectWorkDir('project', 'p1', {projectId: 'p1', taskId: 't1'})).toBe(REPO);
+    });
+
+    /** Everything of a run that is on no task, which is every chat and every project loop. */
+    test('asks after no checkout for a run that was handed no task', () => {
+        workingDirOf.mockReturnValue(REPO);
+        expect(projectWorkDir('project', 'p1')).toBe(REPO);
+        expect(worktreeOf).not.toHaveBeenCalled();
     });
 
     /**
@@ -90,6 +125,21 @@ describe('runWorkingDir', () => {
 
     test('is the data root where the project named no folder', () => {
         expect(runWorkingDir(newTestContext({role: 'project', projectId: 'p1'}))).toBe(DATA_ROOT);
+    });
+
+    /**
+     * A reading is built with the task it reads, so it looks at the work where the work is. Nothing
+     * of a task that worked in a checkout of its own is in the folder below: a reader sent there
+     * would read the code as it stood before the task started and say it had done nothing.
+     */
+    test('sends a reading of the task to the checkout that task worked in', () => {
+        workingDirOf.mockReturnValue(REPO);
+        worktreeOf.mockReturnValue({dir: WORKTREE, branch: 'deepclaw/parser-t1'});
+        mocks.isDir.mockReturnValue(true);
+        expect(runWorkingDir(newTestContext({
+            role: 'project', projectId: 'p1', loopKind: 'review',
+            assignedTask: {projectId: 'p1', taskId: 't1'},
+        }))).toBe(WORKTREE);
     });
 });
 
@@ -134,6 +184,23 @@ describe('inRunWorkspace', () => {
         const context = newTestContext({role: 'project', projectId: 'p1'});
         expect(inRunWorkspace(context, `${HOME}/home/.ssh/id_rsa`)).toBe(false);
         expect(inRunWorkspace(context, `${REPO}/../secrets/keys.json`)).toBe(false);
+    });
+
+    /**
+     * The checkout is where this run works, so it is what it may reach into. The repository it was
+     * taken from is where the other tasks of the project are working at that same moment, and this
+     * run is asked about before it touches anything in there.
+     */
+    test('holds a task working in a checkout to that checkout', () => {
+        workingDirOf.mockReturnValue(REPO);
+        worktreeOf.mockReturnValue({dir: WORKTREE, branch: 'deepclaw/parser-t1'});
+        mocks.isDir.mockReturnValue(true);
+        const context = newTestContext({
+            role: 'project', projectId: 'p1', assignedTask: {projectId: 'p1', taskId: 't1'},
+        });
+        expect(inRunWorkspace(context, 'src/index.ts')).toBe(true);
+        expect(inRunWorkspace(context, `${WORKTREE}/src/index.ts`)).toBe(true);
+        expect(inRunWorkspace(context, `${REPO}/src/index.ts`)).toBe(false);
     });
 
     test('asks after nothing but the workspace for a run with no folder of its own', () => {

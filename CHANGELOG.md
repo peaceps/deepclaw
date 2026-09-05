@@ -1,7 +1,6 @@
 v0.2.2
 a project can now be given a folder of its own to work in, and every run on it works there.
-a model call left unanswered is now given up on after a minute and a half, and the log says so.
-a call the model turned away for rate is now waited out instead of ending the run.
+a task can now take a git worktree of its own, so tasks worked at once never share a checkout.
 an agent's feeling can now be about how the work it handed out is going.
 
 v0.2.1

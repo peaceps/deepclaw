@@ -69,6 +69,23 @@ export const DEEPCLAW_MD = 'DEEPCLAW.md';
 // the ones the work produced, the output is the report of it, filed away when it grew too long.
 export const FILES_DIR = 'files';
 export const OUTPUT_DIR = 'output';
+/** The checkouts of the project's repository, one per task that asked to work in one of its own. */
+export const WORKTREES_DIR = 'worktrees';
+
+/**
+ * Where a task's own checkout of the project's repository stands, one folder per task.
+ *
+ * Under our own data rather than beside the repository the project named. That folder is the user's,
+ * lent to us for the work, and a checkout dropped next to it is litter in a place we do not own --
+ * while here it is inside the workspace already, so a run working in one reads and writes its files
+ * without a question asked per file.
+ *
+ * Named for the task and not for the run of it: a task picked up again is picked up where it was
+ * left, which is the branch and the half-done work already lying in this folder.
+ */
+export function projectWorktreeDir(projectId: string, taskId: string): string {
+    return `${PROJECT_DIR}/${projectId}/${WORKTREES_DIR}/${taskId}`;
+}
 
 export function projectFilesDir(projectId: string): string {
     return `${PROJECT_DIR}/${projectId}/${FILES_DIR}`;

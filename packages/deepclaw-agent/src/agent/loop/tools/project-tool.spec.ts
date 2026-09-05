@@ -6,6 +6,7 @@ import {projectFilesDir} from '../../paths';
 import {AgentIdentityManager} from '../services/agent-identity-manager';
 import {ProjectManager} from '../services/project-manager';
 import {RunningTaskService} from '../services/running-task-service';
+import {WorktreeService} from '../services/worktree-service';
 import {
     addTaskTool,
     createProjectTool,
@@ -54,6 +55,7 @@ const setWorkingDir = vi.spyOn(ProjectManager, 'setWorkingDir');
 const workingDirOf = vi.spyOn(ProjectManager, 'workingDirOf');
 const getAgent = vi.spyOn(AgentIdentityManager, 'getAgent');
 const getAgents = vi.spyOn(AgentIdentityManager, 'getAgents');
+const worktreeOf = vi.spyOn(WorktreeService, 'worktreeOf');
 
 function newTask(id: string, title = id): Task {
     return {id, title, description: `${title} desc`, priority: 'medium', status: 'todo'} as Task;
@@ -103,6 +105,7 @@ beforeEach(() => {
     getAgents.mockReturnValue([newIdentity('a1'), newIdentity('a2'), newIdentity('a3', true)]);
     setWorkingDir.mockReturnValue(undefined);
     workingDirOf.mockReturnValue(undefined);
+    worktreeOf.mockReturnValue(undefined);
 });
 
 /** A turn is what ends the work a run took on, and the service holding it is one per process. */
@@ -769,6 +772,52 @@ describe('updateTaskTool invoke', () => {
             {projectId: 'pr1', taskId: 'design', status: 'done'}, newTestContext()
         );
         expect(result).toContain(JSON.stringify(newProject({tasks: {design: newTask('design')}})));
+    });
+
+    /**
+     * The branch is the whole of what the user has of a task that worked in a checkout of its own:
+     * nothing of it was merged, and the folder they named for the project is untouched.
+     */
+    test('says in the report which branch the work of the task is on', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        worktreeOf.mockReturnValue({
+            dir: '/data/.projects/pr1/worktrees/design', branch: 'deepclaw/the-design-d1e2f3a4',
+        });
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design',
+            output: {type: 'markdown', content: '# done'},
+        }, newTestContext());
+        expect(worktreeOf).toHaveBeenCalledWith({projectId: 'pr1', taskId: 'design'});
+        expect(updateTask.mock.calls[0]![1].output!.content)
+            .toBe('# done\n\nagent.tools.project.output.worktree');
+    });
+
+    /**
+     * The names came from the subagent that worked the task, and it worked in the checkout. Read
+     * against the folder this loop stands in, every one of them would point at a file the task
+     * never wrote.
+     */
+    test('reads the files of a task against the checkout that task worked in', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        worktreeOf.mockReturnValue({
+            dir: '/data/.projects/pr1/worktrees/design', branch: 'deepclaw/the-design-d1e2f3a4',
+        });
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design',
+            output: {type: 'markdown', content: '# done', generatedFiles: ['out/sheet.csv']},
+        }, newTestContext());
+        expect(mocks.publishGeneratedFiles).toHaveBeenCalledExactlyOnceWith(
+            expect.anything(), ['out/sheet.csv'], projectFilesDir('pr1'),
+            '/data/.projects/pr1/worktrees/design'
+        );
+    });
+
+    test('leaves the report of a task that worked where the project does alone', async () => {
+        updateTask.mockReturnValue({task: newTask('design'), stop: false});
+        await updateTaskTool.invoke({
+            projectId: 'pr1', taskId: 'design', output: {type: 'markdown', content: '# done'},
+        }, newTestContext());
+        expect(updateTask.mock.calls[0]![1].output!.content).toBe('# done');
     });
 
     test('says which files never reached the user', async () => {

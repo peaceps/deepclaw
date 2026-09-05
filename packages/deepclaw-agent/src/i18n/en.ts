@@ -117,6 +117,14 @@ You can ask me continue to modify the output or mark the task as verified when y
                 },
                 output: {
                     generatedFiles: 'Generated files',
+                    // Added to the report of a task that worked in a checkout of its own. Nothing
+                    // of that work is in the folder the user named, so a report without this line
+                    // leaves them to go looking for what a task did. Nothing is ever cleared away
+                    // for them either: what a checkout holds is work, and work is not ours to
+                    // decide is finished with, so the line says whose the leftovers are.
+                    worktree: 'This task worked on branch {{branch}}, in a checkout of its own at '
+                        + '{{dir}}. Nothing of it has been merged, and both stay as they are until '
+                        + 'you merge that branch or clear that folder away yourself.',
                 },
             },
         },

@@ -2,6 +2,7 @@ import { FileUtils } from '@deepclaw/node-utils';
 import { FlushAgentRole } from '@deepclaw/core';
 import { AssignedTask, OneLoopContext } from '../definitions/definitions';
 import { ProjectManager } from './services/project-manager';
+import { WorktreeService } from './services/worktree-service';
 
 /**
  * The folder the project of this run works in, and nothing where that is the data root.
@@ -21,6 +22,16 @@ export function projectWorkDir(
 ): string | undefined {
     if (role === 'cron') {
         return undefined;
+    }
+    // A task working in a checkout of its own works there, and so does every sub loop under it:
+    // they carry the same task, which is why the checkout is asked after by task and not by run.
+    // Ahead of the project's own folder rather than beside it, one answer being the whole point of
+    // this function -- and only while the folder is really there, the same as below. A checkout the
+    // user has since taken away leaves the task working where the project does, which is where it
+    // worked before it ever asked for one.
+    const worktree = assignedTask && WorktreeService.worktreeOf(assignedTask);
+    if (worktree && FileUtils.isDir(worktree.dir)) {
+        return worktree.dir;
     }
     const id = assignedTask?.projectId || projectId;
     return id ? ProjectManager.workingDirOf(id) : undefined;

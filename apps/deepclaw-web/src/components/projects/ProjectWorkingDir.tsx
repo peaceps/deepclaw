@@ -126,7 +126,7 @@ export function ProjectWorkingDir({project}: {project: SlimProject}) {
         return null;
     }
     return (
-        <div className="flex items-center gap-1.5 mb-3 text-xs text-gray-500">
+        <div className="flex items-center gap-1.5 mb-3 ml-3.5 text-xs text-gray-500">
             <FolderTree size={13} className="flex-shrink-0 text-gray-400" />
             {editing ? (
                 <input

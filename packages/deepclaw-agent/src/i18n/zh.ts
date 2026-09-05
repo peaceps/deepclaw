@@ -100,6 +100,7 @@ export const zh = {
                 },
                 output: {
                     generatedFiles: '生成的文件',
+                    worktree: '这个任务在分支 {{branch}} 上做的，检出在 {{dir}}。它没有合并到任何地方，分支和这个检出都会一直留着，合并还是清掉由你决定。',
                 },
             }
         },
