@@ -7,7 +7,9 @@ import type {LoopKind, SystemPrompt} from '../definitions/definitions';
 import type {LLMTool} from '../definitions/tool-definitions';
 import {newTestLogger} from '../../test-support/one-loop-context';
 import {ToolsManager} from '../loop/services/tools-manager';
-import {isContextOverflowMessage, readOverflowLimit, wordsOfError, LLMModel} from './llmgw';
+import {
+    isContextOverflowMessage, readOverflowLimit, retryAfterMs, wordsOfError, LLMModel
+} from './llmgw';
 
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
@@ -121,12 +123,15 @@ function newTool(name: string): LLMTool {
     return {name, description: `${name} tool`, schema: {type: 'object'}};
 }
 
-/** The retry path sleeps 500ms between attempts, so the timers are driven by hand. */
-async function runWithoutWaiting<T>(start: () => Promise<T>): Promise<T> {
+/**
+ * The retry path sleeps between attempts -- 500ms, or as long as the refusal asked for -- so the
+ * timers are driven by hand.
+ */
+async function runWithoutWaiting<T>(start: () => Promise<T>, ms: number = 5000): Promise<T> {
     vi.useFakeTimers();
     try {
         const pending = start();
-        await vi.advanceTimersByTimeAsync(5000);
+        await vi.advanceTimersByTimeAsync(ms);
         return await pending;
     } finally {
         vi.useRealTimers();
@@ -143,13 +148,13 @@ describe('LLMModel constructor', () => {
 
     test('derives the gateway config from the llm config and fixed defaults', () => {
         expect(newLLM('main', {model: 'opus'}).getGWConfig())
-            .toEqual({model: 'opus', timeoutMs: 300000, maxTokens: 8000});
+            .toEqual({model: 'opus', timeoutMs: 90000, maxTokens: 8000});
     });
 
     test('creates the client with the base url, api key and default timeout', () => {
         const llm = newLLM();
         expect(createdClients).toHaveLength(1);
-        expect(llm.getClient()).toEqual({baseURL: 'https://api.example.com', apiKey: 'key', timeout: 300000});
+        expect(llm.getClient()).toEqual({baseURL: 'https://api.example.com', apiKey: 'key', timeout: 90000});
     });
 });
 
@@ -159,7 +164,7 @@ describe('LLMModel updateGWConfig', () => {
         const llm = newLLM();
         llm.updateGWConfig(null, {model: 'haiku'});
         expect(llm.getGWConfig()).toEqual({
-            model: 'haiku', timeoutMs: 300000, maxTokens: 8000
+            model: 'haiku', timeoutMs: 90000, maxTokens: 8000
         });
     });
 
@@ -176,7 +181,7 @@ describe('LLMModel updateGWConfig', () => {
         llm.updateGWConfig({baseURL: 'https://other.example.com', apiKey: 'key2'}, {model: 'haiku'});
         expect(createdClients).toHaveLength(2);
         expect(llm.getClient())
-            .toEqual({baseURL: 'https://other.example.com', apiKey: 'key2', timeout: 300000});
+            .toEqual({baseURL: 'https://other.example.com', apiKey: 'key2', timeout: 90000});
     });
 });
 
@@ -262,7 +267,7 @@ describe('LLMModel invoke retries', () => {
             () => llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger())
         );
         expect(response).toMatchObject({
-            transitionReason: 'error', text: 'ERROR: LLM invoke failed after 3 retries.'
+            transitionReason: 'error', text: 'ERROR: LLM invoke failed after 3 retries. boom'
         });
         expect(llm.attempts).toBe(3);
     });
@@ -276,7 +281,8 @@ describe('LLMModel invoke retries', () => {
         await runWithoutWaiting(
             () => llm.invoke('agent', newSystem(), messages, () => undefined, newTestLogger())
         );
-        expect(messages).toEqual([{role: 'assistant', content: 'ERROR: LLM invoke failed after 3 retries.'}]);
+        expect(messages)
+            .toEqual([{role: 'assistant', content: 'ERROR: LLM invoke failed after 3 retries. boom'}]);
     });
 
     test('logs every failed attempt', async () => {
@@ -295,7 +301,7 @@ describe('LLMModel invoke retries', () => {
 
 describe('LLMModel invoke unrecoverable errors', () => {
 
-    test.for([400, 401, 403, 404, 429])('stops right away on status %i', async status => {
+    test.for([400, 401, 403, 404])('stops right away on status %i', async status => {
         const llm = newLLM();
         llm.onInvoke = async () => {
             throw {status, message: 'nope'};
@@ -310,10 +316,10 @@ describe('LLMModel invoke unrecoverable errors', () => {
     test('falls back to the status code when the error carries no message', async () => {
         const llm = newLLM();
         llm.onInvoke = async () => {
-            throw {status: 429};
+            throw {status: 403};
         };
         const response = await llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger());
-        expect(response.text).toBe('ERROR: Unrecoverable error: 429.');
+        expect(response.text).toBe('ERROR: Unrecoverable error: 403.');
     });
 
     test('treats a server error as recoverable and keeps retrying', async () => {
@@ -325,6 +331,70 @@ describe('LLMModel invoke unrecoverable errors', () => {
             () => llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger())
         );
         expect(llm.attempts).toBe(3);
+    });
+
+    /**
+     * The vendor client used to absorb this one quietly, three attempts of its own under the same
+     * await. It retries nothing now, so a limit that would have been gone a second later has to be
+     * asked again here or the run dies on it.
+     */
+    test('asks again after a refusal for rate', async () => {
+        const llm = newLLM();
+        llm.onInvoke = async () => {
+            throw {status: 429, message: 'too many requests'};
+        };
+        const response = await runWithoutWaiting(
+            () => llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger())
+        );
+        expect(llm.attempts).toBe(3);
+        // The words of the refusal go along: a run told only that three tries failed leaves the
+        // user with nothing to act on, and the rate is a thing they can act on.
+        expect(response.text).toBe('ERROR: LLM invoke failed after 3 retries. too many requests');
+    });
+
+    /**
+     * The wait is where a stop most likely lands: it is the only part of a failing call that is
+     * ours, and the longest of them is ten seconds of a user watching a stopped run go on.
+     */
+    test('wakes from the wait and asks nothing more when the run is stopped', async () => {
+        const llm = newLLM();
+        llm.onInvoke = async () => {
+            throw {status: 429, message: 'slow down', headers: {'retry-after': '10'}};
+        };
+        const controller = new AbortController();
+        vi.useFakeTimers();
+        try {
+            const pending = llm.invoke(
+                'agent', newSystem(), [], () => undefined, newTestLogger(), controller.signal
+            );
+            await vi.advanceTimersByTimeAsync(100);
+            expect(llm.attempts).toBe(1);
+            controller.abort();
+            // As it came, so the loop reads it as the stop it is rather than a failed call.
+            await expect(pending).rejects.toMatchObject({status: 429});
+            expect(llm.attempts).toBe(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    /** Asked again at once, a refusal for rate is answered with the same refusal. */
+    test('waits as long as the refusal asked before asking again', async () => {
+        const llm = newLLM();
+        llm.onInvoke = async () => {
+            throw {status: 429, message: 'slow down', headers: {'retry-after': '3'}};
+        };
+        vi.useFakeTimers();
+        try {
+            const pending = llm.invoke('agent', newSystem(), [], () => undefined, newTestLogger());
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(llm.attempts).toBe(1);
+            await vi.advanceTimersByTimeAsync(10_000);
+            await pending;
+            expect(llm.attempts).toBe(3);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 
@@ -663,5 +733,40 @@ describe('wordsOfError', () => {
     test('comes back empty from an error that said nothing', () => {
         expect(wordsOfError({})).toBe('');
         expect(wordsOfError(undefined)).toBe('');
+    });
+});
+
+describe('retryAfterMs', () => {
+
+    /** A map in one version of the sdks and a plain object in another, so both are looked in. */
+    test('reads the wait out of either shape the header arrives in', () => {
+        expect(retryAfterMs({headers: {'retry-after': '2'}})).toBe(2000);
+        expect(retryAfterMs({headers: new Map([['retry-after', '2']])})).toBe(2000);
+    });
+
+    /**
+     * The exact one, and the one openai sends with a rate limit. Read second, a gateway that sends
+     * only this one would fall back to the wait for a refusal that named none.
+     */
+    test('prefers the wait named in milliseconds', () => {
+        expect(retryAfterMs({headers: {'retry-after-ms': '1500', 'retry-after': '2'}})).toBe(1500);
+        expect(retryAfterMs({headers: {'retry-after-ms': '1500'}})).toBe(1500);
+    });
+
+    /**
+     * A gateway under load asks for a minute or more. Sitting out three of those spends the whole
+     * patience of the run on one call, and what the user waits for is a rate limit either way.
+     */
+    test('waits no longer than the cap however long it was asked to', () => {
+        expect(retryAfterMs({headers: {'retry-after': '600'}})).toBe(10_000);
+    });
+
+    /** A refusal that named no wait, or named one as a date, falls to the ordinary wait. */
+    test('comes back with nothing where no number of seconds was named', () => {
+        expect(retryAfterMs({headers: {'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT'}}))
+            .toBeUndefined();
+        expect(retryAfterMs({headers: {}})).toBeUndefined();
+        expect(retryAfterMs({})).toBeUndefined();
+        expect(retryAfterMs(undefined)).toBeUndefined();
     });
 });

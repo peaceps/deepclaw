@@ -166,10 +166,11 @@ describe('OpenAIResponseLLM convertTools', () => {
 
 describe('OpenAIResponseLLM createLLMClient', () => {
 
-    test('builds the sdk client with the base url, api key and timeout', () => {
+    /** The retrying belongs to the gateway, where an attempt that failed is written down. */
+    test('builds the sdk client with the base url, api key and timeout, retrying nothing', () => {
         newLLM();
         expect(mocks.newClient).toHaveBeenCalledExactlyOnceWith({
-            baseURL: 'https://api.openai.example.com', apiKey: 'key', timeout: 300000
+            baseURL: 'https://api.openai.example.com', apiKey: 'key', timeout: 90000, maxRetries: 0
         });
     });
 });
@@ -387,7 +388,9 @@ describe('OpenAIResponseLLM transition reason', () => {
         ]));
         const response = await runWithoutWaiting(() => invoke(newLLM()));
         expect(response.transitionReason).toBe('error');
-        expect(newLLM().textOf(response)).toBe('ERROR: LLM invoke failed after 3 retries.');
+        // Carrying what the last of the three said, which is the only word anybody gets on why.
+        expect(newLLM().textOf(response))
+            .toBe('ERROR: LLM invoke failed after 3 retries. Invalid response status: in_progress');
         expect(mocks.create).toHaveBeenCalledTimes(3);
     });
 

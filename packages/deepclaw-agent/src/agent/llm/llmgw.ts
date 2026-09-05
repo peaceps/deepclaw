@@ -7,7 +7,43 @@ import {
 import { ToolsManager } from '../loop/services/tools-manager';
 import { LoopKind, SystemPrompt, type OverflowLimit } from '../definitions/definitions';
 
+/**
+ * How many times a call is asked for before the run is told it failed. Every attempt is made from
+ * here and none from inside the vendor client, which is set to retry nothing: a client that retries
+ * on its own does it under the same await, so a call that stalls costs the timeout once per silent
+ * attempt and the log of the run says only that the turn took a quarter of an hour. Made here, each
+ * attempt is a line in the log and the arithmetic is `llmRetry` timeouts and no more.
+ */
 const llmRetry = 3;
+
+/**
+ * How long to wait before asking again when the refusal named no wait of its own. Long enough for
+ * a hiccup at the far end to be over, short enough that three of them are not a pause anybody sits
+ * through.
+ */
+const RETRY_WAIT_MS = 500;
+
+/**
+ * The longest wait a refusal may ask of us. A gateway turning a call away for rate has been known
+ * to ask for a minute or more, and sitting out three of those in silence spends the whole patience
+ * of the run on one call. Capped, the attempts run out sooner and what reaches the user is the rate
+ * limit itself, which is the thing they can do something about.
+ */
+const MAX_RETRY_WAIT_MS = 10 * 1000;
+
+/**
+ * How long a call may go unanswered before it is given up on and made again.
+ *
+ * What both sdks count under this is the wait for the response to begin -- the timer is cleared the
+ * moment the headers land, and the stream that follows may run as long as the model has something
+ * to say -- so a minute and a half is a minute and a half of silence, not a cap on the answer. Long
+ * enough that a model thinking before it speaks is not cut off, short enough that a call the far end
+ * has quietly dropped is asked again while the user is still sitting there.
+ *
+ * A far end that answers and then goes quiet mid-stream is not this timer's business, and node holds
+ * that one open for five minutes of its own.
+ */
+const RESPONSE_WAIT_MS = 90 * 1000;
 
 /**
  * What a refusal says when what it refused was the size of the conversation.
@@ -144,6 +180,52 @@ export function wordsOfError(error: any): string {
         .join('\n');
 }
 
+/**
+ * The wait a refusal asked for before the next ask, and nothing where it asked for none.
+ *
+ * Read out of the header the far end sends it in, which the sdks hand along as a map in one version
+ * and a plain object in another, so both are looked in. A wait written as a date rather than as
+ * seconds -- the other form the header allows, and one nothing here has met -- reads as nothing and
+ * falls to the ordinary wait, which is the direction to be wrong in: asking again too early costs
+ * one refusal, and reading a date as a number of seconds would sit out a year.
+ */
+export function retryAfterMs(error: any): number | undefined {
+    const headers = error?.headers;
+    const header = (name: string): unknown =>
+        typeof headers?.get === 'function' ? headers.get(name) : headers?.[name];
+    const asked = (said: unknown, unit: number): number | undefined => {
+        const named = Number(said);
+        return Number.isFinite(named) && named > 0
+            ? Math.min(named * unit, MAX_RETRY_WAIT_MS) : undefined;
+    };
+    // Milliseconds first, which is the order both sdks read them in and the order of exactness:
+    // openai answers a rate limit with both, and the one in seconds is that one rounded up.
+    return asked(header('retry-after-ms'), 1) ?? asked(header('retry-after'), 1000);
+}
+
+/**
+ * Waits, and wakes on a stop.
+ *
+ * The wait between attempts was half a second once, short enough that a stop landing in it was
+ * noticed by the attempt that came next and refused itself. A refusal naming a wait of its own can
+ * ask for seconds, and a user who pressed stop is owed none of them: what they watch in the
+ * meantime is a run that has been told to stop and has not.
+ */
+function waitOrStop(ms: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+        return Promise.resolve();
+    }
+    return new Promise(resolve => {
+        const wake = () => {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', wake);
+            resolve();
+        };
+        const timer = setTimeout(wake, ms);
+        signal?.addEventListener('abort', wake, {once: true});
+    });
+}
+
 export type LLMConstructor<I, O extends {transitionReason: LLMTransitionReason}, T, LLM> =
     new (loopKind: LoopKind, role: FlushAgentRole, llmConfig: LLMConfig) => LLMModel<I, O, T, LLM>;
 
@@ -172,7 +254,7 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
     constructor(loopKind: LoopKind, role: FlushAgentRole, llmConfig: LLMConfig) {
         this.gw = {
             model: llmConfig.model,
-            timeoutMs: 300 * 1000,
+            timeoutMs: RESPONSE_WAIT_MS,
             maxTokens: 8000
         }
         this.loopKind = loopKind;
@@ -217,13 +299,15 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
             ToolsManager.getToolsArray({loopKind: this.loopKind, role: this.role, mode})
         );
         const outgoing = this.resolveImages(messages);
+        let lastError: unknown;
         for (let i = 0; i < llmRetry; i++) {
             try {
                 response = await this._invoke(system, outgoing, tools, streamer, signal);
                 break;
             } catch (error) {
+                lastError = error;
                 // A stopped run has not failed at anything, and every retry of it is refused by
-                // the same signal: three of them with a sleep in between would only put a second
+                // the same signal: three of them, with waits that a stop wakes, put next to nothing
                 // between the user pressing stop and the run noticing. It leaves as it came, so
                 // that the loop can tell a stop apart from a call that really went wrong: a
                 // response handed back here reads as an answer the model gave.
@@ -242,11 +326,24 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
                         break;
                     }
                 }
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await waitOrStop(retryAfterMs(error) ?? RETRY_WAIT_MS, signal);
+                // Asked again after the wait, because the wait is where a stop most likely lands:
+                // the longest one here is ten seconds, and the attempt this would otherwise go on
+                // to make is a request sent on behalf of a run that is already over.
+                if (signal?.aborted) {
+                    throw error;
+                }
             }
         }
         if (!response) {
-            response = this.newResponse(`ERROR: LLM invoke failed after ${llmRetry} retries.`, 'error');
+            // What the last of them said goes along. A call that ran out of attempts was turned
+            // away for a reason the user can usually act on -- the rate they are asking at, a
+            // gateway that is down -- and a run told only that three tries failed hands them a
+            // sentence to go looking with instead of the answer they were given three times.
+            const said = wordsOfError(lastError);
+            response = this.newResponse(
+                `ERROR: LLM invoke failed after ${llmRetry} retries.${said ? ` ${said}` : ''}`, 'error'
+            );
         }
         if (response.transitionReason !== 'inputMaxTokens') {
             messages.push(...this.convertResponseToMessages(response));
@@ -274,9 +371,18 @@ export abstract class LLMModel<I, O extends {transitionReason: LLMTransitionReas
 
     protected abstract isInputExceedLimit(error: any): boolean;
 
+    /**
+     * A refusal there is no point asking again after: the request itself is wrong, or we are not
+     * who the far end lets in. Asking again changes none of them.
+     *
+     * Rate is not among them, though it was while the vendor client did its own retrying: what it
+     * absorbed quietly, three times over, now has to be absorbed here or a run dies on a limit that
+     * would have been gone a second later. It is asked again like any other, and after the wait the
+     * refusal itself named where it named one.
+     */
     private isUnrecoverableError(error: any): string {
         const code = error?.status;
-        if (code === 400 || code === 429 || code === 403 || code === 401 || code === 404) {
+        if (code === 400 || code === 403 || code === 401 || code === 404) {
             return error?.message ?? code.toString();
         }
         return '';

@@ -42,6 +42,8 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             baseURL,
             apiKey,
             timeout,
+            // Asked again in the gateway above and nowhere else, where the asking can be seen.
+            maxRetries: 0,
         });
     }
     

@@ -155,10 +155,11 @@ describe('OpenAIChatLLM image references', () => {
 
 describe('OpenAIChatLLM createLLMClient', () => {
 
-    test('builds the sdk client with the base url, api key and timeout', () => {
+    /** The retrying belongs to the gateway, where an attempt that failed is written down. */
+    test('builds the sdk client with the base url, api key and timeout, retrying nothing', () => {
         newLLM();
         expect(mocks.newClient).toHaveBeenCalledExactlyOnceWith({
-            baseURL: 'https://api.openai.example.com', apiKey: 'key', timeout: 300000
+            baseURL: 'https://api.openai.example.com', apiKey: 'key', timeout: 90000, maxRetries: 0
         });
     });
 });

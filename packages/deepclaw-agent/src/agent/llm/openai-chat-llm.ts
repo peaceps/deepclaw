@@ -50,6 +50,8 @@ export class OpenAIChatLLM extends LLMModel<ThinkingMessage, ThinkingResponse, C
             baseURL,
             apiKey,
             timeout,
+            // Asked again in the gateway above and nowhere else, where the asking can be seen.
+            maxRetries: 0,
         });
     }
 
