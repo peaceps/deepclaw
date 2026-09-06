@@ -63,7 +63,6 @@ export const CRON_HISTORY_DIR = 'history';
 
 // Global
 export const GLOBAL_MEMORY_DIR = '.memory';
-export const DEEPCLAW_MD = 'DEEPCLAW.md';
 
 // What a run hands to the user, beside the project or the cron task it came out of. The files are
 // the ones the work produced, the output is the report of it, filed away when it grew too long.

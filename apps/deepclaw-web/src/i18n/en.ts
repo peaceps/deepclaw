@@ -64,7 +64,7 @@ export const en = {
             }
         },
         sidebar: {
-            subtitle: 'You are not alone',
+            subtitle: 'Your one-man company',
             links: {
                 agents: 'Agents',
                 projects: 'Project Board',
@@ -396,13 +396,16 @@ export const en = {
                 langSaveFailed: 'Language saving failed',
                 errors: {
                     total: 'error(s) found, please fix before saving',
-                    ui: 'UI Settings: {{count}} error(s)',
+                    ui: 'Basic Settings: {{count}} error(s)',
                     agents: 'Agent Settings: {{agentCount}} agents with {{errorCount}} error(s)'
                 },
                 panels: {
                     ui: {
-                        title: 'UI Settings',
-                        description: 'Language and other UI settings'
+                        title: 'Basic Settings',
+                        description: 'Set your basic information',
+                        companyProfile: {
+                            placeholder: 'Main business, rules and regulations, company culture, etc.'
+                        }
                     },
                     agents: {
                         title: 'Agent Settings',
@@ -448,6 +451,9 @@ export const en = {
                 },
                 title: {
                     prompt: 'Manager title'
+                },
+                companyProfile: {
+                    prompt: 'Company profile'
                 }
             },
             ui: {

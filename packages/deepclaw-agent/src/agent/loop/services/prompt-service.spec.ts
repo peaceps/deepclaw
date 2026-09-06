@@ -9,13 +9,21 @@ const WORKING_DIR = '/home/someone/.deepclaw';
 
 const mocks = vi.hoisted(() => ({
     loadLang: vi.fn<() => string>(),
+    loadConfig: vi.fn<(key?: string, defaultValue?: unknown) => unknown>(),
+    // The limit the run is given, standing in for the one the config package declares: what is
+    // tested is that the profile is cut to whatever the limit is, not what number it holds today.
+    maxProfile: 300,
     readFile: vi.fn<(filePath: string) => string>(),
     readDir: vi.fn<(dirPath: string) => {[key: string]: {dir: string, content: string}}>(),
     exists: vi.fn<(filePath: string) => boolean>(),
     getWorkingDir: vi.fn<() => string>(() => '/home/someone/.deepclaw'),
 }));
 
-vi.mock('@deepclaw/config', () => ({loadLang: mocks.loadLang}));
+vi.mock('@deepclaw/config', () => ({
+    loadLang: mocks.loadLang,
+    loadConfig: mocks.loadConfig,
+    MAX_COMPANY_PROFILE_LENGTH: mocks.maxProfile,
+}));
 vi.mock('@deepclaw/i18n', () => ({FULL_NAME_MAP: {en: 'English', zh: 'Chinese'}}));
 vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
@@ -42,6 +50,7 @@ async function loadService(setup: () => void = () => undefined) {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.loadLang.mockReturnValue('en');
+    mocks.loadConfig.mockReturnValue('');
     mocks.readDir.mockReturnValue({});
     mocks.exists.mockReturnValue(false);
     mocks.readFile.mockImplementation((filePath: string) => {
@@ -192,13 +201,13 @@ describe('platform and language', () => {
     });
 
     test('keeps the sections in a stable order', async () => {
-        const {PromptService} = await loadService();
+        const {PromptService} = await loadService(() => mocks.loadConfig.mockReturnValue('a bindery'));
         const {cacheable} = PromptService.provideSystemPrompt(
             newTestAgentConfig(), newIdentity(), 'agent', '', 'main'
         );
         expect(cacheable.split('\n').filter(line => line.startsWith('# '))).toEqual([
-            '# Platform', '# Language', '# Main Identity', '# Personality', '# Emotions',
-            '# Agent Mode', '# Handing Work Over', '# Project Management',
+            '# Platform', '# Language', '# Main Identity', '# The Company', '# Personality',
+            '# Emotions', '# Agent Mode', '# Handing Work Over', '# Project Management',
         ]);
     });
 
@@ -221,21 +230,74 @@ describe('platform and language', () => {
     });
 });
 
+describe('the company', () => {
+
+    test('tells the run what company the work is for', async () => {
+        const {PromptService} = await loadService(
+            () => mocks.loadConfig.mockReturnValue('A two person shop making tools for the trade.')
+        );
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
+        expect(mocks.loadConfig).toHaveBeenCalledWith('manager.companyProfile', '');
+        expect(cacheable).toContain('A two person shop making tools for the trade.');
+    });
+
+    /** Nobody is given a company they never named, and a heading over a blank says one is missing. */
+    test('says nothing of a company where the user has written none', async () => {
+        const {PromptService} = await loadService();
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
+        expect(cacheable).not.toContain('# The Company');
+    });
+
+    test('reads a profile of nothing but spaces as none at all', async () => {
+        const {PromptService} = await loadService(() => mocks.loadConfig.mockReturnValue('  \n '));
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
+        expect(cacheable).not.toContain('# The Company');
+    });
+
+    /** The settings page is open while the run goes on, so a save has to land on the next turn. */
+    test('picks up a profile that changed between two prompts', async () => {
+        const {PromptService} = await loadService(() => mocks.loadConfig.mockReturnValue('a print shop'));
+        PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
+        mocks.loadConfig.mockReturnValue('a bindery');
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
+        expect(cacheable).toContain('a bindery');
+        expect(cacheable).not.toContain('a print shop');
+    });
+
+    /**
+     * This section stands in the prompt of every call every run makes, so a file grown past what
+     * the settings box takes is not a long read but a bill on each of them.
+     */
+    test('cuts a profile longer than the limit', async () => {
+        const {PromptService} = await loadService(
+            () => mocks.loadConfig.mockReturnValue(`${'shop '.repeat(mocks.maxProfile)}the end`)
+        );
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
+        expect(cacheable).toContain('shop '.repeat(mocks.maxProfile / 'shop '.length));
+        expect(cacheable).not.toContain('the end');
+    });
+
+    /** Whom the work is for is as true of a piece of a task as of the run that handed it out. */
+    test('reaches a spawned loop as well', async () => {
+        const {PromptService} = await loadService(() => mocks.loadConfig.mockReturnValue('a bindery'));
+        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'sub');
+        expect(cacheable).toContain('a bindery');
+    });
+});
+
 describe('main identity', () => {
 
-    test('uses the content of DEEPCLAW.md as the shared identity', async () => {
+    /**
+     * The identity is the one the agents are built with, and no file of the data folder stands in
+     * for it: what the user has to say about the place is the company profile above.
+     */
+    test('is the built in identity, read off no file', async () => {
         const {PromptService} = await loadService(
             () => mocks.readFile.mockReturnValue('you are the house agent')
         );
         const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
-        expect(mocks.readFile).toHaveBeenCalledWith('DEEPCLAW.md');
-        expect(cacheable).toContain('you are the house agent');
-    });
-
-    test('falls back to the built in identity when DEEPCLAW.md cannot be read', async () => {
-        const {PromptService} = await loadService();
-        const {cacheable} = PromptService.provideSystemPrompt(newTestAgentConfig(), undefined, 'agent', '', 'main');
         expect(cacheable).toContain(BUILT_IN_IDENTITY);
+        expect(cacheable).not.toContain('you are the house agent');
     });
 
     test('adds the sub loop rules for a sub loop', async () => {

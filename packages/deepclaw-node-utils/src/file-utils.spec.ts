@@ -598,7 +598,7 @@ describe('FileUtils', () => {
             const moduleDir = path.join(tempDir, 'module', name);
             const resourceDir = path.join(moduleDir, resources);
             fs.mkdirSync(resourceDir, {recursive: true});
-            fs.writeFileSync(path.join(resourceDir, 'DEEPCLAW.md'), content);
+            fs.writeFileSync(path.join(resourceDir, 'NOTES.md'), content);
             return moduleDir;
         }
 
@@ -608,15 +608,15 @@ describe('FileUtils', () => {
 
         test('takes the resource that sits beside the module that asks for it', () => {
             const moduleDir = moduleDirWith('beside', 'resources', 'beside');
-            FileUtils.copyResource(moduleDir, 'DEEPCLAW.md', 'tmp/beside');
-            expect(FileUtils.readFile('tmp/beside/DEEPCLAW.md')).toBe('beside');
+            FileUtils.copyResource(moduleDir, 'NOTES.md', 'tmp/beside');
+            expect(FileUtils.readFile('tmp/beside/NOTES.md')).toBe('beside');
         });
 
         /** A bundle sits one folder deeper than the resources that were shipped with it. */
         test('looks one folder up when the module has none of its own', () => {
             const bundleDir = path.join(moduleDirWith('above', 'resources', 'above'), 'dist');
-            FileUtils.copyResource(bundleDir, 'DEEPCLAW.md', 'tmp/above');
-            expect(FileUtils.readFile('tmp/above/DEEPCLAW.md')).toBe('above');
+            FileUtils.copyResource(bundleDir, 'NOTES.md', 'tmp/above');
+            expect(FileUtils.readFile('tmp/above/NOTES.md')).toBe('above');
         });
 
         /** Code of a packaged build is bundled away from its resources, so the launcher names them. */
@@ -624,26 +624,26 @@ describe('FileUtils', () => {
             const moduleDir = moduleDirWith('named', 'resources', 'beside');
             const shipped = path.join(tempDir, 'shipped');
             fs.mkdirSync(shipped, {recursive: true});
-            fs.writeFileSync(path.join(shipped, 'DEEPCLAW.md'), 'shipped');
+            fs.writeFileSync(path.join(shipped, 'NOTES.md'), 'shipped');
             vi.stubEnv('DEEPCLAW_RESOURCES', shipped);
 
-            FileUtils.copyResource(moduleDir, 'DEEPCLAW.md', 'tmp/named');
+            FileUtils.copyResource(moduleDir, 'NOTES.md', 'tmp/named');
 
-            expect(FileUtils.readFile('tmp/named/DEEPCLAW.md')).toBe('shipped');
+            expect(FileUtils.readFile('tmp/named/NOTES.md')).toBe('shipped');
         });
 
         test('leaves the destination alone when the resource is nowhere to be found', () => {
-            FileUtils.copyResource(path.join(tempDir, 'nothing'), 'DEEPCLAW.md', 'tmp/nothing');
-            expect(FileUtils.exists('tmp/nothing/DEEPCLAW.md')).toBe(false);
+            FileUtils.copyResource(path.join(tempDir, 'nothing'), 'NOTES.md', 'tmp/nothing');
+            expect(FileUtils.exists('tmp/nothing/NOTES.md')).toBe(false);
         });
 
         test('keeps a resource the user already has', () => {
             const moduleDir = moduleDirWith('kept', 'resources', 'shipped');
-            FileUtils.writeFile('tmp/kept/DEEPCLAW.md', 'mine');
+            FileUtils.writeFile('tmp/kept/NOTES.md', 'mine');
 
-            FileUtils.copyResource(moduleDir, 'DEEPCLAW.md', 'tmp/kept');
+            FileUtils.copyResource(moduleDir, 'NOTES.md', 'tmp/kept');
 
-            expect(FileUtils.readFile('tmp/kept/DEEPCLAW.md')).toBe('mine');
+            expect(FileUtils.readFile('tmp/kept/NOTES.md')).toBe('mine');
         });
 
         function moduleDirWithSkills(name: string, skills: string[]): string {

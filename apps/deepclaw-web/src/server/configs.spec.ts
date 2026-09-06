@@ -117,6 +117,15 @@ describe('saveFullConfig', () => {
         expect(writtenConfig().manager).toEqual({name: 'Deepclaw', title: 'CEO', avatar: '🦊'});
     });
 
+    /** The avatar is the one manager field put back by hand; the rest come through the form. */
+    test('writes the company profile the form brings', async () => {
+        onDisk([newAgent()], '🦊');
+        const config = newConfig();
+        config.manager.companyProfile = 'A two person shop making tools for the trade.';
+        await saveFullConfig(config);
+        expect(writtenConfig().manager.companyProfile).toBe('A two person shop making tools for the trade.');
+    });
+
     /** The stored avatar always wins, so an incoming avatar is lost while none is stored yet. */
     test('leaves the manager without an avatar when none is stored yet', async () => {
         onDisk([newAgent()]);

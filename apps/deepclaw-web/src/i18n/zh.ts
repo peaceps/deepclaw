@@ -62,7 +62,7 @@ export const zh = {
             }
         },
         sidebar: {
-            subtitle: '一个人也可以很热闹',
+            subtitle: '你的一人公司',
             links: {
                 agents: 'Agent',
                 projects: '项目看板',
@@ -390,13 +390,16 @@ export const zh = {
                 langSaveFailed: '语言保存失败',
                 errors: {
                     total: '个配置错误，请修正后保存',
-                    ui: '界面设置: {{count}} 个错误',
+                    ui: '基础信息设置: {{count}} 个错误',
                     agents: 'Agent 设置: {{agentCount}} 个 Agent 共有 {{errorCount}} 个错误'
                 },
                 panels: {
                     ui: {
-                        title: '界面设置',
-                        description: '语言和其他UI配置'
+                        title: '基础信息设置',
+                        description: '设置你的基础信息',
+                        companyProfile: {
+                            placeholder: '公司简介、主营业务、公司文化、制度准则与红线等'
+                        }
                     },
                     agents: {
                         title: 'Agent设置',
@@ -442,6 +445,9 @@ export const zh = {
                 },
                 title: {
                     prompt: '管理员头衔'
+                },
+                companyProfile: {
+                    prompt: '公司简介'
                 }
             },
             ui: {

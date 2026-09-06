@@ -1,11 +1,30 @@
-import {describe, expect, test} from 'vitest';
+import {describe, expect, test, vi} from 'vitest';
 import {
-    loadConfig, validateAppConfig,
+    loadConfig, validateAppConfig, writeAppConfig,
     type AgentConfig, type DeepclawConfig, type IMConfig, type LLMConfig,
     type MultimodalConfig, type UIConfig
 } from './app-config';
 import {type ImageModel} from './image-models';
 import {type LLMProtocol} from './llm-protocols';
+
+const mocks = vi.hoisted(() => ({
+    writeFile: vi.fn<(path: string, content: string) => void>(),
+}));
+
+/**
+ * The config of whoever runs these tests lies exactly where this module reads and writes. It is
+ * left unread, so no test stands on what happens to be on this machine, and unwritten, so no test
+ * can take it away.
+ */
+vi.mock('@deepclaw/node-utils', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@deepclaw/node-utils')>()),
+    FileUtils: {
+        readFile: () => {
+            throw new Error('no config file');
+        },
+        writeFile: mocks.writeFile,
+    },
+}));
 
 function newAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
     return {
@@ -204,5 +223,38 @@ describe('validateAppConfig multimodal', () => {
         const agent = newAgent({multimodal: undefined as unknown as MultimodalConfig});
         const {config} = validateAppConfig(newConfig({agents: [agent]}));
         expect(config.agents[0]!.multimodal).toEqual({});
+    });
+});
+
+describe('the company profile', () => {
+
+    function withProfile(companyProfile: unknown): DeepclawConfig {
+        return newConfig({
+            manager: {name: 'Deepclaw', title: 'CEO', avatar: '🐋',
+                companyProfile: companyProfile as string},
+        }) as DeepclawConfig;
+    }
+
+    /**
+     * The file is the user's to edit by hand, and this field is read on the way into the first turn
+     * of every run: a value that cannot be read as text is a run that never starts, not a field
+     * that looks odd in the settings.
+     */
+    test('drops a profile that is not text at all', () => {
+        const config = withProfile(7);
+        writeAppConfig(config);
+        expect(config.manager.companyProfile).toBeUndefined();
+    });
+
+    test('keeps the profile the user wrote', () => {
+        const config = withProfile('a bindery of two');
+        writeAppConfig(config);
+        expect(config.manager.companyProfile).toBe('a bindery of two');
+    });
+
+    test('leaves a manager who has said nothing about any company alone', () => {
+        const config = newConfig() as DeepclawConfig;
+        writeAppConfig(config);
+        expect('companyProfile' in config.manager).toBe(false);
     });
 });

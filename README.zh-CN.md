@@ -46,6 +46,10 @@ deepclaw start --tui      # 终端界面
 
 ## 最近的变化
 
+**v0.3.0**
+
+- 基础信息设置里现在可以写公司简介，每个 agent 干活之前都知道这活儿是为谁做的，以替代DEEPCLAW.md文件。
+
 **v0.2.2**
 
 - 项目现在可以指定一个自己的工作目录——一个代码仓库，或者一堆文档——这个项目的每一次 run 都在那里干活。
@@ -58,15 +62,7 @@ deepclaw start --tui      # 终端界面
 - 定时任务的标题、执行周期和任务内容现在可以在定时任务页面上直接改。
 - `deepclaw restart` 现在把服务停下来再起回去。
 
-**v0.2.0**
-
-- 归档掉的项目现在可以还原回看板，也可以从磁盘上彻底删掉。
-- 项目看板现在能开一个窗口回看归档掉的项目，往下滚一页一页地读。
-- Agent 的已完成项目数现在把归档掉的那些也算上。
-- 渲染出来的markdown回答的右上角多了一个按钮，复制完整的markdown内容。
-- 一次运行在你看着别处的时候结束，现在会弹一条提示，点一下就到它的对话里。
-
-v0.2.0 之前的每个版本都在 [changelog](https://github.com/peaceps/deepclaw/blob/main/CHANGELOG.md) 里。
+完整变动记录： [changelog](https://github.com/peaceps/deepclaw/blob/main/CHANGELOG.md) 里。
 
 ## 界面上有什么
 
@@ -301,7 +297,6 @@ Agent 页面和对话有专门为窄屏做的布局，看板的列在挤不下�
 ```
 ~/.deepclaw/
 ├── .deepclaw.config.json     # 设置：agent、模型、IM、MCP
-├── DEEPCLAW.md               # 关于这个地方，每个 agent 都会被告知的内容
 ├── .agents/                  # 每个 agent 的会话文件和记忆
 │   └── skills/               # 装好的技能
 ├── .projects/                # 项目数据和任务状态

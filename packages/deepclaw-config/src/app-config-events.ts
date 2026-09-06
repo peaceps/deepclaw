@@ -17,6 +17,10 @@ export const APP_CONFIG_EVENTS: CONFIGS_EVENTS = {
         type: 'readonly',
         content: 'config.manager.title.prompt'
     },
+    ['manager.companyProfile']: {
+        type: 'readonly',
+        content: 'config.manager.companyProfile.prompt'
+    },
     ['ui.lang']: {
         key: 'lang',
         type: 'select',

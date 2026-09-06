@@ -8,11 +8,26 @@ const APP_CONFIG_FILE = '.deepclaw.config.json';
 
 export const MAX_AGENT_COUNT = 30;
 
+/**
+ * How long the company profile may run. It rides in the standing prompt of every call every run
+ * makes -- the main loop, each sub loop, each compaction -- so what is written here once is paid
+ * for over and over, and a handbook pasted in is a handbook billed by the turn. A page of text is
+ * room enough to say what the place is and how it works; the rest belongs in a skill or in the
+ * files of the project it applies to, where it is read when it is needed.
+ */
+export const MAX_COMPANY_PROFILE_LENGTH = 2000;
+
 export type DeepclawConfig = {
     manager: {
         name: string;
         title: string;
         avatar: string;
+        /**
+         * What the company these agents are working for is, in the user's own words, as long or as
+         * short as they care to put it. Left out where they have said nothing about it, which is
+         * the one honest answer to have: there is no company anybody could be defaulted into.
+         */
+        companyProfile?: string;
     },
     agents: {
         id: string;
@@ -96,6 +111,13 @@ function autoMigrate(appConfig: Partial<DeepclawConfig>): void {
     }
     if (!appConfig.manager.avatar || typeof appConfig.manager.avatar !== 'string') {
         appConfig.manager.avatar = '🐋';
+    }
+    // A profile of anything but text is no profile, and there is no default to put in its place.
+    // It is read on the way into the first turn of every run, so a value that cannot be read as
+    // text is a run that never starts rather than a field that looks odd in the settings.
+    if (appConfig.manager.companyProfile !== undefined
+        && typeof appConfig.manager.companyProfile !== 'string') {
+        delete appConfig.manager.companyProfile;
     }
     for (const agent of appConfig.agents ?? []) {
         if (!agent.id || typeof agent.id !== 'string') {

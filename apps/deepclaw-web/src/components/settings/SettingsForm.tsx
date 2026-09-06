@@ -13,12 +13,13 @@ import {updateLanguage, validateConfig, type ValidationResult} from '@/server/co
 import {DeepExpandablePanel} from '@/laf/deep-expandable-panel';
 import {DeepSelect} from '@/laf/deep-select';
 import {DeepInput} from '@/laf/deep-input';
+import {DeepTextarea} from '@/laf/deep-textarea';
 import {SettingsError} from './SettingsError';
 import { useTranslation } from 'react-i18next';
 import { type SupportedLanguage } from '@deepclaw/i18n';
 
 export type SettingsProps = {
-  metaData: {maxAgentCount: number},
+  metaData: {maxAgentCount: number, maxCompanyProfileLength: number},
   configEvents: CONFIGS_EVENTS;
   initialConfig: DeepclawConfig;
   initialValidation: ValidationResult;
@@ -262,6 +263,15 @@ rounded-lg ${maxAgentReached ? "border-gray-100 text-gray-300 cursor-not-allowed
               value={config.manager.title}
               placeholder='CEO'
               onInput={(e) => updateManagerConfig({ title: e.target.value })}
+            />
+          </div>
+          <div className="p-6 border-t border-gray-200">
+            <DeepTextarea
+              uiInfo={configEvents['manager.companyProfile'] as Extract<AgentInteractionEvent, {type: 'input'}>}
+              value={config.manager.companyProfile ?? ''}
+              placeholder={t('web.pages.settings.panels.ui.companyProfile.placeholder')}
+              maxLength={settings.metaData.maxCompanyProfileLength}
+              onInput={(e) => updateManagerConfig({ companyProfile: e.target.value })}
             />
           </div>
         </DeepExpandablePanel>

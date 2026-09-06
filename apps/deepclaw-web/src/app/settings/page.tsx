@@ -1,4 +1,6 @@
-import { DeepclawConfig, APP_CONFIG_EVENTS, MAX_AGENT_COUNT } from '@deepclaw/config';
+import {
+    DeepclawConfig, APP_CONFIG_EVENTS, MAX_AGENT_COUNT, MAX_COMPANY_PROFILE_LENGTH
+} from '@deepclaw/config';
 import SettingsPage from '@/components/settings/SettingsPage';
 import { loadCurrentConfig, saveFullConfig, validateConfig } from '@/server/configs';
 import { clone } from '@deepclaw/utils';
@@ -17,7 +19,13 @@ export default async function Settings() {
     return (
         <SettingsPage
             settings={{
-                metaData: {maxAgentCount: MAX_AGENT_COUNT},
+                // The limits are handed over rather than imported by the form: the package they
+                // are declared in reads the config off the disk as it loads, which is nothing to
+                // pull into a browser bundle.
+                metaData: {
+                    maxAgentCount: MAX_AGENT_COUNT,
+                    maxCompanyProfileLength: MAX_COMPANY_PROFILE_LENGTH,
+                },
                 configEvents: clonedAppEvents,
                 initialConfig: config,
                 initialValidation: initialValidation,

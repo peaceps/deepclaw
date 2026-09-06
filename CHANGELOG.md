@@ -1,3 +1,7 @@
+v0.3.0
+a company profile written in the basic settings is now told to every agent.
+DEEPCLAW.md is gone: an agent's shared identity is the built-in one and the company profile.
+
 v0.2.2
 a project can now be given a folder of its own to work in, and every run on it works there.
 a task can now take a git worktree of its own, so tasks worked at once never share a checkout.

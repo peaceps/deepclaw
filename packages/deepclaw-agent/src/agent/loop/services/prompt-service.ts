@@ -1,12 +1,14 @@
 import process from 'node:process';
 import { SkillsManager } from './skills-manager';
-import { AgentMode, AgentConfig, loadLang } from '@deepclaw/config';
+import {
+    AgentMode, AgentConfig, loadConfig, loadLang, MAX_COMPANY_PROFILE_LENGTH
+} from '@deepclaw/config';
 import { FULL_NAME_MAP } from '@deepclaw/i18n';
 import { FileUtils } from '@deepclaw/node-utils';
 import { MemoryManager } from './memory-manager';
 import { ProjectManager } from './project-manager';
 import { CronService } from './cron-service';
-import { cronFilesDir, DEEPCLAW_MD, projectFilesDir } from '../../paths';
+import { cronFilesDir, projectFilesDir } from '../../paths';
 import { AGENT_CONFIG, AgentIdentity, FlushAgentRole } from '@deepclaw/core';
 import { AssignedTask, isSpawnedLoop, LoopKind, SystemPrompt } from '../../definitions/definitions';
 import { AgentFeelingService, type AgentFeeling } from './agent-feeling-service';
@@ -94,6 +96,7 @@ export class PromptService {
             ['Platform', this.platform(workDir)],
             ['Language', this.language()],
             ['Main Identity', this.mainIdentityPrompt[identityKey]],
+            ['The Company', this.company()],
             ['Personality', persona ? this.personality(persona) : ''],
             ['Emotions', feels ? this.emotionsPrompt : ''],
             ['Agent Mode', this.agentMode(agentConfig.mode)],
@@ -237,17 +240,34 @@ User set ${fullLang} as the preferred language, please answer in ${fullLang} by 
         return this.languagePrompt;
     }
 
+    /**
+     * The company the work is for, in the words the user wrote in the settings. Nobody is given a
+     * company they did not name: said nothing, the section is left out altogether rather than
+     * standing as a heading over a blank.
+     *
+     * Read on every prompt rather than once at startup, because it is written from a page the user
+     * can open mid-session, and the turn after they save is the turn it should be true from.
+     */
+    private static company(): string {
+        // Cut to what the settings box accepts. Anything longer got in by hand, and this section
+        // is paid for on every call of every run: a file nobody meant to grow that far is a bill
+        // nobody meant to run up.
+        const profile = (loadConfig<string>('manager.companyProfile', '') || '')
+            .trim().slice(0, MAX_COMPANY_PROFILE_LENGTH);
+        if (!profile) {
+            return '';
+        }
+        return `The company you work for, as the user describes it:
+${profile}
+That is who the work is for. Where it says how this place does things, work that way.`;
+    }
+
     private static mainIdentity(): MainIdentityPrompts {
-        let commonIdentity = `You are a helpful and efficient assistant for the user.
+        const commonIdentity = `You are a helpful and efficient assistant for the user.
 You can help the user with various tasks, such as answering questions, providing suggestions,
 and completing tasks via tools. Always try your best to help the user and complete the task. 
 If you are not sure about what the user wants, ask questions to clarify. 
 Always think step by step and be specific when you answer.`;
-        try {
-            commonIdentity = FileUtils.readFile(DEEPCLAW_MD);
-        } catch {
-            // TODO handle error
-        }
         const subloop = `${commonIdentity}
 What's more you are a subloop agent for specific task described in the prompt.
 Complete the given task, then summarize your findings.

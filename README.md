@@ -51,6 +51,10 @@ the network with `--host`.
 
 ## Latest changes
 
+**v0.3.0**
+
+- The basic settings now take a company profile instead of DEEPCLAW.md, and every agent is told it before it starts.
+
 **v0.2.2**
 
 - A project can now be given a folder of its own to work in, a repository or a folder of documents,
@@ -66,16 +70,7 @@ the network with `--host`.
 - A scheduled task's title, schedule and prompt can now be edited on the scheduled tasks page.
 - `deepclaw restart` now stops the server and starts it back up.
 
-**v0.2.0**
-
-- A project you have put away can now be put back on the board, or deleted from the disk for good.
-- The board now opens a window on the projects you have put away, a page at a time as you scroll.
-- An agent's done count now keeps the finished projects that have been put away.
-- A rendered answer now has a button in its right up corner that copies the markdown it was written in.
-- A run that ends while you are looking elsewhere now toasts you, and the click takes you to its
-  chat.
-
-Everything before v0.2.0 is in the
+Full ChangeLog is in the
 [changelog](https://github.com/peaceps/deepclaw/blob/main/CHANGELOG.md).
 
 ## Around the app
@@ -360,7 +355,6 @@ Everything lives in `~/.deepclaw`, whatever folder you started from:
 ```
 ~/.deepclaw/
 ├── .deepclaw.config.json     # settings: agents, models, IM, MCP
-├── DEEPCLAW.md               # what every agent is told about this place
 ├── .agents/                  # per-agent session files and memory
 │   └── skills/               # installed skills
 ├── .projects/                # project data and task state
