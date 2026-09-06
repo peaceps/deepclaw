@@ -188,6 +188,7 @@ export const zh = {
                     owner: '负责人',
                     progress: '进度',
                     report: '项目报告',
+                    editTitle: '重命名这个项目',
                     editDescription: '改写这个项目的描述',
                     workingDir: {
                         label: '编辑工作目录',

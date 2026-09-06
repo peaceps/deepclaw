@@ -269,7 +269,7 @@ leave it to the user.`,
                     type: 'string',
                     description: 'The title of the project, will display to the user.',
                     minLength: 1,
-                    maxLength: 50,
+                    maxLength: PROJECT_CONFIG.maxProjectTitleLength,
                 },
                 description: {
                     type: 'string',
@@ -399,7 +399,7 @@ A task that has to join a project already underway goes in with add_task instead
                     type: 'string',
                     description: 'The title of the project, will display to the user.',
                     minLength: 1,
-                    maxLength: 50,
+                    maxLength: PROJECT_CONFIG.maxProjectTitleLength,
                 },
                 description: {
                     type: 'string',

@@ -622,6 +622,15 @@ class LoopGatewayImpl {
         this.fireSSEEvent({ eventType: 'updateProject', content: { id: projectId, tags } });
     }
 
+    public static updateProjectTitle(projectId: string, title: string): void {
+        const project = ProjectManager.updateProject({id: projectId, title});
+        // The title as it was written down, for the same reason the description is: what a browser
+        // is handed has to be what the disk has, or the row reads back longer than it was saved.
+        this.fireSSEEvent({
+            eventType: 'updateProject', content: {id: projectId, title: project.title}
+        });
+    }
+
     public static updateProjectDescription(projectId: string, description: string): void {
         const project = ProjectManager.updateProject({id: projectId, description});
         // What was written rather than what came in: a long one is cut where it is written down,

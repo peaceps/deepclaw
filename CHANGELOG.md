@@ -1,4 +1,5 @@
 v0.3.0
+a project's title can now be rewritten on the board, the same as its description.
 a company profile written in the basic settings is now told to every agent.
 DEEPCLAW.md is gone: an agent's shared identity is the built-in one and the company profile.
 

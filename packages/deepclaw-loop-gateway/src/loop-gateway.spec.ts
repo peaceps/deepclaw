@@ -1233,6 +1233,16 @@ describe('data updates', () => {
         expect(events).toContainEqual({eventType: 'updateProject', content: {id: 'p1', tags: ['urgent']}});
     });
 
+    /** What was written and not what came in: a long title is cut where it is written down. */
+    test('announces the project title as it was stored', () => {
+        mocks.updateProject.mockReturnValue({id: 'p1', title: 'The hat shop'});
+        LoopGateway.updateProjectTitle('p1', '  The hat shop  ');
+        expect(mocks.updateProject).toHaveBeenCalledWith({id: 'p1', title: '  The hat shop  '});
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', title: 'The hat shop'}
+        });
+    });
+
     /** What was written and not what came in: a long description is cut where it is written down. */
     test('announces the project description as it was stored', () => {
         mocks.updateProject.mockReturnValue({id: 'p1', description: 'a shop'});

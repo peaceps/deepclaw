@@ -190,6 +190,7 @@ export const en = {
                     owner: 'Owner',
                     progress: 'Progress',
                     report: 'Project report',
+                    editTitle: 'Rename this project',
                     editDescription: 'Rewrite what this project is about',
                     workingDir: {
                         label: 'Edit working dir',

@@ -79,6 +79,20 @@ function writableDescription(description: string | null): string {
 }
 
 /**
+ * The heading a project stands under, read at the same two doors and under the same rule. A blank
+ * one is worse than a blank description: the row it heads is the one thing on the board there is
+ * to pick a project out by, and a project that lost its title in a rewrite is a row nobody can
+ * name to ask for it back.
+ */
+function writableTitle(title: string | null): string {
+    const words = (title ?? '').trim().slice(0, PROJECT_CONFIG.maxProjectTitleLength);
+    if (!words) {
+        throw new Error('A project needs a title.');
+    }
+    return words;
+}
+
+/**
  * One of the four words, on every way in. Written down, a fifth is read back by everything
  * downstream as a priority it has no colour, no name and no order for: the pill on the card comes
  * out blank, the list under it ticks nothing, and the label is the key it was looked up by.
@@ -235,7 +249,7 @@ export class ProjectManager {
         const taskObject = this.convertTasks(tasks);
         const project: Project = {
             id: crypto.randomUUID(),
-            title: projectInfo.title,
+            title: writableTitle(projectInfo.title),
             description: writableDescription(projectInfo.description),
             priority: writablePriority(projectInfo.priority),
             creator: projectInfo.agentId,
@@ -269,6 +283,9 @@ export class ProjectManager {
         }
         // Read before a word of this is written down, as the refusal in it is only a refusal while
         // nothing has been written: a project blanked and then turned away is blanked all the same.
+        if (projectInfo.title !== undefined) {
+            projectInfo.title = writableTitle(projectInfo.title);
+        }
         if (projectInfo.description !== undefined) {
             projectInfo.description = writableDescription(projectInfo.description);
         }

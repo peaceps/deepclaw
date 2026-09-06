@@ -1,5 +1,5 @@
 import { type SlimProject, PROJECT_CONFIG } from '@deepclaw/core';
-import { CalendarDays, ChevronDown, ChevronRight, Folder } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronRight, Folder, Pencil } from 'lucide-react';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { useTranslation } from 'react-i18next';
 import { memo, useCallback, useRef } from 'react';
@@ -7,7 +7,8 @@ import { ProjectTasks } from './ProjectTasks';
 import { formatDate } from '@/components/component-utils';
 import { useAppStore } from '@/lib/store';
 import { EditableLabels } from '@/laf/editable-labels';
-import { updateProjectTags } from '@/server/data';
+import { useEditableField } from '@/lib/use-editable-field';
+import { updateProjectTags, updateProjectTitle } from '@/server/data';
 import { ProjectOwner } from './ProjectOwner';
 import { ProjectMeta } from './ProjectMeta';
 
@@ -35,6 +36,7 @@ export const ProjectRow = memo(function ProjectRow(
   const updateProject = useAppStore(s => s.updateProject);
   const ownerAgent = useAppStore(s => s.agents.find(a => a.id === project.creator));
   const tagsRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
   const skipToggleRef = useRef(false);
   const {t, i18n} = useTranslation();
   const onTagsChange = useCallback((tags: string[]) => {
@@ -45,22 +47,33 @@ export const ProjectRow = memo(function ProjectRow(
     });
   }, [project, updateProject]);
 
+  /** The row shows the new heading at once and takes it back off if the server refused it. */
+  const title = useEditableField(project.title, useCallback((next: string) => {
+    const previous = project.title;
+    updateProject({id: project.id, title: next});
+    updateProjectTitle(project.id, next).catch(() => {
+      updateProject({id: project.id, title: previous});
+    });
+  }, [project.id, project.title, updateProject]));
+
   // Owner click stops propagation, so handleToggle never consumes the flag set
   // on mousedown; clear it here to avoid swallowing the next header click.
   const clearSkipToggle = useCallback(() => {
     skipToggleRef.current = false;
   }, []);
 
-  // mousedown fires before focus leaves the tag input, so we detect an active
-  // tag editor here and skip the toggle that the following click would trigger.
+  // mousedown fires before focus leaves a box being written in, so we detect an open editor of
+  // this header -- the tags or the title -- and skip the toggle that the following click would
+  // trigger: the click that closes a box is spent on closing it, not on folding the row as well.
   const handleHeaderMouseDown = useCallback((event: React.MouseEvent) => {
-    if (tagsRef.current?.contains(event.target as Node)) {
+    const boxes = [tagsRef.current, titleRef.current];
+    if (boxes.some(box => box?.contains(event.target as Node))) {
       return;
     }
     const active = document.activeElement;
-    const editingTag = active instanceof HTMLElement && !!tagsRef.current?.contains(active);
-    skipToggleRef.current = editingTag;
-    if (editingTag) {
+    const editingBox = active instanceof HTMLElement && boxes.some(box => !!box?.contains(active));
+    skipToggleRef.current = editingBox;
+    if (editingBox) {
       active.blur();
     }
   }, []);
@@ -90,9 +103,45 @@ export const ProjectRow = memo(function ProjectRow(
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0">
-                  <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate min-w-0">
-                    {project.title}
-                  </h3>
+                  {/* As wide as the row only while a title is being written in. Standing that wide
+                      at rest, it takes the space beside the heading away from the header: that
+                      space is where the row is clicked open, which is the thing to want of a row,
+                      and renaming one is not. */}
+                  <div ref={titleRef} className={title.editing ? 'min-w-0 sm:flex-1' : 'min-w-0'}>
+                    {title.editing ? (
+                      // Enter saves rather than opening the row, the same as on a task: what is
+                      // written here is the one line the board is read down.
+                      <input
+                        autoFocus
+                        type="text"
+                        value={title.draft}
+                        maxLength={PROJECT_CONFIG.maxProjectTitleLength}
+                        onChange={(e) => title.setDraft(e.target.value)}
+                        onKeyDown={title.onKeyDown}
+                        onBlur={title.commit}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full min-w-0 px-2 py-1 rounded-md border border-gray-300 bg-white
+                          text-sm text-gray-800 outline-none
+                          focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400"
+                      />
+                    ) : (
+                      // The heading holds the button rather than the other way about: a button is
+                      // no place for a heading, and a screen reader handed that one reads a button
+                      // where the board has its headings.
+                      <h3 className="font-bold text-gray-900 text-base sm:text-lg min-w-0">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); title.start(); }}
+                          title={t('web.pages.projects.project.editTitle')}
+                          className="group flex max-w-full min-w-0 items-center gap-1.5 text-left"
+                        >
+                          <span className="truncate min-w-0">{project.title}</span>
+                          <Pencil size={12} className="flex-shrink-0 text-gray-300
+                            group-hover:text-gray-600 transition-colors" />
+                        </button>
+                      </h3>
+                    )}
+                  </div>
                   <div
                     ref={tagsRef}
                     className="hidden sm:block flex-shrink-0 max-w-[60%]"

@@ -413,6 +413,22 @@ describe('createProject', () => {
         )).toThrow('A project needs a description.');
     });
 
+    test('cuts a title to the length a title is read at', () => {
+        const project = manager.createProject(
+            {agentId: 'a1', title: `  ${'ship'.repeat(30)}  `, description: 'ship it', priority: 'high'},
+            [newTask(manager, 'design')],
+        );
+        expect(project.title).toBe('ship'.repeat(30).slice(0, PROJECT_CONFIG.maxProjectTitleLength));
+    });
+
+    /** A row with no heading is a project on the board with nothing to pick it out by. */
+    test('refuses a project whose title is nothing but spaces', () => {
+        expect(() => manager.createProject(
+            {agentId: 'a1', title: '   ', description: 'ship it', priority: 'high'},
+            [newTask(manager, 'design')],
+        )).toThrow('A project needs a title.');
+    });
+
     test('refuses a project priority that is none of the four', () => {
         expect(() => manager.createProject(
             {
@@ -556,6 +572,19 @@ describe('updateProject', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         expect(() => manager.updateProject({id, description: null}))
             .toThrow('A project needs a description.');
+    });
+
+    test('cuts a title to the length a title is read at', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const written = manager.updateProject({id, title: `  ${'ship'.repeat(30)}  `}).title;
+        expect(written).toBe('ship'.repeat(30).slice(0, PROJECT_CONFIG.maxProjectTitleLength));
+    });
+
+    /** Written through, a blank would leave a row on the board nobody can name to ask for it back. */
+    test('refuses a title of nothing but spaces and keeps the heading it had', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.updateProject({id, title: '   '})).toThrow('A project needs a title.');
+        expect(manager.getProjectDetail(id).title).toBe('Ship it');
     });
 
     /** Turned away before anything is written, so the file on disk is left as it was as well. */

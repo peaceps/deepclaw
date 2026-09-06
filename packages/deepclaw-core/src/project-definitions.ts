@@ -26,6 +26,7 @@ export const PROJECT_CONFIG = {
     /** Read by the tool schemas and by the boxes the user rewrites one in, so both cut at once. */
     maxTaskTitleLength: 50,
     maxTaskDescriptionLength: 100,
+    maxProjectTitleLength: 50,
     maxProjectDescriptionLength: 80,
 } as const;
 

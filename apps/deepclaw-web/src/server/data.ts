@@ -34,6 +34,20 @@ export async function updateProjectTags(projectId: string, tags: string[]): Prom
     }
 }
 
+/** Emptying the box is not a title: the row it heads is what a project is picked out by. */
+export async function updateProjectTitle(projectId: string, title: string): Promise<void> {
+    try {
+        if (!title.trim()) {
+            throw new Error('A project needs a title');
+        }
+        LoopGateway.updateProjectTitle(projectId, title);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error saving project title:', error);
+        throw error;
+    }
+}
+
 /** Emptying the box is not a description: what the board would show for it is nothing at all. */
 export async function updateProjectDescription(projectId: string, description: string): Promise<void> {
     try {

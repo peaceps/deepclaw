@@ -11,11 +11,13 @@ import {
     getSkills, restoreProject, setSkillAgents, takeUpProjectTask, updateAgentIdentity,
     editCronTask, editProjectReport, editTaskReport, updateCronTaskStatus,
     setProjectWorkingDir, updateProjectDescription, updateProjectTags, updateProjectTask,
+    updateProjectTitle,
 } from './data';
 
 const mocks = vi.hoisted(() => ({
     updateAgentIdentity: vi.fn<(identity: object) => void>(),
     updateProjectTags: vi.fn<(projectId: string, tags: string[]) => void>(),
+    updateProjectTitle: vi.fn<(projectId: string, title: string) => void>(),
     updateProjectDescription: vi.fn<(projectId: string, description: string) => void>(),
     setProjectWorkingDir: vi.fn<
         (projectId: string, workingDir: string, create?: boolean) => WorkingDirRefusal | undefined
@@ -43,6 +45,7 @@ vi.mock('@deepclaw/loop-gateway', () => ({
     LoopGateway: {
         updateAgentIdentity: mocks.updateAgentIdentity,
         updateProjectTags: mocks.updateProjectTags,
+        updateProjectTitle: mocks.updateProjectTitle,
         updateProjectDescription: mocks.updateProjectDescription,
         setProjectWorkingDir: mocks.setProjectWorkingDir,
         updateProjectTask: mocks.updateProjectTask,
@@ -150,6 +153,30 @@ describe('updateProjectTags', () => {
         });
         await expect(updateProjectTags('p1', ['urgent'])).rejects.toThrow('gateway down');
         expect(console.error).toHaveBeenCalledWith('Error saving project tags:', expect.any(Error));
+    });
+});
+
+describe('updateProjectTitle', () => {
+
+    test('stores the title and revalidates the layout', async () => {
+        await updateProjectTitle('p1', 'The hat shop');
+        expect(mocks.updateProjectTitle).toHaveBeenCalledWith('p1', 'The hat shop');
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    /** The box the user writes in reads an empty save as a cancel, and so does this. */
+    test('refuses a title of nothing at all', async () => {
+        await expect(updateProjectTitle('p1', '   ')).rejects.toThrow('needs a title');
+        expect(mocks.updateProjectTitle).not.toHaveBeenCalled();
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    test('reports a failing gateway', async () => {
+        mocks.updateProjectTitle.mockImplementation(() => {
+            throw new Error('gateway down');
+        });
+        await expect(updateProjectTitle('p1', 'The hat shop')).rejects.toThrow('gateway down');
+        expect(console.error).toHaveBeenCalledWith('Error saving project title:', expect.any(Error));
     });
 });
 

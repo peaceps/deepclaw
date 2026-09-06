@@ -53,6 +53,7 @@ the network with `--host`.
 
 **v0.3.0**
 
+- A project's title can now be rewritten on the board, the same as its description.
 - The basic settings now take a company profile instead of DEEPCLAW.md, and every agent is told it before it starts.
 
 **v0.2.2**
