@@ -10,7 +10,10 @@ export function ProjectMeta({ project }: { project: SlimProject }) {
   // was never opened does not hold.
   const totalTasks = project.taskCount;
   const inProgressTasks = project.ongoingTasks.length;
-  const completedTasks = project.completedTasks.length;
+  // The dropped tasks among the done ones, which is what the number beside the tick is for: how
+  // much of the board is behind it. Counted apart, a project whose last task was dropped would sit
+  // closed on the row at nine of ten, with nothing on the board left to be done about it.
+  const completedTasks = project.completedTasks.length + project.obsoleteTasks.length;
   const progress = getProjectProgress(project);
 
   return (

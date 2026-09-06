@@ -4,6 +4,41 @@ import type { LLMTaskOutput } from "./flush-agent-types";
 export type MissionStatus = 'todo' | 'ongoing' | 'done';
 
 /**
+ * What a task is at, which is a mission status and one word more: work can turn out not to be worth
+ * doing, and that is as much an end of it as done. A project has no such word -- a plan that came to
+ * nothing is closed with what it came to written on it -- and rows of the board are drawn from
+ * `MissionStatus` too, so the word lives here where only tasks read it.
+ */
+export type TaskStatus = MissionStatus | 'obsolete';
+
+/**
+ * Where a task may go from where it is. Read by the service that writes a status and by the menu the
+ * board offers the step under, one table for both: a step the card offers has to be a step the
+ * service takes, and two lists of the same rule drift into a menu offering what is refused the
+ * moment it is picked.
+ *
+ * Nothing leads out of done or obsolete. Those are where the board stops, and a task put back from
+ * either is work that was reported on and counted and is now waiting again.
+ */
+export const NEXT_TASK_STATUSES: Record<TaskStatus, readonly TaskStatus[]> = {
+    todo: ['ongoing', 'obsolete'],
+    ongoing: ['done', 'obsolete'],
+    done: [],
+    obsolete: [],
+};
+
+/**
+ * A task nothing further happens to, whether the work was done or dropped. The two are counted as
+ * one everywhere the board counts -- the column the card is drawn in, how far the project got,
+ * whether the tasks waiting on this one may start, whether the project itself has closed -- and are
+ * kept apart only where what the work came to is being said: a dropped task produced nothing, and
+ * the run that reports the project is told so.
+ */
+export function isTaskSettled(status: TaskStatus): boolean {
+    return status === 'done' || status === 'obsolete';
+}
+
+/**
  * The priorities there are, read by the tool schemas, by the list the board opens under the pill,
  * by the two label maps and the colours the pill is drawn with, and by the service that writes one
  * down. One list because a priority a model may write has to be one the board can draw and the
@@ -114,6 +149,15 @@ export type Project = {
     completedTasks: string[];
     ongoingTasks: string[];
     canStartTasks: string[];
+    /**
+     * The tasks that were dropped, kept beside the completed ones rather than among them.
+     *
+     * Both are closed and the board counts them together, so the easy thing would be one list. But
+     * these lists are also the whole of what a run is told about the state of the board, and a
+     * dropped task read as a completed one is work the project report will say was done. So the
+     * count is done where it is counted, and the word for what happened is kept here.
+     */
+    obsoleteTasks: string[];
 };
 
 /**
@@ -248,7 +292,7 @@ export type Task = {
     id: string;
     title: string;
     description: string;
-    status: MissionStatus;
+    status: TaskStatus;
     priority: MissionPriority;
     /** Ids of the tasks this one waits for, and of the ones waiting on it. */
     blockedBy: string[];
@@ -319,19 +363,23 @@ export function getProjectStatus(project: Omit<Project, 'tasks'>): MissionStatus
 }
 
 /**
- * How far along a project is, from the two numbers rather than from the tasks: the done ones are
- * `completedTasks`, which is kept as a list of ids beside them, and how many there are in all is
- * the one thing a browser holding no tasks still has to be told. Counting the tasks instead would
- * be asking for them, which is most of a project, to arrive at a percentage.
+ * How far along a project is, from the numbers rather than from the tasks: the closed ones are kept
+ * as lists of ids beside them, and how many there are in all is the one thing a browser holding no
+ * tasks still has to be told. Counting the tasks instead would be asking for them, which is most of
+ * a project, to arrive at a percentage.
+ *
+ * A dropped task is behind the project as much as a done one. Counted as still to do, a project
+ * whose last open task was dropped would sit closed on the board at nine tasks of ten forever, with
+ * nothing left anywhere that could move the bar.
  */
 export function getProjectProgress(
-    project?: {completedTasks: string[]; taskCount: number} | null
+    project?: {completedTasks: string[]; obsoleteTasks: string[]; taskCount: number} | null
 ): number | null {
     if (!project) {
         return null;
     }
-    return project.taskCount > 0
-        ? Math.round(project.completedTasks.length / project.taskCount * 100) : 0;
+    const closed = project.completedTasks.length + project.obsoleteTasks.length;
+    return project.taskCount > 0 ? Math.round(closed / project.taskCount * 100) : 0;
 }
 
 export function getTaskProgress(task: Task): number | null {

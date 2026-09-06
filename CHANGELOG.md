@@ -1,4 +1,5 @@
 v0.3.0
+a task that is not worth doing can now be dropped, and counts as closed without counting as done.
 a project's title can now be rewritten on the board, the same as its description.
 a company profile written in the basic settings is now told to every agent.
 DEEPCLAW.md is gone: an agent's shared identity is the built-in one and the company profile.

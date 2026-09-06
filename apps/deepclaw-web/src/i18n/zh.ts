@@ -248,6 +248,8 @@ export const zh = {
                         done: '标为完成',
                         doneHint: '它的所有步骤会一并标完',
                         doneHintPaused: '它的所有步骤会一并标完，你亲手关掉它也就算作它在等的那次验收',
+                        obsolete: '标为作废',
+                        obsoleteHint: '这个任务不值得再做：它就此关掉但不算做完，等它的任务一并放行，计数算进已完成',
                     },
                     running: '这个任务正在被执行',
                     editTitle: '重命名这个任务',

@@ -4,8 +4,8 @@ import {
     type ArchivedProjectsAsk, type ArchivedProjectsPage, type LLMTaskOutput, type Project,
     type SlimProject, type Task, type TaskReview, type TaskStepsContext,
     type WorkingDirRefusal,
-    ARCHIVED_PAGE_SIZE, isProjectStarted, MISSION_PRIORITIES, MissionPriority, PROJECT_CONFIG,
-    projectForBrowser, projectMatchesWords, slimProjectRow,
+    ARCHIVED_PAGE_SIZE, isProjectStarted, isTaskSettled, MISSION_PRIORITIES, MissionPriority,
+    NEXT_TASK_STATUSES, PROJECT_CONFIG, projectForBrowser, projectMatchesWords, slimProjectRow,
 } from '@deepclaw/core';
 import { fileAwayOutput, readOutputContent } from '../../loop-utils';
 import { OneLoopContext } from '../../definitions/definitions';
@@ -543,17 +543,23 @@ export class ProjectManager {
         // How soon the work is to be picked up, which is a question there is no asking of work that
         // was finished: the user is offered this on a card in todo and in ongoing and on no other,
         // and the same holds wherever else it is written from.
-        if (taskInfo.priority && taskInfo.priority !== task.priority && task.status === 'done') {
+        if (taskInfo.priority && taskInfo.priority !== task.priority && isTaskSettled(task.status)) {
             throw new Error('Only a task still to be worked takes a new priority.');
         }
-        if (task.status === 'todo' && taskInfo.status === 'done' ||
-            task.status === 'ongoing' && taskInfo.status === 'todo' ||
-            task.status === 'done' && taskInfo.status && taskInfo.status !== 'done') {
-            throw new Error('You can only update the status from todo to ongoing or from ongoing to done.');
+        // Every move a task makes, read off the one table the board offers its steps from. A status
+        // sent as the one the task is already at is no move and passes: a write that carries the
+        // status along with the fields it is really about is not asking for anything.
+        if (taskInfo.status && taskInfo.status !== task.status
+            && !NEXT_TASK_STATUSES[task.status].includes(taskInfo.status)) {
+            throw new Error('You can only update the status from todo to ongoing or from ongoing to '
+                + 'done, and a task that is no longer worth doing to obsolete from either of those. '
+                + 'A task that is done or obsolete stays where it is.');
         }
-        if (taskInfo.status === 'done' && steps) {
-            throw new Error('Cannot add steps and mark task done at the same time.');
+        if (taskInfo.status && isTaskSettled(taskInfo.status) && steps) {
+            throw new Error('Cannot add steps and close a task at the same time.');
         }
+        // Asked of done alone. Steps are the work as it was planned out, and a task being dropped is
+        // that plan being given up on: what is left unmarked on it is the account of how far it got.
         if (taskInfo.status === 'done' && !this.isStepsCompleted(task)) {
             throw new Error('All steps should be completed before marking the task as done.');
         }
@@ -585,12 +591,18 @@ export class ProjectManager {
         if (task.status === 'todo' && !taskInfo.status && taskInfo.output) {
             throw new Error('Cannot set output when task is in todo state.');
         }
-        if (!!task.pause && !task.verified && task.status !== 'done' && taskInfo.status === 'done' ) {
+        // Asked of closing the task either way. A pause is the user wanting a look before the task is
+        // over with, and a run that dropped it instead of finishing it would be closing the task
+        // behind them just the same.
+        if (!!task.pause && !task.verified
+            && !isTaskSettled(task.status) && !!taskInfo.status && isTaskSettled(taskInfo.status)) {
             taskInfo.status = task.status;
             task.verified = false;
         }
+        // A closed task takes no new plan, whichever way it closed. What is on a dropped one is how
+        // far the work got before it was given up on, which is the only account of it there is.
         if (steps?.length) {
-            if (task.status === 'ongoing' && !!task.stepsStatus?.steps || task.status === 'done') {
+            if (task.status === 'ongoing' && !!task.stepsStatus?.steps || isTaskSettled(task.status)) {
                 throw new Error('Cannot update steps.')
             }
             task.stepsStatus = {
@@ -608,7 +620,10 @@ export class ProjectManager {
         // Written after everything that could refuse the patch and before anything is saved: a
         // project started on the strength of an edit that never landed is started for good, nothing
         // putting that date back. And only the first one counts, the date being when the work began.
-        if (task.status === 'todo' && taskInfo.status && taskInfo.status !== 'todo') {
+        //
+        // A task dropped is not work beginning and dates nothing: a plan the user is still going
+        // over can lose a task out of it and be no nearer started than it was.
+        if (task.status === 'todo' && taskInfo.status === 'ongoing') {
             project.startedAt ??= new Date().toISOString();
         }
         // The id both found this task and files it in the record, so it is no part of what a patch
@@ -621,10 +636,11 @@ export class ProjectManager {
         if (taskInfo.output) {
             fileAwayOutput(taskInfo.output, projectOutputDir(projectId), FileUtils.hashString(id));
         }
-        if (!task.closedAt && taskInfo.status === 'done') {
+        if (!task.closedAt && taskInfo.status && isTaskSettled(taskInfo.status)) {
             task.closedAt = new Date().toISOString();
         }
-        if (!project.closedAt && Object.values(project.tasks).every(task => task.status === 'done')) {
+        if (!project.closedAt
+            && Object.values(project.tasks).every(task => isTaskSettled(task.status))) {
             project.closedAt = new Date().toISOString();
         }
         Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
@@ -677,6 +693,32 @@ export class ProjectManager {
             task.review = {verdict: 'waived', at: new Date().toISOString()};
         }
         return this.updateTask(projectId, {id: taskId, status: 'done'}).task;
+    }
+
+    /**
+     * The user dropping a task themselves, which the board offers on a card in todo and on one that
+     * is ongoing. The work is not being finished and is not being waited for either: the task is
+     * closed, the tasks behind it are freed, and what it counts as is closed.
+     *
+     * Nothing is marked off on the way, which is what tells this from `finishTask`. Steps left
+     * unmarked are how far the work got before it was given up on, and there is no report to waive a
+     * reading of: a reviewer named on a task that was dropped is a reader who was never called.
+     *
+     * Their click is the verdict a paused task waits for, the same as closing one is. Without it the
+     * status would be quietly put back by the gate in `updateTask` and the click would do nothing.
+     */
+    public static obsoleteTask(projectId: string, taskId: string): Task {
+        const task = this.getTask(projectId, taskId);
+        if (!task) {
+            throw new Error('Task not found.');
+        }
+        if (isTaskSettled(task.status)) {
+            throw new Error('Only a task still to be worked or being worked can be dropped.');
+        }
+        if (task.pause) {
+            task.verified = true;
+        }
+        return this.updateTask(projectId, {id: taskId, status: 'obsolete'}).task;
     }
 
     /**
@@ -1025,16 +1067,30 @@ export class ProjectManager {
         return project;
     }
 
+    /**
+     * The lists a board is read by, worked out from the tasks afresh rather than kept in step with
+     * them, so nothing that writes a status has to remember to move an id between two lists.
+     *
+     * A task waits for the tasks it is blocked by to be settled, which a dropped one is: the work it
+     * was waiting on is not coming, and read as still owed it would leave the rest of the plan
+     * waiting on it for good with nothing on the board able to free it.
+     */
     private static calculateProjectTaskInfo(tasks: Record<string, Task>): {
         completedTasks: string[];
         ongoingTasks: string[];
         canStartTasks: string[];
+        obsoleteTasks: string[];
     } {
+        const settled = (taskId: string) => {
+            const blocker = tasks[taskId];
+            return !!blocker && isTaskSettled(blocker.status);
+        };
         return {
             completedTasks: Object.values(tasks).filter(task => task.status === 'done').map(task => task.id),
             ongoingTasks: Object.values(tasks).filter(task => task.status === 'ongoing').map(task => task.id),
             canStartTasks: Object.values(tasks).filter(task => task.status === 'todo' &&
-                task.blockedBy.every(blockedBy => tasks[blockedBy]?.status === 'done')).map(task => task.id),
+                task.blockedBy.every(settled)).map(task => task.id),
+            obsoleteTasks: Object.values(tasks).filter(task => task.status === 'obsolete').map(task => task.id),
         };
     }
 
@@ -1103,6 +1159,12 @@ Every task carries an id you gave it when it was created, and that id is how eve
 The title beside it is what the user reads: they may rename a task at any time, so read a task by
 its id and never by the words on it.
 You can update a task with update_task tool and update the step index with update_task_current_step tool.
+
+## Drop a task the plan no longer needs
+Work the project turns out not to want is dropped rather than done: mark such a task obsolete with
+update_task, from todo or from ongoing. The task closes, whatever waited behind it is freed, and the
+board counts it as closed without counting it as done. This is not a way out of work you would rather
+not do. It is for a task the rest of the work made pointless, and the user reads every task you drop.
 
 ## Rewrite the plan
 The task list of this project can be replaced with update_project while the user has not started it
@@ -1301,6 +1363,7 @@ ${JSON.stringify(projectForRun({
     completedTasks: project.completedTasks,
     ongoingTasks: project.ongoingTasks,
     canStartTasks: project.canStartTasks,
+    obsoleteTasks: project.obsoleteTasks,
 }))}${isProjectStarted(project) ? '' : `
 The user has not started this project yet: nothing of it is handed to anybody or marked ongoing
 until they press start or tell you to begin, and what there is to do with it meanwhile is to go

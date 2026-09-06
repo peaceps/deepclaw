@@ -1,8 +1,8 @@
 import { DEFAULT_LOOP_KINDS, ToolDesc } from "../../definitions/tool-definitions";
 import { ProjectManager, projectForRun } from "../services/project-manager";
 import {
-    type LLMTaskOutput, MISSION_PRIORITIES, type MissionPriority, type MissionStatus,
-    PROJECT_CONFIG, type Project, type Task
+    type LLMTaskOutput, MISSION_PRIORITIES, type MissionPriority,
+    PROJECT_CONFIG, type Project, type Task, type TaskStatus
 } from "@deepclaw/core";
 import { OneLoopContext } from '../../definitions/definitions';
 import { i18nInstance } from "@deepclaw/i18n";
@@ -509,7 +509,7 @@ type UpdateTaskInput = {
     taskId: string;
     title?: string;
     description?: string;
-    status?: MissionStatus;
+    status?: TaskStatus;
     steps?: string[];
     assignee?: string;
     reviewer?: string;
@@ -542,7 +542,7 @@ to be something else. Rewriting it is free at any point of the work, the same as
                     maxLength: PROJECT_CONFIG.maxTaskDescriptionLength,
                 },
                 status: {
-                    type: 'string', enum: ['todo', 'ongoing', 'done'],
+                    type: 'string', enum: ['todo', 'ongoing', 'done', 'obsolete'],
                     description: `The executable status of the task.
 'todo' is the initial status, 'ongoing' is the status when the task is being worked on,
 'done' is the status when the task is completed. You can only update the status to the next status.
@@ -550,7 +550,10 @@ A task leaves todo only once the user has started the project it belongs to, whe
 yourself or hand it to somebody: until they say so, the plan is there to be talked over and nothing
 in it is under way.
 Both ways of starting a task mark it ongoing on their own -- task_loop hands it to a subagent,
-work_on_task takes it on yourself -- so what is left to write here is done.`,
+work_on_task takes it on yourself -- so what is left to write here is done.
+'obsolete' drops a task the rest of the work made pointless, from todo or from ongoing. It closes
+the task and frees whatever waited behind it, and the board counts it as closed without counting it
+as done. It is not a way out of work you would rather not do: the user reads every task you drop.`,
                 },
                 steps: {
                     type: 'array',

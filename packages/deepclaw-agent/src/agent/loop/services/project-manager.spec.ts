@@ -1029,14 +1029,14 @@ describe('updateTask status transitions', () => {
     test('rejects a jump straight from todo to done', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         expect(() => manager.updateTask(id, {id: 'design', status: 'done'}))
-            .toThrow('You can only update the status from todo to ongoing or from ongoing to done.');
+            .toThrow('You can only update the status from todo to ongoing or from ongoing to done');
     });
 
     test('rejects moving an ongoing task back to todo', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         manager.updateTask(id, {id: 'design', status: 'ongoing'});
         expect(() => manager.updateTask(id, {id: 'design', status: 'todo'}))
-            .toThrow('You can only update the status from todo to ongoing or from ongoing to done.');
+            .toThrow('You can only update the status from todo to ongoing or from ongoing to done');
     });
 
     test('rejects reopening a done task', () => {
@@ -1044,7 +1044,7 @@ describe('updateTask status transitions', () => {
         manager.updateTask(id, {id: 'design', status: 'ongoing'});
         manager.updateTask(id, {id: 'design', status: 'done'});
         expect(() => manager.updateTask(id, {id: 'design', status: 'ongoing'}))
-            .toThrow('You can only update the status from todo to ongoing or from ongoing to done.');
+            .toThrow('You can only update the status from todo to ongoing or from ongoing to done');
     });
 
     test('accepts a repeated done update without moving the closing time', () => {
@@ -1287,6 +1287,188 @@ describe('updateTask status transitions', () => {
     });
 });
 
+describe('dropping a task as obsolete', () => {
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    test('drops a task nobody has taken up yet', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const {task} = manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        expect(task.status).toBe('obsolete');
+        expect(new Date(task.closedAt!).toISOString()).toBe(task.closedAt);
+    });
+
+    test('drops work the project turned out not to need', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(manager.updateTask(id, {id: 'design', status: 'obsolete'}).task.status)
+            .toBe('obsolete');
+    });
+
+    /** Closed and counted, and never among the done: the work was given up on, not finished. */
+    test('counts a dropped task apart from the ones that were finished', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design'), newTask(manager, 'build')]);
+        manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        const project = manager.getProjectDetail(id);
+        expect(project.obsoleteTasks).toEqual(['design']);
+        expect(project.completedTasks).toEqual([]);
+    });
+
+    test('refuses to bring a dropped task back', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        for (const status of ['todo', 'ongoing', 'done'] as const) {
+            expect(() => manager.updateTask(id, {id: 'design', status}))
+                .toThrow('A task that is done or obsolete stays where it is.');
+        }
+        expect(manager.getTask(id, 'design')!.status).toBe('obsolete');
+    });
+
+    /** How far the work got before it was given up on, which is worth as much as anything on it. */
+    test('leaves the steps of a dropped task where they stood', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {steps: ['one', 'two']})]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateCurrentStep(id, 'design', 1);
+        const {task} = manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        expect(task.stepsStatus).toEqual({steps: ['one', 'two'], currentStepIndex: 1});
+    });
+
+    /** A plan written over that record would be the account of the work gone, index and all. */
+    test('refuses a new plan for a task that was dropped', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {steps: ['one', 'two']})]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateCurrentStep(id, 'design', 1);
+        manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        expect(() => manager.updateTask(id, {id: 'design'}, ['three']))
+            .toThrow('Cannot update steps.');
+        expect(manager.getTask(id, 'design')!.stepsStatus)
+            .toEqual({steps: ['one', 'two'], currentStepIndex: 1});
+    });
+
+    /** Nobody reads work that is not going to be done, so the gate before done is not one here. */
+    test('drops a task without the reading it was owed', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {reviewer: 'a3'})]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        const {task} = manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        expect(task.status).toBe('obsolete');
+        expect(task.review).toBeUndefined();
+    });
+
+    /** A pause is the user wanting a look before the task is over with, either way it goes. */
+    test('holds a paused task at the gate instead of dropping it behind the user', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', pause: true});
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        const {task, stop} = manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        expect(stop).toBe(true);
+        expect(task.status).toBe('ongoing');
+        expect(task.verified).toBe(false);
+    });
+
+    test('frees the task that was waiting on a dropped one', () => {
+        const {id} = newProject(manager, [
+            newTask(manager, 'design'), newTask(manager, 'build', {blockedBy: ['design']}),
+        ]);
+        manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        expect(manager.getProjectDetail(id).canStartTasks).toEqual(['build']);
+    });
+
+    test('closes the project once its last open task is dropped', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        const project = manager.getProjectDetail(id);
+        expect(new Date(project.closedAt!).toISOString()).toBe(project.closedAt);
+    });
+
+    /** Nothing began. A plan being talked over can lose a task and be no nearer started than it was. */
+    test('starts no project by dropping a task out of a plan', () => {
+        const {id} = newPlannedProject(manager, [
+            newTask(manager, 'design'), newTask(manager, 'build'),
+        ]);
+        manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        expect(manager.getProjectDetail(id).startedAt).toBeUndefined();
+    });
+
+    test('refuses a new priority on a task that was dropped', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'obsolete'});
+        expect(() => manager.updateTask(id, {id: 'design', priority: 'high'}))
+            .toThrow('Only a task still to be worked takes a new priority.');
+    });
+});
+
+describe('obsoleteTask', () => {
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    test('drops a task the user gave up on before anybody took it up', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        const task = manager.obsoleteTask(id, 'design');
+        expect(task.status).toBe('obsolete');
+        expect(new Date(task.closedAt!).toISOString()).toBe(task.closedAt);
+        expect(manager.getProjectDetail(id).obsoleteTasks).toEqual(['design']);
+    });
+
+    test('drops a task the work had already begun on', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(manager.obsoleteTask(id, 'design').status).toBe('obsolete');
+    });
+
+    /** Their own hand on the card is the look a paused task is waiting for. */
+    test('takes the click as the verdict a paused task was waiting for', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', pause: true});
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        const task = manager.obsoleteTask(id, 'design');
+        expect(task.status).toBe('obsolete');
+        expect(task.verified).toBe(true);
+    });
+
+    /** What tells this from finishing one: nothing is marked off on the way out. */
+    test('marks no step of the task behind it', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {steps: ['one', 'two']})]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(manager.obsoleteTask(id, 'design').stepsStatus)
+            .toEqual({steps: ['one', 'two'], currentStepIndex: -1});
+    });
+
+    test('writes no review on a task that was owed one', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design', {reviewer: 'a3'})]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(manager.obsoleteTask(id, 'design').review).toBeUndefined();
+    });
+
+    test('refuses a task that is done', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(() => manager.obsoleteTask(id, 'design'))
+            .toThrow('Only a task still to be worked or being worked can be dropped.');
+        expect(manager.getTask(id, 'design')!.status).toBe('done');
+    });
+
+    test('refuses a task that was dropped already', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.obsoleteTask(id, 'design');
+        expect(() => manager.obsoleteTask(id, 'design'))
+            .toThrow('Only a task still to be worked or being worked can be dropped.');
+    });
+
+    test('refuses a task that is not there', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.obsoleteTask(id, 'ghost')).toThrow('Task not found.');
+    });
+});
+
 describe('updateTask steps', () => {
 
     let manager: ProjectManagerType;
@@ -1325,7 +1507,7 @@ describe('updateTask steps', () => {
         const {id} = newProject(manager, [newTask(manager, 'design')]);
         manager.updateTask(id, {id: 'design', status: 'ongoing'});
         expect(() => manager.updateTask(id, {id: 'design', status: 'done'}, ['one']))
-            .toThrow('Cannot add steps and mark task done at the same time.');
+            .toThrow('Cannot add steps and close a task at the same time.');
     });
 
     test('refuses to finish a task whose steps are not all done', () => {

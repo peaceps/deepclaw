@@ -250,6 +250,8 @@ export const en = {
                         done: 'Mark it done',
                         doneHint: 'Every step of it is marked behind it.',
                         doneHintPaused: 'Every step of it is marked behind it, and closing it yourself counts as the verification its pause was waiting for.',
+                        obsolete: 'Drop it',
+                        obsoleteHint: 'The task is not worth doing: it closes without being done, whatever waited on it is freed, and it counts with the closed ones.',
                     },
                     running: 'This task is being worked on right now',
                     editTitle: 'Rename this task',

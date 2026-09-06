@@ -38,6 +38,7 @@ function newProject(overrides: Partial<SlimProject> = {}): SlimProject {
         completedTasks: [],
         ongoingTasks: [],
         canStartTasks: [],
+        obsoleteTasks: [],
         ...overrides,
     };
 }

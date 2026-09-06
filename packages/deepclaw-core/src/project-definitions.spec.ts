@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
-    getProjectProgress, getProjectStatus, getTaskProgress, isProjectStarted, projectMatchesWords,
-    slimProject, slimProjectRow, type Project, type Task
+    getProjectProgress, getProjectStatus, getTaskProgress, isProjectStarted, isTaskSettled,
+    NEXT_TASK_STATUSES, projectMatchesWords, slimProject, slimProjectRow, type Project, type Task
 } from './project-definitions';
 
 function newTask(overrides: Partial<Task> = {}): Task {
@@ -29,6 +29,7 @@ function newProject(overrides: Partial<Project> = {}): Project {
         completedTasks: [],
         ongoingTasks: [],
         canStartTasks: [],
+        obsoleteTasks: [],
         ...overrides,
     };
 }
@@ -92,19 +93,36 @@ describe('getProjectProgress', () => {
     });
 
     test('returns 0 for a project without tasks', () => {
-        expect(getProjectProgress({completedTasks: [], taskCount: 0})).toBe(0);
+        expect(getProjectProgress({completedTasks: [], obsoleteTasks: [], taskCount: 0})).toBe(0);
     });
 
     test('returns the percentage of done tasks', () => {
-        expect(getProjectProgress({completedTasks: ['t1', 't4'], taskCount: 4})).toBe(50);
+        expect(getProjectProgress({
+            completedTasks: ['t1', 't4'], obsoleteTasks: [], taskCount: 4
+        })).toBe(50);
     });
 
     test('rounds the percentage', () => {
-        expect(getProjectProgress({completedTasks: ['t1'], taskCount: 3})).toBe(33);
+        expect(getProjectProgress({
+            completedTasks: ['t1'], obsoleteTasks: [], taskCount: 3
+        })).toBe(33);
     });
 
     test('returns 100 when every task is done', () => {
-        expect(getProjectProgress({completedTasks: ['t1'], taskCount: 1})).toBe(100);
+        expect(getProjectProgress({completedTasks: ['t1'], obsoleteTasks: [], taskCount: 1})).toBe(100);
+    });
+
+    /** A task nobody is going to do is as far behind the project as one that was finished. */
+    test('counts a dropped task with the done ones', () => {
+        expect(getProjectProgress({
+            completedTasks: ['t1'], obsoleteTasks: ['t2'], taskCount: 4
+        })).toBe(50);
+    });
+
+    test('is complete once the last open task was dropped', () => {
+        expect(getProjectProgress({
+            completedTasks: ['t1'], obsoleteTasks: ['t2'], taskCount: 2
+        })).toBe(100);
     });
 
     /** Asked of a project holding no tasks at all, which is how the board holds most of them. */
@@ -198,6 +216,7 @@ describe('getTaskProgress', () => {
         const steps = {steps: ['a', 'b'], currentStepIndex: 1};
         expect(getTaskProgress(newTask({status: 'todo', stepsStatus: steps}))).toBeNull();
         expect(getTaskProgress(newTask({status: 'done', stepsStatus: steps}))).toBeNull();
+        expect(getTaskProgress(newTask({status: 'obsolete', stepsStatus: steps}))).toBeNull();
     });
 
     test('returns null when the ongoing task has no steps', () => {
@@ -223,5 +242,35 @@ describe('getTaskProgress', () => {
         expect(getTaskProgress(newTask({
             status: 'ongoing', stepsStatus: {steps: ['a', 'b', 'c'], currentStepIndex: 2}
         }))).toBe(67);
+    });
+});
+
+describe('isTaskSettled', () => {
+
+    test('is settled once the work is over, whichever way it went', () => {
+        expect(isTaskSettled('done')).toBe(true);
+        expect(isTaskSettled('obsolete')).toBe(true);
+    });
+
+    test('is not settled while the work is still owed', () => {
+        expect(isTaskSettled('todo')).toBe(false);
+        expect(isTaskSettled('ongoing')).toBe(false);
+    });
+});
+
+describe('NEXT_TASK_STATUSES', () => {
+
+    test('lets a task be taken up or dropped from todo', () => {
+        expect(NEXT_TASK_STATUSES.todo).toEqual(['ongoing', 'obsolete']);
+    });
+
+    test('lets work in hand be closed or dropped', () => {
+        expect(NEXT_TASK_STATUSES.ongoing).toEqual(['done', 'obsolete']);
+    });
+
+    /** Both of those are counted and reported on, and a task waiting again would unsay all of it. */
+    test('leads nowhere out of a task that is closed', () => {
+        expect(NEXT_TASK_STATUSES.done).toEqual([]);
+        expect(NEXT_TASK_STATUSES.obsolete).toEqual([]);
     });
 });

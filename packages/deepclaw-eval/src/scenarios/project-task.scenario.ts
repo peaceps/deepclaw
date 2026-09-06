@@ -63,6 +63,7 @@ const RELEASE_PROJECT: Project = {
     completedTasks: [],
     ongoingTasks: [],
     canStartTasks: [DRAFT, ANNOUNCE],
+    obsoleteTasks: [],
 };
 
 export const worksAProjectToDone: EvalScenario = {

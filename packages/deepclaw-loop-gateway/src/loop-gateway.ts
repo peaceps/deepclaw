@@ -867,6 +867,17 @@ class LoopGatewayImpl {
     }
 
     /**
+     * The user dropping a task from the board, offered on a card in todo and on one that is ongoing.
+     * Asked for as the one thing it is, the same as closing one: what a pause on the task was waiting
+     * for is satisfied by their hand as well, and that is no part of a patch.
+     */
+    public static obsoleteProjectTask(projectId: string, taskId: string): void {
+        this.refuseWhileWorked(projectId, taskId);
+        ProjectManager.obsoleteTask(projectId, taskId);
+        this.announceProject(projectId);
+    }
+
+    /**
      * Whether the work of a task is in somebody's hands right now, which is what puts the task out
      * of the user's for as long as it lasts. Whose hands they are is not asked: a subagent of the
      * agent, or the agent working the task in a turn of its own, either of them holds it the same
@@ -890,7 +901,7 @@ class LoopGatewayImpl {
      * a run still at work is a task every write of that run is refused by, and it would spend what
      * turns it has left on a task nothing can be reported about any more.
      *
-     * Which is the three doors above, those being where a status is written from now. The patch door
+     * Which is the four doors above, those being where a status is written from now. The patch door
      * asks it of a status all the same, for a caller that sends one there, but the board no longer
      * has a way to: what a card may write does not include the word. The words a task is described
      * by are another matter and are left alone by all of them -- those are read by whoever picks the

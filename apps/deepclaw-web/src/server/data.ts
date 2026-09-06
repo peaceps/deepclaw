@@ -253,6 +253,21 @@ export async function finishProjectTask(projectId: string, taskId: string): Prom
 }
 
 /**
+ * The user dropping a task that is not worth doing, by id like the two above. Nothing of what it
+ * writes is the caller's to name either: a dropped task closes and stands as the verdict a pause on
+ * it was waiting for, and neither of those is a word a card sends.
+ */
+export async function obsoleteProjectTask(projectId: string, taskId: string): Promise<void> {
+    try {
+        LoopGateway.obsoleteProjectTask(projectId, taskId);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error dropping project task:', error);
+        throw error;
+    }
+}
+
+/**
  * A report of a task as the user has just written it, the whole of it rather than a patch: a report
  * is one piece of writing, and what comes back from the box it was edited in is all of it.
  *

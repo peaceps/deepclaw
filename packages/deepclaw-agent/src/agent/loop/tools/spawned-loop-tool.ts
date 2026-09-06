@@ -1,5 +1,5 @@
 import { FileUtils } from '@deepclaw/node-utils';
-import { addTokenUsage, type AgentRuntime } from '@deepclaw/core';
+import { addTokenUsage, type AgentRuntime, isTaskSettled } from '@deepclaw/core';
 import { i18nInstance } from '@deepclaw/i18n';
 import { FootPrint, isSpawnedLoop, OneLoopContext } from '../../definitions/definitions';
 import { ToolDesc } from '../../definitions/tool-definitions';
@@ -230,8 +230,9 @@ function planRun(input: TaskLoopInput, context: OneLoopContext): PlannedRun {
     if (!task) {
         throw new Error(`Task "${input.taskId}" not found in project "${projectId}".`);
     }
-    if (task.status === 'done') {
-        throw new Error(`Task "${task.title}" is done, and a done task never goes back to ongoing.`);
+    if (isTaskSettled(task.status)) {
+        throw new Error(`Task "${task.title}" is ${task.status}, and a closed task never goes back `
+            + 'to ongoing.');
     }
     // Only a subagent on it stands in the way. A run working the task with its own hands is the run
     // asking, and what it is asking is to hand the work on instead, which is nothing to refuse.

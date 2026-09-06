@@ -23,6 +23,7 @@ function newProject(overrides: Partial<Project> = {}): Project {
         completedTasks: [],
         ongoingTasks: [],
         canStartTasks: [],
+        obsoleteTasks: [],
         ...overrides,
     };
 }

@@ -8,7 +8,8 @@ import {type UpdateContent} from '@deepclaw/utils';
 import {
     type TaskEdit,
     deleteArchivedProject, finishProjectTask, getActiveAgents, getArchivedProjects, getCronHistories,
-    getSkills, restoreProject, setSkillAgents, takeUpProjectTask, updateAgentIdentity,
+    getSkills, obsoleteProjectTask, restoreProject, setSkillAgents, takeUpProjectTask,
+    updateAgentIdentity,
     editCronTask, editProjectReport, editTaskReport, updateCronTaskStatus,
     setProjectWorkingDir, updateProjectDescription, updateProjectTags, updateProjectTask,
     updateProjectTitle,
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
     updateProjectTask: vi.fn<(projectId: string, task: object) => void>(),
     takeUpProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
     finishProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
+    obsoleteProjectTask: vi.fn<(projectId: string, taskId: string) => void>(),
     editTaskReport: vi.fn<
         (projectId: string, taskId: string, content: string) => 'working' | undefined
     >(),
@@ -51,6 +53,7 @@ vi.mock('@deepclaw/loop-gateway', () => ({
         updateProjectTask: mocks.updateProjectTask,
         takeUpProjectTask: mocks.takeUpProjectTask,
         finishProjectTask: mocks.finishProjectTask,
+        obsoleteProjectTask: mocks.obsoleteProjectTask,
         editTaskReport: mocks.editTaskReport,
         editProjectReport: mocks.editProjectReport,
         getDataInfo: mocks.getDataInfo,
@@ -337,6 +340,25 @@ describe('finishProjectTask', () => {
         await expect(finishProjectTask('p1', 'ship-it')).rejects.toThrow('a subagent is working');
         expect(console.error)
             .toHaveBeenCalledWith('Error finishing project task:', expect.any(Error));
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+});
+
+describe('obsoleteProjectTask', () => {
+
+    test('drops the task by id and revalidates the layout', async () => {
+        await obsoleteProjectTask('p1', 'ship-it');
+        expect(mocks.obsoleteProjectTask).toHaveBeenCalledWith('p1', 'ship-it');
+        expect(mocks.revalidatePath).toHaveBeenCalledWith('/', 'layout');
+    });
+
+    test('reports a failing gateway and does not revalidate', async () => {
+        mocks.obsoleteProjectTask.mockImplementation(() => {
+            throw new Error('a subagent is working on this task');
+        });
+        await expect(obsoleteProjectTask('p1', 'ship-it')).rejects.toThrow('a subagent is working');
+        expect(console.error)
+            .toHaveBeenCalledWith('Error dropping project task:', expect.any(Error));
         expect(mocks.revalidatePath).not.toHaveBeenCalled();
     });
 });

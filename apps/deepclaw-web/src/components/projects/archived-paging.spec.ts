@@ -13,6 +13,7 @@ function row(id: string, creator = 'a1'): SlimProject {
         completedTasks: [],
         ongoingTasks: [],
         canStartTasks: [],
+        obsoleteTasks: [],
         taskCount: 0,
     };
 }

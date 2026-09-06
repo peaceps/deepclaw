@@ -50,6 +50,7 @@ const mocks = vi.hoisted(() => ({
     deleteArchivedProject: vi.fn<(id: string) => unknown>((id: string) => ({id, creator: 'a1'})),
     updateTask: vi.fn(),
     finishTask: vi.fn(),
+    obsoleteTask: vi.fn(),
     editTaskReport: vi.fn(),
     editProjectReport: vi.fn(),
     setWorkingDir: vi.fn<
@@ -118,6 +119,7 @@ vi.mock('@deepclaw/agent', () => ({
         deleteArchivedProject: mocks.deleteArchivedProject,
         updateTask: mocks.updateTask,
         finishTask: mocks.finishTask,
+        obsoleteTask: mocks.obsoleteTask,
         editTaskReport: mocks.editTaskReport,
         editProjectReport: mocks.editProjectReport,
         setWorkingDir: mocks.setWorkingDir,
@@ -1693,6 +1695,24 @@ describe('data updates', () => {
         expect(() => LoopGateway.finishProjectTask('p1', 't1'))
             .toThrow('This task is being worked on right now.');
         expect(mocks.finishTask).not.toHaveBeenCalled();
+    });
+
+    test('drops a task and announces the project it belongs to', () => {
+        const tasks = {t1: {id: 't1', title: 'task', status: 'obsolete'}};
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks});
+        LoopGateway.obsoleteProjectTask('p1', 't1');
+        expect(mocks.obsoleteTask).toHaveBeenCalledWith('p1', 't1');
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', tasks, taskCount: 1, workingDir: null},
+        });
+    });
+
+    /** The status of a task under work is the run's, whichever way the user meant to move it. */
+    test('refuses to drop a task a subagent is on', () => {
+        mocks.isRunning.mockReturnValue(true);
+        expect(() => LoopGateway.obsoleteProjectTask('p1', 't1'))
+            .toThrow('This task is being worked on right now.');
+        expect(mocks.obsoleteTask).not.toHaveBeenCalled();
     });
 
     test('writes a task report the user put right and announces the project', () => {

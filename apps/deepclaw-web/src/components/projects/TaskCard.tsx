@@ -5,8 +5,8 @@ import {
   Ban, CirclePause, ClipboardCheck, FileText, Loader2, MoreHorizontal, Pencil
 } from 'lucide-react';
 import  {
-  type Task, type AgentEmployee, getTaskProgress, type MissionPriority, type MissionStatus,
-  PROJECT_CONFIG
+  type Task, type AgentEmployee, getTaskProgress, isTaskSettled, type MissionPriority,
+  type TaskStatus, PROJECT_CONFIG
 } from '@deepclaw/core';
 import type { ReportRefusal } from '@deepclaw/loop-gateway';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
@@ -19,6 +19,7 @@ import { ProgressBar } from '@/laf/progress-bar';
 import {
   editTaskReport as editTaskReportOnServer,
   finishProjectTask as finishProjectTaskOnServer,
+  obsoleteProjectTask as obsoleteProjectTaskOnServer,
   takeUpProjectTask as takeUpProjectTaskOnServer,
   updateProjectTask as updateProjectTaskToServer,
   type TaskEdit,
@@ -78,6 +79,12 @@ export function TaskCard(
   );
   const running = onTask('work');
   const reviewing = onTask('review');
+  // A task that is over with, and which of the two ways it went. Closed is what the card offers by:
+  // nothing more is asked of work that is behind the board either way. Dropped is what it is drawn
+  // by: the words of a task nobody is going to do are struck through and the card goes grey, which
+  // is the whole of what tells the two apart in a column they share.
+  const settled = isTaskSettled(task.status);
+  const dropped = task.status === 'obsolete';
   // The loop already stopped at the gate, so lifting the pause frees nothing, only a verdict does.
   const awaitingVerify = !!task.pause && task.verified === false;
 
@@ -137,8 +144,9 @@ export function TaskCard(
     patchTask({ reviewer: agentId }, { reviewer: task.reviewer });
   }, [task.reviewer, patchTask]);
 
-  // Work still to be done can be reordered; work that is done cannot, and the server says the same.
-  const canReprioritize = task.status !== 'done';
+  // Work still to be done can be reordered; work the board is done with cannot, whichever way it
+  // went, and the server says the same.
+  const canReprioritize = !settled;
   const pill = `text-xs px-2 py-1 rounded-full whitespace-nowrap ${priorityStyles[task.priority]}`;
 
   const handlePriorityPick = useCallback((priority: MissionPriority) => {
@@ -147,9 +155,9 @@ export function TaskCard(
     patchTask({ priority }, { priority: task.priority });
   }, [task.priority, patchTask]);
 
-  // A task that is done is where the board stops: nothing here moves it back, and the service
+  // A task that is closed is where the board stops: nothing here moves it back, and the service
   // refuses it from either direction. While a subagent is on the task its status is the run's.
-  const canMoveStatus = task.status !== 'done';
+  const canMoveStatus = !settled;
 
   // The menu goes wherever the button under it went. A subagent taking the task over disables the
   // button, and the task reaching done takes it off the card altogether -- and the menu is drawn
@@ -169,13 +177,24 @@ export function TaskCard(
    * step three of eight under a task that is done would be put right by the announcement a moment
    * later, and read wrong until it came.
    */
-  const handleStatusPick = useCallback((next: MissionStatus) => {
+  const handleStatusPick = useCallback((next: TaskStatus) => {
     setMovingStatus(false);
     if (next === 'ongoing') {
       draw(
         { status: 'ongoing' },
         { status: task.status },
         () => takeUpProjectTaskOnServer(projectId, task.id),
+      );
+      return;
+    }
+    // The steps of a dropped task are left where they stood, which is how far the work got before
+    // it was given up on. Only the pause travels with it: their hand on the card is the look a
+    // paused task waits for, whether they closed it or dropped it.
+    if (next === 'obsolete') {
+      draw(
+        { status: 'obsolete', ...(task.pause ? {verified: true} : {}) },
+        { status: task.status, verified: task.verified },
+        () => obsoleteProjectTaskOnServer(projectId, task.id),
       );
       return;
     }
@@ -210,7 +229,8 @@ export function TaskCard(
 
   return (
     <>
-      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+      <div className={`p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md
+        transition-shadow ${dropped ? 'bg-gray-100' : 'bg-white'}`}>
         <div className="flex items-start justify-between gap-2">
           {title.editing ? (
             <input
@@ -241,7 +261,8 @@ export function TaskCard(
                 aria-label={t('web.pages.projects.task.editTitle')}
                 className="group flex w-full min-w-0 items-start gap-1.5 text-left"
               >
-                <span className="font-medium text-gray-900 line-clamp-2">{task.title}</span>
+                <span className={`font-medium text-gray-900 line-clamp-2
+                  ${dropped ? 'line-through' : ''}`}>{task.title}</span>
                 <span
                   title={t('web.pages.projects.task.editTitle')}
                   className="hidden sm:block flex-shrink-0 mt-1"
@@ -315,7 +336,9 @@ export function TaskCard(
               aria-label={t('web.pages.projects.task.editDescription')}
               className="group flex w-full min-w-0 items-start gap-1.5 text-left"
             >
-              <span className="line-clamp-2">{task.description}</span>
+              <span className={`line-clamp-2 ${dropped ? 'line-through' : ''}`}>
+                {task.description}
+              </span>
               <span
                 title={t('web.pages.projects.task.editDescription')}
                 className="hidden sm:block flex-shrink-0 mt-0.5"
@@ -382,7 +405,7 @@ export function TaskCard(
             </button>
           )}
           <div className='flex-1'></div>
-          {task.status !== 'done' && <button
+          {!settled && <button
               onClick={handlePauseClick}
               disabled={awaitingVerify}
               className='mr-1 flex-shrink-0 disabled:cursor-not-allowed'
@@ -468,9 +491,13 @@ export function TaskCard(
         {task.stepsStatus?.steps.length && <div className='mt-1'>
            {task.stepsStatus.steps.map((step, i) => {
              const index = task.stepsStatus!.currentStepIndex;
+             // The plan of a dropped task is struck through whole and told apart by nothing: which
+             // step it was on is where the work stopped rather than where it is, and a line still
+             // marked as the one being worked reads as work going on in a task nobody is on.
+             const colour = dropped ? 'text-gray-400 line-through'
+               : i < index ? 'text-lime-600' : i === index ? 'text-cyan-600' : 'text-gray-500';
              return (
-              <div key={`${i}-${step}`}
-                   className={`text-[10px]/[14px] ${i < index ? "text-lime-600" : i === index ? "text-cyan-600" : "text-gray-500"}`}>
+              <div key={`${i}-${step}`} className={`text-[10px]/[14px] ${colour}`}>
                 {step}
               </div>
              )

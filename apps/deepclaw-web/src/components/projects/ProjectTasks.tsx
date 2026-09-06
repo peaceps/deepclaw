@@ -2,7 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Notebook, Pencil } from 'lucide-react';
-import { type SlimProject, isProjectStarted, PROJECT_CONFIG } from '@deepclaw/core';
+import {
+  type SlimProject, type TaskStatus, isProjectStarted, isTaskSettled, PROJECT_CONFIG
+} from '@deepclaw/core';
 import { useTranslation } from 'react-i18next';
 import { TaskCard } from './TaskCard';
 import { ProjectActions } from './ProjectActions';
@@ -12,10 +14,30 @@ import { useAppStore } from '@/lib/store';
 import { useEditableField } from '@/lib/use-editable-field';
 import { updateProjectDescription } from '@/server/data';
 
-const columns = [
-  { id: 'todo', icon: '📋', title: 'web.pages.projects.status.todo', color: 'bg-blue-50' },
-  { id: 'ongoing', icon: '🔄', title: 'web.pages.projects.status.ongoing', color: 'bg-yellow-50' },
-  { id: 'done', icon: '✅', title: 'web.pages.projects.status.done', color: 'bg-green-50' },
+type TaskColumn = {
+  id: string;
+  icon: string;
+  title: string;
+  color: string;
+  /** Which of the words a card can carry are drawn here, a column standing for more than one. */
+  statuses: readonly TaskStatus[];
+};
+
+/**
+ * The columns of the board, in the order the work goes through them.
+ *
+ * A dropped task is drawn among the done, and its card says which it is by being struck through and
+ * grey. They belong to the same half of the board -- both are closed, both are counted as closed --
+ * and a column of their own would be a fourth column on a phone for the rarest card there is, most
+ * often empty and always taking a quarter of the width.
+ */
+const columns: readonly TaskColumn[] = [
+  { id: 'todo', icon: '📋', title: 'web.pages.projects.status.todo', color: 'bg-blue-50',
+    statuses: ['todo'] },
+  { id: 'ongoing', icon: '🔄', title: 'web.pages.projects.status.ongoing', color: 'bg-yellow-50',
+    statuses: ['ongoing'] },
+  { id: 'done', icon: '✅', title: 'web.pages.projects.status.done', color: 'bg-green-50',
+    statuses: ['done', 'obsolete'] },
 ];
 
 type ProjectTasksProps = {
@@ -108,7 +130,8 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                     ) : (
                     <div className="flex flex-col lg:flex-row gap-4 max-sm:max-h-[600px] max-sm:overflow-y-auto">
                         {columns.map(column => {
-                        const columnTasks = Object.values(tasks).filter(task => task.status === column.id);
+                        const columnTasks = Object.values(tasks)
+                          .filter(task => column.statuses.includes(task.status));
                         return (
                             <div key={column.id} className={`w-full lg:w-64 ${column.color} rounded-lg p-3 flex-shrink-0 flex-1`}>
                             <div className="flex items-center justify-between mb-3">
@@ -123,7 +146,10 @@ export function ProjectTasks({project}: ProjectTasksProps) {
                                     reviewer={task.reviewer ? agents.find(a => a.id === task.reviewer) : undefined}
                                     blockedByTitles={task.blockedBy.flatMap(id => {
                                       const blocker = tasks[id];
-                                      return blocker && blocker.status !== 'done' ? [blocker.title] : [];
+                                      // A dropped task holds nothing up: the work behind it is not
+                                      // coming, and the board frees whatever waited on it.
+                                      return blocker && !isTaskSettled(blocker.status)
+                                        ? [blocker.title] : [];
                                     })}
                                 />)}
                             </div>

@@ -196,6 +196,7 @@ describe('the project grader', () => {
         completedTasks: ['Announce'],
         ongoingTasks: ['Draft'],
         canStartTasks: [],
+        obsoleteTasks: [],
     };
 
     test('judges the project the run left on disk', () => {
