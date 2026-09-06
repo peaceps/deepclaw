@@ -1998,6 +1998,20 @@ describe('the reading a task is owed', () => {
         expect(said).not.toContain('The work is not finished');
     });
 
+    /**
+     * Which of the work answered the reading is in neither the report nor the verdict, and a pass
+     * is seen to as often as a rejection, so it is asked for whichever way the verdict went.
+     */
+    test('asks the report to say what the reading changed', () => {
+        for (const verdict of ['rejected', 'passed'] as const) {
+            const id = ongoingUnderReview();
+            manager.submitReview(id, 'design', verdict, {type: 'text', content: 'the tests fail'});
+            const said = manager.promptTaskVerdict(id, 'design');
+            expect(said).toContain('Say in the report of the task what the reading changed');
+            expect(said).toContain('what you altered because of what was found');
+        }
+    });
+
     test('has nothing to hand on about a task nobody read', () => {
         expect(manager.promptTaskVerdict(ongoingUnread(), 'design')).toBe('');
     });
@@ -2097,6 +2111,12 @@ describe('the reading a task is owed', () => {
         const said = manager.promptAssignedTask(id, 'design');
         expect(said).toContain('This task is read over by "a3" before it closes');
         expect(said).toContain('the prompt of review_task');
+    });
+
+    /** The summary of a task loop is the report, so the fixing it did is named where it is written. */
+    test('asks the summary of a fixed task to say what the reading changed', () => {
+        const said = manager.promptAssignedTask(ongoingUnderReview(), 'design');
+        expect(said).toContain('it says what you changed because of what came\nback');
     });
 
     test('says nothing of a reading to a run whose task is owed none', () => {

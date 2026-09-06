@@ -1260,8 +1260,9 @@ the task carries a report only once you have reported back -- so that prompt is 
 reviewer can read what you did, and a review asked for before you have written it is a review of
 the files alone. Fixing what comes back is yours to do while the work is still in your hands: once
 you report back, a fix is a whole new run in somebody else's context. Call it again when you have
-fixed things, with the summary brought up to date; if the two of you cannot agree, report back with
-what stands and what was said.` : ''}`;
+fixed things, with the summary brought up to date: it says what you changed because of what came
+back and what you stand by as it was, that being the one thing about the work nobody can read off
+it. If the two of you cannot agree, report back with what stands and what was said.` : ''}`;
     }
 
     /**
@@ -1269,6 +1270,11 @@ what stands and what was said.` : ''}`;
      * loop that handed the task out, which is told what stands whether or not it was the one that
      * asked. Nothing where there is nothing to hand on -- a task nobody read, and a task the user
      * closed themselves, which carries the note that there was no reading rather than a verdict.
+     *
+     * What the report is to say about the reading stands outside the two branches, a pass carrying
+     * findings that are seen to as often as a rejection does. It is asked for because it is the one
+     * thing about the work that cannot be read off it afterwards: the report says what the work came
+     * to, the verdict says what was found, and which of the two answered the other is in neither.
      *
      * Dated, because the gate is open from the first verdict on: `reviewer && !review` stops
      * holding the moment one lands, so a task that was rejected, handed out again and fixed closes
@@ -1309,7 +1315,10 @@ report of the task up to what it now says, then call review_task once more befor
         return `"${task.reviewer}" read "${task.title}" over at ${review.at} and ${said}:
 ${report || '(the verdict came with no report)'}
 
-${whatToDo}`;
+${whatToDo}
+Say in the report of the task what the reading changed: what you altered because of what was found,
+and what you stand by as it was. Nothing else in the report tells the user which of the work is an
+answer to the reading, and a second reading is read against exactly that.`;
     }
 
     /**
