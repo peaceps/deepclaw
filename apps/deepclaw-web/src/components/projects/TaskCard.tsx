@@ -249,20 +249,36 @@ export function TaskCard(
               {/* The words themselves open the box, so a narrow screen has a way in without the
                   pencil taking room on a card that is already tight.
 
-                  The word for it hangs on the pencil rather than on the button, though the button
-                  is the whole of what is clickable: put on the button it pops over the title of
-                  the task, which is a line of the user's own text with nothing to explain, and
-                  what pops there is an offer to edit that covers the thing being read. On the
-                  pencil it is where the eye already is when the question comes up. An aria-label
-                  says the same to whoever is not looking at either. */}
+                  Each word that pops hangs over the thing it is about: the title in full over the
+                  title, which is what two clamped lines cannot show, and the offer to edit over
+                  the pencil. Either of them put on the button covers the other's ground, and what
+                  loses there is the text -- an offer to edit popping over the thing being read.
+
+                  The pencil going dark as the words are crossed is the whole of what says the
+                  line can be clicked at all, so the hover stays on the button and the button is
+                  only as wide as what is in it. Full width, the blank beside a short title
+                  darkened the pencil from the far end of the card and opened the box when clicked,
+                  neither of which is about anything the user was pointing at.
+
+                  What the button does is said in a line for hearing rather than as an aria-label.
+                  A label is the accessible name whole, so the title of the task would be gone from
+                  it -- and gone from this heading with it, a heading being named by what is under
+                  it and a control under one counting as its own name. The title in the tooltip is
+                  no answer to that: a tooltip on something that is not a control is not read out.
+                  Read this way it is the task and then what can be done to it. */}
               <button
                 type="button"
                 onClick={title.start}
-                aria-label={t('web.pages.projects.task.editTitle')}
-                className="group flex w-full min-w-0 items-start gap-1.5 text-left"
+                className="group flex max-w-full min-w-0 items-start gap-1.5 text-left"
               >
-                <span className={`font-medium text-gray-900 line-clamp-2
-                  ${dropped ? 'line-through' : ''}`}>{task.title}</span>
+                <span
+                  title={task.title}
+                  className={`font-medium text-gray-900 line-clamp-2
+                    ${dropped ? 'line-through' : ''}`}
+                >
+                  {task.title}
+                </span>
+                <span className="sr-only">{t('web.pages.projects.task.editTitle')}</span>
                 <span
                   title={t('web.pages.projects.task.editTitle')}
                   className="hidden sm:block flex-shrink-0 mt-1"
@@ -330,15 +346,21 @@ export function TaskCard(
           />
         ) : (
           <p className="text-sm text-gray-500 mt-2">
+            {/* The description read out and then what can be done to it, the same as the title
+                above and worth more here: a label would take a whole paragraph off the page for
+                whoever is listening, and it is the only place the task says what it asks for. */}
             <button
               type="button"
               onClick={description.start}
-              aria-label={t('web.pages.projects.task.editDescription')}
-              className="group flex w-full min-w-0 items-start gap-1.5 text-left"
+              className="group flex max-w-full min-w-0 items-start gap-1.5 text-left"
             >
-              <span className={`line-clamp-2 ${dropped ? 'line-through' : ''}`}>
+              <span
+                title={task.description}
+                className={`line-clamp-2 ${dropped ? 'line-through' : ''}`}
+              >
                 {task.description}
               </span>
+              <span className="sr-only">{t('web.pages.projects.task.editDescription')}</span>
               <span
                 title={t('web.pages.projects.task.editDescription')}
                 className="hidden sm:block flex-shrink-0 mt-0.5"

@@ -162,9 +162,15 @@ export function EditableField({
         <div className={inline
             ? 'inline-flex items-center gap-1.5 max-w-full min-w-0'
             : 'flex items-start gap-1.5 min-w-0'}>
-            <div className={inline
-                ? `min-w-0 truncate ${displayClassName ?? ''}`
-                : `flex-1 min-w-0 ${displayClassName ?? ''}`}>{value}</div>
+            {/* The words in full where this cuts them to the line, and nothing to pop where they
+                stand whole: what a tooltip is worth here is the end of a title the row cut off,
+                and over text that is all there a second copy of it pops for no reason. */}
+            <div
+                title={inline ? value : undefined}
+                className={inline
+                    ? `min-w-0 truncate ${displayClassName ?? ''}`
+                    : `flex-1 min-w-0 ${displayClassName ?? ''}`}
+            >{value}</div>
             <button
                 type="button"
                 onClick={start}

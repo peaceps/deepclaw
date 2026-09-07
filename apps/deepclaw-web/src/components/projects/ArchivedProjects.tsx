@@ -309,13 +309,20 @@ function ArchivedRow({ project, onGone }: {
                     </span>
                     <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2">
-                            <h3 className="truncate font-semibold text-gray-800">{project.title}</h3>
+                            {/* Cut to the row, so the words in full are what a hover is worth
+                                here. Nothing of a project put away is edited, so no pencil comes
+                                with them. */}
+                            <h3 title={project.title} className="truncate font-semibold text-gray-800">
+                                {project.title}
+                            </h3>
                             {project.tags?.map(tag => (
                                 <span key={tag} className="hidden flex-shrink-0 rounded-full bg-sky-50 px-2
                                     py-0.5 text-[11px] text-sky-600 sm:inline">{tag}</span>
                             ))}
                         </div>
-                        <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{project.description}</p>
+                        <p title={project.description} className="mt-0.5 line-clamp-1 text-xs text-gray-500">
+                            {project.description}
+                        </p>
                         <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
                             <span className="flex items-center gap-1">
                                 <User size={12} />{ownerName}

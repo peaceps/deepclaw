@@ -129,15 +129,35 @@ export const ProjectRow = memo(function ProjectRow(
                       // no place for a heading, and a screen reader handed that one reads a button
                       // where the board has its headings.
                       <h3 className="font-bold text-gray-900 text-base sm:text-lg min-w-0">
+                        {/* Each word that pops over the thing it is about, the way a card on the
+                            board has it: the title in full over a title cut to the row, and the
+                            offer to edit over the pencil. On the button the offer covered the
+                            name of the project, which is what the row is read down.
+
+                            What the button does is said in a line for hearing rather than as an
+                            aria-label. A label is the accessible name whole: the name of the
+                            project would be gone from it, and gone from this heading too, a
+                            heading being named by what is under it and a control under one
+                            counting as its own name. Read this way it is the project and then
+                            what can be done to it. */}
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); title.start(); }}
-                          title={t('web.pages.projects.project.editTitle')}
                           className="group flex max-w-full min-w-0 items-center gap-1.5 text-left"
                         >
-                          <span className="truncate min-w-0">{project.title}</span>
-                          <Pencil size={12} className="flex-shrink-0 text-gray-300
-                            group-hover:text-gray-600 transition-colors" />
+                          <span title={project.title} className="truncate min-w-0">
+                            {project.title}
+                          </span>
+                          <span className="sr-only">
+                            {t('web.pages.projects.project.editTitle')}
+                          </span>
+                          <span
+                            title={t('web.pages.projects.project.editTitle')}
+                            className="flex-shrink-0"
+                          >
+                            <Pencil size={12} className="text-gray-300
+                              group-hover:text-gray-600 transition-colors" />
+                          </span>
                         </button>
                       </h3>
                     )}
