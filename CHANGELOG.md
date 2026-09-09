@@ -1,3 +1,6 @@
+v0.3.2
+a task nobody has worked yet can now be deleted from the card menu, waits on it and all.
+
 v0.3.0
 the report of a task that was read over now says what the reading changed and what stands as it was.
 a task that is not worth doing can now be dropped, and counts as closed without counting as done.

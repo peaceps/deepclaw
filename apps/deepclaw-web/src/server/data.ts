@@ -268,6 +268,22 @@ export async function obsoleteProjectTask(projectId: string, taskId: string): Pr
 }
 
 /**
+ * The user taking a task off the board for good, by id like the three above. Nothing of the task is
+ * asked for and nothing comes back: what a card is left holding is answered by the announcement the
+ * gateway makes of the project, which carries the tasks it has and so is the news that this one is
+ * gone. A refusal is thrown, the card having a sentence of its own for it.
+ */
+export async function deleteProjectTask(projectId: string, taskId: string): Promise<void> {
+    try {
+        LoopGateway.deleteProjectTask(projectId, taskId);
+        revalidatePath('/', 'layout');
+    } catch (error) {
+        console.error('Error deleting project task:', error);
+        throw error;
+    }
+}
+
+/**
  * A report of a task as the user has just written it, the whole of it rather than a patch: a report
  * is one piece of writing, and what comes back from the box it was edited in is all of it.
  *

@@ -1469,6 +1469,109 @@ describe('obsoleteTask', () => {
     });
 });
 
+describe('deleteTask', () => {
+
+    let manager: ProjectManagerType;
+
+    beforeEach(async () => {
+        manager = await loadManager();
+    });
+
+    test('takes a task nobody has worked off the board', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design'), newTask(manager, 'build')]);
+        manager.deleteTask(id, 'design');
+        expect(manager.getTask(id, 'design')).toBeUndefined();
+        expect(Object.keys(manager.getProjectDetail(id).tasks)).toEqual(['build']);
+    });
+
+    test('writes the project it took the task off', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design'), newTask(manager, 'build')]);
+        mocks.writeFile.mockClear();
+        manager.deleteTask(id, 'design');
+        expect(mocks.writeFile).toHaveBeenCalledOnce();
+    });
+
+    /** A dropped task is the record that the work was planned, and a record is not a thing to lose. */
+    test('refuses a task that was dropped', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.obsoleteTask(id, 'design');
+        expect(() => manager.deleteTask(id, 'design'))
+            .toThrow('Only a task nobody has worked yet can be deleted.');
+        expect(manager.getTask(id, 'design')!.status).toBe('obsolete');
+    });
+
+    test('refuses a task the work has begun on', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        expect(() => manager.deleteTask(id, 'design'))
+            .toThrow('Only a task nobody has worked yet can be deleted.');
+        expect(manager.getTask(id, 'design')).toBeDefined();
+    });
+
+    test('refuses a task that is done', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(() => manager.deleteTask(id, 'design'))
+            .toThrow('Only a task nobody has worked yet can be deleted.');
+    });
+
+    test('refuses a task that is not there', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        expect(() => manager.deleteTask(id, 'ghost')).toThrow('Task not found.');
+    });
+
+    test('refuses a project that is not there', () => {
+        expect(() => manager.deleteTask('p-ghost', 'design')).toThrow('Task not found.');
+    });
+
+    /**
+     * The wait would be on a task no longer on the board, which nothing can ever settle: the task
+     * that held it would sit in todo for good.
+     */
+    test('frees what was waiting on the task it took off', () => {
+        const {id} = newProject(manager, [
+            newTask(manager, 'design'), newTask(manager, 'build', {blockedBy: ['design']})
+        ]);
+        manager.deleteTask(id, 'design');
+        const project = manager.getProjectDetail(id);
+        expect(project.tasks['build']!.blockedBy).toEqual([]);
+        expect(project.canStartTasks).toEqual(['build']);
+    });
+
+    test('takes the task out of what its blockers were waiting for', () => {
+        const {id} = newProject(manager, [
+            newTask(manager, 'design'), newTask(manager, 'build', {blockedBy: ['design']})
+        ]);
+        manager.deleteTask(id, 'build');
+        expect(manager.getTask(id, 'design')!.blocks).toEqual([]);
+    });
+
+    /** Finished work says so, or the board shows the project going with nothing left to go on. */
+    test('closes the project whose last open task it took off', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design'), newTask(manager, 'build')]);
+        manager.updateTask(id, {id: 'design', status: 'ongoing'});
+        manager.updateTask(id, {id: 'design', status: 'done'});
+        expect(manager.getProjectDetail(id).closedAt).toBeUndefined();
+        manager.deleteTask(id, 'build');
+        const project = manager.getProjectDetail(id);
+        expect(new Date(project.closedAt!).toISOString()).toBe(project.closedAt);
+    });
+
+    /** A plan waiting to be written rather than one that came to an end. */
+    test('leaves a project with no tasks left open', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design')]);
+        manager.deleteTask(id, 'design');
+        expect(manager.getProjectDetail(id).closedAt).toBeUndefined();
+    });
+
+    test('leaves a project with work still to do open', () => {
+        const {id} = newProject(manager, [newTask(manager, 'design'), newTask(manager, 'build')]);
+        manager.deleteTask(id, 'design');
+        expect(manager.getProjectDetail(id).closedAt).toBeUndefined();
+    });
+});
+
 describe('updateTask steps', () => {
 
     let manager: ProjectManagerType;

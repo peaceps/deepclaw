@@ -722,6 +722,46 @@ export class ProjectManager {
     }
 
     /**
+     * The user taking a task off the board altogether, which is offered on a card in todo alone.
+     *
+     * Dropping a task and deleting one are two different words for two different things. A dropped
+     * task stays on the board saying the work was planned and given up on, which is worth keeping
+     * wherever anybody got as far as looking at it; a deleted one leaves nothing behind, so it is
+     * only offered where there is nothing to keep -- a task nobody has worked, put there by a plan
+     * that turned out to name it wrongly.
+     *
+     * The waits are unpicked on the way out, both ways round. A task still named in the blockedBy
+     * of another would be waited for by a blocker no longer on the board, and a wait on nothing is
+     * never settled: whatever waited on it would sit in todo for good with nothing able to free it.
+     *
+     * What is left may be finished work, and finished work says so. A project whose last open task
+     * this was closes here, the same as it would have on that task being marked done, or else the
+     * board would show it as still going with nothing left to go on with. A project with no tasks
+     * left is not closed: that is a plan waiting to be written rather than one that came to an end.
+     */
+    public static deleteTask(projectId: string, taskId: string): void {
+        const project = this.projects[projectId];
+        const task = project?.tasks[taskId];
+        if (!project || !task) {
+            throw new Error('Task not found.');
+        }
+        if (task.status !== 'todo') {
+            throw new Error('Only a task nobody has worked yet can be deleted.');
+        }
+        delete project.tasks[taskId];
+        Object.values(project.tasks).forEach(other => {
+            other.blockedBy = other.blockedBy.filter(id => id !== taskId);
+            other.blocks = other.blocks.filter(id => id !== taskId);
+        });
+        const left = Object.values(project.tasks);
+        if (!project.closedAt && left.length > 0 && left.every(task => isTaskSettled(task.status))) {
+            project.closedAt = new Date().toISOString();
+        }
+        Object.assign(project, this.calculateProjectTaskInfo(project.tasks));
+        this.saveProject(project.id);
+    }
+
+    /**
      * What the reviewer came back with, which is the one thing a review writes anywhere.
      *
      * The report is filed away under a name of its own rather than under the task's: an output over

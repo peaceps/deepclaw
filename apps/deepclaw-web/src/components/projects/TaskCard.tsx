@@ -12,11 +12,12 @@ import type { ReportRefusal } from '@deepclaw/loop-gateway';
 import { TaskOwnerTooltip } from './TaskOwnerTooltip'
 import { AssigneePicker } from './AssigneePicker'
 import { PriorityPicker } from './PriorityPicker'
-import { TaskStatusMenu } from './TaskStatusMenu'
+import { TaskMenu } from './TaskMenu'
 import { useTranslation } from 'react-i18next';
 import {avatarBG, priorityStyles} from '../styles-mapping';
 import { ProgressBar } from '@/laf/progress-bar';
 import {
+  deleteProjectTask as deleteProjectTaskOnServer,
   editTaskReport as editTaskReportOnServer,
   finishProjectTask as finishProjectTaskOnServer,
   obsoleteProjectTask as obsoleteProjectTaskOnServer,
@@ -25,7 +26,9 @@ import {
   type TaskEdit,
 } from '@/server/data';
 import { useAppStore } from '@/lib/store';
+import { useToastStore } from '@/lib/toast-store';
 import { useEditableField } from '@/lib/use-editable-field';
+import { ConfirmModal } from '@/laf/confirm-modal';
 import { TaskOutput } from '../../laf/task-output';
 
 /** What a card may ask the server to write, the id of the task being the card's own to fill in. */
@@ -59,6 +62,7 @@ export function TaskCard(
   const [pickingReviewer, setPickingReviewer] = useState(false);
   const [pickingPriority, setPickingPriority] = useState(false);
   const [movingStatus, setMovingStatus] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
   const assigneePencilRef = useRef<HTMLButtonElement>(null);
   const reviewerPencilRef = useRef<HTMLButtonElement>(null);
@@ -68,6 +72,7 @@ export function TaskCard(
   const progress = getTaskProgress(task);
   const updateProjectTask = useAppStore(s => s.updateProjectTask);
   const activeAgents = useAppStore(s => s.activeAgents);
+  const showToast = useToastStore(s => s.show);
   // An ongoing task only says the work was taken up, these say what is happening on it right now:
   // the work, by a subagent it was handed to or by the agent working it in this very turn of its
   // own, and the reading of that work. The two are apart because they mean different things to a
@@ -159,16 +164,21 @@ export function TaskCard(
   // refuses it from either direction. While a subagent is on the task its status is the run's.
   const canMoveStatus = !settled;
 
-  // The menu goes wherever the button under it went. A subagent taking the task over disables the
-  // button, and the task reaching done takes it off the card altogether -- and the menu is drawn
-  // apart from the card, so it would be left floating there offering a step that is no longer
-  // anybody's to take. Put right while rendering rather than after it: this follows what the card
-  // is drawn from, and a second render to catch up would draw the menu once more on the way.
+  // The menu goes wherever the button under it went, and the question it opened goes with it. A
+  // subagent taking the task over disables the button, and the task reaching done takes it off the
+  // card altogether -- and both are drawn apart from the card, so they would be left floating there
+  // offering something that is no longer anybody's to do: a step the service would refuse, or the
+  // deletion of a task a run has in its hands. Put right while rendering rather than after it: this
+  // follows what the card is drawn from, and a second render to catch up would draw them once more
+  // on the way.
   const canOpenStatusMenu = canMoveStatus && !running;
   const [couldOpenStatusMenu, setCouldOpenStatusMenu] = useState(canOpenStatusMenu);
   if (couldOpenStatusMenu !== canOpenStatusMenu) {
     setCouldOpenStatusMenu(canOpenStatusMenu);
-    if (!canOpenStatusMenu) setMovingStatus(false);
+    if (!canOpenStatusMenu) {
+      setMovingStatus(false);
+      setConfirmingDelete(false);
+    }
   }
 
   /**
@@ -210,6 +220,24 @@ export function TaskCard(
       () => finishProjectTaskOnServer(projectId, task.id),
     );
   }, [draw, projectId, task.id, task.pause, task.status, task.stepsStatus, task.verified]);
+
+  /**
+   * The one write on this card that is not drawn ahead of the server, because what would be drawn
+   * is the card itself leaving: a refusal would have to put back a card the user watched go, and
+   * the question they answered a moment ago was whether it should. So the ask goes out and the
+   * announcement of the project takes the card off -- it carries the tasks the project has, which
+   * is the news that this one is gone -- and what is left to say is where it did not go through.
+   *
+   * Their answer is what closes the question, whichever way it went. The menu is already shut: it
+   * was shut on the way to asking, a menu still standing over a question being one more thing to
+   * click while the one thing being asked for is an answer.
+   */
+  const handleDelete = useCallback(() => {
+    setConfirmingDelete(false);
+    deleteProjectTaskOnServer(projectId, task.id).catch(() => {
+      showToast({type: 'error', message: t('web.pages.projects.task.remove.failed')});
+    });
+  }, [projectId, showToast, t, task.id]);
 
   const handleVerifiedClick = useCallback(() => {
     if (!task.pause || task.status !== 'ongoing') return;
@@ -311,7 +339,7 @@ export function TaskCard(
             // when there is most to say: a disabled control gets no mouse events in Chrome, so no
             // tooltip of its own pops, and why the button is dead is exactly what is written here.
             <span
-              title={t(`web.pages.projects.task.status.${running ? 'locked' : 'menu'}`)}
+              title={t(`web.pages.projects.task.menu.${running ? 'locked' : 'open'}`)}
               className="flex-shrink-0"
             >
               <button
@@ -319,7 +347,7 @@ export function TaskCard(
                 type="button"
                 onClick={() => setMovingStatus(v => !v)}
                 disabled={running}
-                aria-label={t('web.pages.projects.task.status.menu')}
+                aria-label={t('web.pages.projects.task.menu.open')}
                 className="p-1 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-100
                   disabled:cursor-not-allowed disabled:hover:text-gray-300 disabled:hover:bg-transparent
                   transition-colors"
@@ -571,13 +599,28 @@ export function TaskCard(
       )}
 
       {movingStatus && (
-        <TaskStatusMenu
+        <TaskMenu
           status={task.status}
           projectStarted={projectStarted}
           paused={!!task.pause}
           anchorRef={statusRef}
           onPick={handleStatusPick}
+          onDelete={() => { setMovingStatus(false); setConfirmingDelete(true); }}
           onClose={() => setMovingStatus(false)}
+        />
+      )}
+
+      {/* The question names the other word as well as this one: this is the moment the two are
+          being decided between, and dropping the task is what the user wants wherever there is
+          anything worth keeping about it. Said in the menu it would be small print under a red
+          line, read after the click rather than before it. */}
+      {confirmingDelete && (
+        <ConfirmModal
+          title={t('web.pages.projects.task.remove.action')}
+          message={t('web.pages.projects.task.remove.confirm', {title: task.title})}
+          confirmLabel={t('web.pages.projects.task.remove.action')}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmingDelete(false)}
         />
       )}
     </>
