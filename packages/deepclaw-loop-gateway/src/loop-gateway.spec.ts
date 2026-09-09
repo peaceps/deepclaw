@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
     updateTask: vi.fn(),
     finishTask: vi.fn(),
     obsoleteTask: vi.fn(),
+    deleteTask: vi.fn(),
     editTaskReport: vi.fn(),
     editProjectReport: vi.fn(),
     setWorkingDir: vi.fn<
@@ -120,6 +121,7 @@ vi.mock('@deepclaw/agent', () => ({
         updateTask: mocks.updateTask,
         finishTask: mocks.finishTask,
         obsoleteTask: mocks.obsoleteTask,
+        deleteTask: mocks.deleteTask,
         editTaskReport: mocks.editTaskReport,
         editProjectReport: mocks.editProjectReport,
         setWorkingDir: mocks.setWorkingDir,
@@ -1713,6 +1715,24 @@ describe('data updates', () => {
         expect(() => LoopGateway.obsoleteProjectTask('p1', 't1'))
             .toThrow('This task is being worked on right now.');
         expect(mocks.obsoleteTask).not.toHaveBeenCalled();
+    });
+
+    /** The announcement carries the tasks the project has left, which is the news of the one gone. */
+    test('takes a task off the board and announces the project it belonged to', () => {
+        mocks.getProjectDetail.mockReturnValue({id: 'p1', tasks: {}});
+        LoopGateway.deleteProjectTask('p1', 't1');
+        expect(mocks.deleteTask).toHaveBeenCalledWith('p1', 't1');
+        expect(events).toContainEqual({
+            eventType: 'updateProject', content: {id: 'p1', tasks: {}, taskCount: 0, workingDir: null},
+        });
+    });
+
+    /** Worse than a status written under a run: it would come back to a task nothing has. */
+    test('refuses to take off a task a subagent is on', () => {
+        mocks.isRunning.mockReturnValue(true);
+        expect(() => LoopGateway.deleteProjectTask('p1', 't1'))
+            .toThrow('This task is being worked on right now.');
+        expect(mocks.deleteTask).not.toHaveBeenCalled();
     });
 
     test('writes a task report the user put right and announces the project', () => {

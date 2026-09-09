@@ -878,6 +878,17 @@ class LoopGatewayImpl {
     }
 
     /**
+     * The user taking a task off the board, offered on a card in todo alone. Dropping one is the
+     * word for work given up on; this is for work that should never have been planned, and it
+     * leaves nothing behind -- which is why the service offers it nowhere else.
+     */
+    public static deleteProjectTask(projectId: string, taskId: string): void {
+        this.refuseWhileWorked(projectId, taskId);
+        ProjectManager.deleteTask(projectId, taskId);
+        this.announceProject(projectId);
+    }
+
+    /**
      * Whether the work of a task is in somebody's hands right now, which is what puts the task out
      * of the user's for as long as it lasts. Whose hands they are is not asked: a subagent of the
      * agent, or the agent working the task in a turn of its own, either of them holds it the same
@@ -901,11 +912,13 @@ class LoopGatewayImpl {
      * a run still at work is a task every write of that run is refused by, and it would spend what
      * turns it has left on a task nothing can be reported about any more.
      *
-     * Which is the four doors above, those being where a status is written from now. The patch door
-     * asks it of a status all the same, for a caller that sends one there, but the board no longer
-     * has a way to: what a card may write does not include the word. The words a task is described
-     * by are another matter and are left alone by all of them -- those are read by whoever picks the
-     * work up, and a title put right while the work runs is the point of putting it right.
+     * Which is the four doors above, those being where a status is written from now, and the fifth
+     * beside them where a task is taken off the board -- worse under a run than any status is: the
+     * run would come back to a task the board no longer has. The patch door asks it of a status all
+     * the same, for a caller that sends one there, but the board no longer has a way to: what a card
+     * may write does not include the word. The words a task is described by are another matter and
+     * are left alone by all of them -- those are read by whoever picks the work up, and a title put
+     * right while the work runs is the point of putting it right.
      *
      * The report of a task is held off as well, and by the door below rather than by this one: it
      * has a reason of its own to wait and something to say about waiting, so it asks the question

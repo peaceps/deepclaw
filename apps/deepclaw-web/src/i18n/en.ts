@@ -241,9 +241,17 @@ export const en = {
                             off: 'Not verified',
                         }
                     },
+                    menu: {
+                        open: 'What can be done with this task',
+                        locked: 'This task is being worked on right now, so where it stands is not yours to move and it cannot be taken off the board.',
+                    },
+                    remove: {
+                        action: 'Delete it',
+                        hint: 'The task goes off the board and nothing of it is kept. Whatever waited on it stops waiting.',
+                        confirm: 'Delete "{{title}}" for good? Nothing of it is kept. Drop it instead to leave the record that it was planned and given up on.',
+                        failed: 'The task could not be deleted. Try again.',
+                    },
                     status: {
-                        menu: 'Move this task on',
-                        locked: 'This task is being worked on right now, so where it stands is not yours to move.',
                         ongoing: 'Mark it ongoing',
                         ongoingHint: 'The task becomes ongoing: no handing it on after that, and no way back to todo.',
                         ongoingHintUnstarted: 'The project starts here and the task becomes ongoing: no handing it on after that, and no way back to todo.',

@@ -51,6 +51,10 @@ the network with `--host`.
 
 ## Latest changes
 
+**v0.3.2**
+
+- A task nobody has worked yet can now be deleted from the menu on its card: it goes off the board with nothing kept of it, and whatever waited on it stops waiting. A task anybody has worked is dropped instead, which leaves the record that it was planned.
+
 **v0.3.0**
 
 - A task that is no longer worth doing can now be dropped, from its card or by the agent working the
