@@ -211,7 +211,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const activeAgents = agents.filter(a => !a.fired);
         return { agents, activeAgents };
     });
-    selectFirstActiveAgent(get, set);
+    reselectAgent(get, set);
   },
   showEmotionPopup: (agentId, text) => set((state) => ({
     emotionPopup: {
@@ -354,7 +354,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
 }));
 
-/** A roster that arrives whole may no longer hold the agent the page was showing. */
+/**
+ * The agent the page is showing, dropped if the roster no longer holds them among the hired: one
+ * that arrived whole may not hold them at all, and a patch may have fired them. The detail and the
+ * chat beside it are drawn from the selection and nothing else, so a selection left standing on
+ * somebody let go keeps them on the page after the list has stopped offering them.
+ */
 function reselectAgent(get: () => AppState, set: (state: Partial<AppState>) => void): void {
     const { selectedAgentId, activeAgents } = get();
     if (selectedAgentId && !activeAgents.some(a => a.id === selectedAgentId)) {

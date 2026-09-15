@@ -62,6 +62,15 @@ export class OpenAIResponseLLM extends LLMModel<ThinkingMessage, ThinkingRespons
             stream: true,
             tools,
             max_output_tokens: this.gw.maxTokens,
+            // Said out loud because the default is to keep it. What the far end would store is the
+            // handle this protocol offers instead of a history -- a response id to name as the one
+            // before on the next call -- and that is an offer this protocol adapter turns down: it
+            // is handed the whole history every time and sends the whole of it, the same as the
+            // other two. The conversation lives here, where it can be rewritten -- folded, summarized,
+            // carried to another protocol -- and none of that has any way to reach a chain of
+            // responses held on somebody's server. Left at the default it would leave every
+            // conversation of every user sitting in a store nothing here will ever read from.
+            store: false,
         }, {signal});
 
         for await (const event of stream) {

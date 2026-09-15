@@ -1,3 +1,7 @@
+v0.4.0
+an agent let go in the settings no longer stays on the agent page.
+a conversation on the openai responses protocol is no longer stored on openai's servers.
+
 v0.3.2
 a task nobody has worked yet can now be deleted from the card menu, waits on it and all.
 

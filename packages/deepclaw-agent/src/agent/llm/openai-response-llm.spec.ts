@@ -199,6 +199,27 @@ describe('OpenAIResponseLLM request', () => {
         expect(mocks.create.mock.calls[0]![0]).not.toHaveProperty('temperature');
     });
 
+    /**
+     * The whole history goes out every time, so there is nothing the far end could hold that this
+     * adapter would ever ask for -- and the default is to hold it. A conversation stored there is
+     * a copy of everything the user said that nothing here reads.
+     */
+    test('asks the far end to keep nothing, sending the history itself every time', async () => {
+        await invoke(newLLM(), [{role: 'user', content: 'hi'}]);
+        expect(mocks.create.mock.calls[0]![0]).toMatchObject({store: false});
+    });
+
+    /**
+     * The handle that store exists for. Named here so that turning it on again is a change
+     * somebody has to make to this test as well: the history is rewritten in here -- folded,
+     * summarized, carried to another protocol -- and a chain of responses on a server cannot be
+     * told about any of it.
+     */
+    test('names no response to carry on from', async () => {
+        await invoke(newLLM(), [{role: 'user', content: 'hi'}]);
+        expect(mocks.create.mock.calls[0]![0]).not.toHaveProperty('previous_response_id');
+    });
+
     test('sends the history followed by the state of the moment', async () => {
         await invoke(newLLM(), [{role: 'user', content: 'hi'}]);
         expect((mocks.create.mock.calls[0]![0] as {input: unknown}).input).toEqual([

@@ -400,10 +400,17 @@ describe('app store', () => {
             expect(store().activeAgents.map(agent => agent.id)).toEqual(['a1', 'a2', 'a3']);
         });
 
-        test('leaves the selection pointing at an agent that was just fired', () => {
+        /** Firing in the settings reaches the page as a patch, not as a roster arriving whole. */
+        test('moves the selection off an agent that was just fired', () => {
             store().setAgents([newAgent(), newAgent({id: 'a2'})]);
             store().updateAgentEmployee({id: 'a1', fired: true});
-            expect(store().selectedAgentId).toBe('a1');
+            expect(store().selectedAgentId).toBe('a2');
+        });
+
+        test('clears the selection when the agent a patch fired was the last one hired', () => {
+            store().setAgents([newAgent()]);
+            store().updateAgentEmployee({id: 'a1', fired: true});
+            expect(store().selectedAgentId).toBeNull();
         });
 
         test('selects the first agent hired after the page was loaded without any', () => {
