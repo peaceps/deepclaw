@@ -82,6 +82,7 @@ export function TaskMenu(
             width={LIST_WIDTH}
             maxHeight={LIST_MAX_HEIGHT}
             onClose={onClose}
+            className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
             {NEXT_TASK_STATUSES[status].map(next => {
                 const step = STEPS[next];

@@ -10,6 +10,7 @@ type AnchoredPopupProps = {
     maxHeight: number;
     onClose: () => void;
     children: React.ReactNode;
+    className?: string;
 };
 
 /**
@@ -21,7 +22,7 @@ type AnchoredPopupProps = {
  * it. The last two close rather than follow, the placement being read once off the anchor, and a
  * panel left hanging where the anchor no longer is belongs to nothing.
  */
-export function AnchoredPopup({ anchorRef, width, maxHeight, onClose, children }: AnchoredPopupProps) {
+export function AnchoredPopup({ anchorRef, width, maxHeight, onClose, children, className = '' }: AnchoredPopupProps) {
     const panelRef = useRef<HTMLDivElement>(null);
     const [placement, setPlacement] = useState<PopupPlacement>();
 
@@ -71,7 +72,7 @@ export function AnchoredPopup({ anchorRef, width, maxHeight, onClose, children }
                 width,
                 maxHeight: placement.maxHeight,
             }}
-            className="z-50 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg"
+            className={`z-50 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg ${className}`}
         >
             {children}
         </div>,
